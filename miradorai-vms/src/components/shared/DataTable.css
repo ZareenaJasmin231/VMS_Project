@@ -1,0 +1,27 @@
+.m-table-wrap { overflow: auto; flex: 1; }
+.m-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.m-table thead { position: sticky; top: 0; z-index: 1; }
+.m-table th {
+  padding: 10px 14px; text-align: left; font-size: 11px; font-weight: 600;
+  color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.6px;
+  background: var(--bg-elevated); border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.m-table td {
+  padding: 11px 14px; color: var(--text-secondary);
+  border-bottom: 1px solid var(--border);
+  transition: background var(--transition);
+}
+.m-table__primary { color: var(--text-primary); font-weight: 500; }
+.m-table__row { cursor: pointer; }
+.m-table__row:hover td { background: var(--bg-hover); }
+.m-table__row--selected td { background: var(--teal-subtle); color: var(--text-primary); }
+.m-table__row--selected .m-table__primary { color: var(--teal); }
+.m-table__empty {
+  height: 180px; text-align: center; color: var(--text-muted);
+  font-size: 13px; vertical-align: middle;
+}
+.m-checkbox {
+  width: 14px; height: 14px; cursor: pointer;
+  accent-color: var(--teal);
+}

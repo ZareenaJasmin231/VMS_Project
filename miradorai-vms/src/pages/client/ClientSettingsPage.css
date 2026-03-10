@@ -1,0 +1,6 @@
+.cs-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
+.cs-card { padding: 18px 20px; display: flex; flex-direction: column; gap: 14px; }
+.cs-card__title { font-size: 11px; font-weight: 700; color: var(--teal); text-transform: uppercase; letter-spacing: 0.8px; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
+.cs-row { display: flex; align-items: center; justify-content: space-between; }
+.cs-label { font-size: 13px; color: var(--text-secondary); }
+.cs-select { padding: 5px 8px; background: var(--bg-base); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text-primary); font-size: 12px; font-family: var(--font-ui); outline: none; }

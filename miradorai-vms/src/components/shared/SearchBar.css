@@ -1,0 +1,16 @@
+.m-searchbar {
+  position: relative; display: flex; align-items: center;
+}
+.m-searchbar svg { position: absolute; left: 10px; width: 13px; height: 13px; color: var(--text-muted); }
+.m-searchbar input {
+  padding: 7px 12px 7px 32px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: 12px; font-family: var(--font-ui);
+  width: 220px; outline: none;
+  transition: border-color var(--transition);
+}
+.m-searchbar input::placeholder { color: var(--text-muted); }
+.m-searchbar input:focus { border-color: var(--teal); }

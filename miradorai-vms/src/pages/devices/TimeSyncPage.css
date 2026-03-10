@@ -1,0 +1,25 @@
+.ts-panels { display: flex; gap: 14px; flex-shrink: 0; }
+.ts-config { flex: 1; padding: 18px; }
+.ts-config__header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; }
+.ts-config__title { font-size: 13px; font-weight: 600; color: var(--text-primary); }
+.ts-body { display: flex; flex-direction: column; gap: 14px; }
+.ts-body--disabled { opacity: 0.4; pointer-events: none; }
+.ts-field { display: flex; flex-direction: column; gap: 5px; }
+.ts-field label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.6px; }
+.ts-select { padding: 7px 10px; background: var(--bg-base); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text-primary); font-size: 12px; font-family: var(--font-ui); outline: none; }
+.ts-select:focus { border-color: var(--teal); }
+.ts-ntp-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.ts-ntp-block { display: flex; flex-direction: column; gap: 8px; }
+.ts-ntp-title { font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-bottom: 2px; }
+.ts-radio { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-secondary); cursor: pointer; }
+.ts-radio--bold { font-weight: 600; color: var(--text-primary); }
+.ts-radio input { accent-color: var(--teal); }
+.ts-alarm-row { display: flex; align-items: flex-start; gap: 8px; font-size: 12px; color: var(--text-secondary); cursor: pointer; }
+.ts-alarm-row input { accent-color: var(--teal); margin-top: 2px; flex-shrink: 0; }
+.ts-apply { display: flex; justify-content: flex-end; }
+.ts-info { min-width: 220px; padding: 18px; display: flex; flex-direction: column; gap: 10px; }
+.ts-info__title { font-size: 13px; font-weight: 600; color: var(--text-primary); margin-bottom: 6px; }
+.ts-info__row { display: flex; justify-content: space-between; padding: 7px 0; border-bottom: 1px solid var(--border); font-size: 12px; }
+.ts-info__row:last-child { border-bottom: none; }
+.ts-info__key { color: var(--text-muted); }
+.ts-info__val { color: var(--teal); font-weight: 500; }
