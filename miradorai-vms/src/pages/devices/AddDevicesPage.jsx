@@ -97,7 +97,7 @@ export default function AddDevicesPage() {
           onClose={() => setShowManualSearch(false)}
           onEnroll={(device) => {
             console.log("Enrolled device:", device);
-            // later: push to your devices list or POST to API
+          
             setShowManualSearch(false);
           }}
        
