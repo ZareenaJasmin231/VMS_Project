@@ -36,6 +36,7 @@ export default function AddDevicesPage() {
   const [showManualSearch, setShowManualSearch] = useState(false);
   const [showStreamURL, setShowStreamURL] = useState(false);
   const [enrolling, setEnrolling] = useState(false);
+  const [enrollMsg, setEnrollMsg] = useState("");
   const [devices, setDevices] = usePersistedDevices();
 
   const filtered = devices.filter((d) =>
@@ -46,8 +47,10 @@ export default function AddDevicesPage() {
   const toggleAll  = () => setChecked(allChecked ? [] : filtered.map((d) => d.id));
   const toggleOne  = (id) => setChecked((s) => s.includes(id) ? s.filter((x) => x !== id) : [...s, id]);
 
+  // ── ONVIF enroll (existing) ──────────────────────────────────────────
   const handleEnroll = async (device) => {
     setEnrolling(true);
+    setEnrollMsg("Registering stream with OME…");
     setShowManualSearch(false);
 
     const { ip, user, pass, discovered } = device;
@@ -55,7 +58,6 @@ export default function AddDevicesPage() {
       ? `${discovered.manufacturer} ${discovered.model}`
       : `Camera @ ${ip}`;
 
-    // Call probe endpoint — registers stream with OME and returns ws_url
     const probeRes = await fetch(`${STREAM_API}/api/onvif/probe`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -76,10 +78,83 @@ export default function AddDevicesPage() {
       ws_url:        probeData?.ws_url        || null,
       stream_key:    probeData?.stream_key    || null,
       stream_status: probeData?.status        || "error",
+      source:        "onvif",
     };
 
     setDevices((prev) => [...prev, newDevice]);
     setEnrolling(false);
+    setEnrollMsg("");
+  };
+
+  // ── RTSP / Stream URL enroll (NEW) ───────────────────────────────────
+  const handleAddStreamURLs = async (urls) => {
+    setShowStreamURL(false);
+    setEnrolling(true);
+
+    for (let i = 0; i < urls.length; i++) {
+      const url = urls[i];
+      setEnrollMsg(`Registering stream ${i + 1} of ${urls.length}…`);
+
+      try {
+        // POST to your backend — adjust endpoint to match your actual API
+        const res = await fetch(`${STREAM_API}/api/streams/register`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ rtsp_url: url }),
+        });
+
+        const data = res.ok ? await res.json() : null;
+
+        // Extract a readable name from the URL (e.g. "Stream @ 192.168.1.64")
+        let ip = "—";
+        try { ip = new URL(url).hostname; } catch {}
+        const name = `Stream @ ${ip}`;
+
+        const newDevice = {
+          id:            String(Date.now()) + i,
+          type:          "entrance",
+          name,
+          ip,
+          mac:           "—",
+          status:        data?.ws_url ? "Online" : "Offline",
+          manufacturer:  "Unknown",
+          model:         "Unknown",
+          rtsp_url:      url,
+          ws_url:        data?.ws_url        || null,
+          stream_key:    data?.stream_key    || null,
+          stream_status: data?.status        || (data?.ws_url ? "streaming" : "error"),
+          source:        "rtsp",
+        };
+
+        setDevices((prev) => [...prev, newDevice]);
+
+      } catch (err) {
+        console.error(`Failed to register stream: ${url}`, err);
+
+        // Still add it to the table so user knows it was attempted
+        let ip = "—";
+        try { ip = new URL(url).hostname; } catch {}
+
+        setDevices((prev) => [...prev, {
+          id:            String(Date.now()) + i,
+          type:          "entrance",
+          name:          `Stream @ ${ip}`,
+          ip,
+          mac:           "—",
+          status:        "Offline",
+          manufacturer:  "Unknown",
+          model:         "Unknown",
+          rtsp_url:      url,
+          ws_url:        null,
+          stream_key:    null,
+          stream_status: "error",
+          source:        "rtsp",
+        }]);
+      }
+    }
+
+    setEnrolling(false);
+    setEnrollMsg("");
   };
 
   return (
@@ -106,7 +181,7 @@ export default function AddDevicesPage() {
 
       <div className="add-dev__info-pill">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 8h.01M12 12v4"/></svg>
-        {enrolling ? "⏳ Registering stream with OME…" : "Refresh to sync latest devices from the server."}
+        {enrolling ? `⏳ ${enrollMsg}` : "Refresh to sync latest devices from the server."}
       </div>
 
       <div className="add-dev__table-wrap card">
@@ -123,7 +198,7 @@ export default function AddDevicesPage() {
             {filtered.length === 0 && (
               <tr>
                 <td colSpan={9} style={{ textAlign: "center", padding: "32px", color: "#64748b" }}>
-                  No devices enrolled yet. Use <strong>Manual Search</strong> to add cameras.
+                  No devices enrolled yet. Use <strong>Manual Search</strong> or <strong>Stream URL</strong> to add cameras.
                 </td>
               </tr>
             )}
@@ -172,10 +247,7 @@ export default function AddDevicesPage() {
       {showStreamURL && (
         <StreamURLModal
           onClose={() => setShowStreamURL(false)}
-          onAdd={(urls) => {
-            console.log("Stream URLs added:", urls);
-            setShowStreamURL(false);
-          }}
+          onAdd={handleAddStreamURLs}
         />
       )}
     </div>

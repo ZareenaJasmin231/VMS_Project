@@ -13,6 +13,7 @@ from onvif_service import probe_camera
 import rtsp_recorder as recorder
 import encrypt_service
 from recording_api import recording_router
+import shutil
 
 app = FastAPI(title="MIRADORAI ONVIF Backend")
 app.add_middleware(
@@ -132,6 +133,11 @@ class ProbeRequest(BaseModel):
     password: str = ""
 
 
+# NEW — accepts a raw RTSP URL directly (no ONVIF needed)
+class StreamRegisterRequest(BaseModel):
+    rtsp_url: str
+
+
 @app.get("/health")
 def health():
     return {"status": "ok"}
@@ -167,7 +173,6 @@ async def onvif_probe(req: ProbeRequest):
                 existing["rtsp_url"] = rtsp
                 save_devices(devices)
 
-            # ── Save camera details to MongoDB mirador-vms/cameras ──
             try:
                 cameras_col.update_one(
                     {"ip": req.ip},
@@ -183,13 +188,12 @@ async def onvif_probe(req: ProbeRequest):
                         "added_at":     datetime.utcnow(),
                         "status":       "streaming",
                     }},
-                    upsert=True   # insert if new, update if already exists
+                    upsert=True
                 )
                 print(f"[MONGO] 📷 Camera saved: {req.ip} → mirador-vms/cameras")
             except Exception as e:
                 print(f"[MONGO] ⚠ Camera save failed: {e}")
 
-            # ── Start recording ──
             recorder.start_camera(stream_name, rtsp)
             print(f"[ONVIF] 🎥 Recording started for {stream_name}")
 
@@ -207,6 +211,89 @@ async def onvif_probe(req: ProbeRequest):
         print(f"[ONVIF] ❌ {result['error']}")
 
     return result
+
+
+# ------------------------------------------------------------------
+# NEW: Register a raw RTSP stream URL directly (no ONVIF probe)
+# ------------------------------------------------------------------
+@app.post("/api/streams/register")
+async def register_rtsp_stream(req: StreamRegisterRequest):
+    rtsp = req.rtsp_url.strip()
+    print(f"[RTSP] Registering stream: {rtsp}")
+
+    # Derive a unique stream name from the URL
+    # e.g. rtsp://192.168.1.64:554/stream1  →  192_168_1_64
+    try:
+        from urllib.parse import urlparse
+        parsed      = urlparse(rtsp)
+        host        = parsed.hostname or "unknown"
+        path_slug   = parsed.path.strip("/").replace("/", "_") if parsed.path.strip("/") else ""
+        stream_name = host.replace(".", "_") + (f"_{path_slug}" if path_slug else "")
+    except Exception:
+        stream_name = re.sub(r"[^a-zA-Z0-9]", "_", rtsp)[:32]
+
+    # Check if already registered
+    existing = next((d for d in devices if d.get("ome_stream") == stream_name), None)
+    if existing and stream_exists_in_ome(stream_name):
+        print(f"[RTSP] Stream {stream_name} already live in OME, skipping.")
+        return {
+            "success":     True,
+            "ome_stream":  stream_name,
+            "ws_url":      f"ws://192.168.126.100:3333/app/{stream_name}",
+            "stream_key":  stream_name,
+            "status":      "streaming",
+            "rtsp_url":    rtsp,
+        }
+
+    # Register in OME
+    try:
+        ome_response = register_stream(stream_name, rtsp)
+        print(f"[RTSP] OME response: {ome_response}")
+    except Exception as e:
+        print(f"[RTSP] ❌ OME registration failed: {e}")
+        return {"success": False, "error": str(e)}
+
+    # Save to devices.json
+    if not existing:
+        new_device = {"ome_stream": stream_name, "rtsp_url": rtsp, "ip": host}
+        devices.append(new_device)
+    else:
+        existing["rtsp_url"] = rtsp
+    save_devices(devices)
+
+    # Save to MongoDB
+    try:
+        cameras_col.update_one(
+            {"ome_stream": stream_name},
+            {"$set": {
+                "ip":           host,
+                "ome_stream":   stream_name,
+                "rtsp_url":     rtsp,
+                "manufacturer": "Unknown",
+                "model":        "Unknown",
+                "mac":          "—",
+                "added_at":     datetime.utcnow(),
+                "status":       "streaming",
+                "source":       "rtsp_url",        # marks it as manually added
+            }},
+            upsert=True
+        )
+        print(f"[MONGO] 📷 RTSP stream saved: {stream_name}")
+    except Exception as e:
+        print(f"[MONGO] ⚠ Save failed: {e}")
+
+    # Start recording
+    recorder.start_camera(stream_name, rtsp)
+    print(f"[RTSP] 🎥 Recording started for {stream_name}")
+
+    return {
+        "success":     True,
+        "ome_stream":  stream_name,
+        "ws_url":      f"ws://192.168.126.100:3333/app/{stream_name}",
+        "stream_key":  stream_name,
+        "status":      "streaming",
+        "rtsp_url":    rtsp,
+    }
 
 
 @app.post("/api/devices/")
@@ -232,3 +319,79 @@ async def get_cameras_from_db():
     """Return all cameras stored in MongoDB mirador-vms/cameras."""
     docs = list(cameras_col.find({}, {"_id": 0}))
     return docs
+
+
+@app.get("/api/storage/management")
+def storage_management():
+    recordings_dir = os.environ.get("RECORDINGS_DIR", "/recordings")
+    try:
+        total, used, free = shutil.disk_usage(recordings_dir)
+        status = "Intruding data"
+    except Exception:
+        total, used, free = 0, 0, 0
+        status = "Unavailable"
+
+    return [{
+        "location": "C:\\Recording",
+        "type": "Local Disk",
+        "total": round(total / (1024**3), 1),
+        "used": round(used / (1024**3), 1),
+        "free": round(free / (1024**3), 1),
+        "status": status,
+        "server": "MIRADOR",
+        "allocated": 352,
+    }]
+
+
+@app.get("/api/storage/selection")
+def storage_selection():
+    docs = list(cameras_col.find({}, {"_id": 0}))
+    result = []
+    for cam in docs:
+        stream = cam.get("ome_stream", "")
+        recordings_dir = os.environ.get("RECORDINGS_DIR", "/recordings")
+        cam_dir = os.path.join(recordings_dir, stream)
+
+        used_bytes = 0
+        oldest = None
+        if os.path.exists(cam_dir):
+            for root, dirs, files in os.walk(cam_dir):
+                for f in files:
+                    fp = os.path.join(root, f)
+                    try:
+                        used_bytes += os.path.getsize(fp)
+                        mtime = os.path.getmtime(fp)
+                        if oldest is None or mtime < oldest:
+                            oldest = mtime
+                    except:
+                        pass
+
+        used_gb = round(used_bytes / (1024**3), 2)
+        oldest_str = datetime.fromtimestamp(oldest).strftime("%d-%m-%Y %H:%M:%S") if oldest else "N/A"
+
+        result.append({
+            "device": f"{cam.get('manufacturer', '')} {cam.get('model', '')}".strip() or cam.get("ip"),
+            "ip": cam.get("ip"),
+            "used_storage": f"{used_gb} GB",
+            "location": "C:\\Recording",
+            "retention": cam.get("retention_days", 70),
+            "oldest_recording": oldest_str,
+            "failover": cam.get("failover", False),
+        })
+    return result
+
+
+@app.post("/api/storage/selection")
+def update_storage_selection(payload: dict):
+    ip = payload.get("ip")
+    if not ip:
+        return {"error": "ip required"}
+    cameras_col.update_one(
+        {"ip": ip},
+        {"$set": {
+            "retention_days": payload.get("retention_days", 70),
+            "failover": payload.get("failover", False),
+            "store_to": payload.get("store_to", "C:\\Recording"),
+        }}
+    )
+    return {"success": True}

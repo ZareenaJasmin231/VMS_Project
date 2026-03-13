@@ -1,0 +1,411 @@
+/* ── Page shell ──────────────────────────────────────────────── */
+.schedules-page {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 24px 28px 0;
+  font-size: 13px;
+  color: var(--text-primary);
+  background: var(--bg-base);
+  overflow-y: auto;
+}
+
+/* ── Page header ─────────────────────────────────────────────── */
+.schedules-page .page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.schedules-page .page-title {
+  font-size: 24px;
+  font-weight: 400;
+  margin: 0 0 4px;
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
+}
+
+.schedules-page .page-title span {
+  font-weight: 600;
+}
+
+.schedules-page .page-desc {
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+/* ── Filter input ────────────────────────────────────────────── */
+.sch-filter {
+  width: 200px;
+  padding: 5px 10px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  font-size: 12.5px;
+  font-family: inherit;
+  color: var(--text-primary);
+  background: var(--bg-base);
+  outline: none;
+  transition: border-color 0.15s;
+}
+.sch-filter:focus {
+  border-color: var(--blue);
+}
+
+/* ── Schedule list table ─────────────────────────────────────── */
+.sch-table-wrap {
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  overflow: hidden;
+  min-height: 100px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.sch-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.sch-table thead tr {
+  background: var(--bg-elevated);
+}
+
+.sch-table th {
+  text-align: left;
+  padding: 6px 10px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border);
+}
+
+.sch-table th:first-child { width: 65%; }
+.sch-table th:last-child  { width: 35%; }
+
+.sch-table tbody tr {
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.sch-table tbody tr:hover    { background: var(--bg-elevated); }
+.sch-table tbody tr.selected { background: rgba(77, 159, 255, 0.1); }
+
+.sch-table td {
+  padding: 5px 10px;
+  font-size: 12.5px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-primary);
+}
+
+/* ── Actions row (New / Remove) ──────────────────────────────── */
+.sch-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  margin: 8px 0 4px;
+}
+
+/* ── Divider handle ──────────────────────────────────────────── */
+.sch-divider {
+  display: flex;
+  justify-content: center;
+  margin: 6px 0 10px;
+}
+.divider-handle {
+  width: 60px;
+  height: 4px;
+  border-top: 2px solid var(--border);
+  border-bottom: 2px solid var(--border);
+  background: transparent;
+}
+
+/* ── Detail card ─────────────────────────────────────────────── */
+.sch-detail {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 14px 16px 10px;
+  margin-bottom: 16px;
+  background: var(--bg-base);
+  position: relative;
+}
+
+.sch-detail::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: -1px;
+  width: 4px;
+  height: 100%;
+  background: var(--blue);
+  border-radius: 0 3px 3px 0;
+}
+
+/* ── Tabs ────────────────────────────────────────────────────── */
+.sch-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 14px;
+}
+
+.sch-tab {
+  padding: 5px 14px;
+  border: none;
+  background: transparent;
+  font-size: 12.5px;
+  font-family: inherit;
+  cursor: pointer;
+  color: var(--text-secondary);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  transition: color 0.15s, border-color 0.15s;
+}
+.sch-tab:hover  { color: var(--blue); }
+.sch-tab.active {
+  color: var(--blue);
+  font-weight: 600;
+  border-bottom-color: var(--blue);
+}
+
+/* ── Name row ────────────────────────────────────────────────── */
+.sch-name-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+
+.sch-name-label {
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.sch-name-input {
+  width: 180px;
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  font-size: 12.5px;
+  font-family: inherit;
+  color: var(--text-primary);
+  background: var(--bg-elevated);
+  outline: none;
+  transition: border-color 0.15s;
+}
+.sch-name-input:focus { border-color: var(--blue); }
+
+/* ── Schedule on/off toggles ─────────────────────────────────── */
+.sch-mode-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-left: auto;
+}
+
+.mode-check {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.mode-box {
+  display: inline-block;
+  width: 13px;
+  height: 13px;
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  background: var(--bg-elevated);
+  flex-shrink: 0;
+}
+.mode-box.on {
+  background: var(--blue);
+  border-color: var(--blue);
+}
+
+/* ── Week section title ──────────────────────────────────────── */
+.week-title {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0 0 10px;
+  color: var(--text-primary);
+}
+
+/* ── Week Grid ───────────────────────────────────────────────── */
+.week-grid {
+  user-select: none;
+}
+
+.wg-label-row {
+  display: flex;
+  align-items: flex-end;
+  margin-bottom: 2px;
+}
+
+.wg-day-label {
+  width: 80px;
+  min-width: 80px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  padding-right: 8px;
+  flex-shrink: 0;
+}
+
+.wg-hours-track {
+  flex: 1;
+  position: relative;
+  height: 18px;
+}
+
+.wg-hour-label {
+  position: absolute;
+  transform: translateX(-50%);
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  font-family: var(--font-mono);
+}
+
+.wg-row {
+  display: flex;
+  align-items: center;
+  margin-bottom: 3px;
+}
+
+.wg-track {
+  flex: 1;
+  height: 18px;
+  position: relative;
+  display: flex;
+  cursor: crosshair;
+}
+
+.wg-slot {
+  flex: 1;
+  height: 100%;
+  background: transparent;
+  transition: background 0.05s;
+}
+.wg-slot.on    { background: var(--blue); }
+.wg-slot:hover { opacity: 0.8; }
+
+.wg-tick {
+  position: absolute;
+  top: 0;
+  width: 1px;
+  height: 8px;
+  background: var(--border);
+  pointer-events: none;
+}
+.wg-tick.major {
+  height: 100%;
+  background: var(--border);
+  opacity: 0.6;
+}
+
+/* ── Hint text ───────────────────────────────────────────────── */
+.wg-hint {
+  margin-top: 10px;
+  font-size: 11px;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* ── Schedule exceptions ─────────────────────────────────────── */
+.exc-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.exc-title {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0;
+  color: var(--text-primary);
+}
+
+.exc-btns {
+  display: flex;
+  gap: 6px;
+}
+
+/* ── Calendar ────────────────────────────────────────────────── */
+.cal-wrap {
+  width: 260px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 10px;
+  background: var(--bg-elevated);
+}
+
+.cal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.cal-month-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.cal-nav {
+  background: none;
+  border: none;
+  font-size: 18px;
+  cursor: pointer;
+  color: var(--text-secondary);
+  padding: 0 4px;
+  line-height: 1;
+  font-family: inherit;
+  transition: color 0.15s;
+}
+.cal-nav:hover { color: var(--blue); }
+
+.cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+
+.cal-dow {
+  text-align: center;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  padding: 3px 0;
+}
+
+.cal-cell {
+  text-align: center;
+  font-size: 12px;
+  padding: 4px 2px;
+  border-radius: 2px;
+  cursor: pointer;
+  color: var(--text-primary);
+  transition: background 0.1s;
+}
+.cal-cell:hover            { background: rgba(77, 159, 255, 0.08); }
+.cal-cell.other            { color: var(--text-muted); cursor: default; }
+.cal-cell.other:hover      { background: transparent; }
+.cal-cell.today            { border: 1px solid var(--blue); font-weight: 700; color: var(--blue); }
+.cal-cell.exception        { background: var(--blue); color: #fff; }
+.cal-cell.exception:hover  { background: rgba(77, 159, 255, 0.85); }
+
+/* ── Apply row ───────────────────────────────────────────────── */
+.sch-apply-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 14px;
+}

@@ -14,6 +14,8 @@ import EventsPage         from "../../pages/recording/EventsPage";
 import TriggersPage       from "../../pages/recording/TriggersPage";
 import ClientSettingsPage from "../../pages/client/ClientSettingsPage";
 import AboutPage          from "../../pages/client/AboutPage";
+import Schedules from "../../pages/recording/Schedules";
+import RecordingMethodPage from "../../pages/recording/Recordingmethodpage";
 
 const MAP = {
   "add-devices":       <AddDevicesPage />,
@@ -32,6 +34,10 @@ const MAP = {
   "triggers":          <TriggersPage />,
   "client-settings":   <ClientSettingsPage />,
   "about":             <AboutPage />,
+  "schedules": <Schedules />,
+  "rec-method": <RecordingMethodPage />,
+
+  
 };
 
 export default function PageRenderer({ activePage }) {
