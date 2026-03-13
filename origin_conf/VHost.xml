@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<VirtualHost>
+    <Name>default</Name>
+
+    <Host>
+        <Names>
+            <Name>*</Name>
+        </Names>
+    </Host>
+
+    <Applications>
+
+        <Application>
+            <Name>app</Name>
+            <Type>live</Type>
+
+            <OutputProfiles>
+                <OutputProfile>
+                    <Name>bypass_stream</Name>
+                    <OutputStreamName>${OriginStreamName}</OutputStreamName>
+
+                    <Encodes>
+                        <Video>
+                            <Bypass>true</Bypass>
+                        </Video>
+                        <Audio>
+                            <Bypass>true</Bypass>
+                        </Audio>
+                    </Encodes>
+
+                </OutputProfile>
+            </OutputProfiles>
+
+            <Providers>
+                <RTSPPull />
+                <RTMP />
+                <SRT />
+            </Providers>
+
+            <Publishers>
+
+                <AppWorkerCount>1</AppWorkerCount>
+                <StreamWorkerCount>8</StreamWorkerCount>
+
+                <WebRTC>
+                    <Timeout>30000</Timeout>
+                </WebRTC>
+
+                <LLHLS>
+                    <ChunkDuration>0.2</ChunkDuration>
+                    <SegmentCount>3</SegmentCount>
+                </LLHLS>
+
+            </Publishers>
+
+        </Application>
+
+    </Applications>
+
+</VirtualHost>

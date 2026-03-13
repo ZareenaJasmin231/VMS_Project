@@ -1,0 +1,58 @@
+services:
+  ome:
+    image: airensoft/ovenmediaengine:latest
+    container_name: miradorai-ome
+    restart: unless-stopped
+    ports:
+      - "1935:1935"
+      - "9999:9999/udp"
+      - "3333:3333"
+      - "3334:3334"
+      - "8080:8080"
+      - "8081:8081"
+      - "10000-10009:10000-10009/udp"
+    volumes:
+      - ./origin_conf:/opt/ovenmediaengine/bin/origin_conf
+    networks:
+      - vmsnet
+
+  mongo:
+    image: mongo:7
+    container_name: miradorai-mongo
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - vmsnet
+
+  backend:
+    build: ./onvif-backend
+    container_name: miradorai-backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - OME_URL=http://miradorai-ome:8081
+      - OME_HOST_IP=192.168.126.100
+      - OME_WS_PORT=3333
+      - MONGO_URI=mongodb://mongo:27017/
+      - RECORDINGS_DIR=/recordings
+      - VIDEO_KEY_FILE=/app/data/video.key
+      - CHUNK_SECONDS=300
+    volumes:
+      - ./devices_data:/app/data
+      - C:/recordings:/recordings
+    depends_on:
+      - ome
+      - mongo
+    networks:
+      - vmsnet
+
+volumes:
+  mongo_data:
+
+networks:
+  vmsnet:
+    driver: bridge

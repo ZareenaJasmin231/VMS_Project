@@ -159,15 +159,6 @@ const css = `
   .msm-error-msg { font-size: 11px; color: #f87171; margin-top: -8px; }
 `;
 
-const ONVIF_MOCK = {
-  manufacturer: "Hikvision",
-  model: "DS-2CD2143G2-I",
-  firmware: "V5.7.15",
-  serial: "DS-2CD2143G2-220817",
-  streams: "RTSP / H.264+H.265",
-  ptz: "No",
-};
-
 function validateIP(ip) {
   return /^(\d{1,3}\.){3}\d{1,3}$/.test(ip) &&
     ip.split(".").every((n) => +n >= 0 && +n <= 255);
@@ -191,44 +182,43 @@ export default function ManualSearchModal({ onClose, onEnroll }) {
     return e;
   };
 
-const handleProbe = async () => {
-  const e = validate();
-  if (Object.keys(e).length) { setErrors(e); return; }
-  setErrors({});
-  setProbe("probing");
-  setDiscovered(null);
+  const handleProbe = async () => {
+    const e = validate();
+    if (Object.keys(e).length) { setErrors(e); return; }
+    setErrors({});
+    setProbe("probing");
+    setDiscovered(null);
 
-  try {
-    const res = await fetch("http://localhost:8000/api/onvif/probe", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ip, port: Number(port), username: user, password: pass }),
-    });
-
-    const json = await res.json();
-
-    if (json.success) {
-      setProbe("success");
-      setDiscovered({
-        manufacturer: json.manufacturer,
-        model:        json.model,
-        firmware:     json.firmware,
-        serial:       json.serial,
-        streams:      json.stream_uri,
-        ptz:          json.ptz,
+    try {
+      const res = await fetch("http://localhost:8000/api/onvif/probe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ip, port: Number(port), username: user, password: pass }),
       });
-    } else {
+
+      const json = await res.json();
+
+      if (json.success) {
+        setProbe("success");
+        setDiscovered({
+          manufacturer: json.manufacturer,
+          model:        json.model,
+          firmware:     json.firmware,
+          serial:       json.serial,
+          streams:      json.stream_uri,
+          ptz:          json.ptz,
+        });
+      } else {
+        setProbe("fail");
+      }
+    } catch {
       setProbe("fail");
     }
-  } catch {
-    setProbe("fail");
-  }
-};
+  };
 
-
-
+  // ✅ pass is now included
   const handleEnroll = () => {
-    onEnroll?.({ ip, port, proto, user, discovered });
+    onEnroll?.({ ip, port, proto, user, pass, discovered });
     onClose?.();
   };
 

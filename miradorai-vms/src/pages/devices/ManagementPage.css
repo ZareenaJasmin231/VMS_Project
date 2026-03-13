@@ -1,9 +1,238 @@
-.mgmt-toolbar { display: flex; gap: 4px; padding: 10px 14px; flex-shrink: 0; flex-wrap: wrap; }
-.mgmt-btn { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 10px 14px; background: none; border: 1px solid transparent; border-radius: var(--radius-sm); color: var(--text-muted); cursor: pointer; transition: all var(--transition); min-width: 80px; }
-.mgmt-btn:hover { background: var(--bg-hover); color: var(--teal); border-color: var(--border); }
-.mgmt-btn__icon { font-size: 20px; }
-.mgmt-btn__label { font-size: 10px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px; white-space: nowrap; }
-.mgmt-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; flex-shrink: 0; }
-.mgmt-stat { padding: 16px 20px; display: flex; flex-direction: column; gap: 4px; }
-.mgmt-stat__num { font-size: 24px; font-weight: 700; color: var(--teal); font-family: var(--font-mono); }
-.mgmt-stat__label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+/* ── Toolbar ─────────────────────────────────────────────── */
+.mgmt-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 10px;
+  flex-shrink: 0;
+}
+
+.mgmt-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.mgmt-btn:hover {
+  background: var(--hover-bg, rgba(255,255,255,0.06));
+  color: var(--text-primary);
+}
+.mgmt-btn__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+}
+.mgmt-btn__icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* ── Stats row ───────────────────────────────────────────── */
+.mgmt-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.mgmt-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 14px 10px;
+  gap: 4px;
+}
+.mgmt-stat__num {
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--text-primary);
+}
+.mgmt-stat__label {
+  font-size: 11px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.mgmt-stat--ok    .mgmt-stat__num { color: #22c55e; }
+.mgmt-stat--warn  .mgmt-stat__num { color: #f59e0b; }
+.mgmt-stat--danger .mgmt-stat__num { color: #ef4444; }
+
+/* ── Count label ─────────────────────────────────────────── */
+.mgmt-count-row {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  padding: 0 2px;
+}
+.mgmt-count-label {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* ── Table wrap ──────────────────────────────────────────── */
+.mgmt-table-wrap {
+  flex: 1;
+  overflow: auto;
+}
+
+/* ── Camera thumb icon ───────────────────────────────────── */
+.mgmt-cam-thumb {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  color: var(--text-muted);
+}
+.mgmt-cam-thumb svg { width: 18px; height: 18px; }
+
+/* ── Monospace cell ──────────────────────────────────────── */
+.mgmt-mono {
+  font-family: "Consolas", "JetBrains Mono", monospace;
+  font-size: 11.5px;
+  letter-spacing: 0.03em;
+  color: var(--text-secondary);
+}
+
+/* ── IP link style ───────────────────────────────────────── */
+.mgmt-ip-link {
+  color: #4d9fff;
+  font-family: "Consolas", monospace;
+  font-size: 11.5px;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.mgmt-ip-link:hover { color: #74b5ff; }
+
+/* ── Status badge ────────────────────────────────────────── */
+.mgmt-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 500;
+}
+.mgmt-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #94a3b8;
+  flex-shrink: 0;
+}
+.mgmt-status-badge--ok   .mgmt-status-dot { background: #22c55e; }
+.mgmt-status-badge--ok   { color: #22c55e; }
+.mgmt-status-badge--warn .mgmt-status-dot { background: #f59e0b; }
+.mgmt-status-badge--warn { color: #f59e0b; }
+
+/* ── Yes/No + On/Off pills ───────────────────────────────── */
+.mgmt-pill {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+}
+.mgmt-pill--on  { background: rgba(34,197,94,0.12);  color: #22c55e; }
+.mgmt-pill--off { background: rgba(148,163,184,0.1); color: #64748b; }
+
+/* ── Detail panel ────────────────────────────────────────── */
+.mgmt-detail {
+  flex-shrink: 0;
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.mgmt-detail__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.mgmt-detail__title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.mgmt-detail__close {
+  width: 26px;
+  height: 26px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-radius: 5px;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, color 0.15s;
+}
+.mgmt-detail__close:hover {
+  background: rgba(255,255,255,0.07);
+  color: var(--text-primary);
+}
+
+.mgmt-detail__grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px 20px;
+}
+.mgmt-detail__item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.mgmt-detail__key {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+.mgmt-detail__val {
+  font-size: 13px;
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.mgmt-detail__actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.mgmt-action-btn {
+  padding: 6px 14px;
+  border-radius: 6px;
+  border: 1px solid var(--border-color, rgba(255,255,255,0.1));
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.mgmt-action-btn:hover {
+  background: rgba(255,255,255,0.06);
+  color: var(--text-primary);
+  border-color: rgba(255,255,255,0.2);
+}
+.mgmt-action-btn--danger {
+  border-color: rgba(239,68,68,0.3);
+  color: #ef4444;
+}
+.mgmt-action-btn--danger:hover {
+  background: rgba(239,68,68,0.1);
+  border-color: #ef4444;
+}

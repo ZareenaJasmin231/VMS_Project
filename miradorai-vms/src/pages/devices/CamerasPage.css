@@ -1,28 +1,262 @@
-.cameras-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 12px;
+/* ── Table wrap ──────────────────────────────────────────── */
+.cam-table-wrap {
   flex: 1;
-  overflow-y: auto;
+  overflow: auto;
 }
-.cameras-empty { padding: 60px; text-align: center; color: var(--text-muted); font-size: 13px; grid-column: 1/-1; }
-.cameras-count { font-size: 12px; color: var(--text-muted); }
 
-.cam-card {
-  display: flex; align-items: center; gap: 12px;
-  padding: 14px;
+/* ── Thumbnail cell ──────────────────────────────────────── */
+.cam-thumb-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 34px;
+}
+
+.cam-thumb-img {
+  width: 46px;
+  height: 34px;
+  object-fit: cover;
+  border-radius: 4px;
+  display: block;
+}
+
+.cam-thumb-placeholder {
+  width: 46px;
+  height: 34px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+.cam-thumb-placeholder svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* ── IP link ─────────────────────────────────────────────── */
+.cam-ip-link {
+  color: #4d9fff;
+  font-family: "Consolas", "JetBrains Mono", monospace;
+  font-size: 12px;
   cursor: pointer;
-  transition: all var(--transition);
-  position: relative;
-  overflow: hidden;
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
-.cam-card:hover { border-color: var(--border-light); background: var(--bg-elevated); }
-.cam-card--selected { border-color: var(--teal) !important; background: var(--bg-active) !important; box-shadow: 0 0 0 1px var(--teal), 0 0 16px var(--teal-glow); }
-.cam-card__selected-bar { position: absolute; top: 0; left: 0; width: 3px; height: 100%; background: var(--teal); }
+.cam-ip-link:hover { color: #74b5ff; }
 
-.cam-card__thumb { flex-shrink: 0; }
-.cam-card__info { flex: 1; min-width: 0; }
-.cam-card__name { font-size: 13px; font-weight: 500; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 4px; }
-.cam-card__addr { font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); background: var(--bg-elevated); padding: 2px 6px; border-radius: 3px; }
-.cam-card__meta { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; flex-shrink: 0; }
-.cam-card__model { font-size: 11px; color: var(--text-muted); }
+/* ── Monospace cell ──────────────────────────────────────── */
+.cam-mono {
+  font-family: "Consolas", "JetBrains Mono", monospace;
+  font-size: 11.5px;
+  letter-spacing: 0.03em;
+  color: var(--text-secondary);
+}
+
+/* ── Footer count ────────────────────────────────────────── */
+.cameras-count {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* ── Edit Camera Modal ───────────────────────────────────── */
+.ec-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.ec-modal {
+  background: #f0f0f0;
+  border: 1px solid #aaa;
+  border-radius: 4px;
+  width: 360px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.45);
+  display: flex;
+  flex-direction: column;
+  color: #1a1a1a;
+  font-size: 13px;
+}
+
+/* Title bar */
+.ec-titlebar {
+  background: #e0e0e0;
+  border-bottom: 1px solid #bbb;
+  padding: 7px 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-radius: 4px 4px 0 0;
+}
+.ec-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1a1a1a;
+}
+.ec-titlebar-actions {
+  display: flex;
+  gap: 4px;
+}
+.ec-title-btn {
+  width: 22px;
+  height: 22px;
+  border: 1px solid #bbb;
+  background: #e8e8e8;
+  border-radius: 3px;
+  font-size: 11px;
+  color: #444;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+.ec-title-btn:hover { background: #d8d8d8; }
+
+/* Body */
+.ec-body {
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ec-section-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #1a1a1a;
+  margin-bottom: 2px;
+}
+.ec-section-title--spaced {
+  margin-top: 8px;
+}
+
+.ec-checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  color: #1a1a1a;
+  cursor: pointer;
+  margin-bottom: 2px;
+}
+.ec-checkbox-row input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+  accent-color: #0078d4;
+  cursor: pointer;
+}
+
+.ec-field-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ec-field-row--top {
+  align-items: flex-start;
+}
+.ec-field-label {
+  width: 90px;
+  flex-shrink: 0;
+  font-size: 13px;
+  color: #333;
+  text-align: right;
+}
+.ec-input {
+  flex: 1;
+  height: 26px;
+  padding: 0 8px;
+  border: 1px solid #999;
+  border-radius: 2px;
+  background: #fff;
+  font-size: 13px;
+  color: #1a1a1a;
+  outline: none;
+}
+.ec-input:focus {
+  border-color: #0078d4;
+  box-shadow: 0 0 0 2px rgba(0,120,212,0.2);
+}
+.ec-input--highlight {
+  border-color: #0078d4;
+  background: #fff;
+}
+.ec-input--short {
+  flex: 0 0 80px;
+}
+.ec-textarea {
+  flex: 1;
+  padding: 5px 8px;
+  border: 1px solid #999;
+  border-radius: 2px;
+  background: #fff;
+  font-size: 13px;
+  color: #1a1a1a;
+  resize: vertical;
+  outline: none;
+  font-family: inherit;
+  min-height: 58px;
+}
+.ec-textarea:focus {
+  border-color: #0078d4;
+  box-shadow: 0 0 0 2px rgba(0,120,212,0.2);
+}
+
+/* Footer */
+.ec-footer {
+  border-top: 1px solid #ccc;
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #e8e8e8;
+  border-radius: 0 0 4px 4px;
+  gap: 8px;
+}
+.ec-footer-right {
+  display: flex;
+  gap: 6px;
+}
+.ec-btn {
+  height: 28px;
+  padding: 0 18px;
+  border-radius: 2px;
+  font-size: 13px;
+  cursor: pointer;
+  border: 1px solid #aaa;
+  background: #e0e0e0;
+  color: #1a1a1a;
+  transition: background 0.12s;
+}
+.ec-btn:hover { background: #d0d0d0; }
+.ec-btn--primary {
+  background: #0078d4;
+  border-color: #005fa3;
+  color: #fff;
+  font-weight: 600;
+}
+.ec-btn--primary:hover { background: #006cbf; }
+.ec-btn--cancel {
+  background: #e0e0e0;
+  color: #1a1a1a;
+}
+.ec-btn--help {
+  background: #e0e0e0;
+  color: #1a1a1a;
+}
+
+/* Auth dialog description text */
+.ec-auth-desc {
+  font-size: 13px;
+  color: #333;
+  margin: 0 0 12px 0;
+  line-height: 1.5;
+}

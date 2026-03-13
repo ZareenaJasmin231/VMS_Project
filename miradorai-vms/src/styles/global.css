@@ -89,6 +89,9 @@ input, select, button, textarea { font-family: var(--font-ui); }
   flex-direction: column;
   gap: 20px;
   height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-bottom: 16px;
   animation: pageFadeIn 0.2s ease;
 }
 
