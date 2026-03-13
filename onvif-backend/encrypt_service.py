@@ -1,14 +1,5 @@
 """
-encrypt_service.py
-------------------
-Watches RECORDINGS_DIR for completed .mp4 files written by rtsp_recorder.py.
-For each completed .mp4 it:
-  1. AES-256-CBC encrypts the file  ->  saves as .enc  (IV prepended)
-  2. Saves metadata to MongoDB  →  database: mirador-vms / collection: recordings
-  3. Saves an encrypted .meta sidecar file
-  4. Deletes the original .mp4
-
-Uses polling (every 5s) — reliable on Docker bind mounts (C:/recordings on Windows).
+encrypt_service.py — fixed MongoDB connection
 """
 
 import os
@@ -28,18 +19,18 @@ KEY_FILE       = os.environ.get("VIDEO_KEY_FILE", "/app/data/video.key")
 POLL_INTERVAL  = 5
 
 # ------------------------------------------------------------------
-# MongoDB — mirador-vms / recordings
+# MongoDB — single persistent client created at module load time
 # ------------------------------------------------------------------
-_mongo_client       = None
-metadata_collection = None
+print(f"[ENCRYPT] Connecting to MongoDB at {MONGO_URI}")
+_mongo_client       = MongoClient(MONGO_URI, serverSelectionTimeoutMS=10000)
+_db                 = _mongo_client["mirador-vms"]
+metadata_collection = _db["recordings"]
 
-def _get_collection():
-    global _mongo_client, metadata_collection
-    if metadata_collection is None:
-        _mongo_client       = MongoClient(MONGO_URI)
-        _db                 = _mongo_client["mirador-vms"]       # ← DB name
-        metadata_collection = _db["recordings"]                  # ← collection
-    return metadata_collection
+try:
+    _mongo_client.server_info()
+    print("[ENCRYPT] ✅ MongoDB connected successfully")
+except Exception as e:
+    print(f"[ENCRYPT] ❌ MongoDB connection FAILED: {e}")
 
 
 # ------------------------------------------------------------------
@@ -55,15 +46,12 @@ def load_video_key() -> bytes:
     os.makedirs(os.path.dirname(KEY_FILE), exist_ok=True)
     with open(KEY_FILE, "wb") as f:
         f.write(key)
-    print(f"[ENCRYPT] Key saved to {KEY_FILE} — back this up securely!")
+    print(f"[ENCRYPT] Key saved to {KEY_FILE}")
     return key
 
 MASTER_KEY = load_video_key()
 
 
-# ------------------------------------------------------------------
-# Helpers
-# ------------------------------------------------------------------
 def _aes_encrypt(data: bytes) -> bytes:
     iv     = secrets.token_bytes(16)
     cipher = Cipher(algorithms.AES(MASTER_KEY), modes.CBC(iv), backend=default_backend())
@@ -74,12 +62,6 @@ def _aes_encrypt(data: bytes) -> bytes:
 
 
 def _parse_path(input_path: str):
-    """
-    /recordings/192_168_1_1/2025-06-01/2025-06-01_14-30-00.mp4
-    → camera_id = 192_168_1_1
-    → date_part  = 2025-06-01
-    → time_part  = 14-30-00
-    """
     filename  = os.path.basename(input_path)
     date_dir  = os.path.basename(os.path.dirname(input_path))
     camera_id = os.path.basename(os.path.dirname(os.path.dirname(input_path)))
@@ -92,28 +74,29 @@ def _parse_path(input_path: str):
 
 def _save_metadata_to_db(camera_id, date_part, time_part, output_path):
     try:
-        col = _get_collection()
-        col.insert_one({
+        file_size = os.path.getsize(output_path) if os.path.exists(output_path) else 0
+        result = metadata_collection.insert_one({
             "camera_id":  camera_id,
             "date":       date_part,
             "start_time": time_part,
             "file_path":  output_path.replace("\\", "/"),
-            "file_size":  os.path.getsize(output_path),
+            "file_size":  file_size,
             "created_at": datetime.utcnow(),
         })
-        print(f"[ENCRYPT] 📄 mirador-vms/recordings ← {camera_id} / {date_part} / {time_part}")
+        print(f"[ENCRYPT] 📄 Saved to MongoDB: {camera_id} / {date_part} / {time_part} _id={result.inserted_id}")
     except Exception as e:
-        print(f"[ENCRYPT] MongoDB error: {e}")
+        print(f"[ENCRYPT] ❌ MongoDB insert FAILED: {e}")
 
 
 def _save_meta_sidecar(camera_id, date_part, time_part, output_path):
     try:
+        file_size = os.path.getsize(output_path) if os.path.exists(output_path) else 0
         meta = {
             "camera_id":  camera_id,
             "date":       date_part,
             "start_time": time_part,
             "file_path":  output_path.replace("\\", "/"),
-            "file_size":  os.path.getsize(output_path),
+            "file_size":  file_size,
             "created_at": datetime.utcnow().isoformat(),
         }
         encrypted = _aes_encrypt(json.dumps(meta).encode())
@@ -135,9 +118,6 @@ def _is_file_complete(path: str) -> bool:
         return False
 
 
-# ------------------------------------------------------------------
-# Core encrypt
-# ------------------------------------------------------------------
 def encrypt_file(input_path: str) -> bool:
     try:
         camera_id, date_part, time_part = _parse_path(input_path)
@@ -170,13 +150,10 @@ def encrypt_file(input_path: str) -> bool:
         except Exception:
             time.sleep(2)
 
-    print(f"[ENCRYPT] Could not delete {input_path} — encryption done anyway")
+    print(f"[ENCRYPT] Could not delete {input_path}")
     return True
 
 
-# ------------------------------------------------------------------
-# Polling loop
-# ------------------------------------------------------------------
 _seen_files = set()
 _stop_event = threading.Event()
 
