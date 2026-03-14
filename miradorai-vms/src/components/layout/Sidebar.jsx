@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { NAV_CONFIG } from "../../data/navConfig";
+import logoImg from "../../assets/logo.jpg";
 import "./Sidebar.css";
 
 function SvgIcon({ html }) {
@@ -11,7 +12,6 @@ export default function Sidebar({ activePage, onNavigate }) {
     Devices: true, Storage: false, Recording: false, Client: false,
   });
   const [search, setSearch] = useState("");
-
   const toggle = (s) => setExpanded((p) => ({ ...p, [s]: !p[s] }));
   const activeSection = NAV_CONFIG.find((s) => s.items.some((i) => i.page === activePage))?.section;
 
@@ -19,7 +19,9 @@ export default function Sidebar({ activePage, onNavigate }) {
     <aside className="sidebar">
       {/* Logo */}
       <div className="sidebar__logo">
-        <div className="sidebar__logo-mark">M</div>
+        <div className="sidebar__logo-mark">
+          <img src={logoImg} alt="MIRADORAI" className="sidebar__logo-img" />
+        </div>
         <div className="sidebar__logo-text">
           <span className="sidebar__logo-name">MIRADORAI</span>
           <span className="sidebar__logo-sub">VMS Platform</span>
@@ -47,7 +49,6 @@ export default function Sidebar({ activePage, onNavigate }) {
           );
           if (search && visible.length === 0) return null;
           const isActiveSection = activeSection === section;
-
           return (
             <div key={section} className="sidebar__group">
               <button
@@ -60,7 +61,6 @@ export default function Sidebar({ activePage, onNavigate }) {
                   <path d="M9 18l6-6-6-6"/>
                 </svg>
               </button>
-
               {(expanded[section] || search) && (
                 <div className="sidebar__items">
                   {visible.map((item) => {

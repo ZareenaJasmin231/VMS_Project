@@ -11,3 +11,72 @@
 .add-dev__table-wrap { flex: 1; overflow: auto; }
 .add-dev__ip { font-family: var(--font-mono); font-size: 11px; background: var(--bg-elevated); padding: 2px 6px; border-radius: 3px; color: var(--text-secondary); }
 .add-dev__count { font-size: 12px; color: var(--text-muted); }
+/* ── Empty state ────────────────────────────────── */
+.add-dev__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 24px;
+  gap: 16px;
+}
+
+.add-dev__empty-icon {
+  position: relative;
+  width: 80px;
+  height: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.add-dev__empty-icon svg {
+  width: 72px;
+  height: 72px;
+  opacity: 0.5;
+}
+
+.add-dev__empty-pulse {
+  position: absolute;
+  inset: -8px;
+  border-radius: 50%;
+  border: 1px solid var(--teal);
+  opacity: 0.15;
+  animation: emptyPulse 2.5s ease-in-out infinite;
+}
+
+@keyframes emptyPulse {
+  0%, 100% { transform: scale(1);    opacity: 0.15; }
+  50%       { transform: scale(1.15); opacity: 0.05; }
+}
+
+.add-dev__empty-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.add-dev__empty-sub {
+  font-size: 12px;
+  color: var(--text-muted);
+  text-align: center;
+  line-height: 1.7;
+}
+
+.add-dev__empty-sub strong {
+  color: var(--teal);
+  font-weight: 500;
+}
+
+/* ── Stream status ───────────────────────────────── */
+.add-dev__stream        { font-size: 11px; font-weight: 500; }
+.add-dev__stream--live  { color: #22c55e; }
+.add-dev__stream--pending { color: #f59e0b; }
+.add-dev__stream--none  { color: var(--text-muted); }
+
+/* ── Refresh spin ───────────────────────────────── */
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+.spin { animation: spin 0.8s linear infinite; transform-origin: center; }

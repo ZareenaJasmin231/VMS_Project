@@ -9,7 +9,7 @@ import StreamURLModal from "./StreamURLModal";
 import "./AddDevicesPage.css";
 
 const STREAM_API = "http://localhost:8000";
-//ngjtrjtufyfdvhdhu
+
 function usePersistedDevices() {
   const [devices, setDevices] = useState(() => {
     try {
@@ -29,6 +29,27 @@ function usePersistedDevices() {
   return [devices, updateDevices];
 }
 
+function EmptyState() {
+  return (
+    <div className="add-dev__empty">
+      <div className="add-dev__empty-icon">
+        <svg viewBox="0 0 64 64" fill="none" stroke="currentColor" strokeWidth="1.2">
+          <rect x="8" y="16" width="40" height="28" rx="4" stroke="var(--border-light)"/>
+          <path d="M48 26l10 6-10 6V26z" stroke="var(--border-light)"/>
+          <circle cx="28" cy="30" r="6" stroke="var(--text-muted)"/>
+          <path d="M16 52h32" stroke="var(--border-light)" strokeLinecap="round"/>
+          <path d="M32 44v8" stroke="var(--border-light)" strokeLinecap="round"/>
+          <circle cx="50" cy="14" r="8" fill="var(--bg-elevated)" stroke="var(--border-light)"/>
+          <path d="M50 11v4M50 17h.01" stroke="var(--teal)" strokeLinecap="round"/>
+        </svg>
+        <div className="add-dev__empty-pulse" />
+      </div>
+      <p className="add-dev__empty-title">No devices enrolled yet</p>
+      <p className="add-dev__empty-sub">Use <strong>Manual Search</strong> to discover ONVIF cameras on your network,<br/>or add a camera via <strong>Stream URL</strong>.</p>
+    </div>
+  );
+}
+
 export default function AddDevicesPage() {
   const [filter, setFilter] = useState("");
   const [includePrerecorded, setInclude] = useState(true);
@@ -37,6 +58,7 @@ export default function AddDevicesPage() {
   const [showStreamURL, setShowStreamURL] = useState(false);
   const [enrolling, setEnrolling] = useState(false);
   const [enrollMsg, setEnrollMsg] = useState("");
+  const [refreshing, setRefreshing] = useState(false);
   const [devices, setDevices] = usePersistedDevices();
 
   const filtered = devices.filter((d) =>
@@ -47,7 +69,11 @@ export default function AddDevicesPage() {
   const toggleAll  = () => setChecked(allChecked ? [] : filtered.map((d) => d.id));
   const toggleOne  = (id) => setChecked((s) => s.includes(id) ? s.filter((x) => x !== id) : [...s, id]);
 
-  // ── ONVIF enroll (existing) ──────────────────────────────────────────
+  const handleRefresh = () => {
+    setRefreshing(true);
+    setTimeout(() => setRefreshing(false), 1200);
+  };
+
   const handleEnroll = async (device) => {
     setEnrolling(true);
     setEnrollMsg("Registering stream with OME…");
@@ -86,7 +112,6 @@ export default function AddDevicesPage() {
     setEnrollMsg("");
   };
 
-  // ── RTSP / Stream URL enroll (NEW) ───────────────────────────────────
   const handleAddStreamURLs = async (urls) => {
     setShowStreamURL(false);
     setEnrolling(true);
@@ -96,24 +121,20 @@ export default function AddDevicesPage() {
       setEnrollMsg(`Registering stream ${i + 1} of ${urls.length}…`);
 
       try {
-        // POST to your backend — adjust endpoint to match your actual API
         const res = await fetch(`${STREAM_API}/api/streams/register`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ rtsp_url: url }),
         });
-
         const data = res.ok ? await res.json() : null;
 
-        // Extract a readable name from the URL (e.g. "Stream @ 192.168.1.64")
         let ip = "—";
         try { ip = new URL(url).hostname; } catch {}
-        const name = `Stream @ ${ip}`;
 
-        const newDevice = {
+        setDevices((prev) => [...prev, {
           id:            String(Date.now()) + i,
           type:          "entrance",
-          name,
+          name:          `Stream @ ${ip}`,
           ip,
           mac:           "—",
           status:        data?.ws_url ? "Online" : "Offline",
@@ -124,17 +145,10 @@ export default function AddDevicesPage() {
           stream_key:    data?.stream_key    || null,
           stream_status: data?.status        || (data?.ws_url ? "streaming" : "error"),
           source:        "rtsp",
-        };
-
-        setDevices((prev) => [...prev, newDevice]);
-
+        }]);
       } catch (err) {
-        console.error(`Failed to register stream: ${url}`, err);
-
-        // Still add it to the table so user knows it was attempted
         let ip = "—";
         try { ip = new URL(url).hostname; } catch {}
-
         setDevices((prev) => [...prev, {
           id:            String(Date.now()) + i,
           type:          "entrance",
@@ -166,8 +180,12 @@ export default function AddDevicesPage() {
         </div>
         <div className="add-dev__toolbar">
           <Button label="Manual Search" icon={`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>`} onClick={() => setShowManualSearch(true)} />
-          <Button label="Stream URL" icon={`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>`} onClick={() => setShowStreamURL(true)} />
-          <Button label="Refresh" icon={`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>`} />
+          <Button label="Stream URL"   icon={`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>`} onClick={() => setShowStreamURL(true)} />
+          <Button
+            label="Refresh"
+            icon={`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="${refreshing ? "spin" : ""}"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>`}
+            onClick={handleRefresh}
+          />
         </div>
       </div>
 
@@ -185,52 +203,51 @@ export default function AddDevicesPage() {
       </div>
 
       <div className="add-dev__table-wrap card">
-        <table className="m-table">
-          <thead>
-            <tr>
-              <th style={{ width: 36 }}><input type="checkbox" className="m-checkbox" checked={allChecked} onChange={toggleAll} /></th>
-              <th style={{ width: 60 }}></th>
-              {["Device Name", "IP Address", "MAC Address", "Status", "Manufacturer", "Model"].map((c) => <th key={c}>{c}</th>)}
-              <th>Stream</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.length === 0 && (
+        {filtered.length === 0 ? (
+          <EmptyState />
+        ) : (
+          <table className="m-table">
+            <thead>
               <tr>
-                <td colSpan={9} style={{ textAlign: "center", padding: "32px", color: "#64748b" }}>
-                  No devices enrolled yet. Use <strong>Manual Search</strong> or <strong>Stream URL</strong> to add cameras.
-                </td>
+                <th style={{ width: 36 }}><input type="checkbox" className="m-checkbox" checked={allChecked} onChange={toggleAll} /></th>
+                <th style={{ width: 60 }}></th>
+                {["Device Name", "IP Address", "MAC Address", "Status", "Manufacturer", "Model"].map((c) => <th key={c}>{c}</th>)}
+                <th>Stream</th>
               </tr>
-            )}
-            {filtered.map((d) => {
-              const isSel = checked.includes(d.id);
-              return (
-                <tr key={d.id} className={`m-table__row ${isSel ? "m-table__row--selected" : ""}`} onClick={() => toggleOne(d.id)}>
-                  <td onClick={(e) => e.stopPropagation()}><input type="checkbox" className="m-checkbox" checked={isSel} onChange={() => toggleOne(d.id)} /></td>
-                  <td><CameraThumb type={d.type} /></td>
-                  <td className="m-table__primary">{d.name}</td>
-                  <td><code className="add-dev__ip">{d.ip}</code></td>
-                  <td><code className="add-dev__ip">{d.mac}</code></td>
-                  <td><StatusBadge status={d.status} /></td>
-                  <td>{d.manufacturer}</td>
-                  <td>{d.model}</td>
-                  <td>
-                    {d.stream_status === "streaming"
-                      ? <span style={{ color: "#22c55e", fontSize: 11, fontWeight: 600 }}>● LIVE</span>
-                      : d.ws_url
-                        ? <span style={{ color: "#f59e0b", fontSize: 11 }}>● {d.stream_status || "pending"}</span>
-                        : <span style={{ color: "#475569", fontSize: 11 }}>— not registered</span>
-                    }
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {filtered.map((d) => {
+                const isSel = checked.includes(d.id);
+                return (
+                  <tr key={d.id} className={`m-table__row ${isSel ? "m-table__row--selected" : ""}`} onClick={() => toggleOne(d.id)}>
+                    <td onClick={(e) => e.stopPropagation()}><input type="checkbox" className="m-checkbox" checked={isSel} onChange={() => toggleOne(d.id)} /></td>
+                    <td><CameraThumb type={d.type} /></td>
+                    <td className="m-table__primary">{d.name}</td>
+                    <td><code className="add-dev__ip">{d.ip}</code></td>
+                    <td><code className="add-dev__ip">{d.mac}</code></td>
+                    <td><StatusBadge status={d.status} /></td>
+                    <td>{d.manufacturer}</td>
+                    <td>{d.model}</td>
+                    <td>
+                      {d.stream_status === "streaming"
+                        ? <span className="add-dev__stream add-dev__stream--live">● LIVE</span>
+                        : d.ws_url
+                          ? <span className="add-dev__stream add-dev__stream--pending">● {d.stream_status || "pending"}</span>
+                          : <span className="add-dev__stream add-dev__stream--none">— not registered</span>
+                      }
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
       </div>
 
       <div className="page-footer">
-        <span className="add-dev__count">{filtered.length} device{filtered.length !== 1 ? "s" : ""} enrolled · {filtered.filter(d => d.status === "Online").length} online</span>
+        <span className="add-dev__count">
+          {filtered.length} device{filtered.length !== 1 ? "s" : ""} enrolled · {filtered.filter(d => d.status === "Online").length} online
+        </span>
         <Button
           label={checked.length > 0 ? `Enroll ${checked.length} Device${checked.length > 1 ? "s" : ""}` : "Enroll"}
           variant="primary"
@@ -238,18 +255,8 @@ export default function AddDevicesPage() {
         />
       </div>
 
-      {showManualSearch && (
-        <ManualSearchModal
-          onClose={() => setShowManualSearch(false)}
-          onEnroll={handleEnroll}
-        />
-      )}
-      {showStreamURL && (
-        <StreamURLModal
-          onClose={() => setShowStreamURL(false)}
-          onAdd={handleAddStreamURLs}
-        />
-      )}
+      {showManualSearch && <ManualSearchModal onClose={() => setShowManualSearch(false)} onEnroll={handleEnroll} />}
+      {showStreamURL    && <StreamURLModal    onClose={() => setShowStreamURL(false)}    onAdd={handleAddStreamURLs} />}
     </div>
   );
 }
