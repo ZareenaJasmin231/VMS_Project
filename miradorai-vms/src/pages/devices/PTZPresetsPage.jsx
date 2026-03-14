@@ -11,36 +11,64 @@ function loadDevices() {
   } catch { return []; }
 }
 
+function loadPresetsForCamera(cameraId) {
+  try {
+    const saved = localStorage.getItem(`miradorai_presets_${cameraId}`);
+    return saved ? JSON.parse(saved) : [];
+  } catch { return []; }
+}
+
+function savePresetsForCamera(cameraId, presets) {
+  try {
+    localStorage.setItem(`miradorai_presets_${cameraId}`, JSON.stringify(presets));
+  } catch {}
+}
+
 export default function PTZPresetsPage() {
-  const [filter, setFilter]         = useState("");
-  const [selected, setSelected]     = useState(null);
-  const [presets, setPresets]       = useState([
-    { id: 1, name: "Home",        pan: 0,   tilt: 0,   zoom: 0,  x: 50, y: 50 },
-    { id: 2, name: "Entrance",    pan: -45, tilt: -10, zoom: 20, x: 20, y: 40 },
-    { id: 3, name: "Parking Lot", pan: 60,  tilt: -20, zoom: 35, x: 75, y: 65 },
-  ]);
-  const [selPreset, setSelPreset]   = useState(null);
-  const [speed, setSpeed]           = useState(50);
-  const [pan, setPan]               = useState(0);
-  const [tilt, setTilt]             = useState(0);
-  const [zoom, setZoom]             = useState(0);
-  const [focus, setFocus]           = useState(50);
-  const [activeBtn, setActiveBtn]   = useState(null);
-  const [moving, setMoving]         = useState(false);
-  const [ctxMenu, setCtxMenu]       = useState(null);
-  const [ctxStep, setCtxStep]       = useState("menu");
-  const [ctxName, setCtxName]       = useState("");
+  const [filter, setFilter]       = useState("");
+  const [selected, setSelected]   = useState(null);
+  const [presets, setPresets]     = useState([]);
+  const [selPreset, setSelPreset] = useState(null);
+  const [speed, setSpeed]         = useState(50);
+  const [pan, setPan]             = useState(0);
+  const [tilt, setTilt]           = useState(0);
+  const [zoom, setZoom]           = useState(0);
+  const [focus, setFocus]         = useState(50);
+  const [activeBtn, setActiveBtn] = useState(null);
+  const [moving, setMoving]       = useState(false);
+  const [ctxMenu, setCtxMenu]     = useState(null);
+  const [ctxStep, setCtxStep]     = useState("menu");
+  const [ctxName, setCtxName]     = useState("");
 
   const intervalRef  = useRef(null);
   const videoWrapRef = useRef(null);
   const ctxInputRef  = useRef(null);
 
-  // Load real devices from localStorage (ImageConfigPage approach)
   const devices = loadDevices();
   const selectedDevice = devices.find((d) => String(d.id) === String(selected));
   const wsUrl = selectedDevice?.ws_url || null;
 
-  // Build filtered table rows
+  // ── Load presets when camera selection changes ──
+  useEffect(() => {
+    if (selected) {
+      const camPresets = loadPresetsForCamera(selected);
+      setPresets(camPresets);
+      setSelPreset(null);
+    } else {
+      setPresets([]);
+      setSelPreset(null);
+    }
+    // Reset PTZ position
+    setPan(0); setTilt(0); setZoom(0); setFocus(50);
+  }, [selected]);
+
+  // ── Save presets to localStorage whenever they change ──
+  useEffect(() => {
+    if (selected) {
+      savePresetsForCamera(selected, presets);
+    }
+  }, [presets, selected]);
+
   const rows = devices.map((d) => ({
     id: String(d.id),
     name: d.name,
@@ -172,7 +200,6 @@ export default function PTZPresetsPage() {
         <SearchBar value={filter} onChange={setFilter} placeholder="Type to filter" />
       </div>
 
-      {/* Camera Table — real devices from localStorage */}
       <div className="card" style={{ overflow: "auto", flexShrink: 0 }}>
         <table className="m-table">
           <thead>
@@ -198,10 +225,7 @@ export default function PTZPresetsPage() {
         </table>
       </div>
 
-      {/* Main PTZ Layout */}
       <div className="ptz-layout">
-
-        {/* Video Preview — WebRTCPlayer from ImageConfigPage */}
         <div className="ptz-video-card card">
           {!selected ? (
             <div className="ptz-no-cam">
@@ -244,7 +268,6 @@ export default function PTZPresetsPage() {
                   </div>
                 )}
 
-                {/* Crosshair overlay */}
                 {wsUrl && (
                   <div className="ptz-crosshair">
                     <div className="ptz-ch-h" /><div className="ptz-ch-v" />
@@ -252,7 +275,6 @@ export default function PTZPresetsPage() {
                   </div>
                 )}
 
-                {/* Preset pins */}
                 {wsUrl && presets.map((p) => (
                   <div key={p.id}
                     className={`ptz-pin ${selPreset === p.id ? "ptz-pin--active" : ""}`}
@@ -264,7 +286,6 @@ export default function PTZPresetsPage() {
                   </div>
                 ))}
 
-                {/* Moving indicator */}
                 {moving && (
                   <div className="ptz-moving-badge">
                     <div className="ptz-moving-spinner" />
@@ -272,7 +293,6 @@ export default function PTZPresetsPage() {
                   </div>
                 )}
 
-                {/* Right-click context menu */}
                 {ctxMenu && (
                   <div className="ptz-ctx-menu"
                     style={{ left: ctxMenu.screenX, top: ctxMenu.screenY }}
@@ -330,7 +350,6 @@ export default function PTZPresetsPage() {
           )}
         </div>
 
-        {/* Controls Column — unchanged */}
         <div className="ptz-controls-col">
           <div className="ptz-joystick-card card">
             <div className="ptz-joy-title">Pan / Tilt</div>
@@ -385,20 +404,22 @@ export default function PTZPresetsPage() {
           </div>
         </div>
 
-        {/* Presets Panel — unchanged */}
         <div className="ptz-presets-card card">
           <div className="ptz-presets-title">
             Saved Presets
             <span className="ptz-presets-count">{presets.length}</span>
           </div>
           <div className="ptz-presets-list">
-            {presets.length === 0 && (
+            {!selected ? (
+              <div className="ptz-empty">Select a camera to view its presets</div>
+            ) : presets.length === 0 ? (
               <div className="ptz-empty">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4"/></svg>
-                Right-click the video to add presets
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1">
+                  <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4"/>
+                </svg>
+                No presets for this camera yet
               </div>
-            )}
-            {presets.map((p) => (
+            ) : presets.map((p) => (
               <div key={p.id}
                 className={`ptz-preset-item ${selPreset === p.id ? "ptz-preset-item--active" : ""}`}
                 onClick={() => gotoPreset(p)}>
@@ -408,7 +429,9 @@ export default function PTZPresetsPage() {
                   <span className="ptz-preset-coords">P{p.pan > 0 ? "+" : ""}{p.pan}° T{p.tilt > 0 ? "+" : ""}{p.tilt}° Z{p.zoom}%</span>
                 </div>
                 {selPreset === p.id && (
-                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <polyline points="20 6 9 17 4 12"/>
+                  </svg>
                 )}
               </div>
             ))}
@@ -422,7 +445,6 @@ export default function PTZPresetsPage() {
             💡 Right-click the live video to place a preset pin at any position
           </div>
         </div>
-
       </div>
     </div>
   );
