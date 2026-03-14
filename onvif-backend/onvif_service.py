@@ -67,3 +67,35 @@ def probe_camera(ip: str, port: int, username: str, password: str) -> dict:
             "success": False,
             "error":   str(e),
         }
+def move_camera_ptz(ip: str, port: int, username: str, password: str,
+                    pan: float, tilt: float, zoom: float) -> dict:
+    """
+    Absolute PTZ move to given pan/tilt/zoom values.
+    pan:  -1.0 to 1.0
+    tilt: -1.0 to 1.0
+    zoom:  0.0 to 1.0
+    """
+    try:
+        cam = ONVIFCamera(ip, port, username, password)
+        ptz_service   = cam.create_ptz_service()
+        media_service = cam.create_media_service()
+        profiles      = media_service.GetProfiles()
+        if not profiles:
+            return {"success": False, "error": "No profiles found"}
+
+        token = profiles[0].token
+
+        request = ptz_service.create_type("AbsoluteMove")
+        request.ProfileToken = token
+        request.Position = {
+            "PanTilt": {"x": pan, "y": tilt},
+            "Zoom":    {"x": zoom},
+        }
+        request.Speed = {
+            "PanTilt": {"x": 0.5, "y": 0.5},
+            "Zoom":    {"x": 0.5},
+        }
+        ptz_service.AbsoluteMove(request)
+        return {"success": True}
+    except Exception as e:
+        return {"success": False, "error": str(e)}

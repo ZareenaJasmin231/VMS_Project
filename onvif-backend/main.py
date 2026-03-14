@@ -9,7 +9,7 @@ import os
 import re
 import requests as http_requests
 from ome_service import register_stream
-from onvif_service import probe_camera
+from onvif_service import probe_camera, move_camera_ptz
 import rtsp_recorder as recorder
 import encrypt_service
 from recording_api import recording_router

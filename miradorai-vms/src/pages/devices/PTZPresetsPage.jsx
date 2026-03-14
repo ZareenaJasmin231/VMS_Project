@@ -11,6 +11,33 @@ function loadDevices() {
   } catch { return []; }
 }
 
+const PTZ_API = "http://localhost:8000";
+
+async function sendPTZMove(device, pan, tilt, zoom) {
+  if (!device?.ip) return;
+  // Convert UI values to ONVIF normalized range
+  // pan: -180..180 → -1..1
+  // tilt: -90..90  → -1..1
+  // zoom: 0..100   →  0..1
+  try {
+    await fetch(`${PTZ_API}/api/onvif/ptz/move`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ip:       device.ip,
+        port:     80,
+        username: device.username || "",
+        password: device.password || "",
+        pan:      parseFloat((pan  / 180).toFixed(3)),
+        tilt:     parseFloat((tilt / 90).toFixed(3)),
+        zoom:     parseFloat((zoom / 100).toFixed(3)),
+      }),
+    });
+  } catch (err) {
+    console.error("[PTZ] Move failed:", err);
+  }
+}
+
 function loadPresetsForCamera(cameraId) {
   try {
     const saved = localStorage.getItem(`miradorai_presets_${cameraId}`);
@@ -86,22 +113,19 @@ export default function PTZPresetsPage() {
 
   const step = () => Math.max(1, Math.round(speed / 20));
 
-  const startMove = useCallback((dir) => {
-    setActiveBtn(dir);
-    const move = () => {
-      const s = step();
-      if (dir === "up")         setTilt((v) => Math.min(90, v + s));
-      if (dir === "down")       setTilt((v) => Math.max(-90, v - s));
-      if (dir === "left")       setPan((v)  => Math.max(-180, v - s));
-      if (dir === "right")      setPan((v)  => Math.min(180, v + s));
-      if (dir === "up-left")    { setTilt((v) => Math.min(90, v + s));  setPan((v) => Math.max(-180, v - s)); }
-      if (dir === "up-right")   { setTilt((v) => Math.min(90, v + s));  setPan((v) => Math.min(180, v + s)); }
-      if (dir === "down-left")  { setTilt((v) => Math.max(-90, v - s)); setPan((v) => Math.max(-180, v - s)); }
-      if (dir === "down-right") { setTilt((v) => Math.max(-90, v - s)); setPan((v) => Math.min(180, v + s)); }
-    };
-    move();
-    intervalRef.current = setInterval(move, 100);
-  }, [speed]);
+  const move = () => {
+  const s = step();
+  let newPan = pan, newTilt = tilt;
+  if (dir === "up")         { setTilt((v) => { newTilt = Math.min(90, v + s);  return newTilt; }); }
+  if (dir === "down")       { setTilt((v) => { newTilt = Math.max(-90, v - s); return newTilt; }); }
+  if (dir === "left")       { setPan((v)  => { newPan  = Math.max(-180, v - s);return newPan;  }); }
+  if (dir === "right")      { setPan((v)  => { newPan  = Math.min(180, v + s); return newPan;  }); }
+  if (dir === "up-left")    { setTilt((v) => Math.min(90, v + s));  setPan((v) => Math.max(-180, v - s)); }
+  if (dir === "up-right")   { setTilt((v) => Math.min(90, v + s));  setPan((v) => Math.min(180, v + s)); }
+  if (dir === "down-left")  { setTilt((v) => Math.max(-90, v - s)); setPan((v) => Math.max(-180, v - s)); }
+  if (dir === "down-right") { setTilt((v) => Math.max(-90, v - s)); setPan((v) => Math.min(180, v + s)); }
+  sendPTZMove(selectedDevice, pan, tilt, zoom);
+};
 
   const stopMove = useCallback(() => {
     setActiveBtn(null);
@@ -113,23 +137,28 @@ export default function PTZPresetsPage() {
   const handleHome = () => { setPan(0); setTilt(0); setZoom(0); setFocus(50); };
 
   const gotoPreset = (preset) => {
-    setSelPreset(preset.id);
-    setMoving(true);
-    const startPan = pan, startTilt = tilt, startZoom = zoom;
-    const duration = 800;
-    const startTime = Date.now();
-    const animate = () => {
-      const elapsed  = Date.now() - startTime;
-      const progress = Math.min(elapsed / duration, 1);
-      const ease = progress < 0.5 ? 2 * progress * progress : -1 + (4 - 2 * progress) * progress;
-      setPan(Math.round(startPan   + (preset.pan  - startPan)  * ease));
-      setTilt(Math.round(startTilt + (preset.tilt - startTilt) * ease));
-      setZoom(Math.round(startZoom + (preset.zoom - startZoom) * ease));
-      if (progress < 1) requestAnimationFrame(animate);
-      else setMoving(false);
-    };
-    requestAnimationFrame(animate);
+  setSelPreset(preset.id);
+  setMoving(true);
+  const startPan = pan, startTilt = tilt, startZoom = zoom;
+  const duration = 800;
+  const startTime = Date.now();
+  const animate = () => {
+    const elapsed  = Date.now() - startTime;
+    const progress = Math.min(elapsed / duration, 1);
+    const ease = progress < 0.5 ? 2 * progress * progress : -1 + (4 - 2 * progress) * progress;
+    setPan(Math.round(startPan   + (preset.pan  - startPan)  * ease));
+    setTilt(Math.round(startTilt + (preset.tilt - startTilt) * ease));
+    setZoom(Math.round(startZoom + (preset.zoom - startZoom) * ease));
+    if (progress < 1) {
+      requestAnimationFrame(animate);
+    } else {
+      setMoving(false);
+      // ── Send actual PTZ command to camera when animation completes ──
+      sendPTZMove(selectedDevice, preset.pan, preset.tilt, preset.zoom);
+    }
   };
+  requestAnimationFrame(animate);
+};
 
   const removePreset = () => {
     setPresets((p) => p.filter((x) => x.id !== selPreset));
