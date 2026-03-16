@@ -20,10 +20,10 @@ export default function Sidebar({ activePage, onNavigate }) {
       {/* Logo */}
       <div className="sidebar__logo">
         <div className="sidebar__logo-mark">
-          <img src={logoImg} alt="MIRADORAI" className="sidebar__logo-img" />
+          <img src={logoImg} alt="MIRADOR" className="sidebar__logo-img" />
         </div>
         <div className="sidebar__logo-text">
-          <span className="sidebar__logo-name">MIRADORAI</span>
+          <span className="sidebar__logo-name">MIRADOR</span>
           <span className="sidebar__logo-sub">VMS Platform</span>
         </div>
       </div>
@@ -88,7 +88,7 @@ export default function Sidebar({ activePage, onNavigate }) {
       <div className="sidebar__footer">
         <div className="sidebar__server-dot" />
         <div>
-          <div className="sidebar__server-name">MIRADORAI-SRV</div>
+          <div className="sidebar__server-name">MIRADOR-VMS</div>
           <div className="sidebar__server-status">Connected · Secure</div>
         </div>
       </div>

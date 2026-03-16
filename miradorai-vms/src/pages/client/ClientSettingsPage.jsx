@@ -15,7 +15,7 @@ export default function ClientSettingsPage() {
 
   return (
     <div className="page-shell">
-      <div className="page-header"><div><h1 className="page-title">Client <span>Settings</span></h1><p className="page-desc">Customize your MIRADORAI VMS client experience.</p></div></div>
+      <div className="page-header"><div><h1 className="page-title">Client <span>Settings</span></h1><p className="page-desc">Customize your MIRADOR VMS client experience.</p></div></div>
       <div className="cs-grid">
         {SECTIONS.map(({ title, settings }) => (
           <div key={title} className="cs-card card">

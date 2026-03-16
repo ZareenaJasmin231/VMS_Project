@@ -1,7 +1,7 @@
 services:
   ome:
     image: airensoft/ovenmediaengine:latest
-    container_name: miradorai-ome
+    container_name: mirador-ome
     restart: unless-stopped
     ports:
       - "1935:1935"
@@ -18,7 +18,7 @@ services:
 
   mongo:
     image: mongo:7
-    container_name: miradorai-mongo
+    container_name: mirador-mongo
     restart: unless-stopped
     ports:
       - "27017:27017"
@@ -29,7 +29,7 @@ services:
 
   backend:
     build: ./onvif-backend
-    container_name: miradorai-backend
+    container_name: mirador-backend
     restart: unless-stopped
     ports:
       - "8000:8000"

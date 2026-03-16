@@ -176,7 +176,7 @@ export default function AddDevicesPage() {
       <div className="page-header">
         <div>
           <h1 className="page-title">Add <span>Devices</span></h1>
-          <p className="page-desc">Discover and enroll devices from your network into the MIRADORAI VMS platform.</p>
+          <p className="page-desc">Discover and enroll devices from your network into the MIRADOR VMS platform.</p>
         </div>
         <div className="add-dev__toolbar">
           <Button label="Manual Search" icon={`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>`} onClick={() => setShowManualSearch(true)} />

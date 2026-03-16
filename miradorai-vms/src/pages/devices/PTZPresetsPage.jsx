@@ -15,10 +15,6 @@ const PTZ_API = "http://localhost:8000";
 
 async function sendPTZMove(device, pan, tilt, zoom) {
   if (!device?.ip) return;
-  // Convert UI values to ONVIF normalized range
-  // pan: -180..180 → -1..1
-  // tilt: -90..90  → -1..1
-  // zoom: 0..100   →  0..1
   try {
     await fetch(`${PTZ_API}/api/onvif/ptz/move`, {
       method: "POST",
@@ -71,11 +67,18 @@ export default function PTZPresetsPage() {
   const videoWrapRef = useRef(null);
   const ctxInputRef  = useRef(null);
 
+  // Keep pan/tilt/zoom in refs so interval callbacks always see latest values
+  const panRef  = useRef(pan);
+  const tiltRef = useRef(tilt);
+  const zoomRef = useRef(zoom);
+  useEffect(() => { panRef.current  = pan;  }, [pan]);
+  useEffect(() => { tiltRef.current = tilt; }, [tilt]);
+  useEffect(() => { zoomRef.current = zoom; }, [zoom]);
+
   const devices = loadDevices();
   const selectedDevice = devices.find((d) => String(d.id) === String(selected));
   const wsUrl = selectedDevice?.ws_url || null;
 
-  // ── Load presets when camera selection changes ──
   useEffect(() => {
     if (selected) {
       const camPresets = loadPresetsForCamera(selected);
@@ -85,15 +88,11 @@ export default function PTZPresetsPage() {
       setPresets([]);
       setSelPreset(null);
     }
-    // Reset PTZ position
     setPan(0); setTilt(0); setZoom(0); setFocus(50);
   }, [selected]);
 
-  // ── Save presets to localStorage whenever they change ──
   useEffect(() => {
-    if (selected) {
-      savePresetsForCamera(selected, presets);
-    }
+    if (selected) savePresetsForCamera(selected, presets);
   }, [presets, selected]);
 
   const rows = devices.map((d) => ({
@@ -111,21 +110,36 @@ export default function PTZPresetsPage() {
     )
   );
 
-  const step = () => Math.max(1, Math.round(speed / 20));
+  const getStep = () => Math.max(1, Math.round(speed / 20));
 
-  const move = () => {
-  const s = step();
-  let newPan = pan, newTilt = tilt;
-  if (dir === "up")         { setTilt((v) => { newTilt = Math.min(90, v + s);  return newTilt; }); }
-  if (dir === "down")       { setTilt((v) => { newTilt = Math.max(-90, v - s); return newTilt; }); }
-  if (dir === "left")       { setPan((v)  => { newPan  = Math.max(-180, v - s);return newPan;  }); }
-  if (dir === "right")      { setPan((v)  => { newPan  = Math.min(180, v + s); return newPan;  }); }
-  if (dir === "up-left")    { setTilt((v) => Math.min(90, v + s));  setPan((v) => Math.max(-180, v - s)); }
-  if (dir === "up-right")   { setTilt((v) => Math.min(90, v + s));  setPan((v) => Math.min(180, v + s)); }
-  if (dir === "down-left")  { setTilt((v) => Math.max(-90, v - s)); setPan((v) => Math.max(-180, v - s)); }
-  if (dir === "down-right") { setTilt((v) => Math.max(-90, v - s)); setPan((v) => Math.min(180, v + s)); }
-  sendPTZMove(selectedDevice, pan, tilt, zoom);
-};
+  // ── Fixed: dir is now a proper parameter ──
+  const move = useCallback((dir) => {
+    const s = getStep();
+    let nextPan  = panRef.current;
+    let nextTilt = tiltRef.current;
+
+    if (dir === "up")         { nextTilt = Math.min(90,   tiltRef.current + s); }
+    if (dir === "down")       { nextTilt = Math.max(-90,  tiltRef.current - s); }
+    if (dir === "left")       { nextPan  = Math.max(-180, panRef.current  - s); }
+    if (dir === "right")      { nextPan  = Math.min(180,  panRef.current  + s); }
+    if (dir === "up-left")    { nextTilt = Math.min(90,   tiltRef.current + s); nextPan = Math.max(-180, panRef.current - s); }
+    if (dir === "up-right")   { nextTilt = Math.min(90,   tiltRef.current + s); nextPan = Math.min(180,  panRef.current + s); }
+    if (dir === "down-left")  { nextTilt = Math.max(-90,  tiltRef.current - s); nextPan = Math.max(-180, panRef.current - s); }
+    if (dir === "down-right") { nextTilt = Math.max(-90,  tiltRef.current - s); nextPan = Math.min(180,  panRef.current + s); }
+
+    setPan(nextPan);
+    setTilt(nextTilt);
+    sendPTZMove(selectedDevice, nextPan, nextTilt, zoomRef.current);
+  }, [selectedDevice, speed]);
+
+  // ── Fixed: startMove now properly defined ──
+  const startMove = useCallback((dir) => {
+    if (!selected) return;
+    setActiveBtn(dir);
+    move(dir);
+    clearInterval(intervalRef.current);
+    intervalRef.current = setInterval(() => move(dir), 150);
+  }, [selected, move]);
 
   const stopMove = useCallback(() => {
     setActiveBtn(null);
@@ -137,28 +151,31 @@ export default function PTZPresetsPage() {
   const handleHome = () => { setPan(0); setTilt(0); setZoom(0); setFocus(50); };
 
   const gotoPreset = (preset) => {
-  setSelPreset(preset.id);
-  setMoving(true);
-  const startPan = pan, startTilt = tilt, startZoom = zoom;
-  const duration = 800;
-  const startTime = Date.now();
-  const animate = () => {
-    const elapsed  = Date.now() - startTime;
-    const progress = Math.min(elapsed / duration, 1);
-    const ease = progress < 0.5 ? 2 * progress * progress : -1 + (4 - 2 * progress) * progress;
-    setPan(Math.round(startPan   + (preset.pan  - startPan)  * ease));
-    setTilt(Math.round(startTilt + (preset.tilt - startTilt) * ease));
-    setZoom(Math.round(startZoom + (preset.zoom - startZoom) * ease));
-    if (progress < 1) {
-      requestAnimationFrame(animate);
-    } else {
-      setMoving(false);
-      // ── Send actual PTZ command to camera when animation completes ──
-      sendPTZMove(selectedDevice, preset.pan, preset.tilt, preset.zoom);
-    }
+    setSelPreset(preset.id);
+    setMoving(true);
+    const startPan  = panRef.current;
+    const startTilt = tiltRef.current;
+    const startZoom = zoomRef.current;
+    const duration  = 800;
+    const startTime = Date.now();
+    const animate = () => {
+      const elapsed  = Date.now() - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      const ease = progress < 0.5
+        ? 2 * progress * progress
+        : -1 + (4 - 2 * progress) * progress;
+      setPan(Math.round(startPan   + (preset.pan  - startPan)  * ease));
+      setTilt(Math.round(startTilt + (preset.tilt - startTilt) * ease));
+      setZoom(Math.round(startZoom + (preset.zoom - startZoom) * ease));
+      if (progress < 1) {
+        requestAnimationFrame(animate);
+      } else {
+        setMoving(false);
+        sendPTZMove(selectedDevice, preset.pan, preset.tilt, preset.zoom);
+      }
+    };
+    requestAnimationFrame(animate);
   };
-  requestAnimationFrame(animate);
-};
 
   const removePreset = () => {
     setPresets((p) => p.filter((x) => x.id !== selPreset));
@@ -229,9 +246,9 @@ export default function PTZPresetsPage() {
         <SearchBar value={filter} onChange={setFilter} placeholder="Type to filter" />
       </div>
 
-      <div className="card" style={{ overflow: "auto", flexShrink: 0 }}>
+      <div className="card" style={{ maxHeight: "calc(3 * 48px + 48px)", overflowY: "auto", flexShrink: 0, scrollbarWidth: "thin", scrollbarColor: "#334155 transparent" }}>
         <table className="m-table">
-          <thead>
+          <thead style={{ position: "sticky", top: 0, zIndex: 1 }}>
             <tr>{["Camera Name", "IP Address", "Manufacturer", "Model"].map((c) => <th key={c}>{c}</th>)}</tr>
           </thead>
           <tbody>

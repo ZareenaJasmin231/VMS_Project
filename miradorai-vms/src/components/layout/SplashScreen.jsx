@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import logoImg from "../../assets/logo.jpg";
 import "./SplashScreen.css";
 
-const NAME = "MIRADOR AI";
+const NAME = "MIRADOR VMS";
 
 export default function SplashScreen({ onDone }) {
   const [phase, setPhase] = useState("idle"); // idle → logo → text → line → exit
@@ -27,7 +27,7 @@ export default function SplashScreen({ onDone }) {
 
         {/* Logo */}
         <div className={`splash__logo-wrap ${phase !== "idle" ? "splash__logo-wrap--in" : ""}`}>
-          <img src={logoImg} alt="MIRADOR AI" className="splash__logo" />
+          <img src={logoImg} alt="MIRADOR " className="splash__logo" />
           {/* Shimmer scan line */}
           <div className={`splash__shimmer ${phase !== "idle" ? "splash__shimmer--run" : ""}`} />
         </div>

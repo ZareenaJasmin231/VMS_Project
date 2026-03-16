@@ -100,14 +100,25 @@ export default function ImageConfigPage() {
         <SearchBar value={filter} onChange={setFilter} placeholder="Type to filter" />
       </div>
 
-      {/* Camera Table — uses DataTable with real devices (File 2) + filter (File 1) */}
-      <DataTable
-        columns={["Camera Name", "IP Address", "Manufacturer", "Model"]}
-        rows={filteredRows}
-        selectedId={selected ? String(selected) : null}
-        onSelect={handleSelectCamera}
-        emptyMessage="No cameras enrolled. Go to Add Devices first."
-      />
+      {/* Camera Table — fixed height shows 4 rows, scrollable beyond that */}
+      <div
+        style={{
+          maxHeight: "calc(4 * 48px + 48px)", /* 4 data rows + 1 header row (48px each) */
+          overflowY: "auto",
+          borderRadius: 8,
+          /* Subtle scrollbar styling */
+          scrollbarWidth: "thin",
+          scrollbarColor: "#334155 transparent",
+        }}
+      >
+        <DataTable
+          columns={["Camera Name", "IP Address", "Manufacturer", "Model"]}
+          rows={filteredRows}
+          selectedId={selected ? String(selected) : null}
+          onSelect={handleSelectCamera}
+          emptyMessage="No cameras enrolled. Go to Add Devices first."
+        />
+      </div>
 
       <div className="ic-bottom">
         {/* Live Stream Preview — WebRTCPlayer (File 2) + CSS filter/transform overlays (File 1) */}
