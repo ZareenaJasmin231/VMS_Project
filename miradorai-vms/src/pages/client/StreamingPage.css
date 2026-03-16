@@ -1,0 +1,159 @@
+/* ── Scrollable body ─────────────────────────────────────────── */
+.st-body {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  scrollbar-width: thin;
+  scrollbar-color: #334155 transparent;
+  padding-bottom: 8px;
+}
+
+/* ── Section ─────────────────────────────────────────────────── */
+.st-section {
+  display: flex;
+  flex-direction: column;
+  padding: 18px 0 10px;
+  border-bottom: 1px solid var(--border);
+  gap: 0;
+}
+.st-section:last-child { border-bottom: none; }
+
+.st-section__title {
+  font-size: 20px;
+  font-weight: 400;
+  color: var(--text-primary);
+  margin-bottom: 12px;
+  letter-spacing: -0.01em;
+}
+
+.st-section__body {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+/* ── Setting row ─────────────────────────────────────────────── */
+.st-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 0;
+  gap: 16px;
+  min-height: 36px;
+}
+
+.st-row--inline {
+  justify-content: flex-start;
+  gap: 12px;
+}
+
+.st-row__label {
+  font-size: 13px;
+  color: var(--text-secondary);
+  flex: 1;
+}
+
+.st-row--inline .st-row__label {
+  flex: unset;
+  white-space: nowrap;
+}
+
+.st-row__control { flex-shrink: 0; }
+
+/* ── Radio ───────────────────────────────────────────────────── */
+.st-radio {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 4px 0;
+}
+.st-radio input[type="radio"] {
+  accent-color: var(--teal);
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+/* ── Select ──────────────────────────────────────────────────── */
+.st-select {
+  padding: 5px 10px;
+  background: var(--bg-base);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: 12.5px;
+  font-family: var(--font-ui);
+  outline: none;
+  cursor: pointer;
+  min-width: 180px;
+  transition: border-color 0.15s;
+}
+.st-select:focus { border-color: var(--teal); }
+
+/* ── Slider ──────────────────────────────────────────────────── */
+.st-slider {
+  flex: 1;
+  max-width: 280px;
+  accent-color: var(--teal);
+  cursor: pointer;
+  height: 4px;
+}
+
+.st-slider-val {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+  min-width: 36px;
+  flex-shrink: 0;
+}
+
+/* ── Spinner ─────────────────────────────────────────────────── */
+.st-spinner {
+  display: flex;
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--bg-base);
+  width: 80px;
+  flex-shrink: 0;
+}
+
+.st-spinner__input {
+  width: 50px;
+  padding: 4px 8px;
+  border: none;
+  background: transparent;
+  font-size: 12px;
+  font-family: var(--font-ui);
+  color: var(--text-primary);
+  outline: none;
+  -moz-appearance: textfield;
+}
+.st-spinner__input::-webkit-outer-spin-button,
+.st-spinner__input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+
+.st-spinner__btns {
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid var(--border);
+}
+
+.st-spinner__btn {
+  background: var(--bg-elevated);
+  border: none;
+  cursor: pointer;
+  font-size: 7px;
+  padding: 2px 5px;
+  color: var(--text-secondary);
+  line-height: 1;
+  transition: background 0.1s;
+}
+.st-spinner__btn:hover { background: var(--bg-hover); color: var(--text-primary); }
+.st-spinner__btn + .st-spinner__btn { border-top: 1px solid var(--border); }

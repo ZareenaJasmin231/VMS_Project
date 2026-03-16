@@ -1,0 +1,251 @@
+/* ── Table wrap ─────────────────────────────────── */
+.sm-table-wrap {
+  flex-shrink: 0;
+  overflow: auto;
+  max-height: 220px;
+}
+
+/* ── Disk icon cell ─────────────────────────────── */
+.sm-disk-icon {
+  position: relative;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+}
+.sm-disk-icon svg { width: 22px; height: 22px; }
+.sm-disk-warn {
+  position: absolute;
+  bottom: -2px;
+  right: -2px;
+  font-size: 9px;
+  color: #f59e0b;
+}
+
+/* ── Location cell ──────────────────────────────── */
+.sm-location {
+  color: var(--teal) !important;
+  font-weight: 500;
+}
+
+/* ── Status badge ───────────────────────────────── */
+.sm-status        { font-size: 12px; font-weight: 500; }
+.sm-status--ok    { color: var(--teal); }
+.sm-status--warn  { color: #f59e0b; }
+
+/* ── Remove / Add buttons ───────────────────────── */
+.sm-table-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.sm-btn {
+  padding: 6px 16px;
+  border-radius: 6px;
+  border: 1px solid var(--border-light);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-family: var(--font-ui);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.sm-btn:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+.sm-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+.sm-btn--primary {
+  background: var(--teal);
+  color: #000;
+  border-color: var(--teal);
+  font-weight: 600;
+}
+.sm-btn--primary:hover:not(:disabled) {
+  background: var(--teal-dim);
+  border-color: var(--teal-dim);
+  color: #000;
+}
+
+/* ── Bottom split ───────────────────────────────── */
+.sm-bottom {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  flex-shrink: 0;
+}
+
+/* ── Panel title ────────────────────────────────── */
+.sm-panel-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 14px;
+}
+
+/* ── Overview panel ─────────────────────────────── */
+.sm-overview {
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* ── Legend ─────────────────────────────────────── */
+.sm-legend {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.sm-legend strong { color: var(--text-primary); }
+.sm-legend-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+.sm-legend-dot--used  { background: var(--teal); }
+.sm-legend-dot--free  { background: #22c55e; }
+.sm-legend-dot--other { background: #ef4444; }
+
+/* ── Usage bar ──────────────────────────────────── */
+.sm-usage-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+.sm-usage-track {
+  height: 8px;
+  background: var(--bg-base);
+  border-radius: 4px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+.sm-usage-bar {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.4s ease;
+}
+.sm-usage-text {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+/* ── Slider ─────────────────────────────────────── */
+.sm-slider-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.sm-slider {
+  flex: 1;
+  accent-color: var(--teal);
+}
+.sm-slider-val {
+  min-width: 56px;
+  font-size: 12px;
+  font-family: var(--font-mono);
+  color: var(--teal);
+  text-align: right;
+}
+
+/* ── Field row ──────────────────────────────────── */
+.sm-field-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+}
+.sm-field-row label {
+  min-width: 100px;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+/* ── Input ──────────────────────────────────────── */
+.sm-input {
+  flex: 1;
+  padding: 6px 10px;
+  background: var(--bg-base);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: 12px;
+  font-family: var(--font-ui);
+  outline: none;
+  transition: border-color 0.15s;
+}
+.sm-input:focus { border-color: var(--teal); }
+
+/* ── Apply message ──────────────────────────────── */
+.sm-apply-msg {
+  font-size: 12px;
+  color: var(--teal);
+  padding: 4px 0;
+}
+
+/* ── Divider ────────────────────────────────────── */
+.sm-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 4px 0;
+}
+
+/* ── Collect panel ──────────────────────────────── */
+.sm-collect {
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.sm-collect-desc {
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.7;
+  font-style: italic;
+}
+
+.sm-collect-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.sm-collect-progress__bar {
+  height: 3px;
+  background: var(--teal);
+  border-radius: 2px;
+  animation: collectScan 1.5s ease-in-out infinite;
+}
+@keyframes collectScan {
+  0%   { width: 0%;   margin-left: 0;    }
+  50%  { width: 60%;  margin-left: 20%;  }
+  100% { width: 0%;   margin-left: 100%; }
+}
+
+.sm-collect-done {
+  font-size: 12px;
+  color: var(--teal);
+  padding: 8px 12px;
+  background: rgba(0,200,160,0.08);
+  border: 1px solid rgba(0,200,160,0.2);
+  border-radius: var(--radius-sm);
+}
+
+.sm-collect-footer {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: auto;
+}

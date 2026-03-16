@@ -16,6 +16,17 @@ import ClientSettingsPage from "../../pages/client/ClientSettingsPage";
 import AboutPage          from "../../pages/client/AboutPage";
 import Schedules from "../../pages/recording/Schedules";
 import RecordingMethodPage from "../../pages/recording/Recordingmethodpage";
+import IOPortsPage        from "../../pages/recording/IOPortsPage";
+import ActionRulesPage    from "../../pages/recording/Actionrulespage";
+import UserSettingsPage   from "../../pages/client/Usersettingspage";
+import StreamingPage      from "../../pages/client/StreamingPage";
+import FirmwareUpgradePage from "../../pages/connectedservices/Firmwareupgradepage";
+import SmartSearchSettingsPage from "../../pages/smartsearcxh/Smartsearchsettingspage";
+
+
+
+
+
 
 const MAP = {
   "add-devices":       <AddDevicesPage />,
@@ -36,6 +47,17 @@ const MAP = {
   "about":             <AboutPage />,
   "schedules": <Schedules />,
   "rec-method": <RecordingMethodPage />,
+  "io-ports":          <IOPortsPage />,
+ "action-rules":      <ActionRulesPage />,
+  "user-settings":     <UserSettingsPage />,
+  "streaming":         <StreamingPage />,
+  "firmware-upgrade":  <FirmwareUpgradePage />,
+  "smartsearch-settings":<SmartSearchSettingsPage />,
+
+
+
+
+
 
   
 };
