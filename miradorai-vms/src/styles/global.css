@@ -142,3 +142,13 @@ input, select, button, textarea { font-family: var(--font-ui); }
   border-radius: var(--radius-md);
   overflow: hidden;
 }
+
+[data-theme="light"] {
+  color-scheme: light;
+}
+[data-theme="light"] ::-webkit-scrollbar-thumb {
+  background: #c0c8d8;
+}
+[data-theme="light"] body {
+  background: #f0f2f5;
+}

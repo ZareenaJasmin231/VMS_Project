@@ -395,3 +395,22 @@ def update_storage_selection(payload: dict):
         }}
     )
     return {"success": True}
+
+class PTZMoveRequest(BaseModel):
+    ip: str
+    port: int = 80
+    username: str = ""
+    password: str = ""
+    pan: float = 0.0
+    tilt: float = 0.0
+    zoom: float = 0.0
+
+@app.post("/api/onvif/ptz/move")
+async def ptz_move(req: PTZMoveRequest):
+    print(f"[PTZ] Moving {req.ip} to P:{req.pan} T:{req.tilt} Z:{req.zoom}")
+    result = await asyncio.to_thread(
+        move_camera_ptz,
+        req.ip, req.port, req.username, req.password,
+        req.pan, req.tilt, req.zoom
+    )
+    return result

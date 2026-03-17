@@ -99,3 +99,28 @@ def move_camera_ptz(ip: str, port: int, username: str, password: str,
         return {"success": True}
     except Exception as e:
         return {"success": False, "error": str(e)}
+
+def move_camera_ptz(ip: str, port: int, username: str, password: str,
+                    pan: float, tilt: float, zoom: float) -> dict:
+    try:
+        cam = ONVIFCamera(ip, port, username, password)
+        ptz_service   = cam.create_ptz_service()
+        media_service = cam.create_media_service()
+        profiles      = media_service.GetProfiles()
+        if not profiles:
+            return {"success": False, "error": "No profiles found"}
+        token = profiles[0].token
+        request = ptz_service.create_type("AbsoluteMove")
+        request.ProfileToken = token
+        request.Position = {
+            "PanTilt": {"x": float(pan),  "y": float(tilt)},
+            "Zoom":    {"x": float(zoom)},
+        }
+        request.Speed = {
+            "PanTilt": {"x": 0.5, "y": 0.5},
+            "Zoom":    {"x": 0.5},
+        }
+        ptz_service.AbsoluteMove(request)
+        return {"success": True}
+    except Exception as e:
+        return {"success": False, "error": str(e)}

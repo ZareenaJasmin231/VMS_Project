@@ -14,12 +14,20 @@ const THEMES = [
     label: "System",
     icon: (
       <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <rect x="4"  y="4"  width="28" height="28" fill="#b0bec5" />
-        <rect x="4"  y="36" width="28" height="24" fill="#78909c" />
-        <rect x="36" y="4"  width="24" height="24" fill="#cfd8dc" />
-        <rect x="36" y="32" width="24" height="28" fill="#263238" />
-        <rect x="40" y="36" width="16" height="4"  fill="#37474f" />
-        <rect x="40" y="44" width="10" height="3"  fill="#37474f" />
+        {/* Left half — light */}
+        <rect x="4"  y="4"  width="28" height="56" fill="#f0f2f5" />
+        <rect x="4"  y="4"  width="28" height="14" fill="#e0e0e0" />
+        <rect x="8"  y="22" width="12" height="30" fill="#eeeeee" />
+        <rect x="22" y="22" width="8"  height="6"  fill="#e0e0e0" />
+        <rect x="22" y="32" width="8"  height="4"  fill="#e0e0e0" />
+        {/* Right half — dark */}
+        <rect x="32" y="4"  width="28" height="56" fill="#0d0f14" />
+        <rect x="32" y="4"  width="28" height="14" fill="#13161e" />
+        <rect x="36" y="22" width="12" height="30" fill="#1a1e28" />
+        <rect x="50" y="22" width="8"  height="6"  fill="#252a38" />
+        <rect x="50" y="32" width="8"  height="4"  fill="#252a38" />
+        {/* Center divider */}
+        <rect x="31" y="4"  width="2"  height="56" fill="#00c8a0" opacity="0.6" />
       </svg>
     ),
   },
@@ -28,12 +36,14 @@ const THEMES = [
     label: "Light",
     icon: (
       <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <rect x="4"  y="4"  width="56" height="56" fill="#f5f5f5" />
+        <rect x="4"  y="4"  width="56" height="56" fill="#f0f2f5" />
         <rect x="4"  y="4"  width="56" height="14" fill="#e0e0e0" />
-        <rect x="8"  y="22" width="24" height="34" fill="#eeeeee" />
-        <rect x="36" y="22" width="20" height="8"  fill="#e0e0e0" />
-        <rect x="36" y="34" width="20" height="4"  fill="#e0e0e0" />
-        <rect x="36" y="42" width="14" height="4"  fill="#e0e0e0" />
+        <rect x="8"  y="22" width="20" height="34" fill="#eeeeee" />
+        <rect x="32" y="22" width="24" height="8"  fill="#e0e0e0" />
+        <rect x="32" y="34" width="24" height="4"  fill="#e0e0e0" />
+        <rect x="32" y="42" width="16" height="4"  fill="#e0e0e0" />
+        {/* Sun icon hint */}
+        <circle cx="52" cy="10" r="4" fill="#ffb340" opacity="0.8" />
       </svg>
     ),
   },
@@ -42,12 +52,14 @@ const THEMES = [
     label: "Dark",
     icon: (
       <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <rect x="4"  y="4"  width="56" height="56" fill="#1e1e2e" />
-        <rect x="4"  y="4"  width="56" height="14" fill="#181825" />
-        <rect x="8"  y="22" width="24" height="34" fill="#11111b" />
-        <rect x="36" y="22" width="20" height="8"  fill="#313244" />
-        <rect x="36" y="34" width="20" height="4"  fill="#313244" />
-        <rect x="36" y="42" width="14" height="4"  fill="#313244" />
+        <rect x="4"  y="4"  width="56" height="56" fill="#0d0f14" />
+        <rect x="4"  y="4"  width="56" height="14" fill="#13161e" />
+        <rect x="8"  y="22" width="20" height="34" fill="#1a1e28" />
+        <rect x="32" y="22" width="24" height="8"  fill="#252a38" />
+        <rect x="32" y="34" width="24" height="4"  fill="#252a38" />
+        <rect x="32" y="42" width="16" height="4"  fill="#252a38" />
+        {/* Moon icon hint */}
+        <path d="M52 7 a5 5 0 0 1 0 8 a6 6 0 0 1 0-8z" fill="#8892a4" opacity="0.7" />
       </svg>
     ),
   },
@@ -56,49 +68,86 @@ const THEMES = [
 /* ── Theme CSS variable sets ─────────────────────────────────── */
 const THEME_VARS = {
   dark: {
-    "--bg-base":       "#0d0f14",
-    "--bg-surface":    "#13161e",
-    "--bg-elevated":   "#1a1e28",
-    "--bg-hover":      "#1f2433",
-    "--bg-active":     "#1e2d3d",
-    "--border":        "#252a38",
-    "--border-light":  "#2e3548",
-    "--text-primary":  "#e8eaf0",
-    "--text-secondary":"#8892a4",
-    "--text-muted":    "#505870",
+    "--bg-base":        "#0d0f14",
+    "--bg-surface":     "#13161e",
+    "--bg-elevated":    "#1a1e28",
+    "--bg-hover":       "#1f2433",
+    "--bg-active":      "#1e2d3d",
+    "--border":         "#252a38",
+    "--border-light":   "#2e3548",
+    "--text-primary":   "#e8eaf0",
+    "--text-secondary": "#8892a4",
+    "--text-muted":     "#505870",
   },
   light: {
-    "--bg-base":       "#f0f2f5",
-    "--bg-surface":    "#ffffff",
-    "--bg-elevated":   "#f8f9fb",
-    "--bg-hover":      "#e8ecf2",
-    "--bg-active":     "#dde3ee",
-    "--border":        "#d0d6e0",
-    "--border-light":  "#c0c8d8",
-    "--text-primary":  "#111827",
-    "--text-secondary":"#374151",
-    "--text-muted":    "#6b7280",
+    "--bg-base":        "#f0f2f5",
+    "--bg-surface":     "#ffffff",
+    "--bg-elevated":    "#f8f9fb",
+    "--bg-hover":       "#edf0f5",
+    "--bg-active":      "#dde3ee",
+    "--border":         "#d0d6e0",
+    "--border-light":   "#c0c8d8",
+    "--text-primary":   "#111827",
+    "--text-secondary": "#374151",
+    "--text-muted":     "#6b7280",
   },
-  system: null, // will use media query detection
+  system: {
+    // resolved at runtime based on OS preference
+  },
 };
 
 function applyTheme(themeId) {
   const root = document.documentElement;
+  let resolved = themeId;
 
-  // Detect system preference for "system" mode
   if (themeId === "system") {
-    const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-    themeId = prefersDark ? "dark" : "light";
+    resolved = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
   }
 
-  const vars = THEME_VARS[themeId];
-  if (!vars) return;
+  // Remove old theme attribute
+  root.removeAttribute("data-theme");
+  root.setAttribute("data-theme", resolved);
+
+  const vars = resolved === "light" ? {
+    "--bg-base":        "#f0f2f5",
+    "--bg-surface":     "#ffffff",
+    "--bg-elevated":    "#f8f9fb",
+    "--bg-hover":       "#edf0f5",
+    "--bg-active":      "#dde3ee",
+    "--border":         "#d0d6e0",
+    "--border-light":   "#c0c8d8",
+    "--text-primary":   "#111827",
+    "--text-secondary": "#374151",
+    "--text-muted":     "#6b7280",
+    "--teal":           "#009e7f",
+    "--teal-dim":       "#007d65",
+    "--teal-glow":      "rgba(0,158,127,0.15)",
+    "--teal-subtle":    "rgba(0,158,127,0.08)",
+  } : {
+    "--bg-base":        "#0d0f14",
+    "--bg-surface":     "#13161e",
+    "--bg-elevated":    "#1a1e28",
+    "--bg-hover":       "#1f2433",
+    "--bg-active":      "#1e2d3d",
+    "--border":         "#252a38",
+    "--border-light":   "#2e3548",
+    "--text-primary":   "#e8eaf0",
+    "--text-secondary": "#8892a4",
+    "--text-muted":     "#505870",
+    "--teal":           "#00c8a0",
+    "--teal-dim":       "#00a882",
+    "--teal-glow":      "rgba(0,200,160,0.15)",
+    "--teal-subtle":    "rgba(0,200,160,0.08)",
+  };
 
   Object.entries(vars).forEach(([key, val]) => {
     root.style.setProperty(key, val);
   });
 
-  // Store preference
+  // Force body background update too
+  document.body.style.background = vars["--bg-base"];
+  document.body.style.color = vars["--text-primary"];
+
   localStorage.setItem("miradorai_theme", themeId);
 }
 

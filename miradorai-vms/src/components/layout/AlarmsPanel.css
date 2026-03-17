@@ -1,0 +1,186 @@
+/* ── Panel ───────────────────────────────────────── */
+.alarms-panel {
+  flex-shrink: 0;
+  height: 200px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-surface);
+  display: flex;
+  flex-direction: column;
+  animation: alarmSlideUp 0.2s ease;
+}
+
+@keyframes alarmSlideUp {
+  from { height: 0; opacity: 0; }
+  to   { height: 200px; opacity: 1; }
+}
+
+/* ── Header ─────────────────────────────────────── */
+.alarms-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  height: 36px;
+  background: var(--bg-elevated);
+}
+
+.alarms-panel__tabs {
+  display: flex;
+  gap: 0;
+  height: 100%;
+}
+
+.alarms-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 14px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-family: var(--font-ui);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  height: 100%;
+  transition: color 0.15s, border-color 0.15s;
+}
+.alarms-tab:hover { color: var(--text-primary); }
+.alarms-tab--active {
+  color: var(--text-primary);
+  border-bottom-color: var(--teal);
+  font-weight: 500;
+}
+
+.alarms-tab__badge {
+  background: var(--red);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 10px;
+  min-width: 18px;
+  text-align: center;
+}
+
+.alarms-panel__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.alarms-action-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-family: var(--font-ui);
+  cursor: pointer;
+  padding: 3px 8px;
+  border-radius: var(--radius-sm);
+  transition: color 0.15s, background 0.15s;
+}
+.alarms-action-btn:hover {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+
+.alarms-close-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  transition: color 0.15s;
+}
+.alarms-close-btn svg { width: 14px; height: 14px; }
+.alarms-close-btn:hover { color: var(--text-primary); }
+
+/* ── Body ────────────────────────────────────────── */
+.alarms-panel__body {
+  flex: 1;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+/* ── Table ───────────────────────────────────────── */
+.alarms-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.alarms-table thead tr {
+  background: var(--bg-elevated);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.alarms-table th {
+  text-align: left;
+  padding: 5px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.alarms-table tbody tr {
+  border-bottom: 1px solid var(--border);
+  transition: background 0.1s;
+}
+.alarms-table tbody tr:last-child { border-bottom: none; }
+.alarms-table tbody tr:hover { background: var(--bg-hover); }
+.alarms-table__row--unread { background: rgba(255,77,106,0.04); }
+.alarms-table__empty {
+  text-align: center;
+  color: var(--text-muted);
+  padding: 24px !important;
+  font-size: 12px;
+}
+
+.alarms-table td { padding: 6px 12px; vertical-align: middle; }
+
+/* ── Unread dot ──────────────────────────────────── */
+.alarms-unread-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--teal);
+  box-shadow: 0 0 4px var(--teal);
+}
+
+/* ── Cell styles ─────────────────────────────────── */
+.alarms-time {
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  white-space: nowrap;
+}
+.alarms-category {
+  color: var(--text-secondary);
+  font-weight: 500;
+  white-space: nowrap;
+  min-width: 120px;
+}
+.alarms-desc {
+  color: var(--text-primary);
+  font-size: 12px;
+}
+
+/* ── Task status ─────────────────────────────────── */
+.alarms-status {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+.alarms-status--done    { background: rgba(0,200,160,0.12); color: var(--teal); }
+.alarms-status--pending { background: rgba(255,179,64,0.12); color: var(--yellow); }
