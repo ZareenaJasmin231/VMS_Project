@@ -15,7 +15,7 @@ import encrypt_service
 from recording_api import recording_router
 import shutil
 
-app = FastAPI(title="MIRADORAI ONVIF Backend")
+app = FastAPI(title="MIRADOR ONVIF Backend")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
