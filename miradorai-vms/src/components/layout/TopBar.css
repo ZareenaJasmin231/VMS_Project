@@ -1,3 +1,4 @@
+/* ── Topbar ──────────────────────────────────────── */
 .topbar {
   height: 52px;
   background: var(--bg-surface);
@@ -5,43 +6,206 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 24px;
+  padding: 0 16px 0 12px;
+  flex-shrink: 0;
+  gap: 12px;
+}
+
+.topbar__left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+}
+
+/* ── Breadcrumb ──────────────────────────────────── */
+.topbar__breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+.topbar__brand {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--teal);
+  letter-spacing: 1px;
+  white-space: nowrap;
+}
+.topbar__sep {
+  width: 14px !important;
+  height: 14px !important;
+  min-width: 14px;
+  min-height: 14px;
+  color: var(--text-muted);
   flex-shrink: 0;
 }
-.topbar__breadcrumb { display: flex; align-items: center; gap: 6px; }
-.topbar__brand { font-size: 11px; font-weight: 700; color: var(--teal); letter-spacing: 1px; }
-.topbar__sep { width: 14px; height: 14px; color: var(--text-muted); }
-.topbar__section { font-size: 12px; color: var(--text-muted); }
-.topbar__page { font-size: 12px; color: var(--text-secondary); font-weight: 500; }
+.topbar__section {
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.topbar__page {
+  font-size: 12px;
+  color: var(--text-secondary);
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 
-.topbar__right { display: flex; align-items: center; gap: 16px; }
-.topbar__stat { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-secondary); }
-.topbar__stat-dot { width: 7px; height: 7px; border-radius: 50%; }
-.topbar__stat-dot--green { background: var(--teal); box-shadow: 0 0 6px var(--teal); }
+/* ── Right cluster ───────────────────────────────── */
+.topbar__right {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-shrink: 0;
+}
+.topbar__stat {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+.topbar__stat-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.topbar__stat-dot--green  { background: var(--teal);   box-shadow: 0 0 6px var(--teal); }
 .topbar__stat-dot--yellow { background: var(--yellow); box-shadow: 0 0 6px var(--yellow); }
-.topbar__divider { width: 1px; height: 20px; background: var(--border); }
-.topbar__user { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-secondary); cursor: pointer; }
+.topbar__divider {
+  width: 1px;
+  height: 20px;
+  background: var(--border);
+}
+.topbar__user {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
 .topbar__avatar {
   width: 28px; height: 28px;
   border-radius: 50%;
   background: linear-gradient(135deg, var(--teal), #0099cc);
-  color: #fff; font-size: 12px; font-weight: 600;
-  display: flex; align-items: center; justify-content: center;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
 }
 
+/* ── Alarms button ───────────────────────────────── */
 .topbar__stat--btn {
   background: none;
   border: none;
   cursor: pointer;
   font-family: var(--font-ui);
-  font-size: 13px;
-  color: var(--text-primary);
+  font-size: 12px;
+  color: var(--text-secondary);
   padding: 4px 8px;
   border-radius: var(--radius-sm);
   transition: background 0.15s;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 .topbar__stat--btn:hover { background: var(--bg-hover); }
 .topbar__stat--active {
   background: var(--bg-active) !important;
   color: var(--teal);
+}
+
+/* ── Plus button ─────────────────────────────────── */
+.topbar__plus-wrap { position: relative; }
+
+.topbar__plus-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-light);
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, color 0.15s;
+  flex-shrink: 0;
+}
+.topbar__plus-btn svg {
+  width: 16px !important;
+  height: 16px !important;
+}
+.topbar__plus-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+.topbar__plus-btn--open {
+  background: var(--teal-subtle);
+  color: var(--teal);
+  border-color: var(--teal);
+}
+
+/* ── Plus dropdown ───────────────────────────────── */
+.topbar__plus-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 500;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  min-width: 200px;
+  padding: 4px;
+  animation: slideUp 0.15s ease;
+}
+@keyframes slideUp {
+  from { transform: translateY(6px); opacity: 0; }
+  to   { transform: translateY(0);   opacity: 1; }
+}
+
+.topbar__plus-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 12px;
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-family: var(--font-ui);
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.1s, color 0.1s;
+}
+.topbar__plus-item:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+.topbar__plus-item-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+}
+.topbar__plus-item-icon svg {
+  width: 16px !important;
+  height: 16px !important;
+  display: block;
 }

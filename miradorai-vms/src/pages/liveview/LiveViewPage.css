@@ -1,0 +1,279 @@
+/* ── Page ────────────────────────────────────────── */
+.lv-page {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: #000;
+  overflow: hidden;
+  gap: 0;
+}
+
+/* ── Toolbar ─────────────────────────────────────── */
+.lv-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  gap: 16px;
+}
+.lv-toolbar__left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.lv-toolbar__title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.lv-toolbar__count {
+  font-size: 11px;
+  color: var(--teal);
+  background: var(--teal-subtle);
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+.lv-toolbar__right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ── Layout buttons ──────────────────────────────── */
+.lv-layouts {
+  display: flex;
+  gap: 2px;
+  background: var(--bg-base);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 2px;
+}
+.lv-layout-btn {
+  width: 28px;
+  height: 24px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 14px;
+  cursor: pointer;
+  border-radius: 3px;
+  transition: background 0.1s, color 0.1s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.lv-layout-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
+.lv-layout-btn--active { background: var(--teal-subtle); color: var(--teal); }
+
+.lv-btn {
+  padding: 5px 12px;
+  border: 1px solid var(--border-light);
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-family: var(--font-ui);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition: background 0.15s;
+}
+.lv-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
+
+/* ── Grid ────────────────────────────────────────── */
+.lv-grid {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(var(--cols), 1fr);
+  gap: 2px;
+  background: #111;
+  overflow: hidden;
+  min-height: 0;
+}
+
+/* ── 1+3 layout ──────────────────────────────────── */
+.lv-grid-1plus3 {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 3fr 1fr;
+  gap: 2px;
+  background: #111;
+  overflow: hidden;
+  min-height: 0;
+}
+.lv-grid-1plus3__side {
+  display: grid;
+  grid-template-rows: repeat(3, 1fr);
+  gap: 2px;
+}
+.lv-cell--main { min-height: 0; }
+
+/* ── Cell ────────────────────────────────────────── */
+.lv-cell {
+  position: relative;
+  background: #0a0a0a;
+  overflow: hidden;
+  cursor: pointer;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.lv-cell--selected {
+  outline: 2px solid var(--teal);
+  outline-offset: -2px;
+}
+.lv-cell:hover .lv-cell__header { opacity: 1; }
+
+/* ── Cell header ─────────────────────────────────── */
+.lv-cell__header {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: linear-gradient(to bottom, rgba(0,0,0,0.7), transparent);
+  opacity: 0.85;
+  transition: opacity 0.2s;
+}
+.lv-live-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--teal);
+  box-shadow: 0 0 6px var(--teal);
+  flex-shrink: 0;
+  animation: livePulse 2s ease-in-out infinite;
+}
+@keyframes livePulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.4; }
+}
+.lv-cell__name {
+  font-size: 11px;
+  font-weight: 500;
+  color: #fff;
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.lv-cell__actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+.lv-cell__ip {
+  font-size: 10px;
+  color: rgba(255,255,255,0.5);
+  font-family: var(--font-mono);
+}
+.lv-cell__fs-btn {
+  background: none;
+  border: none;
+  color: rgba(255,255,255,0.6);
+  cursor: pointer;
+  padding: 2px;
+  display: flex;
+  align-items: center;
+  transition: color 0.15s;
+}
+.lv-cell__fs-btn svg { width: 12px; height: 12px; }
+.lv-cell__fs-btn:hover { color: #fff; }
+.lv-cell__close {
+  background: none;
+  border: none;
+  color: rgba(255,255,255,0.7);
+  cursor: pointer;
+  font-size: 14px;
+  padding: 2px 6px;
+}
+.lv-cell__close:hover { color: #fff; }
+
+/* ── Camera player ───────────────────────────────── */
+.lv-cam {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+.lv-cam__player {
+  flex: 1;
+  min-height: 0;
+}
+
+/* ── No stream ───────────────────────────────────── */
+.lv-no-stream {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: #333;
+  font-size: 11px;
+}
+.lv-no-stream__ip {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: #222;
+}
+
+/* ── Empty cell ──────────────────────────────────── */
+.lv-empty-cell {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: #1a1a1a;
+  font-size: 11px;
+  min-height: 80px;
+}
+
+/* ── Empty state ─────────────────────────────────── */
+.lv-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: #333;
+  font-size: 13px;
+}
+.lv-empty__sub {
+  font-size: 12px;
+  color: #222;
+}
+.lv-empty strong { color: var(--teal); }
+
+/* ── Fullscreen overlay ──────────────────────────── */
+.lv-fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  background: rgba(0,0,0,0.95);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.lv-fullscreen__inner {
+  width: 90vw;
+  height: 85vh;
+  display: flex;
+  flex-direction: column;
+  background: #000;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+.lv-fullscreen__player {
+  flex: 1;
+  min-height: 0;
+}

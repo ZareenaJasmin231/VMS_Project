@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import Sidebar from "./components/layout/Sidebar";
 import TopBar from "./components/layout/TopBar";
@@ -20,10 +21,18 @@ export default function App() {
   return (
     <>
       {showSplash && <SplashScreen onDone={handleSplashDone} />}
-      <div className="app-root" style={{ opacity: appVisible ? 1 : 0, transition: "opacity 0.5s ease" }}>
+      <div
+        className="app-root"
+        style={{ opacity: appVisible ? 1 : 0, transition: "opacity 0.5s ease" }}
+      >
         <Sidebar activePage={activePage} onNavigate={setActivePage} />
         <div className="app-main-area">
-          <TopBar activePage={activePage} onAlarmsClick={() => setAlarmsOpen((p) => !p)} alarmsOpen={alarmsOpen} />
+          <TopBar
+            activePage={activePage}
+            onNavigate={setActivePage}
+            onAlarmsClick={() => setAlarmsOpen((p) => !p)}
+            alarmsOpen={alarmsOpen}
+          />
           <main className="app-content">
             <PageRenderer activePage={activePage} />
           </main>
