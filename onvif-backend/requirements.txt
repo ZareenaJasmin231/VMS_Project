@@ -5,3 +5,4 @@ onvif-zeep
 pymongo
 watchdog
 cryptography
+python-multipart

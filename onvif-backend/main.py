@@ -13,6 +13,7 @@ from onvif_service import probe_camera, move_camera_ptz
 import rtsp_recorder as recorder
 import encrypt_service
 from recording_api import recording_router
+from stream_health import start_health_monitoring
 import shutil
 
 app = FastAPI(title="MIRADOR ONVIF Backend")
@@ -25,11 +26,16 @@ app.add_middleware(
 
 app.include_router(recording_router)
 
+# Global reference to health monitoring background task
+_health_monitor_task = None
+
 DEVICES_FILE      = "/app/data/devices.json"
-OME_API           = "http://ome:8081"
+OME_API           = os.environ.get("OME_API", "http://ome:8081")
 OME_AUTH          = "Basic bXl2bXNhY2Nlc3N0b2tlbg=="
 WATCHDOG_INTERVAL = 10
 MONGO_URI         = os.environ.get("MONGO_URI", "mongodb://mongo:27017/")
+OME_HOST_IP       = os.environ.get("OME_HOST_IP", "localhost")
+OME_WS_PORT       = os.environ.get("OME_WS_PORT", "3333")
 
 # ------------------------------------------------------------------
 # MongoDB — single DB "mirador-vms", collection "cameras"
@@ -101,6 +107,7 @@ async def stream_watchdog():
 # ------------------------------------------------------------------
 @app.on_event("startup")
 async def startup():
+    global _health_monitor_task
     print(f"[STARTUP] Starting with {len(devices)} saved devices")
 
     for device in devices:
@@ -111,9 +118,12 @@ async def startup():
             register_stream(stream_name, rtsp_url)
 
     asyncio.create_task(stream_watchdog())
+    # Start health monitoring for streams
+    _health_monitor_task = asyncio.create_task(start_health_monitoring(devices, cameras_col))
     encrypt_service.start_watcher()
     recorder.start_recording_all(devices)
     print(f"[STARTUP] 🎥 Recording started for {len(devices)} camera(s)")
+    print(f"[STARTUP] ✓ Stream health monitoring started")
 
 
 @app.on_event("shutdown")
@@ -203,7 +213,7 @@ async def onvif_probe(req: ProbeRequest):
 
         result["ome_stream"]   = stream_name
         result["ome_response"] = ome_response
-        result["ws_url"]       = f"ws://192.168.126.100:3333/app/{stream_name}"
+        result["ws_url"]       = f"ws://{OME_HOST_IP}:{OME_WS_PORT}/app/{stream_name}"
         result["stream_key"]   = stream_name
         result["status"]       = "streaming"
         result["rtsp_url"]     = rtsp
@@ -239,7 +249,7 @@ async def register_rtsp_stream(req: StreamRegisterRequest):
         return {
             "success":     True,
             "ome_stream":  stream_name,
-            "ws_url":      f"ws://192.168.126.100:3333/app/{stream_name}",
+            "ws_url":      f"ws://{OME_HOST_IP}:{OME_WS_PORT}/app/{stream_name}",
             "stream_key":  stream_name,
             "status":      "streaming",
             "rtsp_url":    rtsp,
@@ -289,7 +299,7 @@ async def register_rtsp_stream(req: StreamRegisterRequest):
     return {
         "success":     True,
         "ome_stream":  stream_name,
-        "ws_url":      f"ws://192.168.126.100:3333/app/{stream_name}",
+        "ws_url":      f"ws://{OME_HOST_IP}:{OME_WS_PORT}/app/{stream_name}",
         "stream_key":  stream_name,
         "status":      "streaming",
         "rtsp_url":    rtsp,

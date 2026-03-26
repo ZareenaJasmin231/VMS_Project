@@ -1,7 +1,8 @@
 import requests
 import base64
+import os
 
-OME_URL = "http://ome:8081/v1/vhosts/default/apps/app/streams"
+OME_URL = os.environ.get("OME_URL", "http://ome:8081/v1/vhosts/default/apps/app/streams")
 
 token = base64.b64encode("bXl2bXNhY2Nlc3N0b2tlbg==".encode()).decode()
 

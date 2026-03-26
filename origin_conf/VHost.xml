@@ -33,18 +33,22 @@
             </OutputProfiles>
 
             <Providers>
-                <RTSPPull />
+                <RTSPPull>
+                    <MaxFrameSize>104857600</MaxFrameSize>
+                    <BufferSize>20971520</BufferSize>
+                </RTSPPull>
                 <RTMP />
                 <SRT />
             </Providers>
 
             <Publishers>
 
-                <AppWorkerCount>1</AppWorkerCount>
-                <StreamWorkerCount>8</StreamWorkerCount>
+                <AppWorkerCount>4</AppWorkerCount>
+                <StreamWorkerCount>16</StreamWorkerCount>
 
                 <WebRTC>
-                    <Timeout>30000</Timeout>
+                    <Timeout>60000</Timeout>
+                    <MaxWaitingTime>30000</MaxWaitingTime>
                 </WebRTC>
 
                 <LLHLS>
