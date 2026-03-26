@@ -274,7 +274,7 @@ async def register_rtsp_stream(req: StreamRegisterRequest):
                 "mac":          "—",
                 "added_at":     datetime.utcnow(),
                 "status":       "streaming",
-                "source":       "rtsp_url",        # marks it as manually added
+                "source":       "rtsp_url",       
             }},
             upsert=True
         )
@@ -339,7 +339,7 @@ def storage_management():
         "free": round(free / (1024**3), 1),
         "status": status,
         "server": "MIRADOR",
-        "allocated": 352,
+        "allocated": 459,
     }]
 
 
