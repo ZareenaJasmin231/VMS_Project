@@ -26,10 +26,12 @@ export default function LiveViewPage() {
     return () => window.removeEventListener("storage", update);
   }, []);
 
-  const onlineCams = devices.filter((d) => d.ws_url);
-  const cols = layout === "1x1" ? 1 : layout === "2x2" ? 2 : layout === "3x3" ? 3 : 2;
+  // ── Only show cameras that are enabled (enabled !== false) ──
+  const activeCams  = devices.filter((d) => d.enabled !== false);
+  const onlineCams  = activeCams.filter((d) => d.ws_url);
+  const disabledCount = devices.length - activeCams.length;
 
-  // For 1+3 layout
+  const cols   = layout === "1x1" ? 1 : layout === "2x2" ? 2 : layout === "3x3" ? 3 : 2;
   const is1plus3 = layout === "1+3";
 
   return (
@@ -42,9 +44,14 @@ export default function LiveViewPage() {
           <span className="lv-toolbar__count">
             {onlineCams.length} stream{onlineCams.length !== 1 ? "s" : ""} online
           </span>
+          {/* ── Show how many cameras are disabled ── */}
+          {disabledCount > 0 && (
+            <span className="lv-toolbar__disabled-badge">
+              {disabledCount} disabled
+            </span>
+          )}
         </div>
         <div className="lv-toolbar__right">
-          {/* Layout selector */}
           <div className="lv-layouts">
             {LAYOUTS.map((l) => (
               <button
@@ -56,7 +63,6 @@ export default function LiveViewPage() {
               </button>
             ))}
           </div>
-          {/* Fullscreen exit */}
           {fullscreen && (
             <button className="lv-btn" onClick={() => setFullscreen(null)}>
               Exit Fullscreen
@@ -83,7 +89,7 @@ export default function LiveViewPage() {
         </div>
       )}
 
-      {/* Grid */}
+      {/* Empty state — no cameras at all */}
       {devices.length === 0 ? (
         <div className="lv-empty">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="0.8" width="64" height="64">
@@ -92,32 +98,45 @@ export default function LiveViewPage() {
           <p>No cameras enrolled yet.</p>
           <p className="lv-empty__sub">Go to <strong>Add Devices</strong> to enroll cameras.</p>
         </div>
+
+      /* ── All cameras exist but all are disabled ── */
+      ) : activeCams.length === 0 ? (
+        <div className="lv-empty">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="0.8" width="64" height="64">
+            <path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/>
+            <line x1="2" y1="2" x2="22" y2="22" stroke="currentColor" strokeWidth="1.2"/>
+          </svg>
+          <p>All cameras are disabled.</p>
+          <p className="lv-empty__sub">
+            Enable cameras in <strong>Camera Registry</strong> to view streams.
+          </p>
+        </div>
+
       ) : is1plus3 ? (
         <div className="lv-grid-1plus3">
-          {/* Main large cell */}
           <div
             className={`lv-cell lv-cell--main ${selected === 0 ? "lv-cell--selected" : ""}`}
             onClick={() => setSelected(0)}>
             <CameraCell
-              device={devices[0]}
-              onFullscreen={() => setFullscreen(devices[0])}
+              device={activeCams[0]}
+              onFullscreen={() => setFullscreen(activeCams[0])}
             />
           </div>
-          {/* 3 small cells */}
           <div className="lv-grid-1plus3__side">
             {[1, 2, 3].map((i) => (
               <div
                 key={i}
                 className={`lv-cell ${selected === i ? "lv-cell--selected" : ""}`}
                 onClick={() => setSelected(i)}>
-                {devices[i]
-                  ? <CameraCell device={devices[i]} onFullscreen={() => setFullscreen(devices[i])} />
+                {activeCams[i]
+                  ? <CameraCell device={activeCams[i]} onFullscreen={() => setFullscreen(activeCams[i])} />
                   : <EmptyCell />
                 }
               </div>
             ))}
           </div>
         </div>
+
       ) : (
         <div className="lv-grid" style={{ "--cols": cols }}>
           {Array.from({ length: cols * cols }).map((_, i) => (
@@ -125,8 +144,8 @@ export default function LiveViewPage() {
               key={i}
               className={`lv-cell ${selected === i ? "lv-cell--selected" : ""}`}
               onClick={() => setSelected(i)}>
-              {devices[i]
-                ? <CameraCell device={devices[i]} onFullscreen={() => setFullscreen(devices[i])} />
+              {activeCams[i]
+                ? <CameraCell device={activeCams[i]} onFullscreen={() => setFullscreen(activeCams[i])} />
                 : <EmptyCell index={i} />
               }
             </div>
@@ -145,7 +164,10 @@ function CameraCell({ device, onFullscreen }) {
         <span className="lv-cell__name">{device.name}</span>
         <div className="lv-cell__actions">
           <span className="lv-cell__ip">{device.ip}</span>
-          <button className="lv-cell__fs-btn" onClick={(e) => { e.stopPropagation(); onFullscreen(); }} title="Fullscreen">
+          <button
+            className="lv-cell__fs-btn"
+            onClick={(e) => { e.stopPropagation(); onFullscreen(); }}
+            title="Fullscreen">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M8 3H5a2 2 0 00-2 2v3M21 8V5a2 2 0 00-2-2h-3M3 16v3a2 2 0 002 2h3M16 21h3a2 2 0 002-2v-3"/>
             </svg>
@@ -154,7 +176,7 @@ function CameraCell({ device, onFullscreen }) {
       </div>
       <div className="lv-cam__player">
         {device.ws_url
-          ? <WebRTCPlayer serverUrl={device.ws_url} />
+          ? <WebRTCPlayer key={device.ws_url} serverUrl={device.ws_url} />
           : <div className="lv-no-stream">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" width="32" height="32">
                 <path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/>

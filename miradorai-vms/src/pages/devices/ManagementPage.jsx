@@ -418,7 +418,7 @@ function SyncModal({ device, onClose }) {
 /* ══════════════════════════════════════════════════════════ */
 export default function ManagementPage() {
   const [filter, setFilter]   = useState("");
-  const [selected, setSelected] = useState(null);
+  const [selected, setSelected] = useState(() => localStorage.getItem("miradorai_selected_camera_id") || null);
   const [activeModal, setActiveModal] = useState(null);
 
   const allDevices = loadDevices();
@@ -521,7 +521,12 @@ export default function ManagementPage() {
               const isSel = String(d.id) === String(selected);
               return (
                 <tr key={d.id} className={`m-table__row ${isSel ? "m-table__row--selected" : ""}`}
-                  onClick={() => setSelected((p) => p === String(d.id) ? null : String(d.id))}>
+                  onClick={() => {
+                    const next = selected === String(d.id) ? null : String(d.id);
+                    setSelected(next);
+                    if (next) localStorage.setItem("miradorai_selected_camera_id", next);
+                    else localStorage.removeItem("miradorai_selected_camera_id");
+                  }}>
                   <td>
                     <span className="mgmt-cam-thumb">
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4">

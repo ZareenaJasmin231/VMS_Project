@@ -1,6 +1,5 @@
 import { useState } from "react";
 
-/* ─── tiny design tokens (match your existing dark VMS palette) ─── */
 const css = `
   @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@600;700;800&display=swap');
 
@@ -19,6 +18,10 @@ const css = `
     border: 1px solid #1e2a3a;
     border-radius: 14px;
     width: 480px;
+    /* ✅ FIX 1: Enable scroll — card never taller than 90% of viewport */
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
     box-shadow: 0 32px 80px rgba(0,0,0,.7), 0 0 0 1px rgba(255,255,255,.03);
     animation: slideUp .22s cubic-bezier(.22,1,.36,1);
     overflow: hidden;
@@ -29,8 +32,8 @@ const css = `
     padding: 22px 24px 18px;
     border-bottom: 1px solid #1e2a3a;
     display: flex; align-items: flex-start; justify-content: space-between;
+    flex-shrink: 0;
   }
-  .msm-title-block {}
   .msm-eyebrow {
     font-size: 10px; letter-spacing: .14em; text-transform: uppercase;
     color: #3b82f6; font-weight: 500; margin-bottom: 4px;
@@ -41,69 +44,56 @@ const css = `
   }
   .msm-close {
     background: none; border: none; cursor: pointer;
-    color: #4a5568; padding: 2px;
-    transition: color .15s;
+    color: #4a5568; padding: 2px; transition: color .15s;
   }
   .msm-close:hover { color: #e8edf5; }
 
-  .msm-body { padding: 24px; display: flex; flex-direction: column; gap: 16px; }
+  /* ✅ FIX 1 continued: body scrolls, header/footer stay fixed */
+  .msm-body {
+    padding: 24px;
+    display: flex; flex-direction: column; gap: 16px;
+    overflow-y: auto;
+    flex: 1;
+  }
 
-  /* IP + Port row */
+  /* Custom scrollbar to match the dark theme */
+  .msm-body::-webkit-scrollbar { width: 6px; }
+  .msm-body::-webkit-scrollbar-track { background: transparent; }
+  .msm-body::-webkit-scrollbar-thumb { background: #1e2a3a; border-radius: 3px; }
+  .msm-body::-webkit-scrollbar-thumb:hover { background: #2e3d55; }
+
   .msm-row { display: flex; gap: 12px; }
   .msm-field { display: flex; flex-direction: column; gap: 6px; flex: 1; }
-  .msm-field--port { flex: 0 0 110px; }
+  .msm-field--port { flex: 0 0 160px; }
 
   .msm-label {
     font-size: 10px; letter-spacing: .1em; text-transform: uppercase;
     color: #6b7a99; font-weight: 500;
   }
   .msm-input {
-    background: #080c12;
-    border: 1px solid #1e2a3a;
-    border-radius: 8px;
-    color: #c9d4e8;
-    font-family: 'DM Mono', monospace;
-    font-size: 13px;
-    padding: 10px 13px;
-    outline: none;
+    background: #080c12; border: 1px solid #1e2a3a; border-radius: 8px;
+    color: #c9d4e8; font-family: 'DM Mono', monospace; font-size: 13px;
+    padding: 10px 13px; outline: none;
     transition: border-color .15s, box-shadow .15s;
-    width: 100%;
-    box-sizing: border-box;
+    width: 100%; box-sizing: border-box;
   }
   .msm-input::placeholder { color: #2e3d55; }
-  .msm-input:focus {
-    border-color: #2563eb;
-    box-shadow: 0 0 0 3px rgba(37,99,235,.18);
-  }
+  .msm-input:focus { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,.18); }
   .msm-input.error { border-color: #dc2626; box-shadow: 0 0 0 3px rgba(220,38,38,.15); }
 
-  /* protocol tabs */
-  .msm-proto-row { display: flex; gap: 8px; }
-  .msm-proto-btn {
-    flex: 1; padding: 7px 0; border-radius: 7px; font-size: 12px;
-    font-family: 'DM Mono', monospace; font-weight: 500; cursor: pointer;
-    border: 1px solid #1e2a3a; background: #080c12; color: #4a5568;
-    transition: all .15s;
-  }
-  .msm-proto-btn.active {
-    background: #0f1f3d; border-color: #2563eb; color: #3b82f6;
-  }
-
-  /* divider */
   .msm-divider {
-    display: flex; align-items: center; gap: 10px; color: #2e3d55; font-size: 11px;
+    display: flex; align-items: center; gap: 10px;
+    color: #2e3d55; font-size: 11px;
   }
   .msm-divider::before, .msm-divider::after {
     content: ''; flex: 1; height: 1px; background: #1e2a3a;
   }
 
-  /* onvif probe status */
   .msm-probe {
     background: #080c12; border: 1px solid #1e2a3a;
     border-radius: 8px; padding: 12px 14px;
     display: flex; align-items: center; gap: 10px;
-    font-size: 12px; color: #4a5568;
-    min-height: 44px;
+    font-size: 12px; color: #4a5568; min-height: 44px;
   }
   .msm-probe.probing { color: #3b82f6; border-color: #1e3a5f; }
   .msm-probe.success { color: #22c55e; border-color: #14532d; background: #0a1a10; }
@@ -116,69 +106,148 @@ const css = `
   }
   @keyframes spin { to { transform: rotate(360deg) } }
 
-  .msm-probe-dot {
-    width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
-    background: currentColor;
-  }
+  .msm-probe-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; background: currentColor; }
 
-  /* discovered info grid */
   .msm-info-grid {
     display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
     background: #080c12; border: 1px solid #14532d;
     border-radius: 8px; padding: 12px 14px;
   }
   .msm-info-item { display: flex; flex-direction: column; gap: 2px; }
-  .msm-info-key { font-size: 9px; letter-spacing: .1em; text-transform: uppercase; color: #4a5568; }
-  .msm-info-val { font-size: 12px; color: #c9d4e8; }
+  .msm-info-key  { font-size: 9px; letter-spacing: .1em; text-transform: uppercase; color: #4a5568; }
+  .msm-info-val  { font-size: 12px; color: #c9d4e8; }
+  .msm-info-val--highlight { color: #3b82f6; font-weight: 500; }
 
-  /* footer */
+  .msm-profiles { border: 1px solid #1e2a3a; border-radius: 8px; overflow: hidden; display: flex; flex-direction: column; }
+  .msm-profiles-scroll {
+    max-height: 180px;
+    overflow-y: auto;
+  }
+  .msm-profiles-scroll::-webkit-scrollbar { width: 6px; }
+  .msm-profiles-scroll::-webkit-scrollbar-track { background: transparent; }
+  .msm-profiles-scroll::-webkit-scrollbar-thumb { background: #1e2a3a; border-radius: 3px; }
+  .msm-profiles-scroll::-webkit-scrollbar-thumb:hover { background: #2e3d55; }
+  .msm-profiles-header {
+    background: #0d1117; padding: 7px 12px;
+    font-size: 9px; letter-spacing: .12em; text-transform: uppercase;
+    color: #4a5568; border-bottom: 1px solid #1e2a3a;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .msm-profiles-badge {
+    background: #0f1f3d; color: #3b82f6;
+    border: 1px solid #2563eb; border-radius: 4px;
+    padding: 2px 7px; font-size: 10px; font-weight: 500; letter-spacing: .05em;
+  }
+  .msm-profile-row {
+    background: #080c12; padding: 9px 12px;
+    display: grid; grid-template-columns: 1fr 80px 55px 58px;
+    gap: 8px; align-items: center;
+    border-bottom: 1px solid #111923; font-size: 11px;
+  }
+  .msm-profile-row:last-child { border-bottom: none; }
+  .msm-profile-name { color: #c9d4e8; font-weight: 500; }
+  .msm-profile-res  { color: #6b7a99; font-size: 10px; margin-top: 2px; }
+  .msm-profile-meta { color: #4a5568; font-size: 10px; }
+  .msm-profile-tag {
+    font-size: 9px; padding: 2px 6px; border-radius: 4px;
+    text-align: center; font-weight: 500;
+    letter-spacing: .04em; text-transform: uppercase;
+  }
+  .msm-profile-tag--main  { background: #0f1f3d; color: #3b82f6; border: 1px solid #1e3a5f; }
+  .msm-profile-tag--sub   { background: #1a0f2e; color: #a78bfa; border: 1px solid #3b1f6e; }
+  .msm-profile-tag--extra { background: #0d1f13; color: #4ade80; border: 1px solid #1a4230; }
+
+  .msm-routing-hint {
+    background: #0a0f1a; border: 1px solid #1a2a3a;
+    border-left: 2px solid #2563eb;
+    border-radius: 0 6px 6px 0;
+    padding: 8px 12px; font-size: 11px;
+    color: #4a6a99; line-height: 1.5;
+  }
+  .msm-routing-hint span { color: #60a5fa; }
+
   .msm-footer {
-    padding: 16px 24px 20px;
-    border-top: 1px solid #1e2a3a;
+    padding: 16px 24px 20px; border-top: 1px solid #1e2a3a;
     display: flex; justify-content: flex-end; gap: 10px;
+    flex-shrink: 0;
   }
   .msm-btn {
     font-family: 'DM Mono', monospace; font-size: 12px; font-weight: 500;
     padding: 9px 18px; border-radius: 8px; cursor: pointer;
     border: 1px solid transparent; transition: all .15s;
   }
-  .msm-btn--ghost {
-    background: transparent; border-color: #1e2a3a; color: #6b7a99;
-  }
+  .msm-btn--ghost  { background: transparent; border-color: #1e2a3a; color: #6b7a99; }
   .msm-btn--ghost:hover { border-color: #2e3d55; color: #c9d4e8; }
-  .msm-btn--probe {
-    background: #0f1f3d; border-color: #2563eb; color: #3b82f6;
-  }
+  .msm-btn--probe  { background: #0f1f3d; border-color: #2563eb; color: #3b82f6; }
   .msm-btn--probe:hover:not(:disabled) { background: #1a3260; }
-  .msm-btn--enroll {
-    background: #1d4ed8; border-color: #1d4ed8; color: #fff;
-  }
+  .msm-btn--enroll { background: #1d4ed8; border-color: #1d4ed8; color: #fff; }
   .msm-btn--enroll:hover:not(:disabled) { background: #2563eb; }
   .msm-btn:disabled { opacity: .35; cursor: not-allowed; }
 
   .msm-error-msg { font-size: 11px; color: #f87171; margin-top: -8px; }
 `;
 
+const PROFILE_TAGS = ["main", "sub", "extra"];
+
+function getRoutingHint(profiles) {
+  if (!profiles || profiles.length === 0) return null;
+  if (profiles.length === 1) {
+    return (
+      <>
+        <span>Live, Record & Remote</span> will all share the single available stream.
+      </>
+    );
+  }
+  if (profiles.length === 2) {
+    return (
+      <>
+        <span>Live + Record</span> → {profiles[0].name} ({profiles[0].resolution})
+        &nbsp;·&nbsp;
+        <span>Remote Access</span> → {profiles[1].name} ({profiles[1].resolution})
+      </>
+    );
+  }
+  return (
+    <>
+      <span>Record</span> → {profiles[0].name} &nbsp;·&nbsp;
+      <span>Live</span> → {profiles[1].name} &nbsp;·&nbsp;
+      <span>Remote</span> → {profiles[2].name}
+    </>
+  );
+}
+
 function validateIP(ip) {
-  return /^(\d{1,3}\.){3}\d{1,3}$/.test(ip) &&
-    ip.split(".").every((n) => +n >= 0 && +n <= 255);
+  return (
+    /^(\d{1,3}\.){3}\d{1,3}$/.test(ip) &&
+    ip.split(".").every((n) => +n >= 0 && +n <= 255)
+  );
 }
 
 export default function ManualSearchModal({ onClose, onEnroll }) {
-  const [ip, setIp]         = useState("");
-  const [port, setPort]     = useState("80");
-  const [proto, setProto]   = useState("http");
-  const [user, setUser]     = useState("");
-  const [pass, setPass]     = useState("");
-  const [probe, setProbe]   = useState("idle"); // idle | probing | success | fail
-  const [discovered, setDiscovered] = useState(null);
-  const [errors, setErrors] = useState({});
+  const [ip, setIp]                     = useState("");
+  const [port, setPort]                 = useState("");
+  const [user, setUser]                 = useState("");
+  const [pass, setPass]                 = useState("");
+  const [rtspUrl, setRtspUrl]           = useState("");
+  const [urlLabel, setUrlLabel]         = useState("");
+  const [mode]                          = useState("onvif");
+  const [probe, setProbe]               = useState("idle");
+  const [discovered, setDiscovered]     = useState(null);
+  const [detectedPort, setDetectedPort] = useState(null);
+  const [errors, setErrors]             = useState({});
 
   const validate = () => {
     const e = {};
     if (!ip) e.ip = "IP address is required";
     else if (!validateIP(ip)) e.ip = "Invalid IP address";
-    if (!port || isNaN(port) || +port < 1 || +port > 65535) e.port = "1–65535";
+    if (port && (isNaN(port) || +port < 1 || +port > 65535)) e.port = "1–65535";
+    return e;
+  };
+
+  const validateDirectUrl = () => {
+    const e = {};
+    if (!rtspUrl.trim()) e.rtspUrl = "RTSP URL is required";
+    else if (!rtspUrl.toLowerCase().startsWith("rtsp://")) e.rtspUrl = "URL must start with rtsp://";
     return e;
   };
 
@@ -190,87 +259,179 @@ export default function ManualSearchModal({ onClose, onEnroll }) {
     setDiscovered(null);
 
     try {
+      const controller = new AbortController();
+      const timeoutId  = setTimeout(() => controller.abort(), 60000);
+
       const res = await fetch("http://localhost:8000/api/onvif/probe", {
-        method: "POST",
+        method:  "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ip, port: Number(port), username: user, password: pass }),
+        body:    JSON.stringify({ ip, port: Number(port), username: user, password: pass }),
+        signal:  controller.signal,
       });
+      clearTimeout(timeoutId);
 
       const json = await res.json();
 
       if (json.success) {
         setProbe("success");
+        setDetectedPort(json.port || port);
         setDiscovered({
           manufacturer: json.manufacturer,
           model:        json.model,
           firmware:     json.firmware,
           serial:       json.serial,
-          streams:      json.stream_uri,
-          ptz:          json.ptz,
+          ptz:          json.ptz ? "Yes" : "No",
+          profiles:     json.profiles     || [],
+          stream_count: json.stream_count ?? (json.profiles?.length || 0),
+          ws_url:       json.ws_url    || null,
+          rtsp_url:     json.rtsp_url  || null,
+          stream_key:   json.stream_key || json.ome_stream || null,
         });
       } else {
         setProbe("fail");
+        setDetectedPort(null);
       }
-    } catch {
+    } catch (error) {
       setProbe("fail");
+      if (error.name === "AbortError") {
+        setErrors({ ip: "Probe timeout — camera may be offline or not responding" });
+      } else {
+        setErrors({ ip: "Failed to connect to camera" });
+      }
     }
   };
 
-  // ✅ pass is now included
+  const handleDirectUrl = async () => {
+    const e = validateDirectUrl();
+    if (Object.keys(e).length) { setErrors(e); return; }
+    setErrors({});
+    setProbe("probing");
+    setDiscovered(null);
+
+    try {
+      const res = await fetch("http://localhost:8000/api/streams/register-direct", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ rtsp_url: rtspUrl.trim() }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        setProbe("success");
+        setDiscovered({
+          manufacturer: "Manual Entry",
+          model:        urlLabel || "Direct Stream",
+          firmware:     "N/A",
+          serial:       json.ip || "N/A",
+          ptz:          "N/A",
+          profiles:     [],
+          stream_count: 1,
+          ws_url:       json.ws_url   || null,
+          rtsp_url:     rtspUrl.trim(),
+          stream_key:   json.stream_key || null,
+        });
+      } else {
+        setProbe("fail");
+        setErrors({ rtspUrl: json.error || "Failed to register stream" });
+      }
+    } catch (err) {
+      setProbe("fail");
+      setErrors({ rtspUrl: err.message });
+    }
+  };
+
+  const handlePasswordKeyDown = (e) => {
+    if (e.key === "Enter" && probe !== "probing") {
+      mode === "onvif" ? handleProbe() : handleDirectUrl();
+    }
+  };
+
   const handleEnroll = () => {
-    onEnroll?.({ ip, port, proto, user, pass, discovered });
+    if (mode === "onvif") {
+      const enrollPort = detectedPort || port || "80";
+      onEnroll?.({
+        ip,
+        port:            enrollPort,
+        user,
+        pass,
+        discovered,
+        stream_profiles: discovered?.profiles     || [],
+        stream_count:    discovered?.stream_count ?? 0,
+        ws_url:          discovered?.ws_url       || null,
+        rtsp_url:        discovered?.rtsp_url     || null,
+        stream_key:      discovered?.stream_key   || null,
+      });
+    } else {
+      onEnroll?.({
+        rtspUrl,
+        label:           urlLabel,
+        discovered,
+        stream_profiles: discovered?.profiles     || [],
+        stream_count:    discovered?.stream_count ?? 0,
+        ws_url:          discovered?.ws_url       || null,
+        rtsp_url:        discovered?.rtsp_url     || rtspUrl,
+        stream_key:      discovered?.stream_key   || null,
+      });
+    }
     onClose?.();
   };
+
+  const infoFields = ["manufacturer", "model", "firmware", "serial", "ptz"];
 
   return (
     <>
       <style>{css}</style>
-      <div className="msm-overlay" onClick={(e) => e.target === e.currentTarget && onClose?.()}>
+
+      {/*
+        ✅ FIX 2: Overlay click does NOTHING — removed the onClick handler entirely.
+        The modal only closes via the X button, Cancel button, or Enroll Camera button.
+      */}
+      <div className="msm-overlay">
         <div className="msm-card">
 
-          {/* Header */}
+          {/* Header — stays fixed at top */}
           <div className="msm-header">
-            <div className="msm-title-block">
+            <div>
               <div className="msm-eyebrow">ONVIF Discovery</div>
               <h2 className="msm-title">Manual Camera Search</h2>
             </div>
-            <button className="msm-close" onClick={onClose}>
+            <button className="msm-close" onClick={onClose} tabIndex={8}>
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M18 6L6 18M6 6l12 12"/>
+                <path d="M18 6L6 18M6 6l12 12" />
               </svg>
             </button>
           </div>
 
-          {/* Body */}
+          {/* Body — scrolls when content overflows */}
           <div className="msm-body">
-
-            {/* Protocol */}
-            <div className="msm-field">
-              <span className="msm-label">Protocol</span>
-              <div className="msm-proto-row">
-                {["http", "https", "rtsp"].map((p) => (
-                  <button key={p} className={`msm-proto-btn ${proto === p ? "active" : ""}`}
-                    onClick={() => { setProto(p); setPort(p === "rtsp" ? "554" : p === "https" ? "443" : "80"); }}>
-                    {p.toUpperCase()}
-                  </button>
-                ))}
-              </div>
-            </div>
 
             {/* IP + Port */}
             <div className="msm-row">
               <div className="msm-field">
                 <label className="msm-label">IP Address</label>
-                <input className={`msm-input ${errors.ip ? "error" : ""}`}
-                  placeholder="192.168.1.64" value={ip}
-                  onChange={(e) => { setIp(e.target.value); setErrors((s) => ({ ...s, ip: "" })); setProbe("idle"); setDiscovered(null); }}
+                <input
+                  tabIndex={1}
+                  className={`msm-input ${errors.ip ? "error" : ""}`}
+                  placeholder="192.168.1.64"
+                  value={ip}
+                  onChange={(e) => {
+                    setIp(e.target.value);
+                    setErrors((s) => ({ ...s, ip: "" }));
+                    setProbe("idle");
+                    setDiscovered(null);
+                  }}
                 />
                 {errors.ip && <span className="msm-error-msg">{errors.ip}</span>}
               </div>
               <div className="msm-field msm-field--port">
-                <label className="msm-label">Port</label>
-                <input className={`msm-input ${errors.port ? "error" : ""}`}
-                  placeholder="80" value={port}
+                <label className="msm-label">
+                  Port{" "}
+                  <span style={{ fontSize: "11px", fontWeight: "400", color: "#9ca3af" }}>(optional)</span>
+                </label>
+                <input
+                  tabIndex={2}
+                  className={`msm-input ${errors.port ? "error" : ""}`}
+                  placeholder="auto-detect"
+                  value={port}
                   onChange={(e) => { setPort(e.target.value); setErrors((s) => ({ ...s, port: "" })); }}
                 />
                 {errors.port && <span className="msm-error-msg">{errors.port}</span>}
@@ -282,13 +443,25 @@ export default function ManualSearchModal({ onClose, onEnroll }) {
             <div className="msm-row">
               <div className="msm-field">
                 <label className="msm-label">Username</label>
-                <input className="msm-input" placeholder="admin" value={user}
-                  onChange={(e) => setUser(e.target.value)} />
+                <input
+                  tabIndex={3}
+                  className="msm-input"
+                  placeholder="admin"
+                  value={user}
+                  onChange={(e) => setUser(e.target.value)}
+                />
               </div>
               <div className="msm-field">
                 <label className="msm-label">Password</label>
-                <input className="msm-input" type="password" placeholder="••••••••" value={pass}
-                  onChange={(e) => setPass(e.target.value)} />
+                <input
+                  tabIndex={4}
+                  className="msm-input"
+                  type="password"
+                  placeholder="••••••••"
+                  value={pass}
+                  onChange={(e) => setPass(e.target.value)}
+                  onKeyDown={handlePasswordKeyDown}
+                />
               </div>
             </div>
 
@@ -296,48 +469,108 @@ export default function ManualSearchModal({ onClose, onEnroll }) {
             {probe === "idle" && (
               <div className="msm-probe">
                 <div className="msm-probe-dot" style={{ background: "#2e3d55" }} />
-                Enter IP, port and credentials, then probe the device.
+                Enter IP address and (optionally) port, then probe the device. Leave port empty to auto-detect.
               </div>
             )}
             {probe === "probing" && (
               <div className="msm-probe probing">
                 <div className="msm-spinner" />
-                Probing {ip}:{port} via ONVIF WS-Discovery…
+                {`Probing ${ip}${port ? `:${port}` : " (auto-detecting ports)"} via ONVIF…`}
               </div>
             )}
             {probe === "fail" && (
               <div className="msm-probe fail">
                 <div className="msm-probe-dot" />
-                No ONVIF device found at {ip}:{port}. Check IP, port, or credentials.
+                {`No ONVIF device found at ${ip}${port ? `:${port}` : " on standard ports"}. Check IP, port, or credentials.`}
               </div>
             )}
+
             {probe === "success" && discovered && (
               <>
                 <div className="msm-probe success">
                   <div className="msm-probe-dot" />
                   ONVIF device discovered — {discovered.manufacturer} {discovered.model}
+                  {detectedPort && !port && (
+                    <span style={{ fontSize: "11px", color: "#60a5fa", marginLeft: "8px" }}>
+                      on port {detectedPort}
+                    </span>
+                  )}
                 </div>
+
                 <div className="msm-info-grid">
-                  {Object.entries(discovered).map(([k, v]) => (
+                  {infoFields.map((k) => (
                     <div key={k} className="msm-info-item">
                       <span className="msm-info-key">{k}</span>
-                      <span className="msm-info-val">{v}</span>
+                      <span className="msm-info-val">{discovered[k]}</span>
                     </div>
                   ))}
+                  <div className="msm-info-item">
+                    <span className="msm-info-key">Streams available</span>
+                    <span className="msm-info-val msm-info-val--highlight">
+                      {discovered.stream_count}{" "}
+                      {typeof discovered.stream_count === "number"
+                        ? discovered.stream_count === 1 ? "stream" : "streams"
+                        : ""}
+                    </span>
+                  </div>
                 </div>
+
+                {discovered.profiles?.length > 0 && (
+                  <div className="msm-profiles">
+                    <div className="msm-profiles-header">
+                      Stream profiles
+                      <span className="msm-profiles-badge">
+                        {discovered.profiles.length} detected
+                      </span>
+                    </div>
+                    <div className="msm-profiles-scroll">
+                    {discovered.profiles.map((p, i) => (
+                      <div key={i} className="msm-profile-row">
+                        <div>
+                          <div className="msm-profile-name">{p.name}</div>
+                          <div className="msm-profile-res">{p.resolution}</div>
+                        </div>
+                        <div className="msm-profile-meta">{p.encoding}</div>
+                        <div className="msm-profile-meta">
+                          {p.fps ? `${p.fps} fps` : "—"}
+                        </div>
+                        <span className={`msm-profile-tag msm-profile-tag--${PROFILE_TAGS[i] ?? "extra"}`}>
+                          {PROFILE_TAGS[i] ?? `Stream ${i + 1}`}
+                        </span>
+                      </div>
+                    ))}
+                    </div>
+                  </div>
+                )}
+
+                {discovered.profiles?.length > 0 && (
+                  <div className="msm-routing-hint">
+                    {getRoutingHint(discovered.profiles)}
+                  </div>
+                )}
               </>
             )}
           </div>
 
-          {/* Footer */}
+          {/* Footer — stays fixed at bottom */}
           <div className="msm-footer">
-            <button className="msm-btn msm-btn--ghost" onClick={onClose}>Cancel</button>
-            <button className="msm-btn msm-btn--probe" onClick={handleProbe}
-              disabled={probe === "probing"}>
+            <button tabIndex={5} className="msm-btn msm-btn--ghost" onClick={onClose}>
+              Cancel
+            </button>
+            <button
+              tabIndex={6}
+              className="msm-btn msm-btn--probe"
+              onClick={mode === "onvif" ? handleProbe : handleDirectUrl}
+              disabled={probe === "probing"}
+            >
               {probe === "probing" ? "Probing…" : "Probe via ONVIF"}
             </button>
-            <button className="msm-btn msm-btn--enroll" onClick={handleEnroll}
-              disabled={probe !== "success"}>
+            <button
+              tabIndex={7}
+              className="msm-btn msm-btn--enroll"
+              onClick={handleEnroll}
+              disabled={probe !== "success"}
+            >
               Enroll Camera
             </button>
           </div>

@@ -5,7 +5,13 @@ import SearchBar from "../../components/shared/SearchBar";
 
 export default function ExternalDataPage() {
   const [filter, setFilter] = useState("");
-  const [selected, setSelected] = useState(null);
+  const [selected, setSelected] = useState(() => localStorage.getItem("miradorai_selected_camera_id") || null);
+  
+  const handleSelect = (id) => {
+    setSelected(id);
+    if (id) localStorage.setItem("miradorai_selected_camera_id", String(id));
+    else localStorage.removeItem("miradorai_selected_camera_id");
+  };
   return (
     <div className="page-shell">
       <div className="page-header">
@@ -15,7 +21,7 @@ export default function ExternalDataPage() {
         </div>
         <SearchBar value={filter} onChange={setFilter} />
       </div>
-      <DataTable columns={["Name", "Source Key", "View", "Server"]} rows={[]} selectedId={selected} onSelect={setSelected} emptyMessage="No external data sources configured." />
+      <DataTable columns={["Name", "Source Key", "View", "Server"]} rows={[]} selectedId={selected} onSelect={handleSelect} emptyMessage="No external data sources configured." />
       <div className="page-footer"><span /><div className="page-footer-right"><Button label="Edit" disabled={!selected} /></div></div>
     </div>
   );

@@ -84,10 +84,18 @@ function CamThumb({ device }) {
 }
 
 export default function StreamProfilesPage() {
-  const [filter, setFilter]   = useState("");
-  const [selected, setSelected] = useState(null);
+  const [filter, setFilter]     = useState("");
   const [profiles, setProfiles] = useState(loadProfiles);
-  const [form, setForm]         = useState(DEFAULT_FORM);
+  const [selected, setSelected] = useState(() => localStorage.getItem("miradorai_selected_camera_id") || null);
+  const [form, setForm]         = useState(() => {
+    const initSel = localStorage.getItem("miradorai_selected_camera_id");
+    if (initSel) {
+      const initProf = loadProfiles();
+      const saved = initProf.find((p) => String(p.deviceId) === String(initSel));
+      return saved ? { ...DEFAULT_FORM, ...saved.form } : DEFAULT_FORM;
+    }
+    return DEFAULT_FORM;
+  });
 
   const s = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
@@ -123,9 +131,11 @@ export default function StreamProfilesPage() {
   const handleSelect = (id) => {
     if (selected === id) {
       setSelected(null);
+      localStorage.removeItem("miradorai_selected_camera_id");
       setForm(DEFAULT_FORM);
     } else {
       setSelected(id);
+      localStorage.setItem("miradorai_selected_camera_id", String(id));
       const saved = profiles.find((p) => String(p.deviceId) === String(id));
       setForm(saved ? { ...DEFAULT_FORM, ...saved.form } : DEFAULT_FORM);
     }

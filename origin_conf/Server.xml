@@ -31,7 +31,8 @@
                 <IceCandidates>
                     <!-- Set this to your actual server IP or use 0.0.0.0 for auto-detection -->
                     <!-- Example: <IceCandidate>192.168.1.100:10000-10009/udp</IceCandidate> -->
-                    <IceCandidate>*:10000-10009/udp</IceCandidate>
+                    
+                    <IceCandidate>192.168.126.200:10000-10009/udp</IceCandidate>
                 </IceCandidates>
             </WebRTC>
             <LLHLS>
@@ -47,7 +48,7 @@
             </Names>
         </Host>
         <API>
-            <AccessToken>bXl2bXNhY2Nlc3N0b2tlbg==</AccessToken>
+            <AccessToken>myvmsaccesstoken</AccessToken>
         </API>
     </Managers>
 

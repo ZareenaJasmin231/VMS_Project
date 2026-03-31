@@ -13,9 +13,9 @@ from cryptography.hazmat.primitives import padding
 from cryptography.hazmat.backends import default_backend
 from pymongo import MongoClient
 
-RECORDINGS_DIR = os.environ.get("RECORDINGS_DIR", "/recordings")
-MONGO_URI      = os.environ.get("MONGO_URI", "mongodb://mongo:27017/")
-KEY_FILE       = os.environ.get("VIDEO_KEY_FILE", "/app/data/video.key")
+RECORDINGS_DIR = os.environ.get("RECORDINGS_DIR", "C:/Recording")
+MONGO_URI      = os.environ.get("MONGO_URI", "mongodb://localhost:27017/")
+KEY_FILE       = os.environ.get("VIDEO_KEY_FILE", os.path.join(os.path.dirname(__file__), "..", "devices_data", "video.key"))
 POLL_INTERVAL  = 5
 
 # ------------------------------------------------------------------

@@ -209,3 +209,47 @@
   height: 16px !important;
   display: block;
 }
+
+/* ── History Navigation ──────────────────────────── */
+.topbar__history {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.topbar__history-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-hover);
+  border: 1px solid var(--border-light);
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.topbar__history-btn:hover:not(:disabled) {
+  background: var(--bg-active);
+  color: var(--teal);
+  border-color: var(--teal);
+  transform: translateY(-1px);
+}
+
+.topbar__history-btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.topbar__history-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+  background: transparent;
+  border-color: transparent;
+}
+
+.topbar__history-btn svg {
+  width: 16px !important;
+  height: 16px !important;
+}

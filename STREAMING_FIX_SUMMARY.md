@@ -48,7 +48,7 @@ Your camera streaming had **5 critical issues**:
 
 **Before:**
 ```xml
-<IceCandidate>192.168.126.100:10000-10009/udp</IceCandidate>
+<IceCandidate>192.168.126.200:10000-10009/udp</IceCandidate>
 ```
 
 **After:**

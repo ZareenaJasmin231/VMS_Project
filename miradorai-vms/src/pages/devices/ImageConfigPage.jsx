@@ -58,7 +58,7 @@ function loadDevices() {
 
 export default function ImageConfigPage() {
   const [filter, setFilter]     = useState("");
-  const [selected, setSelected] = useState(null);
+  const [selected, setSelected] = useState(() => localStorage.getItem("miradorai_selected_camera_id") || null);
   const [vals, setVals]         = useState(DEFAULT_VALS);
 
   const setV = (k, v) => setVals((f) => ({ ...f, [k]: v }));
@@ -86,8 +86,14 @@ export default function ImageConfigPage() {
   const handleReset = () => setVals(DEFAULT_VALS);
 
   const handleSelectCamera = (id) => {
-    if (selected === id) { setSelected(null); }
-    else { setSelected(id); setVals(DEFAULT_VALS); }
+    if (selected === id) {
+      setSelected(null);
+      localStorage.removeItem("miradorai_selected_camera_id");
+    } else {
+      setSelected(id);
+      localStorage.setItem("miradorai_selected_camera_id", String(id));
+      setVals(DEFAULT_VALS);
+    }
   };
 
   return (

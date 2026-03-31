@@ -277,3 +277,20 @@
   flex: 1;
   min-height: 0;
 }
+/* ============================================================
+   PASTE THIS INTO YOUR LiveViewPage.css
+   ============================================================ */
+
+/* ── Toolbar disabled badge ──────────────────────────────── */
+.lv-toolbar__disabled-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 500;
+  background: var(--color-background-tertiary);
+  color: var(--color-text-secondary);
+  border: 1px solid var(--color-border-tertiary);
+  margin-left: 4px;
+}

@@ -1,0 +1,515 @@
+/* ── Overlay ── */
+.dm-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9998;
+  animation: dmOverlayIn 0.15s ease;
+}
+
+/* Credential modal sits ABOVE the discovery modal */
+.dm-overlay--front {
+  z-index: 9999;  /* must be > 9998 */
+}
+
+@keyframes dmOverlayIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* ── Main modal ── */
+.dm-modal {
+  background: var(--bg-surface, #111318);
+  border: 1px solid var(--border-light, #1e2230);
+  border-radius: 14px;
+  width: 520px;
+  max-width: calc(100vw - 32px);
+  /* Fix: use a defined height so footer is never clipped */
+  height: min(640px, calc(100vh - 64px));
+  display: flex;
+  flex-direction: column;
+  animation: dmSlideIn 0.15s ease;
+  overflow: hidden;
+}
+
+@keyframes dmSlideIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0);    }
+}
+
+/* ── Header ── */
+.dm-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border-light, #1e2230);
+  flex-shrink: 0;
+}
+.dm-header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary, #e2e4ea);
+}
+.dm-header-left svg { color: var(--teal, #10b981); }
+
+.dm-close {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  border-radius: 6px;
+  color: var(--text-muted, #4a5060);
+  cursor: pointer;
+  transition: background 0.1s, color 0.1s;
+  flex-shrink: 0;
+}
+.dm-close:hover { background: rgba(255,255,255,0.06); color: var(--text-primary, #e2e4ea); }
+
+/* ── Body ── */
+.dm-body {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0; /* critical — lets flex child scroll instead of growing */
+}
+
+/* ── Center layout (empty / scanning) ── */
+.dm-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 32px;
+  gap: 14px;
+  min-height: 320px;
+}
+
+.dm-empty-icon {
+  width: 60px;
+  height: 60px;
+  border-radius: 14px;
+  background: var(--bg-elevated, #0d1018);
+  border: 1px solid var(--border-light, #1e2230);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--teal, #10b981);
+}
+.dm-empty-icon--warn { color: #f59e0b; }
+
+.dm-empty-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary, #e2e4ea);
+}
+.dm-empty-sub {
+  font-size: 12px;
+  color: var(--text-muted, #4a5060);
+  text-align: center;
+  line-height: 1.7;
+}
+
+/* ── Form fields (subnet input) ── */
+.dm-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  max-width: 320px;
+  margin-top: 4px;
+}
+.dm-field { display: flex; flex-direction: column; gap: 4px; }
+.dm-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-muted, #4a5060);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.dm-label span { text-transform: none; font-weight: 400; }
+.dm-input {
+  background: var(--bg-elevated, #0d1018);
+  border: 1px solid var(--border-light, #1e2230);
+  border-radius: 7px;
+  padding: 8px 11px;
+  font-size: 13px;
+  color: var(--text-primary, #e2e4ea);
+  outline: none;
+  font-family: inherit;
+  transition: border-color 0.15s;
+}
+.dm-input:focus { border-color: var(--teal, #10b981); }
+.dm-input::placeholder { color: var(--text-muted, #4a5060); }
+
+/* ── Start button ── */
+.dm-start-btn {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 20px;
+  background: var(--teal, #10b981);
+  border: none;
+  border-radius: 8px;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-top: 4px;
+  transition: background 0.15s;
+}
+.dm-start-btn:hover { background: #0d9e6e; }
+
+/* ── Spinner ── */
+.dm-spinner { width: 44px; height: 44px; position: relative; }
+.dm-spinner-ring {
+  width: 44px;
+  height: 44px;
+  border: 3px solid var(--border-light, #1e2230);
+  border-top-color: var(--teal, #10b981);
+  border-radius: 50%;
+  animation: dmSpin 0.8s linear infinite;
+}
+@keyframes dmSpin { to { transform: rotate(360deg); } }
+
+.dm-scan-msg { font-size: 13px; color: var(--text-secondary, #8a8ea0); }
+
+.dm-progress-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  max-width: 280px;
+}
+.dm-progress-bar {
+  flex: 1;
+  height: 4px;
+  background: var(--bg-elevated, #0d1018);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.dm-progress-fill {
+  height: 100%;
+  background: var(--teal, #10b981);
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+.dm-progress-pct {
+  font-size: 11px;
+  color: var(--text-muted, #4a5060);
+  min-width: 28px;
+  text-align: right;
+}
+
+/* ── Results ── */
+.dm-results { display: flex; flex-direction: column; height: 100%; }
+
+.dm-results-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px 10px;
+  border-bottom: 1px solid var(--border-light, #1e2230);
+  flex-shrink: 0;
+}
+.dm-results-count { font-size: 13px; color: var(--text-secondary, #8a8ea0); }
+.dm-results-count strong { color: var(--text-primary, #e2e4ea); }
+
+.dm-select-all {
+  background: none;
+  border: 1px solid var(--border-light, #1e2230);
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 11px;
+  color: var(--text-secondary, #8a8ea0);
+  cursor: pointer;
+  transition: all 0.1s;
+}
+.dm-select-all:hover:not(:disabled) {
+  background: rgba(255,255,255,0.04);
+  color: var(--text-primary, #e2e4ea);
+}
+.dm-select-all:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.dm-device-list { overflow-y: auto; flex: 1; }
+
+.dm-device {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--border-light, #0d1018);
+  cursor: pointer;
+  transition: background 0.1s;
+  /* ensure clicks always register */
+  position: relative;
+  z-index: 0;
+}
+.dm-device:last-child { border-bottom: none; }
+.dm-device:hover { background: rgba(255,255,255,0.03); }
+.dm-device--selected { background: rgba(16,185,129,0.05); }
+.dm-device--selected:hover { background: rgba(16,185,129,0.08); }
+.dm-device--disabled { pointer-events: none; opacity: 0.7; }
+
+.dm-cb {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--teal, #10b981);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.dm-device-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  background: rgba(16,185,129,0.08);
+  border: 1px solid rgba(16,185,129,0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--teal, #10b981);
+  flex-shrink: 0;
+}
+
+.dm-device-info { flex: 1; min-width: 0; }
+.dm-device-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary, #e2e4ea);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dm-device-meta {
+  font-size: 11px;
+  color: var(--text-muted, #4a5060);
+  margin-top: 2px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+
+.dm-rtsp-tag {
+  background: rgba(59,130,246,0.1);
+  border: 1px solid rgba(59,130,246,0.2);
+  color: #60a5fa;
+  font-size: 9px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+.dm-rtsp-tag--warn {
+  background: rgba(234,179,8,0.15);
+  color: #ca8a04;
+  border: 1px solid rgba(234,179,8,0.3);
+  cursor: help;
+}
+
+.dm-status {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 500;
+  flex-shrink: 0;
+}
+.dm-status--online  { color: #10b981; }
+.dm-status--offline { color: #ef4444; }
+.dm-status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
+}
+
+/* ── Footer ── */
+.dm-footer {
+  display: flex;
+  align-items: center;
+  /* Fix: justify buttons to the right, no margin-left hacks */
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 14px 20px;
+  border-top: 1px solid var(--border-light, #1e2230);
+  flex-shrink: 0; /* never compress — always visible */
+  background: var(--bg-surface, #111318); /* prevent body content bleeding through */
+}
+
+.dm-register-msg {
+  flex: 1;
+  font-size: 12px;
+  color: var(--teal, #10b981);
+  margin-right: auto; /* push it left, keep buttons right */
+}
+
+.dm-btn {
+  padding: 8px 16px;
+  border-radius: 7px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+  /* Make sure buttons are always on top and clickable */
+  position: relative;
+  z-index: 1;
+}
+.dm-btn--cancel {
+  background: none;
+  border: 1px solid var(--border-light, #1e2230);
+  color: var(--text-secondary, #8a8ea0);
+}
+.dm-btn--cancel:hover:not(:disabled) { background: rgba(255,255,255,0.04); }
+.dm-btn--primary {
+  background: var(--teal, #10b981);
+  border: 1px solid transparent;
+  color: #fff;
+}
+.dm-btn--primary:hover:not(:disabled) { background: #0d9e6e; }
+.dm-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* ── Per-device registration status badges ── */
+.dm-reg-badge {
+  font-size: 11px;
+  font-weight: 500;
+  padding: 3px 8px;
+  border-radius: 4px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  letter-spacing: 0.01em;
+}
+.dm-reg--pending  { background: rgba(148,163,184,0.15); color: #94a3b8; border: 1px solid rgba(148,163,184,0.25); }
+.dm-reg--progress { background: rgba(59,130,246,0.12);  color: #60a5fa; border: 1px solid rgba(59,130,246,0.25); animation: dm-pulse 1.2s ease-in-out infinite; }
+.dm-reg--success  { background: rgba(34,197,94,0.12);   color: #4ade80; border: 1px solid rgba(34,197,94,0.25); }
+.dm-reg--error    { background: rgba(239,68,68,0.12);   color: #f87171; border: 1px solid rgba(239,68,68,0.25); }
+.dm-reg--warn     { background: rgba(234,179,8,0.12);   color: #facc15; border: 1px solid rgba(234,179,8,0.25); }
+
+@keyframes dm-pulse {
+  0%, 100% { opacity: 1;   }
+  50%       { opacity: 0.5; }
+}
+
+/* ════════════════════════════════════════════════════════════
+   Credential enrollment modal
+   ════════════════════════════════════════════════════════════ */
+.dm-cred-modal {
+  background: var(--bg-surface, #111318);
+  border: 1px solid var(--border-light, #1e2230);
+  border-radius: 14px;
+  width: 560px;
+  max-width: calc(100vw - 32px);
+  height: min(600px, calc(100vh - 64px));
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 24px 64px rgba(0,0,0,0.6);
+  overflow: hidden;
+  animation: dmSlideIn 0.15s ease;
+}
+
+.dm-cred-hint {
+  font-size: 12px;
+  color: var(--text-muted, #4a5060);
+  margin: 0 0 14px 0;
+  line-height: 1.6;
+}
+
+.dm-cred-body {
+  padding: 18px 20px 4px;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+}
+
+.dm-cred-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-bottom: 8px;
+}
+
+.dm-cred-row {
+  display: flex;
+  align-items: center;
+  gap: 20px;          /* ← was 12px */
+  padding: 11px 14px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid var(--border-light, #1e2230);
+  border-radius: 8px;
+}
+
+.dm-cred-cam {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex: 0 0 210px;
+  min-width: 0;
+  padding-right: 16px;                              /* ← add this */
+  border-right: 1px solid var(--border-light, #1e2230); /* ← add this */
+}
+
+.dm-cred-cam-icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+  background: rgba(16,185,129,0.08);
+  border: 1px solid rgba(16,185,129,0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--teal, #10b981);
+}
+
+.dm-cred-cam-name {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-primary, #e2e4ea);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dm-cred-cam-ip {
+  font-size: 11px;
+  color: var(--text-muted, #4a5060);
+  margin-top: 2px;
+  font-family: monospace;
+}
+
+.dm-cred-fields {
+  display: flex;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+.dm-cred-input {
+  flex: 1;
+  background: var(--bg-elevated, #0d1018);
+  border: 1px solid var(--border-light, #1e2230);
+  border-radius: 6px;
+  padding: 7px 10px;
+  font-size: 12px;
+  color: var(--text-primary, #e2e4ea);
+  outline: none;
+  transition: border-color 0.15s;
+  min-width: 0;
+  font-family: inherit;
+}
+.dm-cred-input::placeholder { color: var(--text-muted, #4a5060); }
+.dm-cred-input:focus {
+  border-color: var(--teal, #10b981);
+  background: rgba(16,185,129,0.04);
+}
+

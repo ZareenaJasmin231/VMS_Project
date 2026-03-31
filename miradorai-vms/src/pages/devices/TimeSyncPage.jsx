@@ -17,7 +17,7 @@ function loadDevices() {
 
 export default function TimeSyncPage() {
   const [filter,   setFilter]   = useState("");
-  const [selected, setSelected] = useState(null);
+  const [selected, setSelected] = useState(() => localStorage.getItem("miradorai_selected_camera_id") || null);
 
   // Per-device config stored in state (keyed by device id)
   const [configs, setConfigs] = useState({});
@@ -100,7 +100,11 @@ export default function TimeSyncPage() {
               <tr
                 key={d.id}
                 className={selected === String(d.id) ? "ts-row--selected" : ""}
-                onClick={() => setSelected(String(d.id))}
+                onClick={() => {
+                  const next = String(d.id);
+                  setSelected(next);
+                  localStorage.setItem("miradorai_selected_camera_id", next);
+                }}
               >
                 <td>
                   <div className="ts-name-cell">

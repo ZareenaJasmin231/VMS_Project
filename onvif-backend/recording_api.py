@@ -131,16 +131,15 @@ def list_recording_cameras():
     """Return distinct camera IDs that have recordings."""
     return _collection.distinct("camera_id")
 
-
-@recording_router.get("/{camera_id}")
-def list_camera_recordings(camera_id: str, date: str = Query(None)):
-    """List recordings for a specific camera."""
-    query = {"camera_id": camera_id}
-    if date:
-        query["date"] = date
-    docs = list(_collection.find(query).sort("created_at", -1))
-    return [_doc_to_dict(d) for d in docs]
-
+@recording_router.get("/status")
+def recorder_status():
+    """Returns which cameras are actively being recorded."""
+    active = [
+        name
+        for name, thread in recorder._recorders.items()
+        if thread.is_alive()
+    ]
+    return {"active_recorders": active, "count": len(active)}
 
 @recording_router.get("/play")
 def play_recording(
@@ -172,6 +171,17 @@ def play_recording(
     return StreamingResponse(stream, media_type="video/mp4")
 
 
+@recording_router.get("/{camera_id}")
+def list_camera_recordings(camera_id: str, date: str = Query(None)):
+    """List recordings for a specific camera."""
+    query = {"camera_id": camera_id}
+    if date:
+        query["date"] = date
+    docs = list(_collection.find(query).sort("created_at", -1))
+    return [_doc_to_dict(d) for d in docs]
+
+
+
 @recording_router.post("/decrypt-file")
 async def decrypt_file(file: UploadFile = File(...)):
     """
@@ -198,15 +208,7 @@ async def decrypt_file(file: UploadFile = File(...)):
         raise HTTPException(status_code=500, detail=f"Decryption failed: {str(e)}")
 
 
-@recording_router.get("/status")
-def recorder_status():
-    """Returns which cameras are actively being recorded."""
-    active = [
-        name
-        for name, thread in recorder._recorders.items()
-        if thread.is_alive()
-    ]
-    return {"active_recorders": active, "count": len(active)}
+
 
 
 @recording_router.post("/start/{stream_name}")

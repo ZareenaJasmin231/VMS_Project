@@ -11,9 +11,36 @@ import "./styles/global.css";
 function AppContent() {
   const { isAuthenticated, isLoading } = useAuth();
   const [activePage, setActivePage] = useState("add-devices");
+  const [history, setHistory] = useState(["add-devices"]);
+  const [historyIndex, setHistoryIndex] = useState(0);
   const [showSplash, setShowSplash] = useState(true);
   const [appVisible, setAppVisible] = useState(false);
   const [alarmsOpen, setAlarmsOpen] = useState(false);
+
+  const handleNavigate = (page) => {
+    if (page === activePage) return;
+    const newHistory = history.slice(0, historyIndex + 1);
+    newHistory.push(page);
+    setHistory(newHistory);
+    setHistoryIndex(newHistory.length - 1);
+    setActivePage(page);
+  };
+
+  const goBack = () => {
+    if (historyIndex > 0) {
+      const newIndex = historyIndex - 1;
+      setHistoryIndex(newIndex);
+      setActivePage(history[newIndex]);
+    }
+  };
+
+  const goForward = () => {
+    if (historyIndex < history.length - 1) {
+      const newIndex = historyIndex + 1;
+      setHistoryIndex(newIndex);
+      setActivePage(history[newIndex]);
+    }
+  };
 
   const handleSplashDone = () => {
     setShowSplash(false);
@@ -35,16 +62,20 @@ function AppContent() {
         className="app-root"
         style={{ opacity: appVisible ? 1 : 0, transition: "opacity 0.5s ease" }}
       >
-        <Sidebar activePage={activePage} onNavigate={setActivePage} />
+        <Sidebar activePage={activePage} onNavigate={handleNavigate} />
         <div className="app-main-area">
           <TopBar
             activePage={activePage}
-            onNavigate={setActivePage}
+            onNavigate={handleNavigate}
+            canGoBack={historyIndex > 0}
+            canGoForward={historyIndex < history.length - 1}
+            onBack={goBack}
+            onForward={goForward}
             onAlarmsClick={() => setAlarmsOpen((p) => !p)}
             alarmsOpen={alarmsOpen}
           />
           <main className="app-content">
-            <PageRenderer activePage={activePage} />
+            <PageRenderer activePage={activePage} onNavigate={handleNavigate} />
           </main>
           <AlarmsPanel open={alarmsOpen} onClose={() => setAlarmsOpen(false)} />
         </div>

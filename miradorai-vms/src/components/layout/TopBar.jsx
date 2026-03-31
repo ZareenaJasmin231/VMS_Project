@@ -26,7 +26,16 @@ const PLUS_MENU = [
     icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>` },
 ];
 
-export default function TopBar({ activePage, onNavigate, onAlarmsClick, alarmsOpen }) {
+export default function TopBar({
+  activePage,
+  onNavigate,
+  canGoBack,
+  canGoForward,
+  onBack,
+  onForward,
+  onAlarmsClick,
+  alarmsOpen,
+}) {
   const [camCount,   setCamCount]   = useState(0);
   const [alarmCount, setAlarmCount] = useState(0);
   const [plusOpen,   setPlusOpen]   = useState(false);
@@ -97,7 +106,30 @@ export default function TopBar({ activePage, onNavigate, onAlarmsClick, alarmsOp
           )}
         </div>
 
-        {/* Breadcrumb */}
+        <div className="topbar__history">
+          <button
+            className="topbar__history-btn"
+            disabled={!canGoBack}
+            onClick={onBack}
+            title="Go back"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <path d="M15 18l-6-6 6-6" />
+            </svg>
+          </button>
+          <button
+            className="topbar__history-btn"
+            disabled={!canGoForward}
+            onClick={onForward}
+            title="Go forward"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <path d="M9 18l6-6-6-6" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Breadcrumb
         <div className="topbar__breadcrumb">
           <span className="topbar__brand">MIRADOR VMS</span>
           <svg className="topbar__sep" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 18l6-6-6-6"/></svg>
@@ -106,7 +138,7 @@ export default function TopBar({ activePage, onNavigate, onAlarmsClick, alarmsOp
             <svg className="topbar__sep" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 18l6-6-6-6"/></svg>
             <span className="topbar__page">{item?.label}</span>
           </>}
-        </div>
+        </div> */}
       </div>
 
       <div className="topbar__right">

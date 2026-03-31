@@ -49,7 +49,7 @@ function savePresetsForCamera(cameraId, presets) {
 
 export default function PTZPresetsPage() {
   const [filter, setFilter]       = useState("");
-  const [selected, setSelected]   = useState(null);
+  const [selected, setSelected]   = useState(() => localStorage.getItem("miradorai_selected_camera_id") || null);
   const [presets, setPresets]     = useState([]);
   const [selPreset, setSelPreset] = useState(null);
   const [speed, setSpeed]         = useState(50);
@@ -259,7 +259,12 @@ export default function PTZPresetsPage() {
               return (
                 <tr key={cam.id}
                   className={`m-table__row ${isSel ? "m-table__row--selected" : ""}`}
-                  onClick={() => setSelected(isSel ? null : cam.id)}>
+                  onClick={() => {
+                    const next = isSel ? null : cam.id;
+                    setSelected(next);
+                    if (next) localStorage.setItem("miradorai_selected_camera_id", String(next));
+                    else localStorage.removeItem("miradorai_selected_camera_id");
+                  }}>
                   <td className="m-table__primary">{cam.name}</td>
                   <td>{cam.ip}</td>
                   <td>{cam.manufacturer}</td>

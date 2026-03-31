@@ -260,3 +260,401 @@
   margin: 0 0 12px 0;
   line-height: 1.5;
 }
+
+/* ── Layout ─────────────────────────────────────────────── */
+.cameras-content-layout {
+  display: flex;
+  gap: 16px;
+  flex: 1;
+  min-height: 0;
+}
+
+/* ── Side Panel ──────────────────────────────────────────── */
+.cam-side-panel {
+  width: 280px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.cam-side-panel__header {
+  padding: 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-bottom: 1px solid var(--border-light);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.cam-side-panel__icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 6px;
+  background: rgba(77, 159, 255, 0.15);
+  color: #4d9fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.cam-side-panel__icon svg {
+  width: 20px;
+  height: 20px;
+}
+
+.cam-side-panel__info {
+  flex: 1;
+  min-width: 0;
+}
+.cam-side-panel__info h3 {
+  margin: 0 0 2px 0;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cam-side-panel__info p {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-muted);
+  font-family: "Consolas", "JetBrains Mono", monospace;
+}
+
+.cam-side-panel__features {
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.cam-side-feature-btn {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 12px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 13px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: left;
+}
+.cam-side-feature-btn:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-primary);
+}
+
+.cam-side-feature-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+}
+.cam-side-feature-icon svg {
+  width: 18px;
+  height: 18px;
+}
+.cam-side-feature-btn:hover .cam-side-feature-icon {
+  color: var(--teal);
+}
+
+.cam-side-feature-label {
+  flex: 1;
+}
+
+.cam-side-feature-arrow {
+  width: 16px;
+  height: 16px;
+  color: var(--text-muted);
+  opacity: 0;
+  transform: translateX(-4px);
+  transition: all 0.2s ease;
+}
+.cam-side-feature-btn:hover .cam-side-feature-arrow {
+  opacity: 1;
+  transform: translateX(0);
+}
+/* ============================================================
+   PASTE THESE STYLES INTO YOUR CamerasPage.css
+   ============================================================ */
+
+/* ── Toggle switch base ─────────────────────────────────── */
+.cam-toggle {
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.cam-toggle input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+.cam-toggle-track {
+  position: relative;
+  display: inline-block;
+  width: 32px;
+  height: 18px;
+  background: var(--color-border-secondary, #aaa);
+  border-radius: 9px;
+  transition: background 0.2s ease;
+  flex-shrink: 0;
+}
+
+.cam-toggle input:checked + .cam-toggle-track {
+  background: #1D9E75;
+}
+
+.cam-toggle-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  background: #ffffff;
+  border-radius: 50%;
+  transition: transform 0.2s ease;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+  pointer-events: none;
+}
+
+.cam-toggle input:checked + .cam-toggle-track .cam-toggle-thumb {
+  transform: translateX(14px);
+}
+
+/* Large variant for Edit modal */
+.cam-toggle--lg .cam-toggle-track {
+  width: 40px;
+  height: 22px;
+  border-radius: 11px;
+}
+
+.cam-toggle--lg .cam-toggle-thumb {
+  width: 18px;
+  height: 18px;
+}
+
+.cam-toggle--lg input:checked + .cam-toggle-track .cam-toggle-thumb {
+  transform: translateX(18px);
+}
+
+/* ── Disabled table row ──────────────────────────────────── */
+.m-table__row--disabled td {
+  opacity: 0.45;
+}
+
+.m-table__row--disabled:hover {
+  background: var(--color-background-secondary) !important;
+}
+
+/* Keep the toggle cell always fully visible even on disabled rows */
+.m-table__row--disabled td:nth-child(2) {
+  opacity: 1;
+}
+
+/* ── Camera thumbnail OFF state ──────────────────────────── */
+.cam-thumb-placeholder--off {
+  position: relative;
+  color: var(--color-text-secondary);
+  opacity: 0.5;
+}
+
+.cam-thumb-off-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-danger, #e24b4a);
+}
+
+.cam-thumb-off-overlay svg {
+  width: 18px;
+  height: 18px;
+  stroke: currentColor;
+}
+
+/* ── Disabled IP link ─────────────────────────────────────── */
+.cam-ip-link--disabled {
+  cursor: default;
+  color: var(--color-text-secondary);
+  text-decoration: none;
+  pointer-events: none;
+}
+
+/* ── Status badge ────────────────────────────────────────── */
+.cam-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  flex-shrink: 0;
+}
+
+.cam-status-badge--active {
+  background: rgba(29, 158, 117, 0.15);
+  color: #0F6E56;
+}
+
+.cam-status-badge--disabled {
+  background: var(--color-background-tertiary);
+  color: var(--color-text-secondary);
+}
+
+.cam-status-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.cam-status-badge--active .cam-status-dot {
+  background: #1D9E75;
+  box-shadow: 0 0 0 2px rgba(29, 158, 117, 0.3);
+  animation: cam-pulse 2s ease-in-out infinite;
+}
+
+@keyframes cam-pulse {
+  0%, 100% { box-shadow: 0 0 0 2px rgba(29, 158, 117, 0.3); }
+  50%       { box-shadow: 0 0 0 4px rgba(29, 158, 117, 0.1); }
+}
+
+/* ── Side panel: name row with badge ─────────────────────── */
+.cam-side-panel__name-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* ── Side panel: quick toggle row ───────────────────────── */
+.cam-side-panel__toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 8px;
+  gap: 8px;
+}
+
+.cam-side-panel__toggle-label {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+/* ── Side panel: disabled icon ───────────────────────────── */
+.cam-side-panel__icon--off {
+  opacity: 0.4;
+  filter: grayscale(1);
+}
+
+/* ── Side panel: stream preview area ────────────────────── */
+.cam-side-panel__stream {
+  margin: 12px 0;
+  height: 72px;
+  border-radius: 6px;
+  background: var(--color-background-tertiary);
+  border: 1px solid var(--color-border-tertiary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.cam-stream-live {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 500;
+  color: #1D9E75;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.cam-stream-live-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #1D9E75;
+  animation: cam-pulse 1.5s ease-in-out infinite;
+}
+
+.cam-stream-paused {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  color: var(--color-text-secondary);
+  opacity: 0.55;
+}
+
+.cam-stream-paused span {
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.cam-stream-paused-sub {
+  font-size: 10px !important;
+  font-weight: 400 !important;
+  opacity: 0.7;
+}
+
+/* ── Side panel: disabled feature buttons ────────────────── */
+.cam-side-feature-btn--disabled {
+  opacity: 0.38;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* ── Footer: active count ─────────────────────────────────── */
+.cameras-count-active {
+  color: #1D9E75;
+  font-size: 12px;
+}
+
+/* ── Edit modal: toggle row ──────────────────────────────── */
+.ec-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 0 10px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--color-border-tertiary);
+  gap: 12px;
+}
+
+.ec-toggle-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ec-toggle-label {
+  font-size: 13px;
+  color: var(--color-text-primary);
+  font-weight: 500;
+}
+
+.ec-toggle-sub {
+  font-size: 11px;
+  color: var(--color-text-secondary);
+}

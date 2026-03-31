@@ -34,8 +34,8 @@
 
             <Providers>
                 <RTSPPull>
-                    <MaxFrameSize>104857600</MaxFrameSize>
-                    <BufferSize>20971520</BufferSize>
+                    <!-- <MaxFrameSize>104857600</MaxFrameSize> -->
+                    <!-- <BufferSize>20971520</BufferSize> -->
                 </RTSPPull>
                 <RTMP />
                 <SRT />
@@ -48,7 +48,7 @@
 
                 <WebRTC>
                     <Timeout>60000</Timeout>
-                    <MaxWaitingTime>30000</MaxWaitingTime>
+                    <!-- <MaxWaitingTime>30000</MaxWaitingTime> -->
                 </WebRTC>
 
                 <LLHLS>

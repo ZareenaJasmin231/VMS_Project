@@ -20,8 +20,8 @@ from datetime import datetime
 # ------------------------------------------------------------------
 # Config — override with env vars in docker-compose if needed
 # ------------------------------------------------------------------
-RECORDINGS_DIR  = os.environ.get("RECORDINGS_DIR", "/recordings")
-CHUNK_SECONDS   = int(os.environ.get("CHUNK_SECONDS", "300"))   # 5 minutes
+RECORDINGS_DIR  = os.environ.get("RECORDINGS_DIR", "/recording")
+CHUNK_SECONDS   = int(os.environ.get("CHUNK_SECONDS", "300"))  
 FFMPEG_BIN      = os.environ.get("FFMPEG_BIN", "ffmpeg")
 
 # Active recorder threads keyed by stream_name
@@ -157,7 +157,7 @@ def stop_all():
 if __name__ == "__main__":
     import json
 
-    DEVICES_FILE = os.environ.get("DEVICES_FILE", "/app/data/devices.json")
+    DEVICES_FILE = os.environ.get("DEVICES_FILE", os.path.join(os.path.dirname(__file__), "..", "devices_data", "devices.json"))
 
     try:
         with open(DEVICES_FILE) as f:

@@ -2,14 +2,16 @@
 Stream Health Monitoring Service
 Monitors RTSP streams and attempts recovery if disconnected
 """
-
+import os
 import asyncio
 import requests
 import json
 from datetime import datetime
 from ome_service import register_stream
 
-OME_API = "http://ome:8081/v1/vhosts/default/apps/app/streams"
+OME_API = os.environ.get("OME_API", "http://ome:8081") + "/v1/vhosts/default/apps/app/streams"
+
+
 OME_AUTH = "Basic bXl2bXNhY2Nlc3N0b2tlbg=="
 
 HEALTH_CHECK_INTERVAL = 30  # Check every 30 seconds

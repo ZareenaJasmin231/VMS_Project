@@ -110,10 +110,14 @@ export default function IOPortsPage() {
   const [selectedId, setSelectedId] = useState(null);
   const [ports,     setPorts]     = useState(loadPorts);
   const [modal,     setModal]     = useState(null); // null | "add" | "edit"
+  const [selectedDeviceId, setSelectedDeviceId] = useState(() => localStorage.getItem("miradorai_selected_camera_id") || null);
 
   const devices = loadDevices();
 
   const filtered = ports.filter((p) => {
+    const matchesDevice = !selectedDeviceId || String(p.deviceId) === String(selectedDeviceId);
+    if (!matchesDevice) return false;
+    
     if (!filter) return true;
     const device = devices.find((d) => String(d.id) === String(p.deviceId));
     return [device?.name, p.type, p.name, p.activeState, p.inactiveState]
@@ -157,6 +161,20 @@ export default function IOPortsPage() {
         </div>
         <SearchBar value={filter} onChange={setFilter} placeholder="Type to filter" />
       </div>
+
+      {selectedDeviceId && (
+        <div className="iop-filter-info">
+          <span>
+            Showing ports for <strong>{devices.find(d => String(d.id) === String(selectedDeviceId))?.name || "Selected Camera"}</strong>
+          </span>
+          <button className="iop-filter-clear" onClick={() => {
+            setSelectedDeviceId(null);
+            localStorage.removeItem("miradorai_selected_camera_id");
+          }}>
+            Clear Filter
+          </button>
+        </div>
+      )}
 
       {/* Table */}
       <div className="iop-table-wrap">

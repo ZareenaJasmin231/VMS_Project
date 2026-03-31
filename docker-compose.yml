@@ -1,7 +1,7 @@
 services:
   ome:
     image: airensoft/ovenmediaengine:latest
-    container_name: mirador-ome
+    container_name: ome
     restart: unless-stopped
     ports:
       - "1935:1935"
@@ -10,6 +10,8 @@ services:
       - "3334:3334"
       - "8080:8080"
       - "8081:8081"
+      - "554:554"          
+
       - "10000-10009:10000-10009/udp"
     volumes:
       - ./origin_conf:/opt/ovenmediaengine/bin/origin_conf
@@ -18,7 +20,7 @@ services:
 
   mongo:
     image: mongo:7
-    container_name: mirador-mongo
+    container_name: mongo
     restart: unless-stopped
     ports:
       - "27017:27017"
@@ -29,13 +31,16 @@ services:
 
   backend:
     build: ./onvif-backend
-    container_name: mirador-backend
+    container_name: backend
     restart: unless-stopped
     ports:
       - "8000:8000"
     environment:
-      - OME_URL=http://ome:8081
-      - OME_HOST_IP=${OME_HOST_IP:-localhost}
+      - OME_URL=http://ome:8081/v1/vhosts/default/apps/app/streams
+      - OME_HOST=ome
+      - OME_PORT=3333
+      - OME_HOST_IP=192.168.126.200
+      - HOST_SUBNET=192.168.126
       - OME_WS_PORT=3333
       - MONGO_URI=mongodb://mongo:27017/
       - RECORDINGS_DIR=/recordings

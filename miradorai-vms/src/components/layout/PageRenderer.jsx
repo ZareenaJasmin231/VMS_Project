@@ -54,7 +54,7 @@ const MAP = {
   "media-player":         MediaPlayerPage,
 };
 
-export default function PageRenderer({ activePage }) {
+export default function PageRenderer({ activePage, onNavigate }) {
   const Component = MAP[activePage] || AddDevicesPage;
-  return <Component />;
+  return <Component onNavigate={onNavigate} />;
 }
