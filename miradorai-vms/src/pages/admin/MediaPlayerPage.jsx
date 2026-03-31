@@ -198,7 +198,7 @@ export default function MediaPlayerPage() {
       formData.append("file", file);
       
       setLoadingFiles(true);
-      fetch(`${STREAM_API}/play`, {
+      fetch(`${STREAM_API}/play`, {  // Uses http://localhost:8000
         method: "POST",
         body: formData,
       })

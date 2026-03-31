@@ -23,6 +23,7 @@ import StreamingPage           from "../../pages/client/StreamingPage";
 import FirmwareUpgradePage     from "../../pages/connectedservices/Firmwareupgradepage";
 import SmartSearchSettingsPage from "../../pages/smartsearcxh/Smartsearchsettingspage";
 import LiveViewPage            from "../../pages/liveview/LiveViewPage";
+import MediaPlayerPage         from "../../pages/admin/MediaPlayerPage";
 
 const MAP = {
   "add-devices":          AddDevicesPage,
@@ -50,6 +51,7 @@ const MAP = {
   "firmware-upgrade":     FirmwareUpgradePage,
   "smartsearch-settings": SmartSearchSettingsPage,
   "live-view":            LiveViewPage,
+  "media-player":         MediaPlayerPage,
 };
 
 export default function PageRenderer({ activePage }) {

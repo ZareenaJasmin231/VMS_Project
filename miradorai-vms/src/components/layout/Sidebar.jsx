@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { NAV_CONFIG } from "../../data/navConfig";
+import { getNavConfig } from "../../data/navConfig";
+import { useAuth } from "../../context/AuthContext";
 import logoImg from "../../assets/logo.jpg";
 import "./Sidebar.css";
 
@@ -8,15 +9,35 @@ function SvgIcon({ html }) {
 }
 
 export default function Sidebar({ activePage, onNavigate }) {
+  const { user, logout } = useAuth();
+  const navConfig = getNavConfig(user?.role);
+  
   const [expanded, setExpanded] = useState({
-    Devices: true, Storage: false, Recording: false, Client: false,
+    Cameras: true, 
+    "Recording & Events": false, 
+    Storage: false, 
+    Client: false,
   });
   const [search, setSearch] = useState("");
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  
   const toggle = (s) => setExpanded((p) => ({ ...p, [s]: !p[s] }));
-  const activeSection = NAV_CONFIG.find((s) => s.items.some((i) => i.page === activePage))?.section;
+
+  const handleLogoutClick = () => {
+    setShowLogoutConfirm(true);
+  };
+
+  const confirmLogout = () => {
+    setShowLogoutConfirm(false);
+    logout();
+  };
+
+  const cancelLogout = () => {
+    setShowLogoutConfirm(false);
+  };
 
   return (
-    <aside className="sidebar">
+    <aside className="sidebar" aria-label="Main navigation">
       {/* Logo */}
       <div className="sidebar__logo">
         <div className="sidebar__logo-mark">
@@ -29,31 +50,58 @@ export default function Sidebar({ activePage, onNavigate }) {
       </div>
 
       {/* Search */}
-      <div className="sidebar__search-wrap">
+      <div className="sidebar__search-wrap" role="search">
         <svg className="sidebar__search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
           <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
         </svg>
         <input
           className="sidebar__search"
           placeholder="Search..."
+          aria-label="Search menu"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
       </div>
 
       {/* Nav */}
-      <nav className="sidebar__nav">
-        {NAV_CONFIG.map(({ section, icon, items }) => {
-          const visible = items.filter((i) =>
+      <nav className="sidebar__nav" role="navigation" aria-label="Application menu">
+        {navConfig.map(({ section, page, icon, items }) => {
+          // If item has a page property, it's a direct navigate item (like Live View or About)
+          if (page) {
+            const isActive = activePage === page;
+            const matchesSearch = !search || section.toLowerCase().includes(search.toLowerCase());
+            if (!matchesSearch) return null;
+            
+            return (
+              <button
+                key={section}
+                className={`sidebar__direct-item ${isActive ? "sidebar__direct-item--active" : ""}`}
+                onClick={() => onNavigate(page)}
+                aria-current={isActive ? "page" : undefined}
+              >
+                <SvgIcon html={icon} />
+                <span className="sidebar__direct-item-label">{section}</span>
+                {isActive && <span className="sidebar__item-dot" />}
+              </button>
+            );
+          }
+
+          // If item has items array, it's expandable
+          const visible = items?.filter((i) =>
             !search || i.label.toLowerCase().includes(search.toLowerCase())
-          );
+          ) || [];
+          
           if (search && visible.length === 0) return null;
-          const isActiveSection = activeSection === section;
+          
+          const hasActiveItem = items?.some((i) => i.page === activePage);
+
           return (
             <div key={section} className="sidebar__group">
               <button
-                className={`sidebar__group-btn ${isActiveSection ? "sidebar__group-btn--active" : ""}`}
+                className={`sidebar__group-btn ${hasActiveItem ? "sidebar__group-btn--active" : ""}`}
                 onClick={() => toggle(section)}
+                aria-expanded={expanded[section] ? "true" : "false"}
+                aria-controls={`group-${section.replace(/\s+/g, "-").toLowerCase()}`}
               >
                 <SvgIcon html={icon} />
                 <span className="sidebar__group-label">{section}</span>
@@ -62,7 +110,7 @@ export default function Sidebar({ activePage, onNavigate }) {
                 </svg>
               </button>
               {(expanded[section] || search) && (
-                <div className="sidebar__items">
+                <div className="sidebar__items" id={`group-${section.replace(/\s+/g, "-").toLowerCase()}`} role="group" aria-label={`${section} submenu`}>
                   {visible.map((item) => {
                     const isActive = activePage === item.page;
                     return (
@@ -70,6 +118,7 @@ export default function Sidebar({ activePage, onNavigate }) {
                         key={item.page}
                         className={`sidebar__item ${isActive ? "sidebar__item--active" : ""}`}
                         onClick={() => onNavigate(item.page)}
+                        aria-current={isActive ? "page" : undefined}
                       >
                         <SvgIcon html={item.icon} />
                         <span>{item.label}</span>
@@ -86,12 +135,61 @@ export default function Sidebar({ activePage, onNavigate }) {
 
       {/* Footer */}
       <div className="sidebar__footer">
-        <div className="sidebar__server-dot" />
-        <div>
-          <div className="sidebar__server-name">MIRADOR-VMS</div>
-          <div className="sidebar__server-status">Connected · Secure</div>
+        <div className="sidebar__user-info">
+          <div className="sidebar__user-avatar">
+            {user?.email?.charAt(0).toUpperCase()}
+          </div>
+          <div className="sidebar__user-details">
+            <div className="sidebar__user-email" title={user?.email}>{user?.email}</div>
+            <div className="sidebar__user-meta">
+              <span className={`sidebar__user-badge ${user?.role}`}>
+                {user?.role?.toUpperCase()}
+              </span>
+              {user?.loginDate && (
+                <span className="sidebar__user-login-date">{user.loginDate}</span>
+              )}
+            </div>
+          </div>
         </div>
+        <button 
+          className="sidebar__logout-btn"
+          onClick={handleLogoutClick}
+          title="Logout"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 8l4-4m0 0l-4 4m4-4v12a2 2 0 0 1-2 2h-4"/>
+          </svg>
+          <span>Logout</span>
+        </button>
       </div>
+
+      {/* Logout Confirmation Modal */}
+      {showLogoutConfirm && (
+        <div className="logout-modal-overlay">
+          <div className="logout-modal">
+            <div className="logout-modal__header">
+              <h2>Confirm Logout</h2>
+            </div>
+            <div className="logout-modal__body">
+              <p>Are you sure you want to logout?</p>
+            </div>
+            <div className="logout-modal__footer">
+              <button
+                className="logout-modal__btn logout-modal__btn--cancel"
+                onClick={cancelLogout}
+              >
+                Cancel
+              </button>
+              <button
+                className="logout-modal__btn logout-modal__btn--confirm"
+                onClick={confirmLogout}
+              >
+                Logout
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </aside>
   );
 }

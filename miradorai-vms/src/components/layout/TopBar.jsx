@@ -54,8 +54,13 @@ export default function TopBar({ activePage, onNavigate, onAlarmsClick, alarmsOp
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  const section = NAV_CONFIG.find((s) => s.items.some((i) => i.page === activePage));
-  const item    = section?.items.find((i) => i.page === activePage);
+  const section = NAV_CONFIG.find((s) => {
+    if (s.page === activePage) return true;
+    if (s.items?.some((i) => i.page === activePage)) return true;
+    return false;
+  });
+  const item = section?.items?.find((i) => i.page === activePage) || 
+               (section?.page === activePage ? { label: section.section } : null);
 
   return (
     <header className="topbar">

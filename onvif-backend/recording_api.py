@@ -15,7 +15,7 @@ Endpoints:
 
 import os
 import io
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, UploadFile, File
 from fastapi.responses import StreamingResponse
 from pymongo import MongoClient
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
@@ -34,7 +34,7 @@ KEY_FILE  = os.environ.get("VIDEO_KEY_FILE", "/app/data/video.key")
 # MongoDB
 # ------------------------------------------------------------------
 _client     = MongoClient(MONGO_URI)
-_db         = _client["vms_database"]
+_db         = _client["mirador-vms"]
 _collection = _db["recordings"]
 
 # ------------------------------------------------------------------
@@ -49,16 +49,47 @@ def _load_key() -> bytes:
 
 
 def _decrypt(file_path: str) -> io.BytesIO:
-    key = _load_key()
     with open(file_path, "rb") as f:
         raw = f.read()
-    iv             = raw[:16]
-    cipher         = Cipher(algorithms.AES(key), modes.CBC(iv), backend=default_backend())
-    dec            = cipher.decryptor()
-    padded         = dec.update(raw[16:]) + dec.finalize()
-    unpadder       = padding.PKCS7(128).unpadder()
-    data           = unpadder.update(padded) + unpadder.finalize()
+    return decrypt_bytes(raw)
+
+
+def decrypt_bytes(raw: bytes) -> io.BytesIO:
+    if not raw or len(raw) <= 16:
+        raise ValueError("Encrypted payload must be larger than 16 bytes")
+    key = _load_key()
+    iv = raw[:16]
+    ciphertext = raw[16:]
+    cipher = Cipher(algorithms.AES(key), modes.CBC(iv), backend=default_backend())
+    dec = cipher.decryptor()
+    padded = dec.update(ciphertext) + dec.finalize()
+    unpadder = padding.PKCS7(128).unpadder()
+    data = unpadder.update(padded) + unpadder.finalize()
     return io.BytesIO(data)
+
+
+def _decrypt_bytes(encrypted_bytes: bytes) -> io.BytesIO:
+    """Decrypt bytes directly (for user-uploaded .enc files)."""
+    try:
+        key = _load_key()
+    except Exception as e:
+        print(f"[DECRYPT] Key load failed: {e}")
+        raise HTTPException(status_code=500, detail="Encryption key (video.key) not found on server.")
+
+    if len(encrypted_bytes) < 16:
+        raise HTTPException(status_code=400, detail="Invalid encrypted file (too small).")
+
+    try:
+        iv             = encrypted_bytes[:16]
+        cipher         = Cipher(algorithms.AES(key), modes.CBC(iv), backend=default_backend())
+        dec            = cipher.decryptor()
+        padded         = dec.update(encrypted_bytes[16:]) + dec.finalize()
+        unpadder       = padding.PKCS7(128).unpadder()
+        data           = unpadder.update(padded) + unpadder.finalize()
+        return io.BytesIO(data)
+    except Exception as e:
+        print(f"[DECRYPT] Decryption failed (key mismatch or corrupt): {e}")
+        raise HTTPException(status_code=400, detail="Decryption failed. Check if your video.key matches the one used for encryption.")
 
 
 # ------------------------------------------------------------------
@@ -139,6 +170,32 @@ def play_recording(
         raise HTTPException(status_code=500, detail=f"Decryption failed: {e}")
 
     return StreamingResponse(stream, media_type="video/mp4")
+
+
+@recording_router.post("/decrypt-file")
+async def decrypt_file(file: UploadFile = File(...)):
+    """
+    Decrypt a user-uploaded .enc file and return as MP4.
+    Used for playing encrypted video files from local storage.
+    """
+    try:
+        encrypted_data = await file.read()
+        decrypted_stream = _decrypt_bytes(encrypted_data)
+        
+        # Extract filename without extension for download
+        filename = file.filename or "video.mp4"
+        if filename.endswith(".enc"):
+            filename = filename[:-4] + ".mp4"
+        elif not filename.endswith(".mp4"):
+            filename = filename + ".mp4"
+        
+        return StreamingResponse(
+            decrypted_stream,
+            media_type="video/mp4",
+            headers={"Content-Disposition": f"inline; filename={filename}"}
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Decryption failed: {str(e)}")
 
 
 @recording_router.get("/status")
