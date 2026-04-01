@@ -2,28 +2,29 @@
 ONVIF Device Discovery Service
 Auto-detects network subnet and finds real ONVIF cameras.
 
-Logic:
-  1. ONVIF probe succeeds → definite camera, include it
-  2. ONVIF fails → fingerprint the device:
-       - Positively identified as non-camera (router/switch/printer/server/iot) → SKIP
-       - Positively identified as camera → include it
-       - Unknown (couldn't fingerprint) AND responds on a camera port → include for review
-       - Unknown AND only responds on non-camera ports → SKIP
+Changes from original:
+  - Fallback generic entries now go through multi-protocol fingerprinting
+    (HTTP banner grab + MAC OUI lookup + SNMP sysDescr) to classify
+    device_type as "camera" | "router" | "switch" | "printer" |
+    "server" | "iot" | "unknown"
+  - Only devices with device_type == "camera" OR device_type == "unknown"
+    (couldn't be identified as non-camera) are returned to the frontend
+  - No behaviour change for devices that respond successfully to ONVIF probe
 """
 
 import socket
 import re
 import subprocess
+import ipaddress
 import os
+import struct
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import threading
 
 
-# ── Camera ports — devices responding only on these are likely cameras ────────
-CAMERA_PORTS = {80, 8080, 8081, 554, 8888}
-
 # ── MAC OUI vendor → device-type mapping ─────────────────────────────────────
+# Extend as needed. Keys are the first 8 chars of MAC (XX:XX:XX).
 _OUI_MAP: dict[str, str] = {
     # Cameras
     "00:1a:8c": "camera",   # Hikvision
@@ -35,103 +36,102 @@ _OUI_MAP: dict[str, str] = {
     "ac:cc:8e": "camera",   # Axis
     "00:02:d1": "camera",   # Bosch Security
     "00:1b:c5": "camera",   # Bosch Security
-    # Network gear
-    "b4:a2:eb": "switch",
-    "00:00:0c": "router",
-    "00:1e:13": "router",
-    "00:50:56": "server",
-    "00:0c:29": "server",
-    "00:1a:4b": "printer",
-    "a0:d3:c1": "printer",
-    "18:a9:05": "printer",
-    "b8:27:eb": "iot",
-    "dc:a6:32": "iot",
-    "00:17:88": "iot",
+    "b4:a2:eb": "switch",   # Cisco
+    "00:00:0c": "router",   # Cisco
+    "00:1e:13": "router",   # Cisco
+    "00:50:56": "server",   # VMware (virtual)
+    "00:0c:29": "server",   # VMware (virtual)
+    "00:1a:4b": "printer",  # HP
+    "a0:d3:c1": "printer",  # HP
+    "18:a9:05": "printer",  # HP
+    "b8:27:eb": "iot",      # Raspberry Pi
+    "dc:a6:32": "iot",      # Raspberry Pi
+    "00:17:88": "iot",      # Philips Hue
 }
 
 # HTTP banner keywords → device-type
 _HTTP_KEYWORDS: dict[str, str] = {
-    # Cameras
-    "hikvision":      "camera",
-    "dahua":          "camera",
-    "axis":           "camera",
-    "bosch":          "camera",
-    "hanwha":         "camera",
-    "uniview":        "camera",
-    "reolink":        "camera",
-    "amcrest":        "camera",
-    "foscam":         "camera",
-    "vivotek":        "camera",
-    "pelco":          "camera",
-    "onvif":          "camera",
-    "network camera": "camera",
-    "ip camera":      "camera",
-    "ipcam":          "camera",
-    "webcam":         "camera",
-    "nvr":            "camera",
-    "dvr":            "camera",
-    "videojet":       "camera",
-    "vcs":            "camera",
-    "video":          "camera",
-    "surveillance":   "camera",
-    # Network gear — EXCLUDE these
-    "cisco":          "switch",
-    "juniper":        "switch",
-    "ubiquiti":       "switch",
-    "unifi":          "switch",
-    "netgear":        "switch",
-    "d-link":         "switch",
-    "tp-link":        "switch",
-    "zyxel":          "router",
-    "mikrotik":       "router",
-    "openwrt":        "router",
-    "dd-wrt":         "router",
-    "pfsense":        "router",
-    "fortinet":       "router",
-    "fortigate":      "router",
+    # Cameras (checked first — most specific)
+    "hikvision":         "camera",
+    "dahua":             "camera",
+    "axis":              "camera",
+    "bosch":             "camera",
+    "hanwha":            "camera",
+    "uniview":           "camera",
+    "reolink":           "camera",
+    "amcrest":           "camera",
+    "foscam":            "camera",
+    "vivotek":           "camera",
+    "pelco":             "camera",
+    "onvif":             "camera",
+    "network camera":    "camera",
+    "ip camera":         "camera",
+    "ipcam":             "camera",
+    "webcam":            "camera",
+    "nvr":               "camera",
+    "dvr":               "camera",
+    # Network gear
+    "cisco":             "switch",
+    "juniper":           "switch",
+    "ubiquiti":          "switch",
+    "unifi":             "switch",
+    "netgear":           "switch",
+    "d-link":            "switch",
+    "tp-link":           "switch",
+    "zyxel":             "router",
+    "mikrotik":          "router",
+    "openwrt":           "router",
+    "dd-wrt":            "router",
+    "pfsense":           "router",
+    "fortinet":          "router",
+    "fortigate":         "router",
+    "router":            "router",
     # Printers
-    "printer":        "printer",
-    "hewlett-packard":"printer",
-    "lexmark":        "printer",
-    "brother":        "printer",
-    "epson":          "printer",
-    "xerox":          "printer",
+    "printer":           "printer",
+    "print server":      "printer",
+    "hewlett-packard":   "printer",
+    "lexmark":           "printer",
+    "brother":           "printer",
+    "canon printer":     "printer",
+    "epson":             "printer",
+    "xerox":             "printer",
     # Servers / NAS
-    "proxmox":        "server",
-    "esxi":           "server",
-    "synology":       "server",
-    "qnap":           "server",
-    "truenas":        "server",
-    "windows server": "server",
-    # IoT (non-camera)
-    "esp8266":        "iot",
-    "esp32":          "iot",
-    "tasmota":        "iot",
-    "home assistant": "iot",
-    "shelly":         "iot",
+    "proxmox":           "server",
+    "esxi":              "server",
+    "synology":          "server",
+    "qnap":              "server",
+    "truenas":           "server",
+    "nas":               "server",
+    "windows server":    "server",
+    # IoT
+    "esp8266":           "iot",
+    "esp32":             "iot",
+    "tasmota":           "iot",
+    "home assistant":    "iot",
+    "shelly":            "iot",
 }
 
 # SNMP sysDescr keywords → device-type
 _SNMP_KEYWORDS: dict[str, str] = {
-    "camera":    "camera",
-    "onvif":     "camera",
-    "hikvision": "camera",
-    "dahua":     "camera",
-    "cisco":     "switch",
-    "catalyst":  "switch",
-    "juniper":   "switch",
-    "ubiquiti":  "switch",
-    "routeros":  "router",
-    "openwrt":   "router",
-    "linux":     "server",
-    "windows":   "server",
-    "printer":   "printer",
-    "jetdirect": "printer",
+    "camera":      "camera",
+    "onvif":       "camera",
+    "hikvision":   "camera",
+    "dahua":       "camera",
+    "cisco":       "switch",
+    "catalyst":    "switch",
+    "juniper":     "switch",
+    "ubiquiti":    "switch",
+    "routeros":    "router",
+    "openwrt":     "router",
+    "linux":       "server",   # generic Linux — could be anything
+    "windows":     "server",
+    "printer":     "printer",
+    "jetdirect":   "printer",
 }
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Subnet detection
+# Subnet detection (unchanged from original)
 # ─────────────────────────────────────────────────────────────────────────────
 
 def get_local_subnet() -> str:
@@ -178,14 +178,19 @@ def get_local_subnet() -> str:
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _oui_lookup(mac: str) -> str | None:
+    """Return device_type from MAC OUI table, or None if not found."""
     if not mac or mac in ("Unknown", "—", ""):
         return None
     normalized = mac.lower().replace("-", ":").strip()
-    prefix = normalized[:8]
+    prefix = normalized[:8]  # "xx:xx:xx"
     return _OUI_MAP.get(prefix)
 
 
 def _http_banner_grab(ip: str, port: int, timeout: float = 2.0) -> str:
+    """
+    Send a minimal HTTP GET and return the raw response text (headers + partial body).
+    Falls back to empty string on any error.
+    """
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             s.settimeout(timeout)
@@ -205,7 +210,13 @@ def _http_banner_grab(ip: str, port: int, timeout: float = 2.0) -> str:
 
 
 def _snmp_get_sysdescr(ip: str, community: str = "public", timeout: float = 1.5) -> str:
+    """
+    Send a raw SNMP v1 GetRequest for sysDescr (OID 1.3.6.1.2.1.1.1.0).
+    Returns the sysDescr string or empty string on failure.
+    No third-party library required — pure socket.
+    """
     try:
+        # Build minimal SNMPv1 GetRequest for sysDescr
         def _encode_oid(oid_str):
             parts = list(map(int, oid_str.split(".")))
             encoded = bytes([40 * parts[0] + parts[1]])
@@ -230,14 +241,14 @@ def _snmp_get_sysdescr(ip: str, community: str = "public", timeout: float = 1.5)
             else:
                 return bytes([tag, 0x82, len(value) >> 8, len(value) & 0xff]) + value
 
-        comm     = community.encode()
-        oid      = _encode_oid("1.3.6.1.2.1.1.1.0")
-        varbind  = _tlv(0x30, _tlv(0x06, oid) + _tlv(0x05, b""))
+        comm  = community.encode()
+        oid   = _encode_oid("1.3.6.1.2.1.1.1.0")
+        varbind  = _tlv(0x30, _tlv(0x06, oid) + _tlv(0x05, b""))  # OID + Null
         varbinds = _tlv(0x30, varbind)
         pdu      = _tlv(0xa0, b'\x02\x01\x01' + b'\x02\x01\x00' + b'\x02\x01\x00' + varbinds)
         packet   = _tlv(0x30,
-                        b'\x02\x01\x00' +
-                        _tlv(0x04, comm) +
+                        b'\x02\x01\x00' +          # version = 0 (SNMPv1)
+                        _tlv(0x04, comm) +          # community
                         pdu)
 
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
@@ -245,6 +256,9 @@ def _snmp_get_sysdescr(ip: str, community: str = "public", timeout: float = 1.5)
             s.sendto(packet, (ip, 161))
             data, _ = s.recvfrom(4096)
 
+        # Very simple: find OctetString (0x04) value after the OID in the response
+        raw = data.decode("latin-1", errors="ignore")
+        # Look for printable ASCII string after the response OID
         match = re.search(r'\x04([\x01-\x7f])([\x20-\x7e]{4,})', data.decode("latin-1", errors="ignore"))
         if match:
             length = ord(match.group(1))
@@ -256,21 +270,23 @@ def _snmp_get_sysdescr(ip: str, community: str = "public", timeout: float = 1.5)
 
 def _classify_device(ip: str, port: int, mac: str = "") -> tuple[str, str, str]:
     """
+    Multi-protocol fingerprint a device.
     Returns (device_type, manufacturer, model).
-    device_type: "camera" | "router" | "switch" | "printer" | "server" | "iot" | "unknown"
+    Order: OUI → SNMP → HTTP banner
     """
-    # 1. MAC OUI
+    # 1. MAC OUI (fastest, no network round-trip beyond what we already have)
     oui_type = _oui_lookup(mac)
-    if oui_type and oui_type != "server":
+    if oui_type and oui_type != "server":  # server from OUI is too generic
         print(f"[CLASSIFY] {ip} → {oui_type} (OUI)")
         return oui_type, "", ""
 
-    # 2. SNMP sysDescr
+    # 2. SNMP sysDescr (network gear almost always responds to this)
     sysdescr = _snmp_get_sysdescr(ip)
     if sysdescr:
         sysdescr_lower = sysdescr.lower()
         for kw, dtype in _SNMP_KEYWORDS.items():
             if kw in sysdescr_lower:
+                # Extract first useful word as manufacturer hint
                 manufacturer = sysdescr.split()[0] if sysdescr.split() else ""
                 print(f"[CLASSIFY] {ip} → {dtype} (SNMP: '{sysdescr[:60]}')")
                 return dtype, manufacturer, ""
@@ -280,6 +296,7 @@ def _classify_device(ip: str, port: int, mac: str = "") -> tuple[str, str, str]:
     if banner:
         for kw, dtype in _HTTP_KEYWORDS.items():
             if kw in banner:
+                # Try to pull a model hint from Server: header
                 server_match = re.search(r'server:\s*([^\r\n]+)', banner)
                 model_hint   = server_match.group(1).strip()[:40] if server_match else ""
                 print(f"[CLASSIFY] {ip} → {dtype} (HTTP banner, kw='{kw}')")
@@ -290,7 +307,7 @@ def _classify_device(ip: str, port: int, mac: str = "") -> tuple[str, str, str]:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# ONVIF probe
+# ONVIF probe (unchanged logic, same return shape)
 # ─────────────────────────────────────────────────────────────────────────────
 
 def probe_onvif_device(ip: str, port: int = 80, username: str = "", password: str = "") -> dict | None:
@@ -303,16 +320,16 @@ def probe_onvif_device(ip: str, port: int = 80, username: str = "", password: st
             rtsp_url = re.sub(r"[&?]proto=Onvif", "", rtsp_url)
 
             device_info = {
-                'id':            f"device-{ip}",
-                'ip':            ip,
-                'mac':           result.get('serial', 'Unknown'),
-                'status':        'online',
-                'manufacturer':  result.get('manufacturer', 'Unknown'),
-                'model':         result.get('model', 'Unknown'),
-                'firmware':      result.get('firmware', ''),
-                'rtsp_url':      rtsp_url,
-                'stream_uri':    rtsp_url,
-                'device_type':   'camera',
+                'id':           f"device-{ip}",
+                'ip':           ip,
+                'mac':          result.get('serial', 'Unknown'),
+                'status':       'online',
+                'manufacturer': result.get('manufacturer', 'Unknown'),
+                'model':        result.get('model', 'Unknown'),
+                'firmware':     result.get('firmware', ''),
+                'rtsp_url':     rtsp_url,
+                'stream_uri':   rtsp_url,
+                'device_type':  'camera',   # ✅ ONVIF success = definitely a camera
                 'discovered_at': datetime.utcnow().isoformat(),
             }
             print(f"[DISCOVERY] ✓ ONVIF {ip}: {result.get('manufacturer')} {result.get('model')}")
@@ -334,7 +351,7 @@ def _check_port(ip: str, port: int, timeout_ms: int = 150) -> tuple[str, int] | 
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# WS-Discovery
+# WS-Discovery (unchanged)
 # ─────────────────────────────────────────────────────────────────────────────
 
 def discover_onvif_devices(timeout: int = 5) -> list:
@@ -411,13 +428,13 @@ def discover_onvif_devices(timeout: int = 5) -> list:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Subnet scan
+# Subnet scan — now with fingerprinting instead of blind fallback
 # ─────────────────────────────────────────────────────────────────────────────
 
 def discover_onvif_devices_simple(
-    timeout_ms:  int = 150,
-    username:    str = "",
-    password:    str = "",
+    timeout_ms: int = 150,
+    username:   str = "",
+    password:   str = "",
     max_workers: int = 50,
 ) -> list:
     discovered_devices: dict[str, dict] = {}
@@ -426,13 +443,13 @@ def discover_onvif_devices_simple(
     subnet = get_local_subnet()
     ports  = [80, 8080, 8081, 8888, 554]
 
-    print(f"[DISCOVERY] Scanning {subnet}.2-254 on ports {ports} "
+    print(f"[DISCOVERY] Scanning {subnet}.1-254 on ports {ports} "
           f"(timeout={timeout_ms}ms, workers={max_workers})...")
 
-    # ── Phase 1: parallel port scan — skip .1 (gateway) ─────────────
+    # ── Phase 1: parallel port scan ──────────────────────────────────
     scan_targets = [
         (f"{subnet}.{i}", port)
-        for i in range(2, 255)
+        for i in range(1, 255)
         for port in ports
     ]
 
@@ -457,45 +474,38 @@ def discover_onvif_devices_simple(
     if not open_ips:
         return []
 
-    # ── Phase 2: ONVIF probe + smart fallback ───────────────────────
+    # ── Phase 2: ONVIF probe + fingerprint fallback ──────────────────
     def probe_and_classify(ip: str, port: int):
-        # Step 1: Try ONVIF — definitive camera proof
+        # First try ONVIF
         device_info = probe_onvif_device(ip, port, username, password)
         if device_info:
             return ip, device_info
 
-        # Step 2: Fingerprint to detect known non-cameras
+        # ONVIF failed — fingerprint to decide if it's even a camera
         device_type, manufacturer, model = _classify_device(ip, port)
 
-        # Step 3: Positively identified as non-camera → skip
-        NON_CAMERA_TYPES = {"router", "switch", "printer", "server", "iot"}
-        if device_type in NON_CAMERA_TYPES:
+        # ✅ KEY CHANGE: only return the device if it looks like a camera
+        # or we genuinely couldn't tell (unknown). Discard known non-cameras.
+        if device_type not in ("camera", "unknown"):
             print(f"[DISCOVERY] ✗ Skipping {ip} — classified as '{device_type}'")
             return ip, None
 
-        # Step 4: Confirmed camera by fingerprint → include
-        if device_type == "camera":
-            print(f"[DISCOVERY] ✓ Camera confirmed at {ip}:{port} (fingerprint)")
-
-        # Step 5: Unknown device — include only if on a known camera port
-        # This catches cameras that don't respond to ONVIF and have no
-        # recognizable banner (generic firmware etc.)
-        else:
-            if port not in CAMERA_PORTS:
-                print(f"[DISCOVERY] ✗ Skipping {ip}:{port} — unknown on non-camera port")
-                return ip, None
-            print(f"[DISCOVERY] ? Including {ip}:{port} — unidentified on camera port (user to verify)")
-
+        # Build a fallback entry — but with real classification info
         fallback = {
-            'id':            f"device-{ip}",
-            'ip':            ip,
-            'mac':           "Unknown",
-            'status':        'online',
-            'manufacturer':  manufacturer or 'Unknown',
-            'model':         model or f"Port {port}",
-            'device_type':   device_type,
+            'id':           f"device-{ip}",
+            'ip':           ip,
+            'mac':          "Unknown",
+            'status':       'online',
+            'manufacturer': manufacturer or 'Unknown',
+            'model':        model        or f"Port {port}",
+            'device_type':  device_type,
             'discovered_at': datetime.utcnow().isoformat(),
         }
+
+        if device_type == "unknown":
+            print(f"[DISCOVERY] ? Unclassified device at {ip}:{port} — included for user review")
+        else:
+            print(f"[DISCOVERY] ✓ Likely camera at {ip}:{port} (fingerprint)")
 
         return ip, fallback
 
@@ -517,20 +527,19 @@ def discover_onvif_devices_simple(
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Entry point
+# Entry point (unchanged signature)
 # ─────────────────────────────────────────────────────────────────────────────
 
 def discover_all(
-    ws_timeout:      int = 4,
+    ws_timeout:     int = 4,
     scan_timeout_ms: int = 150,
-    username:        str = "",
-    password:        str = "",
+    username:       str = "",
+    password:       str = "",
 ) -> list:
     """
     Runs WS-Discovery and subnet scan concurrently, merges and deduplicates.
-    - Confirmed non-cameras (router/switch/printer/server/iot) are always excluded
-    - Unknown devices on camera ports (80, 8080, 554, 8081, 8888) are included
-    - Unknown devices on other ports are excluded
+    Non-camera devices (routers, switches, printers, servers) are filtered out.
+    Devices that could not be classified are included for user review.
     """
     print("[DISCOVERY] Starting parallel WS-Discovery + subnet scan...")
 

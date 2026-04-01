@@ -19,6 +19,22 @@ import urllib.parse
 
 
 app = FastAPI(title="MIRADOR ONVIF Backend")
+
+
+# ------------------------------------------------------------------
+# RTSP URL sanitiser — strips params OME cannot handle
+# ------------------------------------------------------------------
+def clean_rtsp_url(rtsp: str) -> str:
+    """
+    Remove Dahua/Hikvision ONVIF-only query params that cause OME 502 errors.
+    Strips: proto=Onvif (any case), unicast=true/false.
+    Also tidies up dangling ? or & left after removal.
+    """
+    rtsp = re.sub(r"[&?]proto=(?i:onvif|0nvif)", "", rtsp)
+    rtsp = re.sub(r"[&?]unicast=(?:true|false)",  "", rtsp)
+    rtsp = re.sub(r"\?&", "?", rtsp)   # fix ?& → ?
+    rtsp = re.sub(r"[?&]$", "", rtsp)  # trim trailing ? or &
+    return rtsp.strip()
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -62,10 +78,20 @@ except Exception as e:
 # Central camera save function
 # ------------------------------------------------------------------
 def save_camera_to_db(data: dict):
-    """Save or update a camera in MongoDB. Returns True on success."""
+    """Save or update a camera in MongoDB. Cleans RTSP URLs before storing."""
     if cameras_col is None:
         print("[MONGO] ❌ No connection — skipping camera save")
         return False
+
+    # ✅ Clean top-level RTSP URL
+    if data.get("rtsp_url"):
+        data["rtsp_url"] = clean_rtsp_url(data["rtsp_url"])
+
+    # ✅ Clean every stream profile's RTSP URL
+    for p in data.get("stream_profiles", []):
+        if p.get("rtsp_url"):
+            p["rtsp_url"] = clean_rtsp_url(p["rtsp_url"])
+
     try:
         result = cameras_col.update_one(
             {"ip": data["ip"]},
@@ -352,6 +378,7 @@ async def onvif_probe(req: ProbeRequest):
               f"— {result.get('stream_count', '?')} stream(s)")
         rtsp = result["stream_uri"]
         rtsp = re.sub(r"[&?]proto=Onvif", "", rtsp)
+        rtsp = clean_rtsp_url(rtsp)  # ✅ full clean (catches proto=0nvif, unicast=true, etc.)
 
         url_authority = rtsp.split("://", 1)[-1].split("/")[0]
         if req.username and "@" not in url_authority:
@@ -360,6 +387,11 @@ async def onvif_probe(req: ProbeRequest):
             rtsp = rtsp.replace("rtsp://", f"rtsp://{safe_user}:{safe_pass}@")
 
         stream_name = req.ip.replace(".", "_")
+
+        # ✅ Clean RTSP URLs inside each detected stream profile before saving
+        for p in result.get("profiles", []):
+            if p.get("rtsp_url"):
+                p["rtsp_url"] = clean_rtsp_url(p["rtsp_url"])
 
         existing = next((d for d in devices if d.get("ome_stream") == stream_name), None)
         if not existing or not stream_exists_in_ome(stream_name):
@@ -413,7 +445,7 @@ async def onvif_probe(req: ProbeRequest):
 
 @app.post("/api/streams/register")
 async def register_rtsp_stream(req: StreamRegisterRequest):
-    rtsp = req.rtsp_url.strip()
+    rtsp = clean_rtsp_url(req.rtsp_url.strip())  # ✅ strip OME-breaking params first
     print(f"[RTSP] Registering stream: {rtsp}")
 
     if req.ip:
@@ -533,6 +565,20 @@ async def get_cameras_from_db():
     return docs
 
 
+@app.get("/api/cameras/by-ip/{ip}")
+def get_camera_by_ip(ip: str):
+    """Fetch a single camera's full data (including stream_profiles) from MongoDB by IP."""
+    if cameras_col is None:
+        return {"error": "MongoDB not connected"}, 503
+    try:
+        doc = cameras_col.find_one({"ip": ip}, {"_id": 0})
+        if not doc:
+            return {"error": f"Camera with IP {ip} not found"}, 404
+        return doc
+    except Exception as e:
+        return {"error": str(e)}, 500
+
+
 @app.get("/api/storage/management")
 def storage_management():
     recordings_dir = os.environ.get("RECORDINGS_DIR", "/recordings")
@@ -632,3 +678,41 @@ async def ptz_move(req: PTZMoveRequest):
         req.pan, req.tilt, req.zoom
     )
     return result
+
+
+# ------------------------------------------------------------------
+# One-time migration: clean dirty RTSP URLs already in MongoDB
+# ------------------------------------------------------------------
+# POST http://localhost:8000/api/admin/clean-rtsp-urls  (run ONCE, then leave it)
+@app.post("/api/admin/clean-rtsp-urls")
+def clean_existing_rtsp_urls():
+    """
+    Retroactively strip proto=Onvif / unicast=true from all RTSP URLs
+    already stored in MongoDB. Run once after deploying this patch.
+    """
+    if cameras_col is None:
+        return {"error": "MongoDB not connected"}
+    updated = 0
+    for cam in cameras_col.find({}):
+        patch: dict = {}
+        # Top-level rtsp_url
+        if cam.get("rtsp_url"):
+            cleaned = clean_rtsp_url(cam["rtsp_url"])
+            if cleaned != cam["rtsp_url"]:
+                patch["rtsp_url"] = cleaned
+        # Per-profile rtsp_urls
+        profiles = cam.get("stream_profiles", [])
+        changed  = False
+        for p in profiles:
+            if p.get("rtsp_url"):
+                c = clean_rtsp_url(p["rtsp_url"])
+                if c != p["rtsp_url"]:
+                    p["rtsp_url"] = c
+                    changed = True
+        if changed:
+            patch["stream_profiles"] = profiles
+        if patch:
+            cameras_col.update_one({"_id": cam["_id"]}, {"$set": patch})
+            updated += 1
+            print(f"[MIGRATE] ✅ Cleaned {cam.get('ip')} — {patch.keys()}")
+    return {"success": True, "cameras_updated": updated}

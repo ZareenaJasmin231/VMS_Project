@@ -1,290 +1,354 @@
-import { useState } from "react";
-import DataTable from "../../components/shared/DataTable";
-import Button from "../../components/shared/Button";
-import SearchBar from "../../components/shared/SearchBar";
+import { useState, useEffect } from "react";
 import "./StreamProfilesPage.css";
 
-const RESOLUTIONS = [
-  "3840×2160 (16:9)", "1920×1080 (16:9)", "1280×720 (16:9)",
-  "854×480 (16:9)", "640×360 (16:9)"
-];
-const FORMATS = ["H.265", "H.264", "MJPEG", "AV1"];
+const API = "http://localhost:8000";
 
-const DEFAULT_FORM = {
-  hR: "1920×1080 (16:9)", hF: "H.264", hFps: 30, hComp: 30,
-  mR: "1280×720 (16:9)",  mF: "H.264", mFps: 15, mComp: 30,
-  lR: "640×360 (16:9)",   lF: "H.264", lFps: 8,  lComp: 30,
-  mic: "None", speaker: "None", micFor: "",
+const LABEL_STYLES = {
+  MAIN:  { bg: "#0f1f3d", color: "#3b82f6", border: "#1e3a5f" },
+  SUB:   { bg: "#1a0f2e", color: "#a78bfa", border: "#3b1f6e" },
+  EXTRA: { bg: "#0d1f13", color: "#4ade80", border: "#1a4230" },
 };
 
-function loadDevices() {
-  try {
-    const saved = localStorage.getItem("miradorai_devices");
-    return saved ? JSON.parse(saved) : [];
-  } catch { return []; }
+function getLabelStyle(label) {
+  if (!label) return { bg: "#1a1a2e", color: "#94a3b8", border: "#334155" };
+  return LABEL_STYLES[label.toUpperCase()] || { bg: "#1a1a2e", color: "#94a3b8", border: "#334155" };
 }
 
-function loadProfiles() {
-  try {
-    const saved = localStorage.getItem("miradorai_stream_profiles");
-    return saved ? JSON.parse(saved) : [];
-  } catch { return []; }
+function loadDevicesFromStorage() {
+  try { return JSON.parse(localStorage.getItem("miradorai_devices") || "[]"); }
+  catch { return []; }
 }
 
-function saveProfiles(profiles) {
-  try {
-    localStorage.setItem("miradorai_stream_profiles", JSON.stringify(profiles));
-  } catch {}
-}
+/* ── ONVIF Profiles Card ─────────────────────────────────────── */
+function ONVIFProfilesCard({ camera, profiles, selectedIdx, onSelect }) {
+  if (!camera || !profiles || profiles.length === 0) return null;
 
-function Spinner({ value, onChange }) {
   return (
-    <div className="sp-spinner">
-      <input
-        value={value}
-        onChange={(e) => {
-          const v = parseInt(e.target.value, 10);
-          if (!isNaN(v)) onChange(Math.min(120, Math.max(0, v)));
-        }}
-      />
-      <div className="sp-spinner-btns">
-        <button onClick={() => onChange(Math.min(120, value + 1))}>▲</button>
-        <button onClick={() => onChange(Math.max(0, value - 1))}>▼</button>
+    <div className="sp-onvif-card">
+      <div className="sp-onvif-header">
+        <div className="sp-onvif-header-left">
+          <div className="sp-onvif-eyebrow">ONVIF Detected · Live from Database</div>
+          <div className="sp-onvif-title">
+            {camera.manufacturer || "Unknown"} {camera.model || ""}
+            <span className="sp-onvif-ip">{camera.ip}</span>
+            {camera.ptz === "Yes" && <span className="sp-onvif-ptz-badge">PTZ</span>}
+          </div>
+        </div>
+        <div className="sp-onvif-badge">
+          {profiles.length} stream{profiles.length !== 1 ? "s" : ""} detected
+        </div>
       </div>
-    </div>
-  );
-}
 
-function QSel({ value, onChange, opts }) {
-  return (
-    <select className="sp-sel" value={value} onChange={(e) => onChange(e.target.value)}>
-      <option value="">—</option>
-      {opts.map((o) => <option key={o}>{o}</option>)}
-    </select>
-  );
-}
+      {/* Camera meta */}
+      <div className="sp-onvif-meta">
+        {[
+          { k: "Firmware",      v: camera.firmware },
+          { k: "Serial",        v: camera.serial },
+          { k: "MAC",           v: camera.mac !== "—" ? camera.mac : null },
+          { k: "Total Streams", v: camera.stream_count, blue: true },
+          { k: "PTZ",           v: camera.ptz },
+        ].filter((x) => x.v).map(({ k, v, blue }) => (
+          <div key={k} className="sp-onvif-meta-item">
+            <span className="sp-onvif-meta-key">{k}</span>
+            <span className={`sp-onvif-meta-val${blue ? " sp-onvif-meta-val--blue" : ""}`}>{v}</span>
+          </div>
+        ))}
+      </div>
 
-// Camera thumbnail cell — shows snapshot or placeholder icon
-function CamThumb({ device }) {
-  if (!device) return <div className="sp-thumb sp-thumb--empty" />;
-  return (
-    <div className="sp-thumb">
-      {device.snapshot_url ? (
-        <img src={device.snapshot_url} alt={device.name} className="sp-thumb__img" />
-      ) : (
-        <div className="sp-thumb__placeholder">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-            <path d="M23 7l-7 5 7 5V7z"/>
-            <rect x="1" y="5" width="15" height="14" rx="2"/>
-          </svg>
+      {/* Profile table — rows are now selectable */}
+      <div className="sp-onvif-profiles">
+        <div className="sp-onvif-profiles-head">
+          <span style={{ width: 20 }} />
+          <span>Profile Name</span>
+          <span>Resolution</span>
+          <span>Encoding</span>
+          <span>FPS</span>
+          <span>Bitrate</span>
+          <span>Role</span>
+        </div>
+
+        {profiles.map((p, i) => {
+          const ls        = getLabelStyle(p.label);
+          const isSelected = selectedIdx === i;
+
+          return (
+            <div
+              key={i}
+              className={`sp-onvif-profile-row sp-onvif-profile-row--selectable${isSelected ? " sp-onvif-profile-row--active" : ""}`}
+              onClick={() => onSelect(i)}
+            >
+              {/* Radio indicator */}
+              <span className="sp-profile-radio">
+                <span className={`sp-profile-radio-dot${isSelected ? " sp-profile-radio-dot--on" : ""}`} />
+              </span>
+
+              <span className="sp-onvif-profile-name">{p.name || `Profile ${i + 1}`}</span>
+              <span className="sp-onvif-profile-res">{p.resolution || "—"}</span>
+              <span className="sp-onvif-profile-enc">{p.encoding || "—"}</span>
+              <span className="sp-onvif-profile-fps">{p.fps ? `${p.fps} fps` : "—"}</span>
+              <span className="sp-onvif-profile-bitrate">{p.bitrate ? `${p.bitrate} kbps` : "—"}</span>
+              <span
+                className="sp-onvif-profile-label"
+                style={{ background: ls.bg, color: ls.color, border: `1px solid ${ls.border}` }}
+              >
+                {p.label || `STREAM ${i + 1}`}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Show selected profile's RTSP URL */}
+      {selectedIdx !== null && profiles[selectedIdx]?.rtsp_url && (
+        <div className="sp-onvif-rtsp">
+          <span className="sp-onvif-rtsp-label">Selected RTSP</span>
+          <code className="sp-onvif-rtsp-url">{profiles[selectedIdx].rtsp_url}</code>
         </div>
       )}
     </div>
   );
 }
 
+function NoCameraState() {
+  return (
+    <div className="sp-no-camera-state">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="0.8" width="56" height="56">
+        <path d="M23 7l-7 5 7 5V7z"/>
+        <rect x="1" y="5" width="15" height="14" rx="2"/>
+        <path d="M8 10h5M8 14h3" strokeLinecap="round" strokeWidth="1.2"/>
+      </svg>
+      <p className="sp-no-camera-title">No camera selected</p>
+      <p className="sp-no-camera-sub">
+        Go to <strong>Camera Registry</strong>, select a camera from the list,
+        and click <strong>Stream Profiles</strong> in the side panel.
+      </p>
+    </div>
+  );
+}
+
+/* ── Apply result toast ──────────────────────────────────────── */
+function ApplyToast({ msg, ok }) {
+  return (
+    <div className={`sp-apply-toast${ok ? " sp-apply-toast--ok" : " sp-apply-toast--err"}`}>
+      {ok
+        ? <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="15" height="15"><polyline points="20 6 9 17 4 12"/></svg>
+        : <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
+      }
+      {msg}
+    </div>
+  );
+}
+
+/* ── Main Page ───────────────────────────────────────────────── */
 export default function StreamProfilesPage() {
-  const [filter, setFilter]     = useState("");
-  const [profiles, setProfiles] = useState(loadProfiles);
-  const [selected, setSelected] = useState(() => localStorage.getItem("miradorai_selected_camera_id") || null);
-  const [form, setForm]         = useState(() => {
-    const initSel = localStorage.getItem("miradorai_selected_camera_id");
-    if (initSel) {
-      const initProf = loadProfiles();
-      const saved = initProf.find((p) => String(p.deviceId) === String(initSel));
-      return saved ? { ...DEFAULT_FORM, ...saved.form } : DEFAULT_FORM;
-    }
-    return DEFAULT_FORM;
-  });
+  const [camera,       setCamera]       = useState(null);
+  const [profiles,     setProfiles]     = useState([]);
+  const [loading,      setLoading]      = useState(false);
+  const [error,        setError]        = useState(null);
+  const [selectedIdx,  setSelectedIdx]  = useState(null);  // which profile row is selected
+  const [applying,     setApplying]     = useState(false);
+  const [applyResult,  setApplyResult]  = useState(null);  // { ok, msg }
 
-  const s = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+  const selectedIp = localStorage.getItem("miradorai_selected_camera_ip") || null;
+  const selectedId = localStorage.getItem("miradorai_selected_camera_id") || null;
 
-  // Load cameras from ImageConfig's localStorage key
-  const devices = loadDevices();
+  useEffect(() => {
+    if (!selectedIp && !selectedId) return;
 
-  // Each camera becomes a "stream profile" row
-  const rows = devices
-    .filter((d) =>
-      !filter ||
-      [d.name, d.ip, d.manufacturer, d.model]
-        .filter(Boolean)
-        .some((c) => c.toLowerCase().includes(filter.toLowerCase()))
-    )
-    .map((d) => {
-      const savedProfile = profiles.find((p) => String(p.deviceId) === String(d.id));
-      const pf = savedProfile?.form || {};
-      return {
-        id: String(d.id),
-        // Pass the device object for thumbnail rendering via a custom cell
-        _device: d,
-        cells: [
-          // Cell 0: thumbnail + name (rendered specially below via renderCell)
-          d.name,
-          pf.hR ? `${pf.hR.split(" ")[0]} ${pf.hFps}fps ${pf.hF}` : "—",
-          pf.mR ? `${pf.mR.split(" ")[0]} ${pf.mFps}fps ${pf.mF}` : "—",
-          pf.lR ? `${pf.lR.split(" ")[0]} ${pf.lFps}fps ${pf.lF}` : "—",
-          "MIRADOR",
-        ],
-      };
-    });
+    setLoading(true);
+    setError(null);
+    setCamera(null);
+    setProfiles([]);
+    setSelectedIdx(null);
+    setApplyResult(null);
 
-  const handleSelect = (id) => {
-    if (selected === id) {
-      setSelected(null);
-      localStorage.removeItem("miradorai_selected_camera_id");
-      setForm(DEFAULT_FORM);
+    if (selectedIp) {
+      fetch(`${API}/api/cameras/by-ip/${encodeURIComponent(selectedIp)}`)
+        .then((r) => { if (!r.ok) throw new Error("not found"); return r.json(); })
+        .then((data) => {
+          setCamera(data);
+          const profs = data.stream_profiles || [];
+          setProfiles(profs);
+          // Auto-select the MAIN profile if present
+          const mainIdx = profs.findIndex(
+            (p) => p.label?.toUpperCase() === "MAIN" || p.label?.toUpperCase() === "STREAM 1"
+          );
+          setSelectedIdx(mainIdx >= 0 ? mainIdx : profs.length > 0 ? 0 : null);
+          setLoading(false);
+        })
+        .catch(() => fallbackToLocalStorage());
     } else {
-      setSelected(id);
-      localStorage.setItem("miradorai_selected_camera_id", String(id));
-      const saved = profiles.find((p) => String(p.deviceId) === String(id));
-      setForm(saved ? { ...DEFAULT_FORM, ...saved.form } : DEFAULT_FORM);
+      fallbackToLocalStorage();
+    }
+
+    function fallbackToLocalStorage() {
+      const devices = loadDevicesFromStorage();
+      const dev = selectedIp
+        ? devices.find((d) => d.ip === selectedIp)
+        : devices.find((d) => String(d.id) === String(selectedId));
+
+      if (dev) {
+        setCamera(dev);
+        const profs = dev.stream_profiles || [];
+        setProfiles(profs);
+        const mainIdx = profs.findIndex((p) => p.label?.toUpperCase() === "MAIN");
+        setSelectedIdx(mainIdx >= 0 ? mainIdx : profs.length > 0 ? 0 : null);
+      } else {
+        setError("Camera not found. Make sure the backend is running.");
+      }
+      setLoading(false);
+    }
+  }, []);
+
+  /* ── Apply: re-register OME with the selected profile's RTSP ── */
+  const handleApply = async () => {
+    if (selectedIdx === null || !profiles[selectedIdx]) return;
+
+    const profile  = profiles[selectedIdx];
+    const rtspUrl  = profile.rtsp_url;
+
+    if (!rtspUrl) {
+      setApplyResult({ ok: false, msg: "Selected profile has no RTSP URL." });
+      setTimeout(() => setApplyResult(null), 4000);
+      return;
+    }
+
+    setApplying(true);
+    setApplyResult(null);
+
+    try {
+      const res  = await fetch(`${API}/api/streams/register`, {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({
+          rtsp_url:     rtspUrl,
+          ip:           camera.ip,
+          port:         camera.port || 80,
+          username:     camera.username || "",
+          manufacturer: camera.manufacturer || "",
+          model:        camera.model || "",
+          mac:          camera.mac || "—",
+          device_name:  camera.name || "",
+        }),
+      });
+
+      const data = res.ok ? await res.json() : null;
+
+      if (data?.success) {
+        setApplyResult({
+          ok:  true,
+          msg: `Stream switched to ${profile.name || `Profile ${selectedIdx + 1}`} (${profile.resolution || ""} ${profile.encoding || ""})`,
+        });
+        // Persist the active profile label back into localStorage
+        const devices = loadDevicesFromStorage();
+        const idx = devices.findIndex((d) => d.ip === camera.ip);
+        if (idx !== -1) {
+          devices[idx].ws_url       = data.ws_url;
+          devices[idx].stream_key   = data.stream_key;
+          devices[idx].active_profile = profile.name;
+          localStorage.setItem("miradorai_devices", JSON.stringify(devices));
+        }
+      } else {
+        setApplyResult({ ok: false, msg: data?.error || "OME registration failed." });
+      }
+    } catch (e) {
+      setApplyResult({ ok: false, msg: `Network error: ${e.message}` });
+    } finally {
+      setApplying(false);
+      setTimeout(() => setApplyResult(null), 5000);
     }
   };
 
-  const handleApply = () => {
-    if (!selected) return;
-    const existing = profiles.filter((p) => String(p.deviceId) !== String(selected));
-    const updated = [...existing, { deviceId: selected, form }];
-    setProfiles(updated);
-    saveProfiles(updated);
-  };
-
-  const selectedDevice = devices.find((d) => String(d.id) === String(selected));
-
-  const tiers = [
-    { label: "High",   rK: "hR", fK: "hF", fpsK: "hFps", cK: "hComp" },
-    { label: "Medium", rK: "mR", fK: "mF", fpsK: "mFps", cK: "mComp" },
-    { label: "Low",    rK: "lR", fK: "lF", fpsK: "lFps", cK: "lComp" },
-  ];
+  const selectedProfile = selectedIdx !== null ? profiles[selectedIdx] : null;
 
   return (
     <div className="page-shell">
       <div className="page-header">
         <div>
           <h1 className="page-title">Stream <span>Profiles</span></h1>
-          <p className="page-desc">Create profiles for live streaming and recording.</p>
-        </div>
-        <SearchBar value={filter} onChange={setFilter} placeholder="Type to filter" />
-      </div>
-
-      {/* Camera / Profile Table */}
-      <div style={{
-        maxHeight: "calc(4 * 48px + 48px)",
-        overflowY: "auto",
-        borderRadius: 8,
-        scrollbarWidth: "thin",
-        scrollbarColor: "#334155 transparent",
-      }}>
-        {/* Custom table with thumbnail in first column */}
-        <table className="sp-table">
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>High</th>
-              <th>Medium</th>
-              <th>Low</th>
-              <th>Server</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.length === 0 ? (
-              <tr>
-                <td colSpan={5} className="sp-table__empty">
-                  No cameras enrolled. Go to Add Devices first.
-                </td>
-              </tr>
-            ) : (
-              rows.map((row) => {
-                const device = devices.find((d) => String(d.id) === row.id);
-                return (
-                  <tr
-                    key={row.id}
-                    className={selected === row.id ? "sp-table__row--selected" : ""}
-                    onClick={() => handleSelect(row.id)}
-                  >
-                    {/* Name cell with thumbnail */}
-                    <td>
-                      <div className="sp-name-cell">
-                        <CamThumb device={device} />
-                        <span>{row.cells[0]}</span>
-                      </div>
-                    </td>
-                    <td>{row.cells[1]}</td>
-                    <td>{row.cells[2]}</td>
-                    <td>{row.cells[3]}</td>
-                    <td>{row.cells[4]}</td>
-                  </tr>
-                );
-              })
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      {/* Panel — Video Profiles (left) + Audio (right) */}
-      <div className="sp-panel card">
-        <div className="sp-panel-body">
-
-          {/* Left: Video Profiles */}
-          <div className="sp-video-section">
-            <div className="sp-section-title">Video profiles</div>
-            <div className="sp-video-grid">
-              <div className="sp-col-header" />
-              {tiers.map((t) => (
-                <div key={t.label} className="sp-col-header">{t.label}</div>
-              ))}
-
-              <div className="sp-row-label">Resolution:</div>
-              {tiers.map((t) => (
-                <QSel key={t.rK} value={form[t.rK]} onChange={(v) => s(t.rK, v)} opts={RESOLUTIONS} />
-              ))}
-
-              <div className="sp-row-label">Format:</div>
-              {tiers.map((t) => (
-                <QSel key={t.fK} value={form[t.fK]} onChange={(v) => s(t.fK, v)} opts={FORMATS} />
-              ))}
-
-              <div className="sp-row-label">Frame rate:</div>
-              {tiers.map((t) => (
-                <Spinner key={t.fpsK} value={form[t.fpsK]} onChange={(v) => s(t.fpsK, v)} />
-              ))}
-
-              <div className="sp-row-label">Compression:</div>
-              {tiers.map((t) => (
-                <Spinner key={t.cK} value={form[t.cK]} onChange={(v) => s(t.cK, v)} />
-              ))}
-            </div>
-            <div className="sp-zipstream">Zipstream</div>
-          </div>
-
-          {/* Right: Audio */}
-          <div className="sp-audio-section">
-            <div className="sp-section-title">Audio</div>
-            <div className="sp-audio-fields">
-              <div className="sp-audio-field">
-                <label>Microphone:</label>
-                <QSel value={form.mic} onChange={(v) => s("mic", v)}
-                  opts={["None", "Built-in", "USB Mic"]} />
-              </div>
-              <div className="sp-audio-field">
-                <label>Speaker:</label>
-                <QSel value={form.speaker} onChange={(v) => s("speaker", v)}
-                  opts={["None", "Built-in", "USB Speaker"]} />
-              </div>
-              <div className="sp-audio-field">
-                <label>Use microphone for:</label>
-                <QSel value={form.micFor} onChange={(v) => s("micFor", v)}
-                  opts={["Recording", "Live stream", "Both"]} />
-              </div>
-            </div>
-          </div>
-
+          <p className="page-desc">
+            {camera
+              ? `ONVIF stream profiles for ${[camera.manufacturer, camera.model].filter(Boolean).join(" ") || camera.ip} · ${camera.ip}`
+              : "Select a camera from Camera Registry to view its stream profiles."}
+          </p>
         </div>
       </div>
+
+      {loading && (
+        <div className="sp-loading">
+          <div className="sp-loading-spinner" />
+          Fetching stream profiles from database…
+        </div>
+      )}
+
+      {error && !loading && (
+        <div className="sp-error-banner">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16">
+            <circle cx="12" cy="12" r="10"/>
+            <path d="M12 8v4M12 16h.01"/>
+          </svg>
+          {error}
+        </div>
+      )}
+
+      {!selectedIp && !selectedId && !loading && <NoCameraState />}
+
+      {!loading && camera && (
+        <ONVIFProfilesCard
+          camera={camera}
+          profiles={profiles}
+          selectedIdx={selectedIdx}
+          onSelect={setSelectedIdx}
+        />
+      )}
+
+      {!loading && camera && profiles.length === 0 && (
+        <div className="sp-no-profiles">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" width="24" height="24">
+            <circle cx="12" cy="12" r="10"/>
+            <path d="M12 8h.01M12 12v4"/>
+          </svg>
+          No ONVIF stream profiles found. Re-probe this camera via
+          <strong> Add Devices → Manual Search</strong> to discover streams.
+        </div>
+      )}
+
+      {/* Selected profile summary */}
+      {selectedProfile && (
+        <div className="sp-selected-summary">
+          <div className="sp-selected-summary-left">
+            <span className="sp-selected-summary-label">Active selection</span>
+            <span className="sp-selected-summary-name">{selectedProfile.name}</span>
+            <span className="sp-selected-summary-meta">
+              {[selectedProfile.resolution, selectedProfile.encoding,
+                selectedProfile.fps ? `${selectedProfile.fps} fps` : null,
+                selectedProfile.bitrate ? `${selectedProfile.bitrate} kbps` : null
+              ].filter(Boolean).join(" · ")}
+            </span>
+          </div>
+          <div className="sp-selected-summary-hint">
+            Click a profile row to switch streams, then press Apply.
+          </div>
+        </div>
+      )}
+
+      {/* Toast result */}
+      {applyResult && <ApplyToast ok={applyResult.ok} msg={applyResult.msg} />}
 
       <div className="page-footer">
         <span />
-        <Button label="Apply" variant="primary" disabled={!selected} onClick={handleApply} />
+        <button
+          className={`sp-apply-btn${applying ? " sp-apply-btn--loading" : ""}`}
+          disabled={!camera || selectedIdx === null || applying}
+          onClick={handleApply}
+        >
+          {applying ? (
+            <>
+              <span className="sp-apply-spinner" />
+              Applying…
+            </>
+          ) : "Apply"}
+        </button>
       </div>
     </div>
   );

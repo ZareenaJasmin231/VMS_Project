@@ -62,7 +62,8 @@ function EmptyState() {
   );
 }
 
-function ContextMenu({ x, y, onEdit, onRemove, onClose }) {
+// ── ContextMenu now accepts onStreamProfiles ─────────────────────────────────
+function ContextMenu({ x, y, onEdit, onRemove, onStreamProfiles, onClose }) {
   const menuRef = useRef(null);
 
   useEffect(() => {
@@ -79,8 +80,8 @@ function ContextMenu({ x, y, onEdit, onRemove, onClose }) {
 
   const style = {
     position: "fixed",
-    top:  Math.min(y, window.innerHeight - 100),
-    left: Math.min(x, window.innerWidth  - 160),
+    top:  Math.min(y, window.innerHeight - 130),
+    left: Math.min(x, window.innerWidth  - 180),
     zIndex: 9999,
   };
 
@@ -93,6 +94,16 @@ function ContextMenu({ x, y, onEdit, onRemove, onClose }) {
         </svg>
         Edit
       </button>
+
+      <button className="ctx-item" onClick={() => { onStreamProfiles?.(); onClose(); }}>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14" style={{ flexShrink: 0 }}>
+          <path d="M23 7l-7 5 7 5V7z"/>
+          <rect x="1" y="5" width="15" height="14" rx="2"/>
+          <path d="M8 10h5M8 14h3" strokeLinecap="round"/>
+        </svg>
+        Stream Profiles
+      </button>
+
       <div className="ctx-divider" />
       <button className="ctx-item ctx-item--danger" onClick={() => { onRemove(); onClose(); }}>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14" style={{ flexShrink: 0 }}>
@@ -164,7 +175,8 @@ function EditDeviceModal({ device, onClose, onSave }) {
   );
 }
 
-export default function AddDevicesPage() {
+// ── onNavigate added to props ────────────────────────────────────────────────
+export default function AddDevicesPage({ onNavigate }) {
   const [filter, setFilter]                     = useState("");
   const [includePrerecorded, setInclude]        = useState(true);
   const [checked, setChecked]                   = useState([]);
@@ -215,9 +227,12 @@ export default function AddDevicesPage() {
     setChecked((prev) => prev.filter((id) => id !== deviceId));
   }, [setDevices]);
 
-  // ── Called by DiscoveryModal after it has already registered streams with OME
-  // The results already contain ws_url, stream_key, stream_status — no need to
-  // call /api/streams/register again here.
+  // ── NEW: Navigate to Stream Profiles for a specific camera ───────────────
+  const handleStreamProfiles = useCallback((deviceId) => {
+    localStorage.setItem("miradorai_selected_camera_id", String(deviceId));
+    if (onNavigate) onNavigate("stream-profiles");
+  }, [onNavigate]);
+
   const handleDiscoveredDevices = useCallback((discoveredDevices) => {
     if (!discoveredDevices || discoveredDevices.length === 0) return;
 
@@ -236,26 +251,26 @@ export default function AddDevicesPage() {
 
       for (const d of discoveredDevices) {
         const device = {
-          // Use a stable ID so duplicate IPs update rather than duplicate
-          id:            d.id || `device-${d.ip}-${Date.now()}`,
-          type:          "entrance",
-          name:          d.name || `${d.manufacturer || ""} ${d.model || ""}`.trim() || `Camera @ ${d.ip}`,
-          ip:            d.ip,
-          mac:           d.mac          || "—",
-          // ── These come directly from /api/streams/register response ──────
-          status:        d.ws_url ? "Online" : "Offline",
-          manufacturer:  d.manufacturer || "Unknown",
-          model:         d.model        || "Unknown",
-          rtsp_url:      d.rtsp_url     || null,
-          ws_url:        d.ws_url       || null,
-          stream_key:    d.stream_key   || null,
-          stream_status: d.ws_url ? "streaming" : (d.stream_status || "not_registered"),
-          source:        "discovery",
+          id:              d.id || `device-${d.ip}-${Date.now()}`,
+          type:            "entrance",
+          name:            d.name || `${d.manufacturer || ""} ${d.model || ""}`.trim() || `Camera @ ${d.ip}`,
+          ip:              d.ip,
+          mac:             d.mac           || "—",
+          status:          d.ws_url ? "Online" : "Offline",
+          manufacturer:    d.manufacturer  || "Unknown",
+          model:           d.model         || "Unknown",
+          rtsp_url:        d.rtsp_url      || null,
+          ws_url:          d.ws_url        || null,
+          stream_key:      d.stream_key    || null,
+          stream_status:   d.ws_url ? "streaming" : (d.stream_status || "not_registered"),
+          // ── Persist stream profiles from discovery ──────────────────────
+          stream_profiles: d.profiles      || d.stream_profiles || [],
+          stream_count:    d.stream_count  || d.profiles?.length || 0,
+          source:          "discovery",
         };
 
         const existingIndex = next.findIndex((item) => item.ip === d.ip);
         if (existingIndex !== -1) {
-          // Update existing row — preserve any manually set fields like name
           next[existingIndex] = { ...next[existingIndex], ...device };
           console.log(`[AddDevices] Updated: ${d.ip} ws_url=${d.ws_url || "none"}`);
         } else {
@@ -276,10 +291,6 @@ export default function AddDevicesPage() {
     }
   }, [checked, setDevices]);
 
-  // ── Enroll button in the table footer was here, now replaced by Remove ──────────
-  // (We keep the handleEnroll for modals to use)
-
-  // ── Called by ManualSearchModal on confirm ───────────────────────────────────
   const handleEnroll = async (device) => {
     setEnrolling(true);
     setEnrollMsg("Registering stream with OME…");
@@ -300,19 +311,25 @@ export default function AddDevicesPage() {
     setDevices((prev) => {
       const existingIndex = prev.findIndex((item) => item.ip === ip);
       const updated = {
-        id:            String(Date.now()),
-        type:          "entrance",
+        id:              String(Date.now()),
+        type:            "entrance",
         name,
         ip,
-        mac:           discovered?.mac          || "—",
-        status:        probeData?.ws_url ? "Online" : "Offline",
-        manufacturer:  discovered?.manufacturer || "Unknown",
-        model:         discovered?.model        || "Unknown",
-        rtsp_url:      probeData?.stream_uri    || null,
-        ws_url:        probeData?.ws_url        || null,
-        stream_key:    probeData?.stream_key    || null,
-        stream_status: probeData?.status        || "error",
-        source:        "onvif",
+        mac:             discovered?.mac           || probeData?.mac           || "—",
+        status:          probeData?.ws_url ? "Online" : "Offline",
+        manufacturer:    discovered?.manufacturer  || probeData?.manufacturer  || "Unknown",
+        model:           discovered?.model         || probeData?.model         || "Unknown",
+        firmware:        probeData?.firmware       || discovered?.firmware     || "",
+        serial:          probeData?.serial         || discovered?.serial       || "",
+        ptz:             probeData?.ptz            || discovered?.ptz          || "No",
+        rtsp_url:        probeData?.rtsp_url       || probeData?.stream_uri    || null,
+        ws_url:          probeData?.ws_url         || null,
+        stream_key:      probeData?.stream_key     || null,
+        stream_status:   probeData?.status         || "error",
+        // ── Persist stream profiles from ONVIF probe ────────────────────
+        stream_profiles: probeData?.profiles       || discovered?.profiles     || [],
+        stream_count:    probeData?.stream_count   || discovered?.stream_count || 0,
+        source:          "onvif",
       };
 
       if (existingIndex !== -1) {
@@ -327,7 +344,6 @@ export default function AddDevicesPage() {
     setEnrollMsg("");
   };
 
-  // ── Called by StreamURLModal ─────────────────────────────────────────────────
   const handleAddStreamURLs = async (urls) => {
     setShowStreamURL(false);
     setEnrolling(true);
@@ -363,9 +379,8 @@ export default function AddDevicesPage() {
             stream_key:    data?.stream_key || null,
             stream_status: data?.ws_url ? "streaming" : "error",
             source:        "rtsp",
-            
           };
-         console.log("WS URL:", data?.ws_url);
+          console.log("WS URL:", data?.ws_url);
           if (existingIndex !== -1) {
             const next = [...prev];
             next[existingIndex] = { ...next[existingIndex], ...entry };
@@ -533,8 +548,9 @@ export default function AddDevicesPage() {
         <ContextMenu
           x={ctxMenu.x}
           y={ctxMenu.y}
-          onEdit={()   => handleEditDevice(ctxMenu.deviceId)}
-          onRemove={() => handleRemoveDevice(ctxMenu.deviceId)}
+          onEdit={()            => handleEditDevice(ctxMenu.deviceId)}
+          onRemove={()          => handleRemoveDevice(ctxMenu.deviceId)}
+          onStreamProfiles={()  => handleStreamProfiles(ctxMenu.deviceId)}
           onClose={() => setCtxMenu(null)}
         />
       )}
