@@ -5,9 +5,6 @@ Records every registered RTSP camera into 5-minute MP4 chunks.
 Saves files as:  <RECORDINGS_DIR>/<camera_id>/<YYYY-MM-DD>/<YYYY-MM-DD_HH-MM-SS>.mp4
 
 The encrypt_service watchdog picks them up automatically after each chunk closes.
-
-Run standalone:   python rtsp_recorder.py
-Or import and call start_recording_all(devices) from main.py startup.
 """
 
 import os
@@ -20,10 +17,10 @@ from datetime import datetime
 from onvif_service import get_camera_system_time
 
 # ------------------------------------------------------------------
-# Config — override with env vars in docker-compose if needed
+# Config
 # ------------------------------------------------------------------
 RECORDINGS_DIR  = os.environ.get("RECORDINGS_DIR", "/recording")
-CHUNK_SECONDS   = int(os.environ.get("CHUNK_SECONDS", "300"))  
+CHUNK_SECONDS   = int(os.environ.get("CHUNK_SECONDS", "300"))
 FFMPEG_BIN      = os.environ.get("FFMPEG_BIN", "ffmpeg")
 
 # Active recorder threads keyed by stream_name
@@ -35,12 +32,6 @@ _stop_flags: dict[str, threading.Event] = {}
 # Single-camera recorder loop
 # ------------------------------------------------------------------
 def _record_loop(stream_name: str, rtsp_url: str, stop_event: threading.Event, camera_data: dict | None = None):
-    """
-    Continuously records a camera in CHUNK_SECONDS segments using ffmpeg.
-    Each segment is saved as  RECORDINGS_DIR/stream_name/date/date_time.mp4
-    A new file is started automatically when the previous chunk closes —
-    encrypt_service watchdog detects the closed file and encrypts it.
-    """
     print(f"[RECORDER] ▶ Starting recorder for {stream_name}")
 
     while not stop_event.is_set():
@@ -53,42 +44,35 @@ def _record_loop(stream_name: str, rtsp_url: str, stop_event: threading.Event, c
                 camera_data.get("password", ""),
             )
             if camera_time is None:
-                print(f"[RECORDER] ⚠ Camera time unavailable for {stream_name} "
-                      f"({camera_data.get('ip')}:{camera_data.get('port', 80)}) — using host clock")
+                print(f"[RECORDER] ⚠ Camera time unavailable for {stream_name} — using host clock")
             else:
                 print(f"[RECORDER] ℹ Using camera time for {stream_name}: {camera_time.isoformat()}")
 
-        now        = camera_time or datetime.now()
-        date_str   = now.strftime("%Y-%m-%d")
-        time_str   = now.strftime("%H-%M-%S")
-        timestamp  = f"{date_str}_{time_str}"
+        now       = camera_time or datetime.now()
+        date_str  = now.strftime("%Y-%m-%d")
+        time_str  = now.strftime("%H-%M-%S")
+        timestamp = f"{date_str}_{time_str}"
 
-        out_dir    = os.path.join(RECORDINGS_DIR, stream_name, date_str)
+        out_dir  = os.path.join(RECORDINGS_DIR, stream_name, date_str)
         os.makedirs(out_dir, exist_ok=True)
-
-        out_file   = os.path.join(out_dir, f"{timestamp}.mp4")
+        out_file = os.path.join(out_dir, f"{timestamp}.mp4")
 
         cmd = [
             FFMPEG_BIN,
-            "-loglevel",  "error",
-            "-rtsp_transport", "tcp",          # more reliable over TCP
-            "-i",          rtsp_url,
-            "-t",          str(CHUNK_SECONDS),  # stop after N seconds
-            "-c:v",        "copy",              # copy video stream as-is, no re-encode
-            "-an",                              # drop audio (avoids codec compatibility issues)
-            "-movflags",   "+faststart",        # MP4 moov atom at front
-            "-y",                               # overwrite if exists
+            "-loglevel",       "error",
+            "-rtsp_transport", "tcp",
+            "-i",              rtsp_url,
+            "-t",              str(CHUNK_SECONDS),
+            "-c:v",            "copy",
+            "-an",
+            "-movflags",       "+faststart",
+            "-y",
             out_file,
         ]
 
         try:
-            proc = subprocess.Popen(
-                cmd,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.PIPE,
-            )
+            proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
 
-            # Poll every second so we can honour stop_event quickly
             while proc.poll() is None:
                 if stop_event.is_set():
                     proc.send_signal(signal.SIGTERM)
@@ -100,17 +84,16 @@ def _record_loop(stream_name: str, rtsp_url: str, stop_event: threading.Event, c
                 time.sleep(1)
 
             returncode = proc.returncode or 0
-            if returncode not in (0, -15):   # -15 = SIGTERM (our clean stop)
+            if returncode not in (0, -15):
                 stderr_out = proc.stderr.read().decode(errors="replace").strip()
                 print(f"[RECORDER] ⚠ ffmpeg exited {returncode} for {stream_name}: {stderr_out[-200:]}")
-                # Brief pause before retrying to avoid hammering a dead stream
                 time.sleep(5)
             else:
                 print(f"[RECORDER] ✅ Chunk saved: {out_file}")
 
         except FileNotFoundError:
             print(f"[RECORDER] ❌ ffmpeg not found. Install ffmpeg and ensure it is on PATH.")
-            stop_event.wait(30)   # wait 30 s then retry (gives time to install)
+            stop_event.wait(30)
         except Exception as exc:
             print(f"[RECORDER] ❌ Unexpected error for {stream_name}: {exc}")
             time.sleep(5)
@@ -150,11 +133,22 @@ def stop_camera(stream_name: str):
         _recorders.pop(stream_name, None)
         _stop_flags.pop(stream_name, None)
         print(f"[RECORDER] ⏹ Stopped: {stream_name}")
+    else:
+        print(f"[RECORDER] ℹ No active recorder found for: {stream_name}")
 
 
 def start_recording_all(devices: list):
-    """Start recording all devices that have ome_stream + rtsp_url."""
+    """
+    Start recording all ENABLED devices that have ome_stream + rtsp_url.
+    Cameras with enabled=False are skipped entirely.
+    """
     for device in devices:
+        # ── Skip cameras explicitly marked as disabled ──
+        if device.get("enabled") is False:
+            stream_name = device.get("ome_stream", device.get("ip", "unknown"))
+            print(f"[RECORDER] ⏭ Skipping disabled camera: {stream_name}")
+            continue
+
         stream_name = device.get("ome_stream")
         rtsp_url    = device.get("rtsp_url")
         if stream_name and rtsp_url:
@@ -168,12 +162,15 @@ def stop_all():
 
 
 # ------------------------------------------------------------------
-# Standalone entry point (for testing without main.py)
+# Standalone entry point
 # ------------------------------------------------------------------
 if __name__ == "__main__":
     import json
 
-    DEVICES_FILE = os.environ.get("DEVICES_FILE", os.path.join(os.path.dirname(__file__), "..", "devices_data", "devices.json"))
+    DEVICES_FILE = os.environ.get(
+        "DEVICES_FILE",
+        os.path.join(os.path.dirname(__file__), "..", "devices_data", "devices.json")
+    )
 
     try:
         with open(DEVICES_FILE) as f:
@@ -186,7 +183,8 @@ if __name__ == "__main__":
         print("[RECORDER] No devices found. Add cameras via the API first.")
     else:
         start_recording_all(devices)
-        print(f"[RECORDER] Running — recording {len(devices)} camera(s). Ctrl+C to stop.")
+        enabled_count = sum(1 for d in devices if d.get("enabled") is not False)
+        print(f"[RECORDER] Running — recording {enabled_count}/{len(devices)} enabled camera(s). Ctrl+C to stop.")
         try:
             while True:
                 time.sleep(10)

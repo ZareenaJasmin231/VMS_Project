@@ -16,6 +16,9 @@ function saveDevices(devices) {
   try { localStorage.setItem("miradorai_devices", JSON.stringify(devices)); } catch {}
 }
 
+const API_BASE = "http://localhost:8000";
+
+
 export default function CamerasPage({ onNavigate, onCameraSelect }) {
   const [cameras, setCameras]         = useState(loadDevices);
   const [filter, setFilter]           = useState("");
@@ -33,16 +36,43 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
     )
   );
 
+  /* ─────────────────────────────────────────────────────────────────────
+   * Helper: call backend using the camera IP.
+   * The backend looks up the real ome_stream name from its own DB —
+   * no stream-name guessing on the frontend at all.
+   *
+   * action: "enable" | "disable" | "delete"
+   * ───────────────────────────────────────────────────────────────────── */
+  const callCameraAction = (cam, action) => {
+    if (!cam.ip) {
+      console.warn(`[CAMERA] No IP on camera object, cannot call action: ${action}`);
+      return;
+    }
+    const ip     = encodeURIComponent(cam.ip);
+    const url    = `${API_BASE}/api/cameras/by-ip/${ip}/${action}`;
+    const method = action === "delete" ? "DELETE" : "POST";
+
+    fetch(url, { method })
+      .then((r) => r.json())
+      .then((d) => console.log(`[CAMERA] ${action} OK for ${cam.ip}:`, d))
+      .catch((err) => console.error(`[CAMERA] ${action} FAILED for ${cam.ip}:`, err));
+  };
+
   /* ── Toggle enabled/disabled ───────────────────────────────────────── */
   const toggleEnabled = (cam, e) => {
     e.stopPropagation();
+    const willBeEnabled = cam.enabled === false; // flipping current state
+
     const updated = cameras.map((c) =>
       String(c.id) === String(cam.id)
-        ? { ...c, enabled: c.enabled === false ? true : false }
+        ? { ...c, enabled: willBeEnabled }
         : c
     );
     setCameras(updated);
     saveDevices(updated);
+
+    // Backend receives the IP, finds the correct stream name itself
+    callCameraAction(cam, willBeEnabled ? "enable" : "disable");
   };
 
   /* ── Edit ───────────────────────────────────────────────────────────── */
@@ -60,11 +90,24 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
   };
 
   const saveEdit = () => {
+    const prev    = cameras.find((c) => String(c.id) === String(editModal.id));
     const updated = cameras.map((c) =>
       String(c.id) === String(editModal.id) ? { ...c, ...editForm } : c
     );
     setCameras(updated);
     saveDevices(updated);
+
+    // If the enabled toggle changed inside the edit modal, sync recording
+    if (prev) {
+      const wasEnabled = prev.enabled !== false;
+      const nowEnabled = editForm.enabled;
+      if (wasEnabled && !nowEnabled) {
+        callCameraAction(editModal, "disable");
+      } else if (!wasEnabled && nowEnabled) {
+        callCameraAction(editModal, "enable");
+      }
+    }
+
     setEditModal(null);
   };
 
@@ -91,6 +134,9 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
 
   /* ── Remove ─────────────────────────────────────────────────────────── */
   const confirmRemove = () => {
+    // Backend stops ALL streams for this IP and removes from DB
+    callCameraAction(removeModal, "delete");
+
     const updated = cameras.filter((c) => String(c.id) !== String(removeModal.id));
     setCameras(updated);
     saveDevices(updated);
@@ -120,7 +166,6 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
             <thead>
               <tr>
                 <th style={{ width: 52 }}></th>
-                {/* ── NEW: Active toggle column ── */}
                 <th style={{ width: 72 }}>Active</th>
                 <th>Name</th>
                 <th>Address</th>
@@ -170,7 +215,6 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
                               <path d="M23 7l-7 5 7 5V7z"/>
                               <rect x="1" y="5" width="15" height="14" rx="2"/>
                             </svg>
-                            {/* Overlay "OFF" slash when disabled */}
                             {!isEnabled && (
                               <div className="cam-thumb-off-overlay">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -183,7 +227,7 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
                       </div>
                     </td>
 
-                    {/* ── NEW: Toggle cell ── */}
+                    {/* Toggle cell */}
                     <td onClick={(e) => e.stopPropagation()}>
                       <label className="cam-toggle" title={isEnabled ? "Disable camera" : "Enable camera"}>
                         <input
@@ -231,7 +275,6 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
               <div className="cam-side-panel__info">
                 <div className="cam-side-panel__name-row">
                   <h3>{selectedCam.name || "Camera"}</h3>
-                  {/* ── NEW: Status badge ── */}
                   <span className={`cam-status-badge ${selectedCam.enabled !== false ? "cam-status-badge--active" : "cam-status-badge--disabled"}`}>
                     <span className="cam-status-dot" />
                     {selectedCam.enabled !== false ? "Active" : "Disabled"}
@@ -239,7 +282,6 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
                 </div>
                 <p>{selectedCam.ip || "No IP Address"}</p>
 
-                {/* ── NEW: Quick toggle in side panel ── */}
                 <div className="cam-side-panel__toggle-row">
                   <span className="cam-side-panel__toggle-label">
                     {selectedCam.enabled !== false ? "Camera is streaming" : "Camera is not streaming"}
@@ -258,7 +300,7 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
               </div>
             </div>
 
-            {/* Stream preview placeholder */}
+            {/* Stream preview */}
             <div className={`cam-side-panel__stream ${selectedCam.enabled === false ? "cam-side-panel__stream--off" : ""}`}>
               {selectedCam.enabled !== false ? (
                 <div className="cam-stream-live">
@@ -306,7 +348,6 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
       <div className="page-footer">
         <span className="cameras-count">
           {filtered.length} camera{filtered.length !== 1 ? "s" : ""}
-          {/* ── NEW: active count ── */}
           <span className="cameras-count-active">
             {" "}· {cameras.filter(c => c.enabled !== false).length} active
           </span>
@@ -333,7 +374,6 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
             <div className="ec-body">
               <div className="ec-section-title">Settings</div>
 
-              {/* ── Enabled toggle row (replaces plain checkbox) ── */}
               <div className="ec-toggle-row">
                 <div className="ec-toggle-info">
                   <span className="ec-toggle-label">Enabled</span>

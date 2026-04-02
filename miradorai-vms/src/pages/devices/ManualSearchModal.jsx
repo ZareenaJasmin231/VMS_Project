@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 const css = `
   @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@600;700;800&display=swap');
@@ -80,6 +80,19 @@ const css = `
   .msm-input::placeholder { color: #2e3d55; }
   .msm-input:focus { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,.18); }
   .msm-input.error { border-color: #dc2626; box-shadow: 0 0 0 3px rgba(220,38,38,.15); }
+
+  .msm-password-wrapper {
+    position: relative;
+  }
+  .msm-password-input {
+    padding-right: 40px;
+  }
+  .msm-eye-btn {
+    position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+    background: none; border: none; cursor: pointer;
+    color: #6b7a99; padding: 2px; transition: color .15s;
+  }
+  .msm-eye-btn:hover { color: #c9d4e8; }
 
   .msm-divider {
     display: flex; align-items: center; gap: 10px;
@@ -228,6 +241,7 @@ export default function ManualSearchModal({ onClose, onEnroll }) {
   const [port, setPort]                 = useState("");
   const [user, setUser]                 = useState("");
   const [pass, setPass]                 = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [rtspUrl, setRtspUrl]           = useState("");
   const [urlLabel, setUrlLabel]         = useState("");
   const [mode]                          = useState("onvif");
@@ -235,6 +249,29 @@ export default function ManualSearchModal({ onClose, onEnroll }) {
   const [discovered, setDiscovered]     = useState(null);
   const [detectedPort, setDetectedPort] = useState(null);
   const [errors, setErrors]             = useState({});
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.target.tagName !== 'INPUT') return;
+    const inputs = document.querySelectorAll('.msm-card input[tabindex]');
+      const currentIndex = Array.from(inputs).findIndex(input => input === e.target);
+      if (currentIndex === -1) return;
+
+      let nextIndex = currentIndex;
+      if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
+        nextIndex = (currentIndex + 1) % inputs.length;
+      } else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
+        nextIndex = (currentIndex - 1 + inputs.length) % inputs.length;
+      } else {
+        return;
+      }
+      e.preventDefault();
+      inputs[nextIndex].focus();
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   const validate = () => {
     const e = {};
@@ -401,8 +438,8 @@ export default function ManualSearchModal({ onClose, onEnroll }) {
             </button>
           </div>
 
-          {/* Body — scrolls when content overflows */}
-          <div className="msm-body">
+      {/* Body — scrolls when content overflows */}
+      <div className="msm-body">
 
             {/* IP + Port */}
             <div className="msm-row">
@@ -453,15 +490,36 @@ export default function ManualSearchModal({ onClose, onEnroll }) {
               </div>
               <div className="msm-field">
                 <label className="msm-label">Password</label>
-                <input
-                  tabIndex={4}
-                  className="msm-input"
-                  type="password"
-                  placeholder="••••••••"
-                  value={pass}
-                  onChange={(e) => setPass(e.target.value)}
-                  onKeyDown={handlePasswordKeyDown}
-                />
+                <div className="msm-password-wrapper">
+                  <input
+                    tabIndex={4}
+                    className="msm-input msm-password-input"
+                    type={showPassword ? "text" : "password"}
+                    placeholder="••••••••"
+                    value={pass}
+                    onChange={(e) => setPass(e.target.value)}
+                    onKeyDown={handlePasswordKeyDown}
+                  />
+                  <button
+                    type="button"
+                    className="msm-eye-btn"
+                    onClick={() => setShowPassword(!showPassword)}
+                    tabIndex={-1}
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                  >
+                    {showPassword ? (
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                        <circle cx="12" cy="12" r="3"/>
+                      </svg>
+                    ) : (
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
+                        <line x1="1" y1="1" x2="23" y2="23"/>
+                      </svg>
+                    )}
+                  </button>
+                </div>
               </div>
             </div>
 

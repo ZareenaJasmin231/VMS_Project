@@ -48,7 +48,7 @@ services:
       - CHUNK_SECONDS=300
     volumes:
       - ./devices_data:/app/data
-      - C:/recordings:/recordings
+      - D:/recordings:/recordings
     depends_on:
       - ome
       - mongo

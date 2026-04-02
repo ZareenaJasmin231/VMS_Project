@@ -13,6 +13,7 @@ export default function DiscoveryModal({ isOpen, onClose, onAddDevices }) {
   const [hasScanned, setHasScanned] = useState(false);
   const [deviceCreds, setDeviceCreds] = useState({});
   const [showCredModal, setShowCredModal] = useState(false);
+  const [showPasswords, setShowPasswords] = useState({});
   const [isRegistering, setIsRegistering] = useState(false);
   const [regStatus, setRegStatus] = useState({});
 
@@ -112,6 +113,13 @@ export default function DiscoveryModal({ isOpen, onClose, onAddDevices }) {
     setDeviceCreds((prev) => ({
       ...prev,
       [deviceId]: { ...prev[deviceId], [field]: value },
+    }));
+  };
+
+  const togglePasswordVisibility = (deviceId) => {
+    setShowPasswords((prev) => ({
+      ...prev,
+      [deviceId]: !prev[deviceId],
     }));
   };
 
@@ -238,6 +246,30 @@ export default function DiscoveryModal({ isOpen, onClose, onAddDevices }) {
   };
 
   const selectedList = discoveredDevices.filter((d) => selectedDevices.has(d.id));
+
+  useEffect(() => {
+    if (!showCredModal) return;
+    const handleKeyDown = (e) => {
+      if (e.target.tagName !== 'INPUT') return;
+      const inputs = document.querySelectorAll('.dm-cred-modal input[tabindex]:not([tabindex="-1"])');
+      const currentIndex = Array.from(inputs).findIndex(input => input === e.target);
+      if (currentIndex === -1) return;
+
+      let nextIndex = currentIndex;
+      if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
+        nextIndex = (currentIndex + 1) % inputs.length;
+      } else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
+        nextIndex = (currentIndex - 1 + inputs.length) % inputs.length;
+      } else {
+        return;
+      }
+      e.preventDefault();
+      inputs[nextIndex].focus();
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [showCredModal, selectedList]);
 
   return (
     <>
@@ -461,16 +493,36 @@ export default function DiscoveryModal({ isOpen, onClose, onAddDevices }) {
                           onChange={(e) => updateCred(device.id, "username", e.target.value)}
                           autoComplete="off"
                         />
-                        <input
-                          className="dm-cred-input"
-                          placeholder="Password"
-                          type="password"
-                          tabIndex={baseTab + 1}
-                          value={deviceCreds[device.id]?.password || ""}
-                          onChange={(e) => updateCred(device.id, "password", e.target.value)}
-                          onKeyDown={(e) => handleCredKeyDown(e, device.id, isLast)}
-                          autoComplete="new-password"
-                        />
+                        <div className="dm-password-wrapper">
+                          <input
+                            className="dm-cred-input dm-password-input"
+                            placeholder="Password"
+                            type={showPasswords[device.id] ? "text" : "password"}
+                            tabIndex={baseTab + 1}
+                            value={deviceCreds[device.id]?.password || ""}
+                            onChange={(e) => updateCred(device.id, "password", e.target.value)}
+                            onKeyDown={(e) => handleCredKeyDown(e, device.id, isLast)}
+                            autoComplete="new-password"
+                          />
+                          <button
+                            type="button"
+                            className="dm-eye-btn"
+                            onClick={() => togglePasswordVisibility(device.id)}
+                            tabIndex={-1}
+                          >
+                            {showPasswords[device.id] ? (
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                                <circle cx="12" cy="12" r="3"/>
+                              </svg>
+                            ) : (
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
+                                <line x1="1" y1="1" x2="23" y2="23"/>
+                              </svg>
+                            )}
+                          </button>
+                        </div>
                       </div>
                     </div>
                   );
