@@ -1,4 +1,67 @@
+import re
+from datetime import datetime, timedelta, timezone
 from onvif import ONVIFCamera
+
+def _parse_onvif_time(date_obj, time_obj):
+    if date_obj is None or time_obj is None:
+        return None
+    try:
+        seconds = float(getattr(time_obj, 'Second', 0))
+        sec_int = int(seconds)
+        micro = int((seconds - sec_int) * 1_000_000)
+        return datetime(
+            date_obj.Year,
+            date_obj.Month,
+            date_obj.Day,
+            time_obj.Hour,
+            time_obj.Minute,
+            sec_int,
+            micro,
+        )
+    except Exception:
+        return None
+
+
+def _parse_onvif_timezone(tz_obj):
+    if tz_obj is None:
+        return None
+    if isinstance(tz_obj, str):
+        tz_str = tz_obj
+    else:
+        tz_str = getattr(tz_obj, 'TZ', None) or getattr(tz_obj, 'GMT', None)
+    if not tz_str:
+        return None
+
+    tz_str = str(tz_str).strip()
+    if not tz_str:
+        return None
+
+    if tz_str.upper() == 'UTC' or tz_str.upper() == 'Z':
+        return timezone.utc
+
+    if tz_str.upper().startswith('GMT'):
+        tz_str = tz_str[3:].strip()
+
+    # Normalize common formats like +05:30, +0530, +5.5, -5.5
+    match = re.match(r'^([+-])\s*(\d{1,2})(?::?(\d{2}))?(?:\.(\d+))?$', tz_str)
+    if match:
+        sign, hours_text, minutes_text, decimal_text = match.groups()
+        try:
+            hours = int(hours_text)
+            minutes = int(minutes_text) if minutes_text else 0
+            if decimal_text:
+                frac = float('0.' + decimal_text)
+                minutes = int(round(frac * 60))
+            delta = timedelta(hours=hours, minutes=minutes)
+            if sign == '-':
+                delta = -delta
+            return timezone(delta)
+        except Exception:
+            print(f"[ONVIF TIME] Could not parse timezone string: {tz_str}")
+            return None
+
+    print(f"[ONVIF TIME] Unsupported timezone format: {tz_str}")
+    return None
 
 def probe_camera(ip: str, port: int, username: str, password: str) -> dict:
     """
@@ -129,6 +192,46 @@ def probe_camera(ip: str, port: int, username: str, password: str) -> dict:
             "success": False,
             "error":   str(e),
         }
+
+
+def get_camera_system_time(ip: str, port: int = 80, username: str = "", password: str = "") -> datetime | None:
+    """
+    Fetch the camera's system clock via ONVIF so recording filenames reflect the camera's own time.
+    """
+    try:
+        cam = ONVIFCamera(ip, port, username, password)
+        device_service = cam.create_devicemgmt_service()
+        sys_time = device_service.GetSystemDateAndTime()
+
+        tz_info = _parse_onvif_timezone(getattr(sys_time, 'TimeZone', None))
+        dt = None
+
+        if getattr(sys_time, "LocalDateTime", None):
+            d = sys_time.LocalDateTime.Date
+            t = sys_time.LocalDateTime.Time
+            dt = _parse_onvif_time(d, t)
+            if dt and tz_info:
+                dt = dt.replace(tzinfo=tz_info)
+
+        elif getattr(sys_time, "UTCDateTime", None):
+            d = sys_time.UTCDateTime.Date
+            t = sys_time.UTCDateTime.Time
+            dt = _parse_onvif_time(d, t)
+            if dt:
+                dt = dt.replace(tzinfo=timezone.utc)
+                if tz_info:
+                    dt = dt.astimezone(tz_info)
+
+        if dt is not None:
+            print(f"[ONVIF TIME] Parsed camera time for {ip}:{port} -> {dt.isoformat()} tz={tz_info}")
+            return dt
+
+        print(f"[ONVIF TIME] No valid camera time parsed for {ip}:{port} (tz={getattr(sys_time, 'TimeZone', None)})")
+        print(f"[ONVIF TIME] Raw system time response: LocalDateTime={getattr(sys_time, 'LocalDateTime', None)}, UTCDateTime={getattr(sys_time, 'UTCDateTime', None)}")
+        return None
+    except Exception as e:
+        print(f"[ONVIF TIME] Failed to query camera time for {ip}:{port} — {e}")
+        return None
 
 
 def move_camera_ptz(ip: str, port: int, username: str, password: str,

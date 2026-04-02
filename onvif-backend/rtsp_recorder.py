@@ -17,6 +17,8 @@ import time
 import signal
 from datetime import datetime
 
+from onvif_service import get_camera_system_time
+
 # ------------------------------------------------------------------
 # Config — override with env vars in docker-compose if needed
 # ------------------------------------------------------------------
@@ -32,7 +34,7 @@ _stop_flags: dict[str, threading.Event] = {}
 # ------------------------------------------------------------------
 # Single-camera recorder loop
 # ------------------------------------------------------------------
-def _record_loop(stream_name: str, rtsp_url: str, stop_event: threading.Event):
+def _record_loop(stream_name: str, rtsp_url: str, stop_event: threading.Event, camera_data: dict | None = None):
     """
     Continuously records a camera in CHUNK_SECONDS segments using ffmpeg.
     Each segment is saved as  RECORDINGS_DIR/stream_name/date/date_time.mp4
@@ -42,7 +44,21 @@ def _record_loop(stream_name: str, rtsp_url: str, stop_event: threading.Event):
     print(f"[RECORDER] ▶ Starting recorder for {stream_name}")
 
     while not stop_event.is_set():
-        now        = datetime.now()
+        camera_time = None
+        if camera_data and camera_data.get("ip"):
+            camera_time = get_camera_system_time(
+                camera_data.get("ip", ""),
+                int(camera_data.get("port", 80)),
+                camera_data.get("username", ""),
+                camera_data.get("password", ""),
+            )
+            if camera_time is None:
+                print(f"[RECORDER] ⚠ Camera time unavailable for {stream_name} "
+                      f"({camera_data.get('ip')}:{camera_data.get('port', 80)}) — using host clock")
+            else:
+                print(f"[RECORDER] ℹ Using camera time for {stream_name}: {camera_time.isoformat()}")
+
+        now        = camera_time or datetime.now()
         date_str   = now.strftime("%Y-%m-%d")
         time_str   = now.strftime("%H-%M-%S")
         timestamp  = f"{date_str}_{time_str}"
@@ -105,7 +121,7 @@ def _record_loop(stream_name: str, rtsp_url: str, stop_event: threading.Event):
 # ------------------------------------------------------------------
 # Public API
 # ------------------------------------------------------------------
-def start_camera(stream_name: str, rtsp_url: str):
+def start_camera(stream_name: str, rtsp_url: str, camera_data: dict | None = None):
     """Start recording a single camera. Safe to call multiple times."""
     if stream_name in _recorders and _recorders[stream_name].is_alive():
         print(f"[RECORDER] Already recording {stream_name}, skipping.")
@@ -116,7 +132,7 @@ def start_camera(stream_name: str, rtsp_url: str):
 
     t = threading.Thread(
         target=_record_loop,
-        args=(stream_name, rtsp_url, stop_event),
+        args=(stream_name, rtsp_url, stop_event, camera_data),
         daemon=True,
         name=f"recorder-{stream_name}",
     )
@@ -142,7 +158,7 @@ def start_recording_all(devices: list):
         stream_name = device.get("ome_stream")
         rtsp_url    = device.get("rtsp_url")
         if stream_name and rtsp_url:
-            start_camera(stream_name, rtsp_url)
+            start_camera(stream_name, rtsp_url, device)
 
 
 def stop_all():
