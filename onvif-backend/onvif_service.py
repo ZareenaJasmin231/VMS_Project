@@ -42,7 +42,6 @@ def _parse_onvif_timezone(tz_obj):
     if tz_str.upper().startswith('GMT'):
         tz_str = tz_str[3:].strip()
 
-    # Normalize common formats like +05:30, +0530, +5.5, -5.5
     match = re.match(r'^([+-])\s*(\d{1,2})(?::?(\d{2}))?(?:\.(\d+))?$', tz_str)
     if match:
         sign, hours_text, minutes_text, decimal_text = match.groups()
@@ -63,10 +62,22 @@ def _parse_onvif_timezone(tz_obj):
     print(f"[ONVIF TIME] Unsupported timezone format: {tz_str}")
     return None
 
+
+# ✅ FIX 3: Keywords that indicate a device is NOT a camera
+_NON_CAMERA_KEYWORDS = [
+    "nvr", "dvr", "recorder", "server", "nas",
+    "display", "decoder", "workstation", "desktop", "laptop"
+]
+
+
 def probe_camera(ip: str, port: int, username: str, password: str) -> dict:
     """
     Connect to an ONVIF camera and return device info + all stream profiles with RTSP URLs.
     Runs synchronously — called via asyncio.to_thread from FastAPI.
+
+    ✅ FIX 3 applied:
+      - Checks GetVideoSources to confirm device has actual video input.
+      - Rejects device if model/manufacturer name contains NVR/DVR/server keywords.
     """
     try:
         cam = ONVIFCamera(ip, port, username, password)
@@ -75,18 +86,43 @@ def probe_camera(ip: str, port: int, username: str, password: str) -> dict:
         device_service = cam.create_devicemgmt_service()
         info           = device_service.GetDeviceInformation()
 
+        # ✅ FIX 3a: Reject immediately if model/manufacturer signals non-camera
+        model_str        = (getattr(info, 'Model',        '') or '').lower()
+        manufacturer_str = (getattr(info, 'Manufacturer', '') or '').lower()
+        for kw in _NON_CAMERA_KEYWORDS:
+            if kw in model_str or kw in manufacturer_str:
+                print(f"[ONVIF] ✗ {ip} — device info indicates non-camera: "
+                      f"'{info.Manufacturer} {info.Model}' — rejecting")
+                return {
+                    "success": False,
+                    "error":   f"Device appears to be a non-camera ({info.Manufacturer} {info.Model})",
+                }
+
         # ── Media service + profiles ──────────────────────────────
         media_service = cam.create_media_service()
-        profiles      = media_service.GetProfiles()
+
+        # ✅ FIX 3b: Verify the device actually has video sources (cameras do, PCs/NVRs may not)
+        try:
+            video_sources = media_service.GetVideoSources()
+            if not video_sources:
+                print(f"[ONVIF] ✗ {ip} — GetVideoSources returned empty — not a real camera")
+                return {
+                    "success": False,
+                    "error":   "No video sources found — device is not a camera",
+                }
+            print(f"[ONVIF] ✓ {ip} has {len(video_sources)} video source(s)")
+        except Exception as vs_err:
+            # Some cameras don't implement GetVideoSources fully — log and continue
+            print(f"[ONVIF] ⚠ {ip} — GetVideoSources failed ({vs_err}), continuing anyway")
+
+        profiles = media_service.GetProfiles()
 
         stream_uri   = "Unavailable"
         profile_list = []
 
         if profiles:
-            # Get RTSP URL for EACH profile individually
             for idx, p in enumerate(profiles):
                 try:
-                    # ── Get RTSP URL for this specific profile ────
                     stream_setup = media_service.create_type("GetStreamUri")
                     stream_setup.ProfileToken = p.token
                     stream_setup.StreamSetup  = {
@@ -95,15 +131,13 @@ def probe_camera(ip: str, port: int, username: str, password: str) -> dict:
                     }
                     uri = media_service.GetStreamUri(stream_setup).Uri
 
-                    # Use first profile's URI as the main stream_uri
                     if idx == 0:
                         stream_uri = uri
 
-                    # ── Extract video encoder config ──────────────
-                    vec = p.VideoEncoderConfiguration
-                    res = None
-                    enc = None
-                    fps = None
+                    vec     = p.VideoEncoderConfiguration
+                    res     = None
+                    enc     = None
+                    fps     = None
                     bitrate = None
 
                     if vec:
@@ -116,7 +150,7 @@ def probe_camera(ip: str, port: int, username: str, password: str) -> dict:
                         except Exception:
                             enc = None
                         try:
-                            rc  = vec.RateControl        # ← FIX: rc defined here
+                            rc  = vec.RateControl
                             fps = int(rc.FrameRateLimit) if rc else None
                         except Exception:
                             fps = None
@@ -126,7 +160,6 @@ def probe_camera(ip: str, port: int, username: str, password: str) -> dict:
                         except Exception:
                             bitrate = None
 
-                    # ── Label: MAIN, SUB, EXTRA, STREAM N ────────
                     if idx == 0:
                         label = "MAIN"
                     elif idx == 1:
@@ -148,13 +181,24 @@ def probe_camera(ip: str, port: int, username: str, password: str) -> dict:
                     })
 
                 except Exception as e:
-                    # Even if URI fetch fails, still save the profile name/token
                     profile_list.append({
                         "name":  p.Name,
                         "token": p.token,
                         "label": f"STREAM {idx + 1}",
                         "error": str(e),
                     })
+
+        # ✅ FIX 3c: Final check — must have at least one valid RTSP URL in profiles
+        valid_rtsp_profiles = [
+            p for p in profile_list
+            if p.get("rtsp_url") and "rtsp://" in p.get("rtsp_url", "")
+        ]
+        if not valid_rtsp_profiles:
+            print(f"[ONVIF] ✗ {ip} — no valid RTSP URLs in any profile — rejecting")
+            return {
+                "success": False,
+                "error":   "No valid RTSP stream URLs found in device profiles",
+            }
 
         # ── PTZ check ─────────────────────────────────────────────
         ptz = "No"
@@ -181,8 +225,8 @@ def probe_camera(ip: str, port: int, username: str, password: str) -> dict:
             "serial":       info.SerialNumber,
             "hardware":     info.HardwareId,
             "mac":          mac,
-            "stream_uri":   stream_uri,        # RTSP URL of first (MAIN) profile
-            "profiles":     profile_list,      # All profiles with their RTSP URLs
+            "stream_uri":   stream_uri,
+            "profiles":     profile_list,
             "stream_count": len(profile_list),
             "ptz":          ptz,
         }
