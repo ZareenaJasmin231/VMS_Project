@@ -137,10 +137,12 @@ function ONVIFProfilesCard({ camera, profiles, liveIdx, recIdx, onSelectLive, on
             <span>Encoding</span><span>FPS</span>
             <span>Bitrate</span><span>Role</span>
           </div>
-          {profiles.map((p, i) => (
-            <ProfileRow key={i} profile={p} index={i}
-              isSelected={liveIdx === i} accentColor="#f87171" onSelect={onSelectLive} />
-          ))}
+          <div className="sp-lane-profiles">
+  {profiles.map((p, i) => (
+    <ProfileRow key={i} profile={p} index={i}
+      isSelected={liveIdx === i} accentColor="#f87171" onSelect={onSelectLive} />
+  ))}
+</div>
           {liveProfile?.rtsp_url && (
             <div className="sp-onvif-rtsp">
               <span className="sp-onvif-rtsp-label">Live RTSP</span>
@@ -162,10 +164,12 @@ function ONVIFProfilesCard({ camera, profiles, liveIdx, recIdx, onSelectLive, on
             <span>Encoding</span><span>FPS</span>
             <span>Bitrate</span><span>Role</span>
           </div>
-          {profiles.map((p, i) => (
-            <ProfileRow key={i} profile={p} index={i}
-              isSelected={recIdx === i} accentColor="#60a5fa" onSelect={onSelectRec} />
-          ))}
+          <div className="sp-lane-profiles">
+  {profiles.map((p, i) => (
+    <ProfileRow key={i} profile={p} index={i}
+      isSelected={recIdx === i} accentColor="#60a5fa" onSelect={onSelectRec} />
+  ))}
+</div>
           {recProfile?.rtsp_url && (
             <div className="sp-onvif-rtsp">
               <span className="sp-onvif-rtsp-label">Recording RTSP</span>

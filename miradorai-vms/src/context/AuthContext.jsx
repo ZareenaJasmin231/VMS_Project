@@ -10,250 +10,239 @@ export const useAuth = () => {
   return context;
 };
 
+// Change this to your backend URL if different
+const API_BASE = (typeof import.meta !== "undefined" && import.meta.env?.VITE_API_URL)
+  || "http://localhost:8000";
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [accounts, setAccounts] = useState([]);
 
-  // Load accounts and user from localStorage on mount
+  // Restore session from localStorage on mount
   useEffect(() => {
     try {
-      const savedAccounts = localStorage.getItem("miradorai_accounts");
-      if (savedAccounts) {
-        setAccounts(JSON.parse(savedAccounts));
-      }
-
-      // Try to restore session from localStorage
       const savedUser = localStorage.getItem("miradorai_user");
       if (savedUser) {
         const parsedUser = JSON.parse(savedUser);
-        // Restore the session - user will be logged in immediately
         setUser(parsedUser);
       }
     } catch (e) {
-      console.error("Failed to load saved data:", e);
-      // Clear invalid data
+      console.error("Failed to restore session:", e);
       localStorage.removeItem("miradorai_user");
-      localStorage.removeItem("miradorai_accounts");
     } finally {
-      // Mark loading as complete
       setIsLoading(false);
     }
   }, []);
 
-  const validateEmail = (email) => {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(email);
-  };
-
-  const validatePassword = (password) => {
-    // At least 6 characters
-    return password.length >= 6;
-  };
-
-  const signup = (email, password, passwordConfirm, role) => {
-    // Validation
+  // ------------------------------------------------------------------
+  // Sign Up — saves to MongoDB via backend
+  // ------------------------------------------------------------------
+  const signup = async (email, password, passwordConfirm, role) => {
+    // Client-side validation first
     if (!email || !password || !passwordConfirm) {
       return { success: false, error: "All fields are required" };
     }
 
-    if (!validateEmail(email)) {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
       return { success: false, error: "Invalid email format" };
     }
 
-    if (!validatePassword(password)) {
-      return {
-        success: false,
-        error: "Password must be at least 6 characters",
-      };
+    if (password.length < 6) {
+      return { success: false, error: "Password must be at least 6 characters" };
     }
 
     if (password !== passwordConfirm) {
       return { success: false, error: "Passwords do not match" };
     }
 
-    // Check if account already exists
-    if (accounts.some((acc) => acc.email === email)) {
-      return { success: false, error: "Email already registered" };
+    // Call backend
+    try {
+      const res = await fetch(`${API_BASE}/api/auth/signup`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password, role }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        return { success: false, error: data.detail || "Signup failed" };
+      }
+
+      return { success: true, message: data.message };
+    } catch (err) {
+      console.error("[AUTH] Signup error:", err);
+      return { success: false, error: "Cannot connect to server. Please try again." };
     }
-
-    // Create new account
-    const newAccount = {
-      id: Date.now().toString(),
-      email,
-      password, // In production, hash this!
-      role,
-      createdAt: new Date().toISOString(),
-    };
-
-    const updatedAccounts = [...accounts, newAccount];
-    setAccounts(updatedAccounts);
-    localStorage.setItem("miradorai_accounts", JSON.stringify(updatedAccounts));
-
-    return { success: true, message: "Account created successfully! Please sign in." };
   };
 
-  const login = (email, password, role) => {
-    // Validation
+  // ------------------------------------------------------------------
+  // Sign In — verifies against MongoDB via backend
+  // ------------------------------------------------------------------
+  const login = async (email, password, role) => {
     if (!email || !password) {
       return { success: false, error: "Email and password required" };
     }
 
-    // Check if account exists with matching credentials
-    const account = accounts.find(
-      (acc) => acc.email === email && acc.password === password
-    );
+    try {
+      const res = await fetch(`${API_BASE}/api/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password, role }),
+      });
 
-    if (!account) {
-      return { success: false, error: "Invalid email or password" };
-    }
+      const data = await res.json();
 
-    // Check if role matches
-    if (account.role !== role) {
-      return {
-        success: false,
-        error: `This account is registered as ${account.role}. Please select the correct role.`,
+      if (!res.ok) {
+        return { success: false, error: data.detail || "Login failed" };
+      }
+
+      const userData = {
+        id:        data.user.id,
+        email:     data.user.email,
+        role:      data.user.role,
+        loginTime: new Date().toISOString(),
+        loginDate: new Date().toLocaleDateString("en-US", {
+          year:   "numeric",
+          month:  "short",
+          day:    "numeric",
+          hour:   "2-digit",
+          minute: "2-digit",
+        }),
+        sessionId: Math.random().toString(36).substring(2, 11),
       };
+
+      setUser(userData);
+      localStorage.setItem("miradorai_user", JSON.stringify(userData));
+      return { success: true };
+    } catch (err) {
+      console.error("[AUTH] Login error:", err);
+      return { success: false, error: "Cannot connect to server. Please try again." };
     }
-
-    const userData = {
-      id: account.id,
-      email,
-      role,
-      loginTime: new Date().toISOString(),
-      loginDate: new Date().toLocaleDateString("en-US", {
-        year: "numeric",
-        month: "short",
-        day: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-      }),
-      sessionId: Math.random().toString(36).substring(2, 11),
-    };
-
-    setUser(userData);
-    localStorage.setItem("miradorai_user", JSON.stringify(userData));
-    return { success: true };
   };
 
-  const forgotPassword = (email) => {
-    // Validation
+  // ------------------------------------------------------------------
+  // Forgot Password — checks email exists in MongoDB via backend
+  // ------------------------------------------------------------------
+  const forgotPassword = async (email) => {
     if (!email) {
       return { success: false, error: "Email is required" };
     }
 
-    if (!validateEmail(email)) {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
       return { success: false, error: "Invalid email format" };
     }
 
-    // Check if account exists (in production, send reset link)
-    const account = accounts.find((acc) => acc.email === email);
+    try {
+      const res = await fetch(`${API_BASE}/api/auth/forgot-password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
 
-    if (!account) {
-      // For security, don't reveal if account exists
-      // But for demo, we'll be helpful
-      return {
-        success: false,
-        error: "No account found with this email. Please sign up instead.",
-      };
+      const data = await res.json();
+
+      if (!res.ok) {
+        return { success: false, error: data.detail || "Request failed" };
+      }
+
+      return { success: true, message: data.message };
+    } catch (err) {
+      console.error("[AUTH] Forgot password error:", err);
+      return { success: false, error: "Cannot connect to server. Please try again." };
     }
-
-    // In production, send password reset email with token
-    // For now, return success message
-    return {
-      success: true,
-      message: `Password reset link sent to ${email}. Check your email (demo mode).`,
-    };
   };
 
-  const resetPassword = (email, newPassword, confirmPassword) => {
+  // ------------------------------------------------------------------
+  // Reset Password — updates password in MongoDB via backend
+  // ------------------------------------------------------------------
+  const resetPassword = async (email, newPassword, confirmPassword) => {
     if (!email || !newPassword || !confirmPassword) {
       return { success: false, error: "All fields are required" };
     }
 
-    if (!validatePassword(newPassword)) {
-      return {
-        success: false,
-        error: "Password must be at least 6 characters",
-      };
+    if (newPassword.length < 6) {
+      return { success: false, error: "Password must be at least 6 characters" };
     }
 
     if (newPassword !== confirmPassword) {
       return { success: false, error: "Passwords do not match" };
     }
 
-    // Find and update account
-    const accountIndex = accounts.findIndex((acc) => acc.email === email);
-    if (accountIndex === -1) {
-      return { success: false, error: "Account not found" };
+    try {
+      const res = await fetch(`${API_BASE}/api/auth/reset-password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email,
+          new_password:     newPassword,
+          confirm_password: confirmPassword,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        return { success: false, error: data.detail || "Reset failed" };
+      }
+
+      return { success: true, message: data.message };
+    } catch (err) {
+      console.error("[AUTH] Reset password error:", err);
+      return { success: false, error: "Cannot connect to server. Please try again." };
     }
-
-    const updatedAccounts = [...accounts];
-    updatedAccounts[accountIndex].password = newPassword;
-    setAccounts(updatedAccounts);
-    localStorage.setItem("miradorai_accounts", JSON.stringify(updatedAccounts));
-
-    return { success: true, message: "Password reset successfully! Please sign in." };
   };
 
+  // ------------------------------------------------------------------
+  // OAuth Login (Google) — kept local since it's mock/demo
+  // ------------------------------------------------------------------
   const oauthLogin = (provider, selectedRole = "client", selectedEmail = null) => {
     if (provider !== "google") {
       return { success: false, error: "Unsupported OAuth provider" };
     }
 
     const candidateEmail = selectedEmail || "google.user@example.com";
-    if (!candidateEmail || !validateEmail(candidateEmail)) {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!candidateEmail || !emailRegex.test(candidateEmail)) {
       return { success: false, error: "Please select a valid Google account email" };
     }
 
-    const existingAccount = accounts.find((acc) => acc.email === candidateEmail);
-    const roleToUse = existingAccount ? existingAccount.role : selectedRole;
-
-    let account = existingAccount;
-    if (!account) {
-      account = {
-        id: Date.now().toString(),
-        email: candidateEmail,
-        password: "",
-        role: roleToUse,
-        oauthProvider: "google",
-        createdAt: new Date().toISOString(),
-      };
-
-      const updatedAccounts = [...accounts, account];
-      setAccounts(updatedAccounts);
-      localStorage.setItem("miradorai_accounts", JSON.stringify(updatedAccounts));
-    }
-
     const userData = {
-      id: account.id,
-      email: account.email,
-      role: roleToUse,
-      loginTime: new Date().toISOString(),
-      loginDate: new Date().toLocaleDateString("en-US", {
-        year: "numeric",
-        month: "short",
-        day: "numeric",
-        hour: "2-digit",
+      id:            Date.now().toString(),
+      email:         candidateEmail,
+      role:          selectedRole,
+      loginTime:     new Date().toISOString(),
+      loginDate:     new Date().toLocaleDateString("en-US", {
+        year:   "numeric",
+        month:  "short",
+        day:    "numeric",
+        hour:   "2-digit",
         minute: "2-digit",
       }),
-      sessionId: Math.random().toString(36).substring(2, 11),
+      sessionId:     Math.random().toString(36).substring(2, 11),
       oauthProvider: "google",
     };
 
     setUser(userData);
     localStorage.setItem("miradorai_user", JSON.stringify(userData));
 
-    return { success: true, message: `Logged in as ${account.email} with role ${account.role}.` };
+    return {
+      success: true,
+      message: `Logged in as ${candidateEmail} with role ${selectedRole}.`,
+    };
   };
 
+  // ------------------------------------------------------------------
+  // Logout
+  // ------------------------------------------------------------------
   const logout = () => {
     setUser(null);
     localStorage.removeItem("miradorai_user");
   };
 
-  const isAdmin = user?.role === "admin";
-  const isClient = user?.role === "client";
+  const isAdmin        = user?.role === "admin";
+  const isClient       = user?.role === "client";
   const isAuthenticated = !!user;
 
   return (
@@ -264,7 +253,6 @@ export const AuthProvider = ({ children }) => {
         isAuthenticated,
         isAdmin,
         isClient,
-        accounts,
         login,
         signup,
         forgotPassword,

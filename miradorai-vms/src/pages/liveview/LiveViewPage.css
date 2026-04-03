@@ -383,28 +383,3 @@
   object-fit: contain;
   display: block;
 }
-
-
-/* ============================================================
-   ADD THESE 2 RULES to your existing LiveViewPage.css.
-   Everything else (.lv-fullscreen-overlay, bar, player etc.)
-   is already correct in your file — no changes needed there.
-   ============================================================ */
-
-/* Fix 1 — fs-btn was sitting UNDER the player video element.
-   Your header is already z-index:10 but the button needs
-   pointer-events explicitly set so the video doesn't eat clicks. */
-.lv-cell__fs-btn {
-  position: relative;
-  z-index: 20;           /* above lv-cell__header z-index:10 */
-  pointer-events: all;   /* video elements can block pointer events */
-}
-
-/* Fix 2 — lv-cam__player must not capture pointer events
-   on the header area. The header is absolute-positioned over
-   the player, so pointer-events on the player div itself is fine,
-   but the video/canvas inside can still block the button. */
-.lv-cam__player video,
-.lv-cam__player canvas {
-  pointer-events: none;  /* let clicks pass through to the header buttons */
-}

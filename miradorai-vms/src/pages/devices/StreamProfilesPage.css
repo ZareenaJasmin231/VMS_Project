@@ -60,14 +60,14 @@
   margin-bottom: 16px;
 }
 
-/* ── ONVIF Card ────────────────────────────────────────────── */
+/* NEW */
 .sp-onvif-card {
   background: #080c12;
   border: 1px solid #1e3a5f;
   border-left: 3px solid #2563eb;
   border-radius: 10px;
   margin-bottom: 16px;
-  overflow: hidden;
+  /* remove overflow: hidden */
 }
 .sp-onvif-header {
   display: flex;
@@ -143,15 +143,16 @@
 }
 .sp-onvif-meta-val { font-size: 12px; color: #c9d4e8; }
 .sp-onvif-meta-val--blue { color: #3b82f6; font-weight: 600; }
-
-/* ── Dual lane container ───────────────────────────────────── */
 .sp-dual-lanes {
   display: grid;
   grid-template-columns: 1fr 1fr;
+  align-items: start;  /* add this — prevents lanes from stretching to equal height and clipping */
 }
 
 .sp-lane {
-  overflow: hidden;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
 }
 .sp-lane + .sp-lane {
   border-left: 1px solid #111923;
@@ -400,4 +401,22 @@
   .sp-dual-lanes    { grid-template-columns: 1fr; }
   .sp-lane + .sp-lane { border-left: none; border-top: 1px solid #111923; }
   .sp-dual-summary  { grid-template-columns: 1fr; }
+}
+/* Scrollable profile list area inside each lane */
+.sp-lane-profiles {
+  max-height: 240px; /* ~5 rows at ~48px each */
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #1e3a5f transparent;
+}
+
+.sp-lane-profiles::-webkit-scrollbar {
+  width: 4px;
+}
+.sp-lane-profiles::-webkit-scrollbar-track {
+  background: transparent;
+}
+.sp-lane-profiles::-webkit-scrollbar-thumb {
+  background: #1e3a5f;
+  border-radius: 2px;
 }

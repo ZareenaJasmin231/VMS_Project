@@ -41,7 +41,7 @@ const LoginPage = () => {
 
     await new Promise((resolve) => setTimeout(resolve, 500));
 
-    const result = login(signInEmail, signInPassword, role);
+    const result =await login(signInEmail, signInPassword, role);
 
     if (!result.success) {
       setSignInError(result.error);
@@ -106,7 +106,7 @@ const LoginPage = () => {
 
     await new Promise((resolve) => setTimeout(resolve, 500));
 
-    const result = signup(signUpEmail, signUpPassword, signUpConfirm, role);
+    const result = await signup(signUpEmail, signUpPassword, signUpConfirm, role);
 
     if (!result.success) {
       setSignUpError(result.error);
@@ -135,7 +135,7 @@ const LoginPage = () => {
     await new Promise((resolve) => setTimeout(resolve, 500));
 
     if (forgotStep === "email") {
-      const result = forgotPassword(forgotEmail);
+      const result = await forgotPassword(forgotEmail);
       if (!result.success) {
         setForgotError(result.error);
         setIsLoading(false);
@@ -146,7 +146,7 @@ const LoginPage = () => {
       setForgotStep("reset");
       setIsLoading(false);
     } else {
-      const result = resetPassword(forgotEmail, resetNewPassword, resetConfirm);
+      const result = await resetPassword(forgotEmail, resetNewPassword, resetConfirm);
       if (!result.success) {
         setForgotError(result.error);
         setIsLoading(false);

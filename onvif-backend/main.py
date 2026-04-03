@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from pymongo import MongoClient
 from datetime import datetime
+from passlib.context import CryptContext
 import asyncio
 import json
 import os
@@ -46,6 +47,9 @@ WATCHDOG_INTERVAL      = 5
 WATCHDOG_MAX_RETRIES   = 20
 WATCHDOG_BACKOFF_RESET = 10
 
+# Password hashing
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
 # ------------------------------------------------------------------
 # MongoDB
 # ------------------------------------------------------------------
@@ -54,12 +58,16 @@ try:
     _mongo.server_info()
     _db         = _mongo["mirador-vms"]
     cameras_col = _db["cameras"]
+    users_col   = _db["users"]
+    # Create unique index on email to prevent duplicates
+    users_col.create_index("email", unique=True)
     print(f"[MONGO] ✅ Connected: {MONGO_URI}")
 except Exception as e:
     print(f"[MONGO] ❌ FAILED to connect: {e}")
     _mongo      = None
     _db         = None
     cameras_col = None
+    users_col   = None
 
 
 # ------------------------------------------------------------------
@@ -175,8 +183,8 @@ async def stream_watchdog():
         _watchdog_cycle += 1
         for device in list(devices):
             stream_name  = device.get("ome_stream")
-            rtsp_url     = device.get("rtsp_url")          # live / OME stream
-            rec_rtsp     = device.get("recording_rtsp", rtsp_url)  # recording stream
+            rtsp_url     = device.get("rtsp_url")
+            rec_rtsp     = device.get("recording_rtsp", rtsp_url)
             if not stream_name or not rtsp_url:
                 continue
 
@@ -204,7 +212,6 @@ async def stream_watchdog():
                         _watchdog_failures[stream_name] = 0
                         if stream_name not in recorder._recorders or \
                            not recorder._recorders[stream_name].is_alive():
-                            # Restart recorder with the dedicated recording RTSP
                             recorder.start_camera(stream_name, rec_rtsp, device)
                             print(f"[WATCHDOG] 🎥 Restarted recorder for {stream_name}")
                     else:
@@ -234,7 +241,7 @@ async def startup():
 
     for device in devices:
         stream_name = device.get("ome_stream")
-        rtsp_url    = device.get("rtsp_url")          # live RTSP → OME
+        rtsp_url    = device.get("rtsp_url")
         if device.get("enabled") is False:
             print(f"[STARTUP] ⏭ Skipping disabled camera: {stream_name}")
             continue
@@ -246,7 +253,6 @@ async def startup():
     _health_monitor_task = asyncio.create_task(start_health_monitoring(devices, cameras_col))
     encrypt_service.start_watcher()
 
-    # start_recording_all uses recording_rtsp if present, falls back to rtsp_url
     recorder.start_recording_all(devices)
 
     enabled_count = sum(1 for d in devices if d.get("enabled") is not False)
@@ -268,13 +274,15 @@ async def shutdown():
 def debug_mongo():
     try:
         _mongo.server_info()
-        cam_count = cameras_col.count_documents({})
-        rec_count = _db["recordings"].count_documents({})
+        cam_count  = cameras_col.count_documents({})
+        rec_count  = _db["recordings"].count_documents({})
+        user_count = users_col.count_documents({})
         return {
             "status":       "connected",
             "uri":          MONGO_URI,
             "cameras":      cam_count,
             "recordings":   rec_count,
+            "users":        user_count,
             "devices_json": len(devices),
         }
     except Exception as e:
@@ -312,9 +320,9 @@ class StreamAssignRequest(BaseModel):
     model:             str = "Unknown"
     mac:               str = "—"
     device_name:       str = ""
-    live_rtsp:         str          # RTSP URL sent to OME (what viewers watch)
-    recording_rtsp:    str          # RTSP URL used by the recorder thread
-    live_profile:      str = ""     # human-readable profile name (for logging/DB)
+    live_rtsp:         str
+    recording_rtsp:    str
+    live_profile:      str = ""
     recording_profile: str = ""
 
 
@@ -326,6 +334,160 @@ class PTZMoveRequest(BaseModel):
     pan:      float = 0.0
     tilt:     float = 0.0
     zoom:     float = 0.0
+
+
+# ------------------------------------------------------------------
+# Auth Models
+# ------------------------------------------------------------------
+class SignupRequest(BaseModel):
+    email:    str
+    password: str
+    role:     str = "client"
+
+
+class LoginRequest(BaseModel):
+    email:    str
+    password: str
+    role:     str = "client"
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: str
+
+
+class ResetPasswordRequest(BaseModel):
+    email:            str
+    new_password:     str
+    confirm_password: str
+
+
+# ------------------------------------------------------------------
+# Auth Endpoints
+# ------------------------------------------------------------------
+@app.post("/api/auth/signup")
+def auth_signup(req: SignupRequest):
+    if users_col is None:
+        raise HTTPException(status_code=500, detail="Database not connected")
+
+    # Basic validation
+    if not req.email or not req.password:
+        raise HTTPException(status_code=400, detail="Email and password are required")
+
+    email_regex = r"^[^\s@]+@[^\s@]+\.[^\s@]+$"
+    if not re.match(email_regex, req.email):
+        raise HTTPException(status_code=400, detail="Invalid email format")
+
+    if len(req.password) < 6:
+        raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
+
+    if req.role not in ("admin", "client"):
+        raise HTTPException(status_code=400, detail="Role must be 'admin' or 'client'")
+
+    # Check if email already exists
+    if users_col.find_one({"email": req.email}):
+        raise HTTPException(status_code=400, detail="Email already registered")
+
+    # Hash password and save
+    hashed_password = pwd_context.hash(req.password)
+    user_doc = {
+        "email":     req.email,
+        "password":  hashed_password,
+        "role":      req.role,
+        "createdAt": datetime.utcnow().isoformat(),
+    }
+
+    try:
+        users_col.insert_one(user_doc)
+        print(f"[AUTH] ✅ New user registered: {req.email} ({req.role})")
+    except Exception as e:
+        print(f"[AUTH] ❌ Signup failed: {e}")
+        raise HTTPException(status_code=500, detail="Failed to create account")
+
+    return {"success": True, "message": "Account created successfully! Please sign in."}
+
+
+@app.post("/api/auth/login")
+def auth_login(req: LoginRequest):
+    if users_col is None:
+        raise HTTPException(status_code=500, detail="Database not connected")
+
+    if not req.email or not req.password:
+        raise HTTPException(status_code=400, detail="Email and password are required")
+
+    # Find user by email
+    user = users_col.find_one({"email": req.email})
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+
+    # Verify password
+    if not pwd_context.verify(req.password, user["password"]):
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+
+    # Check role matches
+    if user["role"] != req.role:
+        raise HTTPException(
+            status_code=403,
+            detail=f"This account is registered as {user['role']}. Please select the correct role."
+        )
+
+    print(f"[AUTH] ✅ Login: {req.email} ({req.role})")
+    return {
+        "success": True,
+        "user": {
+            "id":    str(user["_id"]),
+            "email": user["email"],
+            "role":  user["role"],
+        }
+    }
+
+
+@app.post("/api/auth/forgot-password")
+def auth_forgot_password(req: ForgotPasswordRequest):
+    if users_col is None:
+        raise HTTPException(status_code=500, detail="Database not connected")
+
+    if not req.email:
+        raise HTTPException(status_code=400, detail="Email is required")
+
+    user = users_col.find_one({"email": req.email})
+    if not user:
+        raise HTTPException(status_code=404, detail="No account found with this email. Please sign up instead.")
+
+    # In production: generate token, send reset email
+    # For now: return success so the UI can proceed to the reset step
+    print(f"[AUTH] 🔑 Password reset requested for: {req.email}")
+    return {
+        "success": True,
+        "message": f"Password reset link sent to {req.email}. Check your email (demo mode)."
+    }
+
+
+@app.post("/api/auth/reset-password")
+def auth_reset_password(req: ResetPasswordRequest):
+    if users_col is None:
+        raise HTTPException(status_code=500, detail="Database not connected")
+
+    if not req.email or not req.new_password or not req.confirm_password:
+        raise HTTPException(status_code=400, detail="All fields are required")
+
+    if len(req.new_password) < 6:
+        raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
+
+    if req.new_password != req.confirm_password:
+        raise HTTPException(status_code=400, detail="Passwords do not match")
+
+    user = users_col.find_one({"email": req.email})
+    if not user:
+        raise HTTPException(status_code=404, detail="Account not found")
+
+    hashed_password = pwd_context.hash(req.new_password)
+    users_col.update_one(
+        {"email": req.email},
+        {"$set": {"password": hashed_password, "updatedAt": datetime.utcnow().isoformat()}}
+    )
+
+    print(f"[AUTH] ✅ Password reset for: {req.email}")
+    return {"success": True, "message": "Password reset successfully! Please sign in."}
 
 
 # ------------------------------------------------------------------
@@ -477,7 +639,7 @@ async def onvif_probe(req: ProbeRequest):
                 new_device = {
                     "ome_stream":     stream_name,
                     "rtsp_url":       rtsp,
-                    "recording_rtsp": rtsp,   # defaults to same; user can change via /assign
+                    "recording_rtsp": rtsp,
                     "ip":             req.ip,
                     "port":           req.port,
                     "username":       req.username,
@@ -590,7 +752,7 @@ async def register_rtsp_stream(req: StreamRegisterRequest):
         new_device = {
             "ome_stream":     stream_name,
             "rtsp_url":       rtsp,
-            "recording_rtsp": rtsp,   # defaults to same; changeable via /assign
+            "recording_rtsp": rtsp,
             "ip":             host,
             "port":           req.port,
             "username":       req.username,
@@ -608,21 +770,21 @@ async def register_rtsp_stream(req: StreamRegisterRequest):
     save_devices(devices)
 
     save_camera_to_db({
-        "ip":           host,
-        "ome_stream":   stream_name,
-        "rtsp_url":     rtsp,
+        "ip":             host,
+        "ome_stream":     stream_name,
+        "rtsp_url":       rtsp,
         "recording_rtsp": rtsp,
-        "manufacturer": req.manufacturer,
-        "model":        req.model,
-        "mac":          req.mac,
-        "device_name":  req.device_name or f"Camera @ {host}",
-        "port":         req.port,
-        "username":     req.username,
-        "password":     req.password,
-        "added_at":     datetime.utcnow(),
-        "status":       "streaming",
-        "enabled":      True,
-        "source":       "rtsp",
+        "manufacturer":   req.manufacturer,
+        "model":          req.model,
+        "mac":            req.mac,
+        "device_name":    req.device_name or f"Camera @ {host}",
+        "port":           req.port,
+        "username":       req.username,
+        "password":       req.password,
+        "added_at":       datetime.utcnow(),
+        "status":         "streaming",
+        "enabled":        True,
+        "source":         "rtsp",
     })
 
     _watchdog_failures[stream_name] = 0
@@ -640,38 +802,16 @@ async def register_rtsp_stream(req: StreamRegisterRequest):
 
 
 # ------------------------------------------------------------------
-# NEW: Assign independent Live + Recording streams
+# Assign independent Live + Recording streams
 # ------------------------------------------------------------------
-# ------------------------------------------------------------------
-# PATCH: In main.py, replace the assign_streams endpoint with this.
-# Key fix: treat HTTP 409 ("Stream already exists") from OME as success.
-# OME returns 409 when the stream is already registered — that's fine,
-# we still want to restart the recorder with the new recording_rtsp.
-# ------------------------------------------------------------------
-
-
 @app.post("/api/streams/assign")
 async def assign_streams(req: StreamAssignRequest):
-    """
-    Assign independent RTSP sources for live streaming and recording.
-
-    live_rtsp      → re-registered with OME  (what viewers watch in Live View)
-    recording_rtsp → used by the recorder thread (what gets written to disk)
-
-    Strategy for OME registration:
-      1. Try to register fresh → 200/201 = done.
-      2. If 409 (already exists): DELETE then re-register.
-         If DELETE itself fails (502/network) → skip re-register, accept
-         current OME stream as-is (recorder still restarts with new RTSP).
-      3. Any other error → return failure.
-    """
     host        = req.ip.strip()
     stream_name = normalize_stream_name(host)
 
     print(f"[ASSIGN] {host}: live={req.live_profile!r} ({req.live_rtsp})"
           f"  rec={req.recording_profile!r} ({req.recording_rtsp})")
 
-    # ── Step 1: Try registering the live RTSP ────────────────────────────────
     ome_ok = False
     try:
         ome_response = register_stream(stream_name, req.live_rtsp)
@@ -682,7 +822,6 @@ async def assign_streams(req: StreamAssignRequest):
             print(f"[ASSIGN] ✅ OME registered {stream_name} (HTTP {status_code})")
 
         elif status_code == 409:
-            # ── Step 2: Stream exists — try delete + re-register ─────────────
             print(f"[ASSIGN] 409 — stream exists, attempting delete+re-register for {stream_name}")
             delete_ok = False
             try:
@@ -701,7 +840,7 @@ async def assign_streams(req: StreamAssignRequest):
 
             if delete_ok:
                 import time as _time
-                _time.sleep(0.8)   # give OME time to tear down the old pull thread
+                _time.sleep(0.8)
                 try:
                     ome_response2 = register_stream(stream_name, req.live_rtsp)
                     sc2           = ome_response2.get("statusCode", 0) if isinstance(ome_response2, dict) else 0
@@ -709,18 +848,12 @@ async def assign_streams(req: StreamAssignRequest):
                         ome_ok = True
                         print(f"[ASSIGN] ✅ OME re-registered {stream_name} (HTTP {sc2})")
                     else:
-                        # Even if re-register returns unexpected code, recorder
-                        # still restarts; watchdog will recover the stream
                         ome_ok = True
                         print(f"[ASSIGN] ⚠ Re-register returned HTTP {sc2} — watchdog will recover")
                 except Exception as rereg_err:
                     ome_ok = True
                     print(f"[ASSIGN] ⚠ Re-register exception ({rereg_err}) — watchdog will recover")
             else:
-                # DELETE failed (e.g. 502 — OME unreachable) but stream already
-                # exists and is running. Recorder restarts below with new
-                # recording RTSP regardless. Live stream stays on current profile
-                # until the watchdog next checks; user can click Apply again to retry.
                 ome_ok = True
                 print(f"[ASSIGN] ℹ Keeping existing OME stream; recorder switching to new recording RTSP")
 
@@ -740,7 +873,6 @@ async def assign_streams(req: StreamAssignRequest):
     if not ome_ok:
         return {"success": False, "error": "OME registration failed unexpectedly"}
 
-    # ── Step 3: Update in-memory device record ───────────────────────────────
     existing = next(
         (d for d in devices if d.get("ome_stream") == stream_name or d.get("ip") == host),
         None
@@ -767,7 +899,6 @@ async def assign_streams(req: StreamAssignRequest):
 
     save_devices(devices)
 
-    # ── Step 4: Persist both URLs to MongoDB ─────────────────────────────────
     save_camera_to_db({
         "ip":                   host,
         "ome_stream":           stream_name,
@@ -784,12 +915,10 @@ async def assign_streams(req: StreamAssignRequest):
         "updated_at":           datetime.utcnow(),
     })
 
-    # ── Step 5: Restart recorder with the dedicated recording RTSP ───────────
     recorder.stop_camera(stream_name)
     recorder.start_camera(stream_name, req.recording_rtsp, device_entry)
     print(f"[ASSIGN] 🎥 Recorder restarted → recording profile: {req.recording_profile!r}")
 
-    # ── Step 6: Reset watchdog so it picks up the new live RTSP on next cycle ─
     _watchdog_failures[stream_name] = 0
 
     return {
@@ -805,7 +934,7 @@ async def assign_streams(req: StreamAssignRequest):
 
 
 # ------------------------------------------------------------------
-# Camera lookup by IP (used by frontend StreamProfilesPage)
+# Camera lookup by IP
 # ------------------------------------------------------------------
 @app.get("/api/cameras/by-ip/{ip}")
 async def get_camera_by_ip(ip: str):
@@ -813,7 +942,6 @@ async def get_camera_by_ip(ip: str):
         doc = cameras_col.find_one({"ip": ip}, {"_id": 0})
         if doc:
             return doc
-    # Fallback to in-memory
     dev = next((d for d in devices if d.get("ip") == ip), None)
     if dev:
         return dev

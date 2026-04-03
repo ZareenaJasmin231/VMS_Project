@@ -39,6 +39,7 @@ export default function MediaPlayerPage() {
   const [cameras]                               = useState(loadDevices);
   const [recordingCameras, setRecordingCameras] = useState([]);
   const [selectedCam, setSelectedCam]           = useState(null);
+  const [camDropdownOpen, setCamDropdownOpen]   = useState(false);
   const [files, setFiles]                       = useState([]);
   const [loadingFiles, setLoadingFiles]         = useState(false);
   const [playingFile, setPlayingFile]           = useState(null);
@@ -67,10 +68,22 @@ export default function MediaPlayerPage() {
   const [exporting, setExporting]               = useState(false);
   const [snapshotFlash, setSnapshotFlash]       = useState(false);
 
-  const videoRef    = useRef(null);
-  const playerWrap  = useRef(null);
-  const progressRef = useRef(null);
-  const isDragging  = useRef(false);
+  const videoRef       = useRef(null);
+  const playerWrap     = useRef(null);
+  const progressRef    = useRef(null);
+  const isDragging     = useRef(false);
+  const camDropdownRef = useRef(null);
+
+  // ── Close camera dropdown on outside click ─────────────────────
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (camDropdownRef.current && !camDropdownRef.current.contains(e.target)) {
+        setCamDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   // ── Fetch recording cameras on mount ──────────────────────────
   useEffect(() => {
@@ -182,7 +195,7 @@ export default function MediaPlayerPage() {
   useEffect(() => { if (videoRef.current) videoRef.current.volume      = volume; }, [volume]);
   useEffect(() => { if (videoRef.current) videoRef.current.playbackRate = speed;  }, [speed]);
 
-  // ── FIXED playFile: set crossOrigin imperatively BEFORE src ───
+  // ── playFile ──────────────────────────────────────────────────
   const playFile = (file) => {
     setPlayingFile(file);
     setPlaying(false);
@@ -191,12 +204,7 @@ export default function MediaPlayerPage() {
     setTimeout(() => {
       const v = videoRef.current;
       if (!v) return;
-      // CRITICAL: crossOrigin must be set before src is assigned.
-      // This ensures the browser makes a CORS request so canvas
-      // drawImage() won't taint the canvas.
       v.crossOrigin = "anonymous";
-      // Cache-buster prevents browser serving a previously cached
-      // non-CORS response for the same URL.
       const cb = Date.now();
       v.src = `${STREAM_API}/api/recordings/play`
         + `?camera_id=${encodeURIComponent(file.camera_id)}`
@@ -256,12 +264,10 @@ export default function MediaPlayerPage() {
     });
   };
 
-  // ── SNAPSHOT — fully fixed ─────────────────────────────────────
+  // ── Snapshot ──────────────────────────────────────────────────
   const handleSnapshot = async () => {
     if (!videoRef.current || !playingFile) return;
     const video = videoRef.current;
-
-    // Pause briefly to ensure a stable frame
     const wasPaused = video.paused;
     if (!wasPaused) video.pause();
 
@@ -272,15 +278,12 @@ export default function MediaPlayerPage() {
 
     try {
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
       const timestamp = fmt(currentTime).replace(/:/g, "-");
       const filename  = `snapshot_${playingFile.camera_id}_${playingFile.date}_${timestamp}.png`;
 
-      // Flash effect
       setSnapshotFlash(true);
       setTimeout(() => setSnapshotFlash(false), 300);
 
-      // Convert canvas to blob
       const blob = await new Promise((resolve, reject) => {
         canvas.toBlob((b) => {
           if (b) resolve(b);
@@ -288,15 +291,11 @@ export default function MediaPlayerPage() {
         }, "image/png");
       });
 
-      // Try File System Access API first (shows native Save dialog)
       if (window.showSaveFilePicker) {
         try {
           const handle = await window.showSaveFilePicker({
             suggestedName: filename,
-            types: [{
-              description: "PNG Image",
-              accept: { "image/png": [".png"] },
-            }],
+            types: [{ description: "PNG Image", accept: { "image/png": [".png"] } }],
           });
           const writable = await handle.createWritable();
           await writable.write(blob);
@@ -304,17 +303,14 @@ export default function MediaPlayerPage() {
           if (!wasPaused) video.play();
           return;
         } catch (err) {
-          // User cancelled dialog — abort silently
           if (err.name === "AbortError") {
             if (!wasPaused) video.play();
             return;
           }
-          // File System API failed for other reason — fall through to anchor download
           console.warn("showSaveFilePicker failed, falling back:", err);
         }
       }
 
-      // Fallback: anchor-based download (browser chooses download folder)
       const url = URL.createObjectURL(blob);
       const a   = document.createElement("a");
       a.href     = url;
@@ -502,21 +498,62 @@ export default function MediaPlayerPage() {
               Media Browser
             </div>
 
-            <div className="mp-cam-section">Recorded Cameras</div>
-            <div className="mp-cam-list">
-              {recordingCameras.map((camId) => (
-                <div
-                  key={camId}
-                  className={`mp-cam-item ${selectedCam?.stream_key === camId ? "active" : ""}`}
-                  onClick={() => {
-                    setSelectedCam({ stream_key: camId, name: camId });
-                    setPlayingFile(null);
-                  }}
+            {/* ── Custom Camera Dropdown ── */}
+            <div className="mp-cam-section">Camera</div>
+            <div className="mp-cam-dropdown-wrap" ref={camDropdownRef}>
+              <button
+                className={`mp-cam-select-btn ${camDropdownOpen ? "open" : ""}`}
+                onClick={() => setCamDropdownOpen((o) => !o)}
+                disabled={recordingCameras.length === 0}
+              >
+                <div className="mp-cam-dot" />
+                <span className="mp-cam-select-val">
+                  {selectedCam?.stream_key || "No cameras found"}
+                </span>
+                <svg
+                  className={`mp-cam-chevron ${camDropdownOpen ? "open" : ""}`}
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  width="12"
+                  height="12"
                 >
-                  <div className="mp-cam-dot" />
-                  <div className="mp-cam-name">{camId}</div>
+                  <path d="M6 9l6 6 6-6" />
+                </svg>
+              </button>
+
+              {camDropdownOpen && (
+                <div className="mp-cam-menu">
+                  {recordingCameras.map((camId) => (
+                    <div
+                      key={camId}
+                      className={`mp-cam-menu-item ${selectedCam?.stream_key === camId ? "active" : ""}`}
+                      onClick={() => {
+                        setSelectedCam({ stream_key: camId, name: camId });
+                        setPlayingFile(null);
+                        setCamDropdownOpen(false);
+                      }}
+                    >
+                      <div className={`mp-cam-dot ${selectedCam?.stream_key === camId ? "on" : ""}`} />
+                      <span>{camId}</span>
+                      {selectedCam?.stream_key === camId && (
+                        <svg
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2.5"
+                          width="11"
+                          height="11"
+                          style={{ marginLeft: "auto", color: "var(--amber)", flexShrink: 0 }}
+                        >
+                          <path d="M20 6L9 17l-5-5" />
+                        </svg>
+                      )}
+                    </div>
+                  ))}
                 </div>
-              ))}
+              )}
             </div>
 
             <div className="mp-filters">
@@ -594,7 +631,6 @@ export default function MediaPlayerPage() {
                 </div>
               ) : (
                 <>
-                  {/* Overlay: camera name + absolute time */}
                   <div className="mp-overlay-top">
                     <span className="mp-cam-label">
                       {playingFile.camera_id} — {playingFile.date}
@@ -603,12 +639,6 @@ export default function MediaPlayerPage() {
                       {getAbsoluteTime(currentTime) || fmt(currentTime)}
                     </span>
                   </div>
-
-                  {/* 
-                    IMPORTANT: No src or crossOrigin props here.
-                    Both are set imperatively in playFile() to guarantee
-                    crossOrigin is applied BEFORE the src request fires.
-                  */}
                   <video
                     ref={videoRef}
                     className="mp-video"
@@ -620,7 +650,6 @@ export default function MediaPlayerPage() {
 
             {/* ── Controls ── */}
             <div className="mp-controls">
-              {/* Progress row */}
               <div className="mp-progress-row">
                 <span className="mp-time">{fmt(currentTime)}</span>
                 <div
@@ -641,16 +670,13 @@ export default function MediaPlayerPage() {
                 <span className="mp-time">{fmt(duration)}</span>
               </div>
 
-              {/* Button row */}
               <div className="mp-ctrl-row">
-                {/* Prev */}
                 <button className="mp-ctrl-btn" onClick={playPrev} disabled={!playingFile} title="Previous (←)">
                   <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
                     <path d="M6 6h2v12H6zm3.5 6 8.5 6V6z"/>
                   </svg>
                 </button>
 
-                {/* Skip back 10s */}
                 <button className="mp-ctrl-btn" onClick={() => skip(-10)} disabled={!playingFile} title="Back 10s (J)">
                   <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
                     <path d="M12 5V2L8 6l4 4V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/>
@@ -658,7 +684,6 @@ export default function MediaPlayerPage() {
                   </svg>
                 </button>
 
-                {/* Play / Pause */}
                 <button
                   className="mp-ctrl-btn mp-play-btn"
                   onClick={togglePlay}
@@ -676,7 +701,6 @@ export default function MediaPlayerPage() {
                   )}
                 </button>
 
-                {/* Skip forward 10s */}
                 <button className="mp-ctrl-btn" onClick={() => skip(10)} disabled={!playingFile} title="Forward 10s (L)">
                   <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
                     <path d="M12 5V2l4 4-4 4V7c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6h2c0 4.42-3.58 8-8 8s-8-3.58-8-8 3.58-8 8-8z"/>
@@ -684,7 +708,6 @@ export default function MediaPlayerPage() {
                   </svg>
                 </button>
 
-                {/* Next */}
                 <button className="mp-ctrl-btn" onClick={playNext} disabled={!playingFile} title="Next (→)">
                   <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
                     <path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/>
@@ -693,7 +716,6 @@ export default function MediaPlayerPage() {
 
                 <div className="mp-ctrl-spacer" />
 
-                {/* Volume */}
                 <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14" style={{color:"var(--text-muted)",flexShrink:0}}>
                   <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/>
                 </svg>
@@ -707,7 +729,6 @@ export default function MediaPlayerPage() {
 
                 <div className="mp-ctrl-spacer" />
 
-                {/* Speed */}
                 {[0.5, 1, 1.5, 2].map((s) => (
                   <button
                     key={s}
@@ -720,7 +741,6 @@ export default function MediaPlayerPage() {
 
                 <div className="mp-ctrl-spacer" />
 
-                {/* 📷 Snapshot */}
                 <button
                   className="mp-ctrl-btn mp-snapshot-btn"
                   onClick={handleSnapshot}
@@ -733,7 +753,6 @@ export default function MediaPlayerPage() {
                   </svg>
                 </button>
 
-                {/* ⬇ Export */}
                 <button
                   className="mp-ctrl-btn"
                   onClick={() => setShowExportModal(true)}
@@ -746,7 +765,6 @@ export default function MediaPlayerPage() {
                   </svg>
                 </button>
 
-                {/* ⛶ Fullscreen */}
                 <button
                   className="mp-ctrl-btn"
                   onClick={toggleFullscreen}
@@ -764,7 +782,15 @@ export default function MediaPlayerPage() {
 
       {/* ── Export Modal ── */}
       {showExportModal && (
-        <div className="mp-export-modal-overlay" onClick={(e) => { if (e.target === e.currentTarget && !exporting) { setShowExportModal(false); setExportMode(null); } }}>
+        <div
+          className="mp-export-modal-overlay"
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !exporting) {
+              setShowExportModal(false);
+              setExportMode(null);
+            }
+          }}
+        >
           <div className="mp-export-modal">
             <div className="mp-export-header">
               <span className="mp-export-title">Export Recording</span>
