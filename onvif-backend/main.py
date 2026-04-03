@@ -17,6 +17,7 @@ from recording_api import recording_router
 from stream_health import start_health_monitoring
 import shutil
 import urllib.parse
+from masks_router import router as masks_router
 
 
 def normalize_stream_name(ip: str) -> str:
@@ -33,6 +34,7 @@ app.add_middleware(
 )
 
 app.include_router(recording_router)
+app.include_router(masks_router)
 
 _health_monitor_task = None
 
