@@ -51,7 +51,6 @@ export default function MaskingPage({ camera }) {
         </p>
       </div>
 
-      {/* Live preview with canvas editor */}
       <div className="masking-page__preview">
         <MaskEditor
           streamUrl={camera.ws_url}
@@ -63,7 +62,6 @@ export default function MaskingPage({ camera }) {
         />
       </div>
 
-      {/* Drawing controls */}
       {!drawingMode ? (
         <button
           className="masking-page__btn masking-page__btn--primary"
@@ -132,7 +130,6 @@ export default function MaskingPage({ camera }) {
         </div>
       )}
 
-      {/* Saved masks list */}
       <div className="masking-page__list-header">
         <span className="masking-page__list-title">Saved Zones</span>
         <span className="masking-page__list-count">{masks.length}</span>
@@ -156,7 +153,6 @@ export default function MaskingPage({ camera }) {
             />
             <span className="masking-page__mask-label">{mask.label}</span>
 
-            {/* Toggle */}
             <label className="masking-page__toggle">
               <input
                 type="checkbox"
@@ -166,7 +162,6 @@ export default function MaskingPage({ camera }) {
               <span className="masking-page__toggle-track" />
             </label>
 
-            {/* Delete */}
             {confirmDelete === mask.id ? (
               <div className="masking-page__confirm">
                 <button
