@@ -4,6 +4,7 @@ import SearchBar from "../../components/shared/SearchBar";
 import Modal from "../../components/shared/Modal";
 import { CAMERA_FEATURES_CONFIG } from "../../data/navConfig";
 import "./CamerasPage.css";
+import MaskingPage from "./MaskingPage";
 
 function loadDevices() {
   try {
@@ -18,6 +19,7 @@ function saveDevices(devices) {
 
 const API_BASE = "http://localhost:8000";
 
+const INLINE_PAGES = ["masking"];
 
 export default function CamerasPage({ onNavigate, onCameraSelect }) {
   const [cameras, setCameras]         = useState(loadDevices);
@@ -28,6 +30,7 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
   const [editForm, setEditForm]       = useState({});
   const [authModal, setAuthModal]     = useState(null);
   const [authForm, setAuthForm]       = useState({ username: "", password: "" });
+  const [activePage, setActivePage]   = useState(null);
 
   const filtered = cameras.filter((c) =>
     !filter ||
@@ -36,13 +39,6 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
     )
   );
 
-  /* ─────────────────────────────────────────────────────────────────────
-   * Helper: call backend using the camera IP.
-   * The backend looks up the real ome_stream name from its own DB —
-   * no stream-name guessing on the frontend at all.
-   *
-   * action: "enable" | "disable" | "delete"
-   * ───────────────────────────────────────────────────────────────────── */
   const callCameraAction = (cam, action) => {
     if (!cam.ip) {
       console.warn(`[CAMERA] No IP on camera object, cannot call action: ${action}`);
@@ -58,24 +54,17 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
       .catch((err) => console.error(`[CAMERA] ${action} FAILED for ${cam.ip}:`, err));
   };
 
-  /* ── Toggle enabled/disabled ───────────────────────────────────────── */
   const toggleEnabled = (cam, e) => {
     e.stopPropagation();
-    const willBeEnabled = cam.enabled === false; // flipping current state
-
+    const willBeEnabled = cam.enabled === false;
     const updated = cameras.map((c) =>
-      String(c.id) === String(cam.id)
-        ? { ...c, enabled: willBeEnabled }
-        : c
+      String(c.id) === String(cam.id) ? { ...c, enabled: willBeEnabled } : c
     );
     setCameras(updated);
     saveDevices(updated);
-
-    // Backend receives the IP, finds the correct stream name itself
     callCameraAction(cam, willBeEnabled ? "enable" : "disable");
   };
 
-  /* ── Edit ───────────────────────────────────────────────────────────── */
   const openEdit = (c) => {
     setEditForm({
       enabled:     c.enabled !== false,
@@ -96,22 +85,15 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
     );
     setCameras(updated);
     saveDevices(updated);
-
-    // If the enabled toggle changed inside the edit modal, sync recording
     if (prev) {
       const wasEnabled = prev.enabled !== false;
       const nowEnabled = editForm.enabled;
-      if (wasEnabled && !nowEnabled) {
-        callCameraAction(editModal, "disable");
-      } else if (!wasEnabled && nowEnabled) {
-        callCameraAction(editModal, "enable");
-      }
+      if (wasEnabled && !nowEnabled) callCameraAction(editModal, "disable");
+      else if (!wasEnabled && nowEnabled) callCameraAction(editModal, "enable");
     }
-
     setEditModal(null);
   };
 
-  /* ── Auth ───────────────────────────────────────────────────────────── */
   const openAuth = (e, c) => {
     e.stopPropagation();
     setAuthForm({ username: c.username || "", password: c.password || "" });
@@ -132,11 +114,8 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
     setAuthModal(null);
   };
 
-  /* ── Remove ─────────────────────────────────────────────────────────── */
   const confirmRemove = () => {
-    // Backend stops ALL streams for this IP and removes from DB
     callCameraAction(removeModal, "delete");
-
     const updated = cameras.filter((c) => String(c.id) !== String(removeModal.id));
     setCameras(updated);
     saveDevices(updated);
@@ -145,6 +124,28 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
   };
 
   const selectedCam = cameras.find((c) => String(c.id) === String(selected));
+
+  /* ── If an inline page is active, render it full-screen ── */
+  if (activePage === "masking" && selectedCam) {
+    return (
+      <div className="page-shell">
+        <div className="page-header">
+          <div>
+            <h1 className="page-title"><span>Masking</span></h1>
+            <p className="page-desc">{selectedCam.name || selectedCam.ip}</p>
+          </div>
+          <button
+            className="ec-btn ec-btn--cancel"
+            style={{ alignSelf: "center" }}
+            onClick={() => setActivePage(null)}
+          >
+            ← Back to Cameras
+          </button>
+        </div>
+        <MaskingPage camera={selectedCam} />
+      </div>
+    );
+  }
 
   return (
     <div className="page-shell">
@@ -158,7 +159,6 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
         <SearchBar value={filter} onChange={setFilter} placeholder="Type to filter" />
       </div>
 
-      {/* Content Layout */}
       <div className={`cameras-content-layout ${selectedCam ? "has-panel" : ""}`}>
         {/* Main table */}
         <div className="card cam-table-wrap">
@@ -199,12 +199,12 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
                     ].join(" ")}
                     onClick={() => {
                       setSelected(isSel ? null : String(c.id));
+                      setActivePage(null);
                       if (!isSel && onCameraSelect) onCameraSelect(c);
                       else if (isSel && onCameraSelect) onCameraSelect(null);
                     }}
                     onDoubleClick={() => openEdit(c)}
                   >
-                    {/* Thumbnail */}
                     <td>
                       <div className="cam-thumb-cell">
                         {c.snapshot ? (
@@ -227,7 +227,6 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
                       </div>
                     </td>
 
-                    {/* Toggle cell */}
                     <td onClick={(e) => e.stopPropagation()}>
                       <label className="cam-toggle" title={isEnabled ? "Disable camera" : "Enable camera"}>
                         <input
@@ -281,12 +280,11 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
                   </span>
                 </div>
                 <p>{selectedCam.ip || "No IP Address"}</p>
-
                 <div className="cam-side-panel__toggle-row">
                   <span className="cam-side-panel__toggle-label">
                     {selectedCam.enabled !== false ? "Camera is streaming" : "Camera is not streaming"}
                   </span>
-                  <label className="cam-toggle" title={selectedCam.enabled !== false ? "Disable camera" : "Enable camera"}>
+                  <label className="cam-toggle">
                     <input
                       type="checkbox"
                       checked={selectedCam.enabled !== false}
@@ -329,7 +327,11 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
                   onClick={() => {
                     if (selectedCam.enabled === false) return;
                     localStorage.setItem("miradorai_selected_camera_id", String(selectedCam.id));
-                    if (onNavigate) onNavigate(feature.page);
+                    if (INLINE_PAGES.includes(feature.page)) {
+                      setActivePage(feature.page);
+                    } else {
+                      if (onNavigate) onNavigate(feature.page);
+                    }
                   }}
                 >
                   <span className="cam-side-feature-icon" dangerouslySetInnerHTML={{ __html: feature.icon }} />
@@ -370,10 +372,8 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
                 <button className="ec-title-btn" onClick={() => setEditModal(null)} title="Close">✕</button>
               </div>
             </div>
-
             <div className="ec-body">
               <div className="ec-section-title">Settings</div>
-
               <div className="ec-toggle-row">
                 <div className="ec-toggle-info">
                   <span className="ec-toggle-label">Enabled</span>
@@ -392,46 +392,38 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
                   </span>
                 </label>
               </div>
-
               <div className="ec-field-row">
                 <label className="ec-field-label">Name:</label>
                 <input className="ec-input ec-input--highlight" value={editForm.name}
                   onChange={(e) => setEditForm((f) => ({ ...f, name: e.target.value }))} />
               </div>
-
               <div className="ec-field-row ec-field-row--top">
                 <label className="ec-field-label">Description:</label>
                 <textarea className="ec-textarea" rows={3} value={editForm.description}
                   onChange={(e) => setEditForm((f) => ({ ...f, description: e.target.value }))} />
               </div>
-
               <div className="ec-field-row">
                 <label className="ec-field-label">Address:</label>
                 <input className="ec-input" value={editForm.ip}
                   onChange={(e) => setEditForm((f) => ({ ...f, ip: e.target.value }))} />
               </div>
-
               <div className="ec-field-row">
                 <label className="ec-field-label">Port:</label>
                 <input className="ec-input ec-input--short" value={editForm.port}
                   onChange={(e) => setEditForm((f) => ({ ...f, port: e.target.value }))} />
               </div>
-
               <div className="ec-section-title ec-section-title--spaced">Credentials</div>
-
               <div className="ec-field-row">
                 <label className="ec-field-label">Username:</label>
                 <input className="ec-input" value={editForm.username}
                   onChange={(e) => setEditForm((f) => ({ ...f, username: e.target.value }))} />
               </div>
-
               <div className="ec-field-row">
                 <label className="ec-field-label">Password:</label>
                 <input className="ec-input" type="password" value={editForm.password}
                   onChange={(e) => setEditForm((f) => ({ ...f, password: e.target.value }))} />
               </div>
             </div>
-
             <div className="ec-footer">
               <button className="ec-btn ec-btn--help">Help</button>
               <div className="ec-footer-right">
@@ -467,13 +459,11 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
                 <button className="ec-title-btn" onClick={() => setAuthModal(null)} title="Close">✕</button>
               </div>
             </div>
-
             <div className="ec-body">
               <p className="ec-auth-desc">
                 The device configuration tab of{" "}
                 <strong>'{authModal.name}'</strong> is requesting a username and password.
               </p>
-
               <div className="ec-field-row">
                 <label className="ec-field-label">Username:</label>
                 <input
@@ -484,7 +474,6 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
                   onKeyDown={(e) => e.key === "Enter" && confirmAuth()}
                 />
               </div>
-
               <div className="ec-field-row">
                 <label className="ec-field-label">Password:</label>
                 <input
@@ -496,7 +485,6 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
                 />
               </div>
             </div>
-
             <div className="ec-footer">
               <button className="ec-btn ec-btn--help">Help</button>
               <div className="ec-footer-right">

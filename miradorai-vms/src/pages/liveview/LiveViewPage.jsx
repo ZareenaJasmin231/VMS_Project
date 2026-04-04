@@ -7,12 +7,75 @@ function loadDevices() {
   catch { return []; }
 }
 
+function loadMasksForDevice(deviceId) {
+  try {
+    const saved = localStorage.getItem(`miradorai_masks_${deviceId}`);
+    return saved ? JSON.parse(saved) : [];
+  } catch { return []; }
+}
+
 const LAYOUTS = [
   { id: "1x1", label: "1×1", cols: 1, icon: "▣" },
   { id: "2x2", label: "2×2", cols: 2, icon: "⊞" },
   { id: "3x3", label: "3×3", cols: 3, icon: "⊟" },
   { id: "1+3", label: "1+3", cols: "1+3", icon: "▤" },
 ];
+
+function MaskOverlay({ deviceId }) {
+  const canvasRef = useRef(null);
+
+  const draw = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    const W = canvas.width;
+    const H = canvas.height;
+    ctx.clearRect(0, 0, W, H);
+    const masks = loadMasksForDevice(deviceId);
+    masks.forEach((mask) => {
+      if (!mask.enabled) return;
+      mask.polygons.forEach((polygon) => {
+        if (polygon.points.length < 2) return;
+        ctx.beginPath();
+        ctx.fillStyle = mask.color || "#000000";
+        ctx.globalAlpha = mask.opacity ?? 1;
+        polygon.points.forEach((pt, i) => {
+          const x = pt.x * W;
+          const y = pt.y * H;
+          i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+        });
+        ctx.closePath();
+        ctx.fill();
+        ctx.globalAlpha = 1;
+      });
+    });
+  }, [deviceId]);
+
+  useEffect(() => {
+    draw();
+    const onStorage = (e) => {
+      if (e.key === `miradorai_masks_${deviceId}`) draw();
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, [draw, deviceId]);
+
+  return (
+    <canvas
+      ref={canvasRef}
+      width={640}
+      height={360}
+      style={{
+        position: "absolute",
+        inset: 0,
+        width: "100%",
+        height: "100%",
+        pointerEvents: "none",
+        zIndex: 10,
+      }}
+    />
+  );
+}
 
 export default function LiveViewPage() {
   const [devices,      setDevices]      = useState(loadDevices);
@@ -22,14 +85,12 @@ export default function LiveViewPage() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const fsRef = useRef(null);
 
-  // ── Sync localStorage changes ────────────────────────────────────────
   useEffect(() => {
     const update = () => setDevices(loadDevices());
     window.addEventListener("storage", update);
     return () => window.removeEventListener("storage", update);
   }, []);
 
-  // ── Track browser fullscreen events (Esc / F11) ──────────────────────
   useEffect(() => {
     const onChange = () => {
       const active = !!(
@@ -50,8 +111,6 @@ export default function LiveViewPage() {
     };
   }, []);
 
-  // ── After fsDevice is set React renders the overlay div,
-  //    then we call requestFullscreen on that div ───────────────────────
   useEffect(() => {
     if (!fsDevice || !fsRef.current) return;
     const el  = fsRef.current;
@@ -62,21 +121,19 @@ export default function LiveViewPage() {
     if (req) {
       req.call(el).catch((err) => {
         console.warn("[LiveView] requestFullscreen failed:", err.message);
-        setIsFullscreen(true); // fallback — keep overlay visible
+        setIsFullscreen(true);
       });
     } else {
-      setIsFullscreen(true); // browser has no fullscreen API — use overlay as-is
+      setIsFullscreen(true);
     }
   }, [fsDevice]);
 
-  // ── Open: store device, overlay renders, useEffect fires ──────────────
   const openFullscreen = useCallback((device, e) => {
     e.stopPropagation();
     e.preventDefault();
     setFsDevice(device);
   }, []);
 
-  // ── Exit: ask browser to leave fullscreen ─────────────────────────────
   const exitFullscreen = useCallback(() => {
     const exit = document.exitFullscreen
       || document.webkitExitFullscreen
@@ -128,11 +185,7 @@ export default function LiveViewPage() {
         </div>
       </div>
 
-      {/* ── Native fullscreen overlay ──────────────────────────────────
-          Uses your existing .lv-fullscreen-overlay CSS.
-          fsRef is the element requestFullscreen() is called on.
-          The :fullscreen pseudo-class in your CSS then makes it
-          fill the entire screen including the taskbar.             */}
+      {/* ── Fullscreen overlay ── */}
       {fsDevice && (
         <div
           ref={fsRef}
@@ -157,13 +210,15 @@ export default function LiveViewPage() {
               Exit Fullscreen
             </button>
           </div>
-
-          <div className="lv-fullscreen-overlay__player">
+          <div className="lv-fullscreen-overlay__player" style={{ position: "relative" }}>
             {fsDevice.ws_url
-              ? <WebRTCPlayer
-                  key={`fs-${fsDevice.ws_url}`}
-                  serverUrl={fsDevice.ws_url}
-                />
+              ? <>
+                  <WebRTCPlayer
+                    key={`fs-${fsDevice.ws_url}`}
+                    serverUrl={fsDevice.ws_url}
+                  />
+                  <MaskOverlay deviceId={fsDevice.id} />
+                </>
               : <div className="lv-no-stream">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" width="48" height="48">
                     <path d="M23 7l-7 5 7 5V7z"/>
@@ -176,7 +231,7 @@ export default function LiveViewPage() {
         </div>
       )}
 
-      {/* ── Empty: no cameras ── */}
+      {/* ── Empty states ── */}
       {devices.length === 0 ? (
         <div className="lv-empty">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="0.8" width="64" height="64">
@@ -273,9 +328,12 @@ function CameraCell({ device, onFullscreen }) {
           </button>
         </div>
       </div>
-      <div className="lv-cam__player">
+      <div className="lv-cam__player" style={{ position: "relative" }}>
         {device.ws_url
-          ? <WebRTCPlayer key={device.ws_url} serverUrl={device.ws_url} />
+          ? <>
+              <WebRTCPlayer key={device.ws_url} serverUrl={device.ws_url} />
+              <MaskOverlay deviceId={device.id} />
+            </>
           : <div className="lv-no-stream">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" width="32" height="32">
                 <path d="M23 7l-7 5 7 5V7z"/>

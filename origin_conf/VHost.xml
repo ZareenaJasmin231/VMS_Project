@@ -1,25 +1,19 @@
 <?xml version="1.0" encoding="UTF-8"?>
-
 <VirtualHost>
     <Name>default</Name>
-
     <Host>
         <Names>
             <Name>*</Name>
         </Names>
     </Host>
-
     <Applications>
-
         <Application>
             <Name>app</Name>
             <Type>live</Type>
-
             <OutputProfiles>
                 <OutputProfile>
                     <Name>bypass_stream</Name>
                     <OutputStreamName>${OriginStreamName}</OutputStreamName>
-
                     <Encodes>
                         <Video>
                             <Bypass>true</Bypass>
@@ -28,38 +22,24 @@
                             <Bypass>true</Bypass>
                         </Audio>
                     </Encodes>
-
                 </OutputProfile>
             </OutputProfiles>
-
             <Providers>
-                <RTSPPull>
-                    <!-- <MaxFrameSize>104857600</MaxFrameSize> -->
-                    <!-- <BufferSize>20971520</BufferSize> -->
-                </RTSPPull>
+                <RTSPPull />
                 <RTMP />
                 <SRT />
             </Providers>
-
             <Publishers>
-
                 <AppWorkerCount>4</AppWorkerCount>
                 <StreamWorkerCount>16</StreamWorkerCount>
-
                 <WebRTC>
                     <Timeout>60000</Timeout>
-                    <!-- <MaxWaitingTime>30000</MaxWaitingTime> -->
                 </WebRTC>
-
                 <LLHLS>
                     <ChunkDuration>0.2</ChunkDuration>
                     <SegmentCount>3</SegmentCount>
                 </LLHLS>
-
             </Publishers>
-
         </Application>
-
     </Applications>
-
 </VirtualHost>

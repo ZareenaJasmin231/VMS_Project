@@ -1,5 +1,6 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response
 from pydantic import BaseModel
 from pymongo import MongoClient
 from datetime import datetime
@@ -9,6 +10,7 @@ import json
 import os
 import re
 import requests as http_requests
+import httpx
 from ome_service import register_stream
 from onvif_service import probe_camera, move_camera_ptz
 import rtsp_recorder as recorder
@@ -17,10 +19,10 @@ from recording_api import recording_router
 from stream_health import start_health_monitoring
 import shutil
 import urllib.parse
+from masks_router import router as masks_router
 
 
 def normalize_stream_name(ip: str) -> str:
-    """Always derive stream name from IP only — ensures one folder per camera."""
     return ip.strip().replace(".", "_")
 
 
@@ -33,6 +35,7 @@ app.add_middleware(
 )
 
 app.include_router(recording_router)
+app.include_router(masks_router)
 
 _health_monitor_task = None
 
@@ -42,12 +45,12 @@ OME_AUTH          = "Basic bXl2bXNhY2Nlc3N0b2tlbg=="
 MONGO_URI         = os.environ.get("MONGO_URI", "mongodb://mongo:27017/")
 OME_HOST_IP       = os.environ.get("OME_HOST_IP", "localhost")
 OME_WS_PORT       = os.environ.get("OME_WS_PORT", "3333")
+OME_WHIP_BASE     = os.environ.get("OME_WHIP_BASE", "http://192.168.126.200:3333/app")
 
 WATCHDOG_INTERVAL      = 5
 WATCHDOG_MAX_RETRIES   = 20
 WATCHDOG_BACKOFF_RESET = 10
 
-# Password hashing
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 # ------------------------------------------------------------------
@@ -59,7 +62,6 @@ try:
     _db         = _mongo["mirador-vms"]
     cameras_col = _db["cameras"]
     users_col   = _db["users"]
-    # Create unique index on email to prevent duplicates
     users_col.create_index("email", unique=True)
     print(f"[MONGO] ✅ Connected: {MONGO_URI}")
 except Exception as e:
@@ -147,7 +149,6 @@ def stream_exists_in_ome(stream_name: str) -> bool:
 
 
 def get_devices_by_ip(ip: str) -> list:
-    """Return every device entry whose ip matches."""
     return [d for d in devices if d.get("ip") == ip]
 
 
@@ -155,6 +156,32 @@ devices = load_devices()
 
 _watchdog_failures: dict[str, int] = {}
 _watchdog_cycle = 0
+
+
+# ------------------------------------------------------------------
+# WebRTC WHIP proxy — bypasses CORS from browser to OME
+# ------------------------------------------------------------------
+@app.post("/api/whip/{stream_key}")
+async def webrtc_proxy(stream_key: str, request: Request):
+    body = await request.body()
+    ome_url = f"{OME_WHIP_BASE}/{stream_key}"
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(
+                ome_url,
+                content=body,
+                headers={"Content-Type": "application/sdp"},
+                timeout=10.0,
+            )
+        return Response(
+            content=resp.content,
+            status_code=resp.status_code,
+            media_type="application/sdp",
+            headers={"Access-Control-Allow-Origin": "*"},
+        )
+    except Exception as e:
+        print(f"[WHIP] ❌ Proxy error for {stream_key}: {e}")
+        raise HTTPException(status_code=502, detail=str(e))
 
 
 # ------------------------------------------------------------------
@@ -174,7 +201,7 @@ async def _wait_for_ome(max_retries: int = 30, delay: int = 5):
 
 
 # ------------------------------------------------------------------
-# Stream watchdog — uses recording_rtsp for recorder, rtsp_url for OME
+# Stream watchdog
 # ------------------------------------------------------------------
 async def stream_watchdog():
     global _watchdog_cycle
@@ -252,7 +279,6 @@ async def startup():
     asyncio.create_task(stream_watchdog())
     _health_monitor_task = asyncio.create_task(start_health_monitoring(devices, cameras_col))
     encrypt_service.start_watcher()
-
     recorder.start_recording_all(devices)
 
     enabled_count = sum(1 for d in devices if d.get("enabled") is not False)
@@ -312,7 +338,6 @@ class StreamRegisterRequest(BaseModel):
 
 
 class StreamAssignRequest(BaseModel):
-    """Assign independent RTSP sources for live streaming and recording."""
     ip:                str
     port:              int = 80
     username:          str = ""
@@ -336,9 +361,6 @@ class PTZMoveRequest(BaseModel):
     zoom:     float = 0.0
 
 
-# ------------------------------------------------------------------
-# Auth Models
-# ------------------------------------------------------------------
 class SignupRequest(BaseModel):
     email:    str
     password: str
@@ -368,26 +390,17 @@ class ResetPasswordRequest(BaseModel):
 def auth_signup(req: SignupRequest):
     if users_col is None:
         raise HTTPException(status_code=500, detail="Database not connected")
-
-    # Basic validation
     if not req.email or not req.password:
         raise HTTPException(status_code=400, detail="Email and password are required")
-
     email_regex = r"^[^\s@]+@[^\s@]+\.[^\s@]+$"
     if not re.match(email_regex, req.email):
         raise HTTPException(status_code=400, detail="Invalid email format")
-
     if len(req.password) < 6:
         raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
-
     if req.role not in ("admin", "client"):
         raise HTTPException(status_code=400, detail="Role must be 'admin' or 'client'")
-
-    # Check if email already exists
     if users_col.find_one({"email": req.email}):
         raise HTTPException(status_code=400, detail="Email already registered")
-
-    # Hash password and save
     hashed_password = pwd_context.hash(req.password)
     user_doc = {
         "email":     req.email,
@@ -395,14 +408,12 @@ def auth_signup(req: SignupRequest):
         "role":      req.role,
         "createdAt": datetime.utcnow().isoformat(),
     }
-
     try:
         users_col.insert_one(user_doc)
         print(f"[AUTH] ✅ New user registered: {req.email} ({req.role})")
     except Exception as e:
         print(f"[AUTH] ❌ Signup failed: {e}")
         raise HTTPException(status_code=500, detail="Failed to create account")
-
     return {"success": True, "message": "Account created successfully! Please sign in."}
 
 
@@ -410,26 +421,18 @@ def auth_signup(req: SignupRequest):
 def auth_login(req: LoginRequest):
     if users_col is None:
         raise HTTPException(status_code=500, detail="Database not connected")
-
     if not req.email or not req.password:
         raise HTTPException(status_code=400, detail="Email and password are required")
-
-    # Find user by email
     user = users_col.find_one({"email": req.email})
     if not user:
         raise HTTPException(status_code=401, detail="Invalid email or password")
-
-    # Verify password
     if not pwd_context.verify(req.password, user["password"]):
         raise HTTPException(status_code=401, detail="Invalid email or password")
-
-    # Check role matches
     if user["role"] != req.role:
         raise HTTPException(
             status_code=403,
             detail=f"This account is registered as {user['role']}. Please select the correct role."
         )
-
     print(f"[AUTH] ✅ Login: {req.email} ({req.role})")
     return {
         "success": True,
@@ -445,16 +448,11 @@ def auth_login(req: LoginRequest):
 def auth_forgot_password(req: ForgotPasswordRequest):
     if users_col is None:
         raise HTTPException(status_code=500, detail="Database not connected")
-
     if not req.email:
         raise HTTPException(status_code=400, detail="Email is required")
-
     user = users_col.find_one({"email": req.email})
     if not user:
         raise HTTPException(status_code=404, detail="No account found with this email. Please sign up instead.")
-
-    # In production: generate token, send reset email
-    # For now: return success so the UI can proceed to the reset step
     print(f"[AUTH] 🔑 Password reset requested for: {req.email}")
     return {
         "success": True,
@@ -466,26 +464,20 @@ def auth_forgot_password(req: ForgotPasswordRequest):
 def auth_reset_password(req: ResetPasswordRequest):
     if users_col is None:
         raise HTTPException(status_code=500, detail="Database not connected")
-
     if not req.email or not req.new_password or not req.confirm_password:
         raise HTTPException(status_code=400, detail="All fields are required")
-
     if len(req.new_password) < 6:
         raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
-
     if req.new_password != req.confirm_password:
         raise HTTPException(status_code=400, detail="Passwords do not match")
-
     user = users_col.find_one({"email": req.email})
     if not user:
         raise HTTPException(status_code=404, detail="Account not found")
-
     hashed_password = pwd_context.hash(req.new_password)
     users_col.update_one(
         {"email": req.email},
         {"$set": {"password": hashed_password, "updatedAt": datetime.utcnow().isoformat()}}
     )
-
     print(f"[AUTH] ✅ Password reset for: {req.email}")
     return {"success": True, "message": "Password reset successfully! Please sign in."}
 
@@ -512,7 +504,7 @@ async def discover_devices():
 
 
 # ------------------------------------------------------------------
-# Camera enable / disable / delete  (by IP)
+# Camera enable / disable / delete
 # ------------------------------------------------------------------
 @app.post("/api/cameras/by-ip/{ip}/enable")
 async def enable_camera_by_ip(ip: str):
@@ -520,7 +512,6 @@ async def enable_camera_by_ip(ip: str):
     matched = get_devices_by_ip(ip)
     if not matched:
         raise HTTPException(status_code=404, detail=f"No camera found with IP {ip}")
-
     started = []
     for device in matched:
         stream_name = device.get("ome_stream")
@@ -528,21 +519,17 @@ async def enable_camera_by_ip(ip: str):
         rec_rtsp    = device.get("recording_rtsp", rtsp_url)
         if not stream_name or not rtsp_url:
             continue
-
         device["enabled"] = True
         try:
             register_stream(stream_name, rtsp_url)
         except Exception as e:
             print(f"[ENABLE] OME re-register failed for {stream_name}: {e}")
-
         recorder.start_camera(stream_name, rec_rtsp, device)
         started.append(stream_name)
         print(f"[ENABLE] ✅ {stream_name} enabled and recording started")
-
     save_devices(devices)
     if cameras_col is not None:
         cameras_col.update_one({"ip": ip}, {"$set": {"enabled": True}})
-
     return {"success": True, "ip": ip, "streams_started": started}
 
 
@@ -552,7 +539,6 @@ async def disable_camera_by_ip(ip: str):
     matched = get_devices_by_ip(ip)
     if not matched:
         raise HTTPException(status_code=404, detail=f"No camera found with IP {ip}")
-
     stopped = []
     for device in matched:
         stream_name = device.get("ome_stream")
@@ -562,11 +548,9 @@ async def disable_camera_by_ip(ip: str):
         recorder.stop_camera(stream_name)
         stopped.append(stream_name)
         print(f"[DISABLE] ⏹ {stream_name} disabled and recording stopped")
-
     save_devices(devices)
     if cameras_col is not None:
         cameras_col.update_one({"ip": ip}, {"$set": {"enabled": False}})
-
     return {"success": True, "ip": ip, "streams_stopped": stopped}
 
 
@@ -574,7 +558,6 @@ async def disable_camera_by_ip(ip: str):
 async def delete_camera_by_ip(ip: str):
     global devices
     matched = get_devices_by_ip(ip)
-
     stopped = []
     for device in matched:
         stream_name = device.get("ome_stream")
@@ -593,15 +576,11 @@ async def delete_camera_by_ip(ip: str):
         except Exception as e:
             print(f"[DELETE] OME unregister failed for {stream_name} (non-fatal): {e}")
         _watchdog_failures.pop(stream_name, None)
-
     devices = [d for d in devices if d.get("ip") != ip]
     save_devices(devices)
-    print(f"[DELETE] 🗑 Removed all streams for IP {ip} from devices list")
-
     if cameras_col is not None:
         result = cameras_col.delete_many({"ip": ip})
         print(f"[DELETE] 🗑 MongoDB: removed {result.deleted_count} document(s) for IP {ip}")
-
     return {"success": True, "ip": ip, "streams_stopped": stopped}
 
 
@@ -989,7 +968,6 @@ def storage_management():
     except Exception:
         total, used, free = 0, 0, 0
         status = "Unavailable"
-
     return [{
         "location":  "C:\\Recording",
         "type":      "Local Disk",
@@ -1012,7 +990,6 @@ def storage_selection():
         stream         = cam.get("ome_stream", "")
         recordings_dir = os.environ.get("RECORDINGS_DIR", "/recordings")
         cam_dir        = os.path.join(recordings_dir, stream)
-
         used_bytes = 0
         oldest     = None
         if os.path.exists(cam_dir):
@@ -1026,10 +1003,8 @@ def storage_selection():
                             oldest = mtime
                     except:
                         pass
-
         used_gb    = round(used_bytes / (1024**3), 2)
         oldest_str = datetime.fromtimestamp(oldest).strftime("%d-%m-%Y %H:%M:%S") if oldest else "N/A"
-
         result.append({
             "device":           f"{cam.get('manufacturer', '')} {cam.get('model', '')}".strip() or cam.get("ip"),
             "ip":               cam.get("ip"),
