@@ -63,18 +63,18 @@ export default function ImageConfigPage() {
 
   const setV = (k, v) => setVals((f) => ({ ...f, [k]: v }));
 
-  // Load real devices from localStorage (File 2 approach)
   const devices = loadDevices();
   const selectedDevice = devices.find((d) => String(d.id) === String(selected));
   const wsUrl = selectedDevice?.ws_url || null;
 
-  // Build DataTable rows from real devices
-  const rows = devices.map((d) => ({
-    id: String(d.id),
-    cells: [d.name, d.ip || "—", d.manufacturer || "—", d.model || "—"],
-  }));
+  // ── FIX: Only show the selected camera in this feature page ──
+  const rows = devices
+    .filter((d) => !selected || String(d.id) === String(selected))
+    .map((d) => ({
+      id: String(d.id),
+      cells: [d.name, d.ip || "—", d.manufacturer || "—", d.model || "—"],
+    }));
 
-  // Filter rows using the SearchBar filter (File 1 approach)
   const filteredRows = rows.filter((r) =>
     !filter ||
     r.cells.some((c) => c.toLowerCase().includes(filter.toLowerCase()))
@@ -109,10 +109,9 @@ export default function ImageConfigPage() {
       {/* Camera Table — fixed height shows 4 rows, scrollable beyond that */}
       <div
         style={{
-          maxHeight: "calc(4 * 48px + 48px)", /* 4 data rows + 1 header row (48px each) */
+          maxHeight: "calc(4 * 48px + 48px)",
           overflowY: "auto",
           borderRadius: 8,
-          /* Subtle scrollbar styling */
           scrollbarWidth: "thin",
           scrollbarColor: "#334155 transparent",
         }}
@@ -127,7 +126,7 @@ export default function ImageConfigPage() {
       </div>
 
       <div className="ic-bottom">
-        {/* Live Stream Preview — WebRTCPlayer (File 2) + CSS filter/transform overlays (File 1) */}
+        {/* Live Stream Preview */}
         <div className="ic-preview card">
           {!selected ? (
             <div className="ic-preview__inner">
@@ -153,7 +152,6 @@ export default function ImageConfigPage() {
               </div>
               <div className="ic-preview__video-wrap">
                 {wsUrl ? (
-                  // WebRTCPlayer wrapped with CSS filter + transform from File 1
                   <div
                     style={{
                       filter: cssFilter,
@@ -176,7 +174,6 @@ export default function ImageConfigPage() {
                   </div>
                 )}
 
-                {/* Filter readout overlay (File 1) */}
                 {wsUrl && (
                   <div className="ic-filter-readout">
                     {[
@@ -199,7 +196,7 @@ export default function ImageConfigPage() {
           )}
         </div>
 
-        {/* Image Controls — full set from File 1 */}
+        {/* Image Controls */}
         <div className="ic-controls card">
           <div className="ic-controls__title">Image Parameters</div>
 
@@ -285,7 +282,7 @@ export default function ImageConfigPage() {
         </div>
       </div>
 
-      {/* Footer — from File 1 */}
+      {/* Footer */}
       <div className="page-footer">
         <span />
         <div className="page-footer-right">

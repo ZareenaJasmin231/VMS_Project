@@ -10,11 +10,12 @@ services:
       - "3334:3334"
       - "8080:8080"
       - "8081:8081"
-      - "554:554"          
-
+      - "554:554"
       - "10000-10009:10000-10009/udp"
     volumes:
       - ./origin_conf:/opt/ovenmediaengine/bin/origin_conf
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     networks:
       - vmsnet
 
@@ -44,11 +45,24 @@ services:
       - OME_WS_PORT=3333
       - MONGO_URI=mongodb://mongo:27017/
       - RECORDINGS_DIR=/recordings
+      - RECORDING_CONFIG_FILE=/app/data/recording_config.json
       - VIDEO_KEY_FILE=/app/data/video.key
       - CHUNK_SECONDS=300
+      - TZ=Asia/Kolkata
+      - BACKUP_CONFIG=/app/data/backup_config.json
+      - BACKUP_HEALTH=/app/data/health_log.json
+      # /network_backup inside container = C:\vmsrecording_backup on Windows host
+      # Robocopy then pushes C:\vmsrecording_backup → \\10.22.101.30\vmsrecording
+      - BACKUP_NETWORK_DIR=/network_backup
     volumes:
       - ./devices_data:/app/data
-      - D:/recordings:/recordings
+      # Live recordings: D:\REC on host → /recordings in container
+      - D:/REC:/recordings
+      # Backup stage: C:\vmsrecording_backup on host → /network_backup in container
+      # NOTE: Docker CANNOT mount UNC paths (\\server\share) directly.
+      #       Use C:\vmsrecording_backup as staging, then Robocopy pushes it to the laptop.
+      - C:/vmsrecording_backup:/network_backup
+      - /etc/localtime:/etc/localtime:ro
     depends_on:
       - ome
       - mongo

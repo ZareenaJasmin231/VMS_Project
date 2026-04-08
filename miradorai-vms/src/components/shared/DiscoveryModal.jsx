@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import "./DiscoveryModal.css";
 
-const STREAM_API = "http://localhost:8000";
+const STREAM_API = "http://192.168.126.200:8000";
 
 export default function DiscoveryModal({ isOpen, onClose, onAddDevices }) {
   const [discoveredDevices, setDiscoveredDevices] = useState([]);
@@ -139,88 +139,106 @@ export default function DiscoveryModal({ isOpen, onClose, onAddDevices }) {
     toAdd.forEach((d) => { initStatus[d.id] = { status: "pending" }; });
     setRegStatus(initStatus);
 
-    const results = await Promise.all(
-      toAdd.map(async (device) => {
-        const creds = deviceCreds[device.id] || {};
-        let ws_url        = null;
-        let stream_key    = null;
-        let stream_status = "error";
-        let rtsp_url      = null;
+ const results = await Promise.all(
+  toAdd.map(async (device) => {
 
-        // ── Enriched fields from probe ──
-        let enrichedName         = null;
-        let enrichedManufacturer = device.manufacturer || "Unknown";
-        let enrichedModel        = device.model        || "Unknown";
-        let enrichedFirmware     = null;
-        let enrichedSerial       = null;
+    const creds = deviceCreds[device.id] || {};   // ✅ MOVE HERE FIRST
 
-        // ── ✅ Stream profile fields — declared here in scope ──
-        let streamProfiles = [];
-        let streamCount    = 0;
+    const probePayload = {
+      ip: device.ip,
+      username: creds.username || "",
+      password: creds.password || "",
+    };
 
-        setRegStatus((prev) => ({ ...prev, [device.id]: { status: "registering" } }));
+    const devicePort = device.port;
+    if (devicePort && !isNaN(devicePort) && Number(devicePort) > 0) {
+      probePayload.port = Number(devicePort);
+    }
 
-        try {
-          const res = await fetch(`${STREAM_API}/api/onvif/probe`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              ip:       device.ip,
-              port:     device.port || 80,
-              username: creds.username || "",
-              password: creds.password || "",
-            }),
-          });
+    setRegStatus((prev) => ({
+      ...prev,
+      [device.id]: { status: "registering" }
+    }));
 
-          const data = res.ok ? await res.json() : null;
+    let ws_url = null;
+    let stream_key = null;
+    let stream_status = "error";
+    let rtsp_url = null;
 
-          if (data?.success && data?.ws_url) {
-            ws_url        = data.ws_url;
-            stream_key    = data.stream_key || data.ome_stream || null;
-            stream_status = data.status     || "streaming";
-            rtsp_url      = data.rtsp_url   || data.stream_uri || null;
+    let enrichedName = null;
+    let enrichedManufacturer = device.manufacturer || "Unknown";
+    let enrichedModel = device.model || "Unknown";
+    let enrichedFirmware = null;
+    let enrichedSerial = null;
 
-            enrichedManufacturer = data.manufacturer || enrichedManufacturer;
-            enrichedModel        = data.model        || enrichedModel;
-            enrichedFirmware     = data.firmware     || null;
-            enrichedSerial       = data.serial       || null;
-            enrichedName         = `${enrichedManufacturer} ${enrichedModel}`.trim() || null;
+    let streamProfiles = [];
+    let streamCount = 0;
 
-            // ✅ Pull stream profiles from probe response
-            streamProfiles = data.profiles      || [];
-            streamCount    = data.stream_count  ?? streamProfiles.length;
+    try {
+      const res = await fetch(`${STREAM_API}/api/onvif/probe`, {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify(probePayload),
+      });
 
-            setRegStatus((prev) => ({ ...prev, [device.id]: { status: "success", ws_url } }));
-          } else {
-            const errMsg = data?.error || (res.ok ? "Probe failed" : `HTTP ${res.status}`);
-            setRegStatus((prev) => ({ ...prev, [device.id]: { status: "error", error: errMsg } }));
-          }
-        } catch (err) {
-          setRegStatus((prev) => ({ ...prev, [device.id]: { status: "error", error: err.message } }));
-        }
+      const data = res.ok ? await res.json() : null;
 
-        return {
-          id:              `device-${device.ip}-${Date.now()}`,
-          type:            "entrance",
-          name:            enrichedName || device.name || `Camera @ ${device.ip}`,
-          ip:              device.ip,
-          mac:             device.mac   || "—",
-          status:          ws_url ? "Online" : "Offline",
-          manufacturer:    enrichedManufacturer,
-          model:           enrichedModel,
-          firmware:        enrichedFirmware,
-          serial:          enrichedSerial,
-          rtsp_url,
-          ws_url,
-          stream_key,
-          stream_status,
-          source:          "discovery",
-          // ✅ These now correctly reference the variables declared above
-          stream_profiles: streamProfiles,
-          stream_count:    streamCount,
-        };
-      })
-    );
+      if (data?.success && data?.ws_url) {
+        ws_url = data.ws_url;
+        stream_key = data.stream_key || data.ome_stream || null;
+        stream_status = data.status || "streaming";
+        rtsp_url = data.rtsp_url || data.stream_uri || null;
+
+        enrichedManufacturer = data.manufacturer || enrichedManufacturer;
+        enrichedModel = data.model || enrichedModel;
+        enrichedFirmware = data.firmware || null;
+        enrichedSerial = data.serial || null;
+
+        enrichedName = `${enrichedManufacturer} ${enrichedModel}`.trim();
+
+        streamProfiles = data.profiles || [];
+        streamCount = data.stream_count ?? streamProfiles.length;
+
+        setRegStatus((prev) => ({
+          ...prev,
+          [device.id]: { status: "success", ws_url }
+        }));
+      } else {
+        const errMsg = data?.error || `HTTP ${res.status}`;
+        setRegStatus((prev) => ({
+          ...prev,
+          [device.id]: { status: "error", error: errMsg }
+        }));
+      }
+
+    } catch (err) {
+      setRegStatus((prev) => ({
+        ...prev,
+        [device.id]: { status: "error", error: err.message }
+      }));
+    }
+
+    return {
+      id: `device-${device.ip}-${Date.now()}`,
+      type: "entrance",
+      name: enrichedName || `Camera @ ${device.ip}`,
+      ip: device.ip,
+      mac: device.mac || "—",
+      status: ws_url ? "Online" : "Offline",
+      manufacturer: enrichedManufacturer,
+      model: enrichedModel,
+      firmware: enrichedFirmware,
+      serial: enrichedSerial,
+      rtsp_url,
+      ws_url,
+      stream_key,
+      stream_status,
+      source: "discovery",
+      stream_profiles: streamProfiles,
+      stream_count: streamCount,
+    };
+  })
+);
 
     await new Promise((r) => setTimeout(r, 600));
     setIsRegistering(false);

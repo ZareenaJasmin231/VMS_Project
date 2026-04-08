@@ -1,88 +1,151 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
+import {
+  fetchMasks, fetchPipelineStatus,
+  saveMask, updateMask, deleteMask,
+} from "../api/maskApi";
 
-function getMaskKey(cameraId) {
-  return `miradorai_masks_${cameraId}`;
-}
+export function useMask(cameraId, rawWsUrl) {
+  const [masks,          setMasks]          = useState([]);
+  const [loading,        setLoading]        = useState(false);
+  const [error,          setError]          = useState(null);
+  const [saving,         setSaving]         = useState(false);
+  const [deletingId,     setDeletingId]     = useState(null);
+  const [togglingId,     setTogglingId]     = useState(null);
 
-function loadMasks(cameraId) {
-  try {
-    const saved = localStorage.getItem(getMaskKey(cameraId));
-    return saved ? JSON.parse(saved) : [];
-  } catch { return []; }
-}
+  // Drawing state
+  const [drawingMode,    setDrawingMode]    = useState(false);
+  const [pendingRect,    setPendingRect]    = useState(null);  // drawn but not yet saved
 
-function persistMasks(cameraId, masks) {
-  try {
-    localStorage.setItem(getMaskKey(cameraId), JSON.stringify(masks));
-  } catch {}
-}
+  // Pipeline state
+  const [pipelineRunning,  setPipelineRunning]  = useState(false);
+  const [maskedWsUrl,      setMaskedWsUrl]      = useState(null);
 
-export function useMask(cameraId) {
-  const [masks, setMasks] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-  const [drawingMode, setDrawingMode] = useState(false);
-  const [activePoints, setActivePoints] = useState([]);
+  const pollRef = useRef(null);
+
+  // ── Load masks ───────────────────────────────────────────────
+  const loadMasks = useCallback(async () => {
+    if (!cameraId) return;
+    setLoading(true);
+    setError(null);
+    try {
+      setMasks(await fetchMasks(cameraId));
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [cameraId]);
+
+  // ── Poll pipeline status ─────────────────────────────────────
+  const checkPipeline = useCallback(async () => {
+    if (!cameraId) return;
+    try {
+      const s = await fetchPipelineStatus(cameraId);
+      setPipelineRunning(s.pipeline_running);
+      // Use the ws url returned by backend (has correct OME_HOST_IP baked in)
+      setMaskedWsUrl(s.pipeline_running ? s.masked_ws_url : null);
+    } catch {}
+  }, [cameraId]);
+
+  useEffect(() => {
+    loadMasks();
+    checkPipeline();
+  }, [loadMasks, checkPipeline]);
 
   useEffect(() => {
     if (!cameraId) return;
-    setLoading(true);
-    const data = loadMasks(cameraId);
-    setMasks(data);
-    setLoading(false);
-  }, [cameraId]);
+    pollRef.current = setInterval(checkPipeline, 3000);
+    return () => clearInterval(pollRef.current);
+  }, [checkPipeline]);
 
-  const addPoint = (x, y) => {
-    setActivePoints((prev) => [...prev, { x, y }]);
+  // ── Drawing ──────────────────────────────────────────────────
+  const startDrawing = () => {
+    setPendingRect(null);
+    setDrawingMode(true);
+    setError(null);
   };
 
   const cancelDrawing = () => {
     setDrawingMode(false);
-    setActivePoints([]);
+    setPendingRect(null);
   };
 
-  const saveCurrentMask = async (label, color, opacity) => {
-    if (activePoints.length < 3) return;
-    const newMask = {
-      id: `mask_${Date.now()}`,
-      camera_id: cameraId,
-      label,
-      color,
-      opacity,
-      enabled: true,
-      polygons: [{ points: activePoints }],
-    };
-    const updated = [...masks, newMask];
-    setMasks(updated);
-    persistMasks(cameraId, updated);
-    cancelDrawing();
+  const onRectDrawn = (rect) => {
+    // rect = { x, y, w, h } normalized 0-1
+    // Just store it — user must press Save to commit
+    setPendingRect(rect);
+    setDrawingMode(false);   // exit draw mode, show save controls
   };
 
-  const toggleMask = (maskId, enabled) => {
-    const updated = masks.map((m) =>
-      m.id === maskId ? { ...m, enabled } : m
-    );
-    setMasks(updated);
-    persistMasks(cameraId, updated);
+  // ── Save pending rect ────────────────────────────────────────
+  const saveZone = async ({ label, color, opacity }) => {
+    if (!pendingRect || !cameraId) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const { x, y, w, h } = pendingRect;
+      const saved = await saveMask(cameraId, {
+        camera_id: cameraId,
+        label,
+        color,
+        opacity,
+        enabled: true,
+        polygons: [{
+          points: [
+            { x,     y     },
+            { x: x+w, y     },
+            { x: x+w, y: y+h },
+            { x,     y: y+h },
+          ],
+        }],
+      });
+      setMasks(prev => [...prev, saved]);
+      setPendingRect(null);
+      // Pipeline starts server-side; poll picks it up within 3 s
+    } catch (e) {
+      setError(e.message);
+      throw e;
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const removeMask = (maskId) => {
-    const updated = masks.filter((m) => m.id !== maskId);
-    setMasks(updated);
-    persistMasks(cameraId, updated);
+  // ── Toggle ───────────────────────────────────────────────────
+  const toggleMask = async (maskId, enabled) => {
+    setTogglingId(maskId);
+    setMasks(prev => prev.map(m => m.id === maskId ? { ...m, enabled } : m));
+    try {
+      await updateMask(maskId, { enabled });
+    } catch (e) {
+      setMasks(prev => prev.map(m => m.id === maskId ? { ...m, enabled: !enabled } : m));
+      setError(e.message);
+    } finally {
+      setTogglingId(null);
+    }
+  };
+
+  // ── Delete ───────────────────────────────────────────────────
+  const removeMask = async (maskId) => {
+    setDeletingId(maskId);
+    setError(null);
+    try {
+      await deleteMask(maskId);
+      setMasks(prev => prev.filter(m => m.id !== maskId));
+    } catch (e) {
+      setError(e.message);
+      throw e;
+    } finally {
+      setDeletingId(null);
+    }
   };
 
   return {
-    masks,
-    loading,
-    error,
-    drawingMode,
-    activePoints,
-    setDrawingMode,
-    addPoint,
-    cancelDrawing,
-    saveCurrentMask,
-    toggleMask,
-    removeMask,
+    masks, loading, error,
+    saving, deletingId, togglingId,
+    drawingMode, pendingRect,
+    pipelineRunning, maskedWsUrl,
+    startDrawing, cancelDrawing, onRectDrawn, saveZone,
+    toggleMask, removeMask,
+    reload: loadMasks,
   };
 }

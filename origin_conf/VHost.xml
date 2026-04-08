@@ -6,16 +6,10 @@
             <Name>*</Name>
         </Names>
     </Host>
-    <CrossDomains>
-        <Url>*</Url>
-    </CrossDomains>
     <Applications>
         <Application>
             <Name>app</Name>
             <Type>live</Type>
-            <CrossDomains>
-                <Url>*</Url>
-            </CrossDomains>
             <OutputProfiles>
                 <OutputProfile>
                     <Name>bypass_stream</Name>

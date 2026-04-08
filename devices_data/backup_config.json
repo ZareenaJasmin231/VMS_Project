@@ -1,0 +1,14 @@
+{
+  "network": {
+    "protocol": "SMB",
+    "ip": "10.22.101.30",
+    "port": 445,
+    "username": "",
+    "password": "",
+    "path": "\\\\10.22.101.30\\vmsrecording"
+  },
+  "auto": {
+    "enabled": false
+  },
+  "retention_days": 7
+}

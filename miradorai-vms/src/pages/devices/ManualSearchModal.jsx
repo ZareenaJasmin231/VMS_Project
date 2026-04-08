@@ -302,7 +302,12 @@ export default function ManualSearchModal({ onClose, onEnroll }) {
       const res = await fetch("http://localhost:8000/api/onvif/probe", {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ ip, port: Number(port), username: user, password: pass }),
+        body: JSON.stringify({
+          ip,
+          port: port ? Number(port) : null,
+          username: user,
+          password: pass
+        }),
         signal:  controller.signal,
       });
       clearTimeout(timeoutId);

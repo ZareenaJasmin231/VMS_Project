@@ -3,8 +3,13 @@ rtsp_recorder.py
 ----------------
 Records every registered RTSP camera into 5-minute MP4 chunks.
 Saves files as:  <RECORDINGS_DIR>/<camera_id>/<YYYY-MM-DD>/<YYYY-MM-DD_HH-MM-SS>.mp4
+Supports vf_filter for privacy masking burned into stream and recordings.
 
-The encrypt_service watchdog picks them up automatically after each chunk closes.
+RECORDING PATH:
+  Priority order for the recording directory:
+    1. Runtime override set via set_recordings_dir() (called by /api/storage/apply)
+    2. RECORDINGS_DIR environment variable
+    3. Default: /recording
 """
 
 import os
@@ -13,26 +18,60 @@ import threading
 import time
 import signal
 from datetime import datetime
+import mask_service
 
 from onvif_service import get_camera_system_time
 
-# ------------------------------------------------------------------
-# Config
-# ------------------------------------------------------------------
-RECORDINGS_DIR  = os.environ.get("RECORDINGS_DIR", "/recording")
-CHUNK_SECONDS   = int(os.environ.get("CHUNK_SECONDS", "300"))
-FFMPEG_BIN      = os.environ.get("FFMPEG_BIN", "ffmpeg")
+# ── Default recordings directory (can be overridden at runtime) ──
+_DEFAULT_RECORDINGS_DIR = os.environ.get("RECORDINGS_DIR", "/recording")
+_recordings_dir_lock    = threading.Lock()
+_recordings_dir_override: str | None = None   # set by set_recordings_dir()
 
-# Active recorder threads keyed by stream_name
-_recorders: dict[str, threading.Thread] = {}
-_stop_flags: dict[str, threading.Event] = {}
+CHUNK_SECONDS = int(os.environ.get("CHUNK_SECONDS", "300"))
+FFMPEG_BIN    = os.environ.get("FFMPEG_BIN", "ffmpeg")
+
+_recorders:  dict[str, threading.Thread] = {}
+_stop_flags: dict[str, threading.Event]  = {}
+_vf_filters: dict[str, str]              = {}
 
 
-# ------------------------------------------------------------------
-# Single-camera recorder loop
-# ------------------------------------------------------------------
-def _record_loop(stream_name: str, rtsp_url: str, stop_event: threading.Event, camera_data: dict | None = None):
-    print(f"[RECORDER] ▶ Starting recorder for {stream_name}")
+def get_recordings_dir() -> str:
+    """Return the current effective recordings directory."""
+    with _recordings_dir_lock:
+        return _recordings_dir_override or _DEFAULT_RECORDINGS_DIR
+
+
+def set_recordings_dir(path: str):
+    """
+    Override the recordings directory at runtime.
+    Called by POST /api/storage/apply when the user changes the path in the UI.
+    New recording chunks will immediately start writing to the new path.
+    In-progress ffmpeg processes finish their current chunk at the old path,
+    then the next chunk uses the new path.
+    """
+    global _recordings_dir_override
+    path = path.strip()
+    if not path:
+        return
+    with _recordings_dir_lock:
+        _recordings_dir_override = path
+    # Create the directory now so ffmpeg never fails on a missing path
+    try:
+        os.makedirs(path, exist_ok=True)
+        print(f"[RECORDER] 📁 Recording path updated to: {path}")
+    except Exception as e:
+        print(f"[RECORDER] ⚠ Could not create recording directory '{path}': {e}")
+
+
+def _record_loop(
+    stream_name: str,
+    rtsp_url: str,
+    stop_event: threading.Event,
+    camera_data: dict | None = None,
+    vf_filter: str = "",
+):
+    print(f"[RECORDER] ▶ Starting recorder for {stream_name}"
+          f"{' (with mask filter)' if vf_filter else ''}")
 
     while not stop_event.is_set():
         camera_time = None
@@ -48,30 +87,66 @@ def _record_loop(stream_name: str, rtsp_url: str, stop_event: threading.Event, c
             else:
                 print(f"[RECORDER] ℹ Using camera time for {stream_name}: {camera_time.isoformat()}")
 
-        now       = camera_time or datetime.now()
+        now       = camera_time if camera_time is not None else datetime.now()
         date_str  = now.strftime("%Y-%m-%d")
         time_str  = now.strftime("%H-%M-%S")
         timestamp = f"{date_str}_{time_str}"
 
-        out_dir  = os.path.join(RECORDINGS_DIR, stream_name, date_str)
+        # ── Use the current effective recordings dir (respects runtime override) ──
+        recordings_dir = get_recordings_dir()
+        out_dir  = os.path.join(recordings_dir, stream_name, date_str)
         os.makedirs(out_dir, exist_ok=True)
         out_file = os.path.join(out_dir, f"{timestamp}.mp4")
 
-        cmd = [
-            FFMPEG_BIN,
-            "-loglevel",       "error",
-            "-rtsp_transport", "tcp",
-            "-i",              rtsp_url,
-            "-t",              str(CHUNK_SECONDS),
-            "-c:v",            "copy",
-            "-an",
-            "-movflags",       "+faststart",
-            "-y",
-            out_file,
-        ]
+        print(f"[RECORDER] 💾 Saving chunk to: {out_file}")
+
+        # ── Re-fetch mask filter each chunk so newly drawn masks apply immediately ──
+        current_vf = vf_filter
+        if camera_data and camera_data.get("ip"):
+            fresh_vf = mask_service.build_ffmpeg_vf(camera_data["ip"]) or ""
+            if fresh_vf != current_vf:
+                if fresh_vf:
+                    print(f"[RECORDER] 🎭 Mask filter updated for {stream_name}: {fresh_vf}")
+                else:
+                    print(f"[RECORDER] 🎭 Mask filter cleared for {stream_name}")
+            current_vf = fresh_vf
+
+        if current_vf:
+            cmd = [
+                FFMPEG_BIN,
+                "-loglevel",       "error",
+                "-rtsp_transport", "tcp",
+                "-i",              rtsp_url,
+                "-t",              str(CHUNK_SECONDS),
+                "-vf",             current_vf,
+                "-c:v",            "libx264",
+                "-preset",         "ultrafast",
+                "-crf",            "23",
+                "-an",
+                "-movflags",       "+faststart",
+                "-y",
+                out_file,
+            ]
+        else:
+            cmd = [
+                FFMPEG_BIN,
+                "-loglevel",       "error",
+                "-rtsp_transport", "tcp",
+                "-i",              rtsp_url,
+                "-t",              str(CHUNK_SECONDS),
+                "-c:v",            "copy",
+                "-an",
+                "-movflags",       "+faststart",
+                "-y",
+                out_file,
+            ]
 
         try:
-            proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+            proc = subprocess.Popen(
+                cmd,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.PIPE,
+            )
 
             while proc.poll() is None:
                 if stop_event.is_set():
@@ -101,27 +176,38 @@ def _record_loop(stream_name: str, rtsp_url: str, stop_event: threading.Event, c
     print(f"[RECORDER] ⏹ Stopped recorder for {stream_name}")
 
 
-# ------------------------------------------------------------------
-# Public API
-# ------------------------------------------------------------------
-def start_camera(stream_name: str, rtsp_url: str, camera_data: dict | None = None):
+def start_camera(
+    stream_name: str,
+    rtsp_url: str,
+    camera_data: dict | None = None,
+    vf_filter: str = "",
+):
     """Start recording a single camera. Safe to call multiple times."""
     if stream_name in _recorders and _recorders[stream_name].is_alive():
         print(f"[RECORDER] Already recording {stream_name}, skipping.")
         return
+
+    # Auto-load mask filter from mask_service if no explicit vf_filter was passed
+    if not vf_filter and camera_data and camera_data.get("ip"):
+        ip = camera_data.get("ip", "")
+        vf_filter = mask_service.build_ffmpeg_vf(ip) or ""
+        if vf_filter:
+            print(f"[RECORDER] 🎭 Mask filter loaded for {stream_name}: {vf_filter}")
+
+    _vf_filters[stream_name] = vf_filter
 
     stop_event = threading.Event()
     _stop_flags[stream_name] = stop_event
 
     t = threading.Thread(
         target=_record_loop,
-        args=(stream_name, rtsp_url, stop_event, camera_data),
+        args=(stream_name, rtsp_url, stop_event, camera_data, vf_filter),
         daemon=True,
         name=f"recorder-{stream_name}",
     )
     _recorders[stream_name] = t
     t.start()
-    print(f"[RECORDER] 🎥 Started: {stream_name}")
+    print(f"[RECORDER] 🎥 Started: {stream_name} → {get_recordings_dir()}")
 
 
 def stop_camera(stream_name: str):
@@ -132,6 +218,7 @@ def stop_camera(stream_name: str):
             _recorders[stream_name].join(timeout=10)
         _recorders.pop(stream_name, None)
         _stop_flags.pop(stream_name, None)
+        _vf_filters.pop(stream_name, None)
         print(f"[RECORDER] ⏹ Stopped: {stream_name}")
     else:
         print(f"[RECORDER] ℹ No active recorder found for: {stream_name}")
@@ -143,7 +230,6 @@ def start_recording_all(devices: list):
     Cameras with enabled=False are skipped entirely.
     """
     for device in devices:
-        # ── Skip cameras explicitly marked as disabled ──
         if device.get("enabled") is False:
             stream_name = device.get("ome_stream", device.get("ip", "unknown"))
             print(f"[RECORDER] ⏭ Skipping disabled camera: {stream_name}")
@@ -151,8 +237,12 @@ def start_recording_all(devices: list):
 
         stream_name = device.get("ome_stream")
         rtsp_url    = device.get("rtsp_url")
+
         if stream_name and rtsp_url:
-            start_camera(stream_name, rtsp_url, device)
+            # Reload mask filter fresh from mask_service on every startup
+            ip = device.get("ip", "")
+            vf = mask_service.build_ffmpeg_vf(ip) or "" if ip else _vf_filters.get(stream_name, "")
+            start_camera(stream_name, rtsp_url, device, vf_filter=vf)
 
 
 def stop_all():
@@ -161,9 +251,6 @@ def stop_all():
         stop_camera(name)
 
 
-# ------------------------------------------------------------------
-# Standalone entry point
-# ------------------------------------------------------------------
 if __name__ == "__main__":
     import json
 

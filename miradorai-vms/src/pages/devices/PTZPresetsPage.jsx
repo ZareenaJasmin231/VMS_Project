@@ -67,7 +67,6 @@ export default function PTZPresetsPage() {
   const videoWrapRef = useRef(null);
   const ctxInputRef  = useRef(null);
 
-  // Keep pan/tilt/zoom in refs so interval callbacks always see latest values
   const panRef  = useRef(pan);
   const tiltRef = useRef(tilt);
   const zoomRef = useRef(zoom);
@@ -95,13 +94,16 @@ export default function PTZPresetsPage() {
     if (selected) savePresetsForCamera(selected, presets);
   }, [presets, selected]);
 
-  const rows = devices.map((d) => ({
-    id: String(d.id),
-    name: d.name,
-    ip: d.ip || "—",
-    manufacturer: d.manufacturer || "—",
-    model: d.model || "—",
-  }));
+  // ── FIX: Only show the selected camera in this feature page ──
+  const rows = devices
+    .filter((d) => !selected || String(d.id) === String(selected))
+    .map((d) => ({
+      id: String(d.id),
+      name: d.name,
+      ip: d.ip || "—",
+      manufacturer: d.manufacturer || "—",
+      model: d.model || "—",
+    }));
 
   const filteredRows = rows.filter((r) =>
     !filter ||
@@ -112,7 +114,6 @@ export default function PTZPresetsPage() {
 
   const getStep = () => Math.max(1, Math.round(speed / 20));
 
-  // ── Fixed: dir is now a proper parameter ──
   const move = useCallback((dir) => {
     const s = getStep();
     let nextPan  = panRef.current;
@@ -132,7 +133,6 @@ export default function PTZPresetsPage() {
     sendPTZMove(selectedDevice, nextPan, nextTilt, zoomRef.current);
   }, [selectedDevice, speed]);
 
-  // ── Fixed: startMove now properly defined ──
   const startMove = useCallback((dir) => {
     if (!selected) return;
     setActiveBtn(dir);

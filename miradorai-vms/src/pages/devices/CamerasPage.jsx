@@ -19,6 +19,8 @@ function saveDevices(devices) {
 
 const API_BASE = "http://localhost:8000";
 
+// Pages that render inline inside CamerasPage instead of navigating away.
+// Add more page keys here as needed (e.g. "camera-features").
 const INLINE_PAGES = ["masking"];
 
 export default function CamerasPage({ onNavigate, onCameraSelect }) {
@@ -149,6 +151,7 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
 
   return (
     <div className="page-shell">
+      {/* ── Header ── */}
       <div className="page-header">
         <div>
           <h1 className="page-title"><span>Camera</span> Registry</h1>
@@ -159,8 +162,11 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
         <SearchBar value={filter} onChange={setFilter} placeholder="Type to filter" />
       </div>
 
+      {/* ── Main layout: table + side panel ── */}
+      {/* FIX: "has-panel" class now has matching CSS rules to shrink table correctly */}
       <div className={`cameras-content-layout ${selectedCam ? "has-panel" : ""}`}>
-        {/* Main table */}
+
+        {/* ── Camera table ── */}
         <div className="card cam-table-wrap">
           <table className="m-table">
             <thead>
@@ -195,7 +201,7 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
                     className={[
                       "m-table__row",
                       isSel      ? "m-table__row--selected" : "",
-                      !isEnabled ? "m-table__row--disabled" : "",
+                      !isEnabled ? "m-table__row--disabled"  : "",
                     ].join(" ")}
                     onClick={() => {
                       setSelected(isSel ? null : String(c.id));
@@ -205,6 +211,7 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
                     }}
                     onDoubleClick={() => openEdit(c)}
                   >
+                    {/* Thumbnail */}
                     <td>
                       <div className="cam-thumb-cell">
                         {c.snapshot ? (
@@ -227,8 +234,12 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
                       </div>
                     </td>
 
+                    {/* Toggle */}
                     <td onClick={(e) => e.stopPropagation()}>
-                      <label className="cam-toggle" title={isEnabled ? "Disable camera" : "Enable camera"}>
+                      <label
+                        className="cam-toggle"
+                        title={isEnabled ? "Disable camera" : "Enable camera"}
+                      >
                         <input
                           type="checkbox"
                           checked={isEnabled}
@@ -241,19 +252,24 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
                     </td>
 
                     <td className="m-table__primary">{c.name || "—"}</td>
+
+                    {/* IP — click to open auth dialog */}
                     <td>
-                      {c.ip
-                        ? <span
-                            className={`cam-ip-link ${!isEnabled ? "cam-ip-link--disabled" : ""}`}
-                            onClick={(e) => isEnabled && openAuth(e, c)}
-                          >{c.ip}</span>
-                        : "—"}
+                      {c.ip ? (
+                        <span
+                          className={`cam-ip-link ${!isEnabled ? "cam-ip-link--disabled" : ""}`}
+                          onClick={(e) => isEnabled && openAuth(e, c)}
+                        >
+                          {c.ip}
+                        </span>
+                      ) : "—"}
                     </td>
-                    <td className="cam-mono">{c.mac || "—"}</td>
+
+                    <td className="cam-mono">{c.mac          || "—"}</td>
                     <td>{c.manufacturer || "—"}</td>
-                    <td>{c.model || "—"}</td>
-                    <td>{c.channel || "—"}</td>
-                    <td>{c.server || "MIRADORAI"}</td>
+                    <td>{c.model        || "—"}</td>
+                    <td>{c.channel      || "—"}</td>
+                    <td>{c.server       || "MIRADORAI"}</td>
                   </tr>
                 );
               })}
@@ -261,25 +277,40 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
           </table>
         </div>
 
-        {/* Right Side Panel */}
+        {/* ── Right Side Panel ── */}
         {selectedCam && (
           <div className="card cam-side-panel">
+
+            {/* Header: icon + name + badge + toggle */}
             <div className="cam-side-panel__header">
-              <div className={`cam-side-panel__icon ${selectedCam.enabled === false ? "cam-side-panel__icon--off" : ""}`}>
+              <div
+                className={`cam-side-panel__icon ${
+                  selectedCam.enabled === false ? "cam-side-panel__icon--off" : ""
+                }`}
+              >
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2">
                   <path d="M23 7l-7 5 7 5V7z"/>
                   <rect x="1" y="5" width="15" height="14" rx="2"/>
                 </svg>
               </div>
+
               <div className="cam-side-panel__info">
                 <div className="cam-side-panel__name-row">
                   <h3>{selectedCam.name || "Camera"}</h3>
-                  <span className={`cam-status-badge ${selectedCam.enabled !== false ? "cam-status-badge--active" : "cam-status-badge--disabled"}`}>
+                  <span
+                    className={`cam-status-badge ${
+                      selectedCam.enabled !== false
+                        ? "cam-status-badge--active"
+                        : "cam-status-badge--disabled"
+                    }`}
+                  >
                     <span className="cam-status-dot" />
                     {selectedCam.enabled !== false ? "Active" : "Disabled"}
                   </span>
                 </div>
+
                 <p>{selectedCam.ip || "No IP Address"}</p>
+
                 <div className="cam-side-panel__toggle-row">
                   <span className="cam-side-panel__toggle-label">
                     {selectedCam.enabled !== false ? "Camera is streaming" : "Camera is not streaming"}
@@ -298,8 +329,12 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
               </div>
             </div>
 
-            {/* Stream preview */}
-            <div className={`cam-side-panel__stream ${selectedCam.enabled === false ? "cam-side-panel__stream--off" : ""}`}>
+            {/* Stream preview bar */}
+            <div
+              className={`cam-side-panel__stream ${
+                selectedCam.enabled === false ? "cam-side-panel__stream--off" : ""
+              }`}
+            >
               {selectedCam.enabled !== false ? (
                 <div className="cam-stream-live">
                   <span className="cam-stream-live-dot" />
@@ -307,7 +342,10 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
                 </div>
               ) : (
                 <div className="cam-stream-paused">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" width="28" height="28">
+                  <svg
+                    viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                    strokeWidth="1.2" width="24" height="24"
+                  >
                     <path d="M23 7l-7 5 7 5V7z"/>
                     <rect x="1" y="5" width="15" height="14" rx="2"/>
                     <line x1="2" y1="2" x2="22" y2="22" stroke="currentColor" strokeWidth="1.5"/>
@@ -318,15 +356,22 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
               )}
             </div>
 
+            {/* Feature buttons */}
+            {/* FIX: icons now render because CAMERA_FEATURES_CONFIG has icon fields */}
             <div className="cam-side-panel__features">
               {CAMERA_FEATURES_CONFIG.map((feature) => (
                 <button
                   key={feature.page}
-                  className={`cam-side-feature-btn ${selectedCam.enabled === false ? "cam-side-feature-btn--disabled" : ""}`}
+                  className={`cam-side-feature-btn ${
+                    selectedCam.enabled === false ? "cam-side-feature-btn--disabled" : ""
+                  }`}
                   disabled={selectedCam.enabled === false}
                   onClick={() => {
                     if (selectedCam.enabled === false) return;
-                    localStorage.setItem("miradorai_selected_camera_id", String(selectedCam.id));
+                    localStorage.setItem(
+                      "miradorai_selected_camera_id",
+                      String(selectedCam.id)
+                    );
                     if (INLINE_PAGES.includes(feature.page)) {
                       setActivePage(feature.page);
                     } else {
@@ -334,9 +379,18 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
                     }
                   }}
                 >
-                  <span className="cam-side-feature-icon" dangerouslySetInnerHTML={{ __html: feature.icon }} />
+                  {/* Icon — rendered from SVG string in config */}
+                  <span
+                    className="cam-side-feature-icon"
+                    dangerouslySetInnerHTML={{ __html: feature.icon }}
+                  />
                   <span className="cam-side-feature-label">{feature.label}</span>
-                  <svg className="cam-side-feature-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  {/* Chevron arrow */}
+                  <svg
+                    className="cam-side-feature-arrow"
+                    viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" strokeWidth="2"
+                  >
                     <path d="M9 18l6-6-6-6" />
                   </svg>
                 </button>
@@ -346,7 +400,7 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
         )}
       </div>
 
-      {/* Footer */}
+      {/* ── Footer ── */}
       <div className="page-footer">
         <span className="cameras-count">
           {filtered.length} camera{filtered.length !== 1 ? "s" : ""}
@@ -355,9 +409,17 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
           </span>
         </span>
         <div className="page-footer-right">
-          <Button label="Edit" disabled={!selected} onClick={() => selectedCam && openEdit(selectedCam)} />
-          <Button label="Remove" variant="danger" disabled={!selected}
-            onClick={() => selectedCam && setRemoveModal(selectedCam)} />
+          <Button
+            label="Edit"
+            disabled={!selected}
+            onClick={() => selectedCam && openEdit(selectedCam)}
+          />
+          <Button
+            label="Remove"
+            variant="danger"
+            disabled={!selected}
+            onClick={() => selectedCam && setRemoveModal(selectedCam)}
+          />
         </div>
       </div>
 
@@ -378,69 +440,110 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
                 <div className="ec-toggle-info">
                   <span className="ec-toggle-label">Enabled</span>
                   <span className="ec-toggle-sub">
-                    {editForm.enabled ? "Camera will stream and record" : "Camera will not stream or record"}
+                    {editForm.enabled
+                      ? "Camera will stream and record"
+                      : "Camera will not stream or record"}
                   </span>
                 </div>
                 <label className="cam-toggle cam-toggle--lg">
                   <input
                     type="checkbox"
                     checked={editForm.enabled}
-                    onChange={(e) => setEditForm((f) => ({ ...f, enabled: e.target.checked }))}
+                    onChange={(e) =>
+                      setEditForm((f) => ({ ...f, enabled: e.target.checked }))
+                    }
                   />
                   <span className="cam-toggle-track">
                     <span className="cam-toggle-thumb" />
                   </span>
                 </label>
               </div>
+
               <div className="ec-field-row">
                 <label className="ec-field-label">Name:</label>
-                <input className="ec-input ec-input--highlight" value={editForm.name}
-                  onChange={(e) => setEditForm((f) => ({ ...f, name: e.target.value }))} />
+                <input
+                  className="ec-input ec-input--highlight"
+                  value={editForm.name}
+                  onChange={(e) => setEditForm((f) => ({ ...f, name: e.target.value }))}
+                />
               </div>
               <div className="ec-field-row ec-field-row--top">
                 <label className="ec-field-label">Description:</label>
-                <textarea className="ec-textarea" rows={3} value={editForm.description}
-                  onChange={(e) => setEditForm((f) => ({ ...f, description: e.target.value }))} />
+                <textarea
+                  className="ec-textarea"
+                  rows={3}
+                  value={editForm.description}
+                  onChange={(e) =>
+                    setEditForm((f) => ({ ...f, description: e.target.value }))
+                  }
+                />
               </div>
               <div className="ec-field-row">
                 <label className="ec-field-label">Address:</label>
-                <input className="ec-input" value={editForm.ip}
-                  onChange={(e) => setEditForm((f) => ({ ...f, ip: e.target.value }))} />
+                <input
+                  className="ec-input"
+                  value={editForm.ip}
+                  onChange={(e) => setEditForm((f) => ({ ...f, ip: e.target.value }))}
+                />
               </div>
               <div className="ec-field-row">
                 <label className="ec-field-label">Port:</label>
-                <input className="ec-input ec-input--short" value={editForm.port}
-                  onChange={(e) => setEditForm((f) => ({ ...f, port: e.target.value }))} />
+                <input
+                  className="ec-input ec-input--short"
+                  value={editForm.port}
+                  onChange={(e) => setEditForm((f) => ({ ...f, port: e.target.value }))}
+                />
               </div>
+
               <div className="ec-section-title ec-section-title--spaced">Credentials</div>
               <div className="ec-field-row">
                 <label className="ec-field-label">Username:</label>
-                <input className="ec-input" value={editForm.username}
-                  onChange={(e) => setEditForm((f) => ({ ...f, username: e.target.value }))} />
+                <input
+                  className="ec-input"
+                  value={editForm.username}
+                  onChange={(e) =>
+                    setEditForm((f) => ({ ...f, username: e.target.value }))
+                  }
+                />
               </div>
               <div className="ec-field-row">
                 <label className="ec-field-label">Password:</label>
-                <input className="ec-input" type="password" value={editForm.password}
-                  onChange={(e) => setEditForm((f) => ({ ...f, password: e.target.value }))} />
+                <input
+                  className="ec-input"
+                  type="password"
+                  value={editForm.password}
+                  onChange={(e) =>
+                    setEditForm((f) => ({ ...f, password: e.target.value }))
+                  }
+                />
               </div>
             </div>
             <div className="ec-footer">
               <button className="ec-btn ec-btn--help">Help</button>
               <div className="ec-footer-right">
                 <button className="ec-btn ec-btn--primary" onClick={saveEdit}>OK</button>
-                <button className="ec-btn ec-btn--cancel" onClick={() => setEditModal(null)}>Cancel</button>
+                <button className="ec-btn ec-btn--cancel" onClick={() => setEditModal(null)}>
+                  Cancel
+                </button>
               </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* ── Remove Modal ── */}
+      {/* ── Remove Confirmation Modal ── */}
       {removeModal && (
-        <Modal title="Remove Camera" onClose={() => setRemoveModal(null)}
-          onConfirm={confirmRemove} confirmLabel="Remove" confirmVariant="danger">
+        <Modal
+          title="Remove Camera"
+          onClose={() => setRemoveModal(null)}
+          onConfirm={confirmRemove}
+          confirmLabel="Remove"
+          confirmVariant="danger"
+        >
           <p className="m-confirm-text">
-            Remove <strong style={{ color: "var(--text-primary)" }}>{removeModal.name}</strong> from MIRADORAI VMS?
+            Remove{" "}
+            <strong style={{ color: "var(--text-primary)" }}>{removeModal.name}</strong>
+            {" "}from MIRADORAI VMS?
           </p>
           <p className="m-confirm-warn">
             This will delete all associated recordings and configurations.
@@ -456,7 +559,13 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
               <span className="ec-title">Authentication Required</span>
               <div className="ec-titlebar-actions">
                 <button className="ec-title-btn" title="Help">?</button>
-                <button className="ec-title-btn" onClick={() => setAuthModal(null)} title="Close">✕</button>
+                <button
+                  className="ec-title-btn"
+                  onClick={() => setAuthModal(null)}
+                  title="Close"
+                >
+                  ✕
+                </button>
               </div>
             </div>
             <div className="ec-body">
@@ -470,7 +579,9 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
                   className="ec-input ec-input--highlight"
                   value={authForm.username}
                   autoFocus
-                  onChange={(e) => setAuthForm((f) => ({ ...f, username: e.target.value }))}
+                  onChange={(e) =>
+                    setAuthForm((f) => ({ ...f, username: e.target.value }))
+                  }
                   onKeyDown={(e) => e.key === "Enter" && confirmAuth()}
                 />
               </div>
@@ -480,7 +591,9 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
                   className="ec-input"
                   type="password"
                   value={authForm.password}
-                  onChange={(e) => setAuthForm((f) => ({ ...f, password: e.target.value }))}
+                  onChange={(e) =>
+                    setAuthForm((f) => ({ ...f, password: e.target.value }))
+                  }
                   onKeyDown={(e) => e.key === "Enter" && confirmAuth()}
                 />
               </div>
@@ -489,7 +602,12 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
               <button className="ec-btn ec-btn--help">Help</button>
               <div className="ec-footer-right">
                 <button className="ec-btn ec-btn--primary" onClick={confirmAuth}>OK</button>
-                <button className="ec-btn ec-btn--cancel" onClick={() => setAuthModal(null)}>Cancel</button>
+                <button
+                  className="ec-btn ec-btn--cancel"
+                  onClick={() => setAuthModal(null)}
+                >
+                  Cancel
+                </button>
               </div>
             </div>
           </div>

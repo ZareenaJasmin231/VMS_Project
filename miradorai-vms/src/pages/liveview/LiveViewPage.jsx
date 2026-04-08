@@ -2,16 +2,11 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import WebRTCPlayer from "../../components/shared/WebRTCPlayer";
 import "./LiveViewPage.css";
 
+const API = "http://192.168.126.200:8000";
+
 function loadDevices() {
   try { return JSON.parse(localStorage.getItem("miradorai_devices") || "[]"); }
   catch { return []; }
-}
-
-function loadMasksForDevice(deviceId) {
-  try {
-    const saved = localStorage.getItem(`miradorai_masks_${deviceId}`);
-    return saved ? JSON.parse(saved) : [];
-  } catch { return []; }
 }
 
 const LAYOUTS = [
@@ -21,59 +16,64 @@ const LAYOUTS = [
   { id: "1+3", label: "1+3", cols: "1+3", icon: "▤" },
 ];
 
-function MaskOverlay({ deviceId }) {
-  const canvasRef = useRef(null);
+// ── Canvas size that matches the mask editor (must match MaskingSection) ──
+const MASK_CANVAS_W = 640;
+const MASK_CANVAS_H = 360;
 
-  const draw = useCallback(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    const W = canvas.width;
-    const H = canvas.height;
-    ctx.clearRect(0, 0, W, H);
-    const masks = loadMasksForDevice(deviceId);
-    masks.forEach((mask) => {
-      if (!mask.enabled) return;
-      mask.polygons.forEach((polygon) => {
-        if (polygon.points.length < 2) return;
-        ctx.beginPath();
-        ctx.fillStyle = mask.color || "#000000";
-        ctx.globalAlpha = mask.opacity ?? 1;
-        polygon.points.forEach((pt, i) => {
-          const x = pt.x * W;
-          const y = pt.y * H;
-          i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
-        });
-        ctx.closePath();
-        ctx.fill();
-        ctx.globalAlpha = 1;
-      });
-    });
-  }, [deviceId]);
+// ── MaskOverlay — renders black SVG polygons over the video ──────
+function MaskOverlay({ ip }) {
+  const [masks, setMasks] = useState([]);
 
+  // Initial load
   useEffect(() => {
-    draw();
-    const onStorage = (e) => {
-      if (e.key === `miradorai_masks_${deviceId}`) draw();
-    };
-    window.addEventListener("storage", onStorage);
-    return () => window.removeEventListener("storage", onStorage);
-  }, [draw, deviceId]);
+    if (!ip) return;
+    fetch(`${API}/api/masks/${encodeURIComponent(ip)}`)
+      .then(r => r.json())
+      .then(data => setMasks((data.masks || []).filter(m => m.enabled !== false)))
+      .catch(() => {});
+  }, [ip]);
+
+  // Poll every 5s so newly drawn masks appear without page reload
+  useEffect(() => {
+    if (!ip) return;
+    const interval = setInterval(() => {
+      fetch(`${API}/api/masks/${encodeURIComponent(ip)}`)
+        .then(r => r.json())
+        .then(data => setMasks((data.masks || []).filter(m => m.enabled !== false)))
+        .catch(() => {});
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [ip]);
+
+  if (!masks.length) return null;
 
   return (
-    <canvas
-      ref={canvasRef}
-      width={640}
-      height={360}
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox={`0 0 ${MASK_CANVAS_W} ${MASK_CANVAS_H}`}
+      preserveAspectRatio="none"
       style={{
-        position: "absolute",
-        inset: 0,
-        width: "100%",
-        height: "100%",
+        position:      "absolute",
+        top:           0,
+        left:          0,
+        width:         "100%",
+        height:        "100%",
         pointerEvents: "none",
-        zIndex: 10,
+        zIndex:        10,
       }}
-    />
+    >
+      {masks.map(mask => {
+        if (!mask.points?.length) return null;
+        const pointsStr = mask.points.map(([x, y]) => `${x},${y}`).join(" ");
+        return (
+          <polygon
+            key={mask.id}
+            points={pointsStr}
+            fill="black"
+          />
+        );
+      })}
+    </svg>
   );
 }
 
@@ -187,11 +187,7 @@ export default function LiveViewPage() {
 
       {/* ── Fullscreen overlay ── */}
       {fsDevice && (
-        <div
-          ref={fsRef}
-          className="lv-fullscreen-overlay"
-          tabIndex={-1}
-        >
+        <div ref={fsRef} className="lv-fullscreen-overlay" tabIndex={-1}>
           <div className="lv-fullscreen-overlay__bar">
             <div className="lv-fullscreen-overlay__info">
               <span className="lv-live-dot" />
@@ -210,23 +206,23 @@ export default function LiveViewPage() {
               Exit Fullscreen
             </button>
           </div>
+
+          {/* Fullscreen player with mask overlay */}
           <div className="lv-fullscreen-overlay__player" style={{ position: "relative" }}>
-            {fsDevice.ws_url
-              ? <>
-                  <WebRTCPlayer
-                    key={`fs-${fsDevice.ws_url}`}
-                    serverUrl={fsDevice.ws_url}
-                  />
-                  <MaskOverlay deviceId={fsDevice.id} />
-                </>
-              : <div className="lv-no-stream">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" width="48" height="48">
-                    <path d="M23 7l-7 5 7 5V7z"/>
-                    <rect x="1" y="5" width="15" height="14" rx="2"/>
-                  </svg>
-                  <span>No stream available</span>
-                </div>
-            }
+            {fsDevice.ws_url ? (
+              <>
+                <WebRTCPlayer key={`fs-${fsDevice.ws_url}`} serverUrl={fsDevice.ws_url} />
+                <MaskOverlay ip={fsDevice.ip} />
+              </>
+            ) : (
+              <div className="lv-no-stream">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" width="48" height="48">
+                  <path d="M23 7l-7 5 7 5V7z"/>
+                  <rect x="1" y="5" width="15" height="14" rx="2"/>
+                </svg>
+                <span>No stream available</span>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -261,10 +257,7 @@ export default function LiveViewPage() {
             className={`lv-cell lv-cell--main ${selected === 0 ? "lv-cell--selected" : ""}`}
             onClick={() => setSelected(selected === 0 ? null : 0)}
           >
-            <CameraCell
-              device={activeCams[0]}
-              onFullscreen={(e) => openFullscreen(activeCams[0], e)}
-            />
+            <CameraCell device={activeCams[0]} onFullscreen={(e) => openFullscreen(activeCams[0], e)} />
           </div>
           <div className="lv-grid-1plus3__side">
             {[1, 2, 3].map((i) => (
@@ -274,10 +267,7 @@ export default function LiveViewPage() {
                 onClick={() => setSelected(selected === i ? null : i)}
               >
                 {activeCams[i]
-                  ? <CameraCell
-                      device={activeCams[i]}
-                      onFullscreen={(e) => openFullscreen(activeCams[i], e)}
-                    />
+                  ? <CameraCell device={activeCams[i]} onFullscreen={(e) => openFullscreen(activeCams[i], e)} />
                   : <EmptyCell />
                 }
               </div>
@@ -294,10 +284,7 @@ export default function LiveViewPage() {
               onClick={() => setSelected(selected === i ? null : i)}
             >
               {activeCams[i]
-                ? <CameraCell
-                    device={activeCams[i]}
-                    onFullscreen={(e) => openFullscreen(activeCams[i], e)}
-                  />
+                ? <CameraCell device={activeCams[i]} onFullscreen={(e) => openFullscreen(activeCams[i], e)} />
                 : <EmptyCell index={i} />
               }
             </div>
@@ -308,6 +295,7 @@ export default function LiveViewPage() {
   );
 }
 
+// ── CameraCell — video tile with built-in mask overlay ───────────
 function CameraCell({ device, onFullscreen }) {
   return (
     <div className="lv-cam">
@@ -328,21 +316,25 @@ function CameraCell({ device, onFullscreen }) {
           </button>
         </div>
       </div>
+
+      {/* Player wrapper — position:relative so SVG overlay sits on top */}
       <div className="lv-cam__player" style={{ position: "relative" }}>
-        {device.ws_url
-          ? <>
-              <WebRTCPlayer key={device.ws_url} serverUrl={device.ws_url} />
-              <MaskOverlay deviceId={device.id} />
-            </>
-          : <div className="lv-no-stream">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" width="32" height="32">
-                <path d="M23 7l-7 5 7 5V7z"/>
-                <rect x="1" y="5" width="15" height="14" rx="2"/>
-              </svg>
-              <span>Stream not registered</span>
-              <span className="lv-no-stream__ip">{device.ip}</span>
-            </div>
-        }
+        {device.ws_url ? (
+          <>
+            <WebRTCPlayer key={device.ws_url} serverUrl={device.ws_url} />
+            {/* Mask overlay — fetches from /api/masks/{ip}, polls every 5s */}
+            <MaskOverlay ip={device.ip} />
+          </>
+        ) : (
+          <div className="lv-no-stream">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" width="32" height="32">
+              <path d="M23 7l-7 5 7 5V7z"/>
+              <rect x="1" y="5" width="15" height="14" rx="2"/>
+            </svg>
+            <span>Stream not registered</span>
+            <span className="lv-no-stream__ip">{device.ip}</span>
+          </div>
+        )}
       </div>
     </div>
   );

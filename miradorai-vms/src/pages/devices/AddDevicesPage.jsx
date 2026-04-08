@@ -8,8 +8,7 @@ import ManualSearchModal from "./ManualSearchModal";
 import StreamURLModal from "./StreamURLModal";
 import DiscoveryModal from "../../components/shared/DiscoveryModal";
 import "./AddDevicesPage.css";
-
-const STREAM_API = "http://localhost:8000";
+const STREAM_API = "http://192.168.126.200:8000";
 
 function usePersistedDevices() {
   const [devices, setDevices] = useState(() => {

@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { useAuth } from "../../context/AuthContext";
 import "./MediaPlayerPage.css";
 
-const STREAM_API = "http://localhost:8000";
+const STREAM_API = "http://192.168.126.200:8000";
 
 function extractHour(file) {
   const raw = file.start_time || file.name || "";
@@ -67,6 +67,7 @@ export default function MediaPlayerPage() {
   const [exportEndTime, setExportEndTime]       = useState(23);
   const [exporting, setExporting]               = useState(false);
   const [snapshotFlash, setSnapshotFlash]       = useState(false);
+  const [isVideoLoading, setIsVideoLoading]     = useState(false);
 
   const videoRef       = useRef(null);
   const playerWrap     = useRef(null);
@@ -137,17 +138,23 @@ export default function MediaPlayerPage() {
     const onPlay  = () => setPlaying(true);
     const onPause = () => setPlaying(false);
     const onEnded = () => setPlaying(false);
+    const onLoadStart = () => setIsVideoLoading(true);
+    const onCanPlay = () => setIsVideoLoading(false);
     v.addEventListener("timeupdate",     onTime);
     v.addEventListener("loadedmetadata", onMeta);
     v.addEventListener("play",           onPlay);
     v.addEventListener("pause",          onPause);
     v.addEventListener("ended",          onEnded);
+    v.addEventListener("loadstart",      onLoadStart);
+    v.addEventListener("canplay",        onCanPlay);
     return () => {
       v.removeEventListener("timeupdate",     onTime);
       v.removeEventListener("loadedmetadata", onMeta);
       v.removeEventListener("play",           onPlay);
       v.removeEventListener("pause",          onPause);
       v.removeEventListener("ended",          onEnded);
+      v.removeEventListener("loadstart",      onLoadStart);
+      v.removeEventListener("canplay",        onCanPlay);
     };
   }, [playingFile]);
 
@@ -201,6 +208,7 @@ export default function MediaPlayerPage() {
     setPlaying(false);
     setCurrentTime(0);
     setDuration(0);
+    setIsVideoLoading(true);
     setTimeout(() => {
       const v = videoRef.current;
       if (!v) return;
@@ -644,6 +652,12 @@ export default function MediaPlayerPage() {
                     className="mp-video"
                     playsInline
                   />
+                  {isVideoLoading && (
+                    <div className="mp-loading-overlay">
+                      <div className="mp-spinner"></div>
+                      <p>Loading and decrypting video...</p>
+                    </div>
+                  )}
                 </>
               )}
             </div>

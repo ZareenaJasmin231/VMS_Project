@@ -18,10 +18,6 @@ HEALTH_CHECK_INTERVAL = 30  # Check every 30 seconds
 
 
 async def get_stream_status(stream_name: str) -> dict:
-    """
-    Get stream status from OME API
-    Returns: {'exists': bool, 'connected': bool, 'bytesIn': int, 'bytesOut': int}
-    """
     try:
         headers = {"Authorization": OME_AUTH}
         url = f"{OME_API}/{stream_name}"
@@ -29,18 +25,26 @@ async def get_stream_status(stream_name: str) -> dict:
         
         if res.status_code == 200:
             data = res.json()
+            # OME wraps data in a 'response' key
+            stream_data = data.get('response', data)
+            
+            # OME uses 'state' = 'started' or checks 'input' presence
+            state = stream_data.get('state', '')
+            has_input = stream_data.get('input') is not None
+            connected = state in ('started', 'ready', 'connected') or has_input
+            
             return {
                 'exists': True,
-                'connected': data.get('state') == 'connected',
-                'bytesIn': data.get('bytesIn', 0),
-                'bytesOut': data.get('bytesOut', 0),
+                'connected': connected,
+                'bytesIn': stream_data.get('bytesIn', 0),
+                'bytesOut': stream_data.get('bytesOut', 0),
+                'state': state,
             }
         else:
             return {'exists': False, 'connected': False, 'bytesIn': 0, 'bytesOut': 0}
     except Exception as e:
         print(f"[HEALTH] Error checking stream {stream_name}: {e}")
         return {'exists': False, 'connected': False, 'bytesIn': 0, 'bytesOut': 0}
-
 
 async def check_stream_health(devices: list, cameras_col) -> list:
     """

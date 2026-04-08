@@ -1,60 +1,139 @@
-// CORE NAVIGATION SHARED BY ALL ROLES
+// ================= NAVIGATION CONFIGURATION =================
+// Contains all navigation items for Mirador VMS
+
+// ================= CORE NAVIGATION =================
 const CORE_NAV = [
+  // ✅ DASHBOARD
+  {
+    section: "Dashboard",
+    page: "dashboard",
+    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+      <rect x="3" y="3" width="7" height="7"/>
+      <rect x="14" y="3" width="7" height="7"/>
+      <rect x="14" y="14" width="7" height="7"/>
+      <rect x="3" y="14" width="7" height="7"/>
+    </svg>`,
+  },
+  
+  // ✅ LIVE VIEW
   {
     section: "Live View",
     page: "live-view",
-    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>`,
+    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+      <path d="M23 7l-7 5 7 5V7z"/>
+      <rect x="1" y="5" width="15" height="14" rx="2"/>
+    </svg>`,
   },
+  
+  // ✅ ANALYTICS (NEW)
+  {
+    section: "Analytics",
+    page: "analytics",
+    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+      <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+      <path d="M12 22V12"/>
+      <path d="M9 10.5L12 9l3 1.5"/>
+      <path d="M9 15l3-1.5 3 1.5"/>
+    </svg>`,
+  },
+  
+  // ✅ CAMERAS
   {
     section: "Cameras",
-    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>`,
+    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+      <rect x="2" y="3" width="20" height="14" rx="2"/>
+      <path d="M8 21h8M12 17v4"/>
+    </svg>`,
     items: [
-      { label: "Add Device",       page: "add-devices", icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><path d="M12 8v8M8 12h8"/></svg>` },
-      { label: "View All Cameras", page: "cameras",     icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>` },
+      {
+        label: "Add Device",
+        page: "add-devices",
+        icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><path d="M12 8v8M8 12h8"/></svg>`,
+      },
+      {
+        label: "View All Cameras",
+        page: "cameras",
+        icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>`,
+      },
     ],
   },
+  
+  // ✅ RECORDING & EVENTS
   {
     section: "Recording & Events",
-    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg>`,
+    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+      <circle cx="12" cy="12" r="10"/>
+      <path d="M12 6v6l4 2"/>
+    </svg>`,
     items: [
-      { label: "Schedules",         page: "schedules",     icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>` },
-      { label: "Recording Method",  page: "rec-method",    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3" fill="currentColor"/></svg>` },
-      { label: "Action Rules",      page: "action-rules",  icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>` },
+      { label: "Schedules", page: "schedules" },
+      { label: "Recording Method", page: "rec-method" },
+      { label: "Action Rules", page: "action-rules" },
     ],
   },
+  
+  // ✅ STORAGE
   {
     section: "Storage",
-    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4.03 3-9 3S3 13.66 3 12M21 5v14c0 1.66-4.03 3-9 3S3 20.66 3 19V5"/></svg>`,
+    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+      <ellipse cx="12" cy="5" rx="9" ry="3"/>
+      <path d="M3 5v6c0 1.66 4.03 3 9 3s9-1.34 9-3V5"/>
+      <path d="M3 11v6c0 1.66 4.03 3 9 3s9-1.34 9-3v-6"/>
+    </svg>`,
     items: [
-      { label: "Management", page: "storage-mgmt", icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><path d="M6 6h.01M6 18h.01"/></svg>` },
+      { label: "Management", page: "storage-mgmt" },
     ],
   },
+  
+  // ✅ CLIENT SETTINGS
   {
     section: "Client",
-    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2M12 11a4 4 0 100-8 4 4 0 000 8z"/></svg>`,
+    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+      <circle cx="12" cy="7" r="4"/>
+    </svg>`,
     items: [
-      { label: "Client Settings", page: "client-settings", icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93A10 10 0 003 12c0 5.52 4.48 10 10 10s10-4.48 10-10c0-2.76-1.12-5.26-2.93-7.07"/></svg>` },
-      { label: "User Settings",   page: "user-settings",   icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2M12 11a4 4 0 100-8 4 4 0 000 8z"/></svg>` },
-      { label: "Profile",         page: "profile",          icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 12a4 4 0 100-8 4 4 0 000 8z"/><path d="M4 21v-2a5 5 0 015-5h6a5 5 0 015 5v2"/></svg>` },
+      { label: "Client Settings", page: "client-settings" },
+      { label: "User Settings", page: "user-settings" },
+      { label: "Profile", page: "profile" },
     ],
   },
+  
+  // ✅ ABOUT
   {
     section: "About",
     page: "about",
-    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>`,
+    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+      <circle cx="12" cy="12" r="10"/>
+      <path d="M12 16v-4M12 8h.01"/>
+    </svg>`,
   },
 ];
 
-// ADMIN-ONLY NAVIGATION ITEMS
+// ================= ADMIN ONLY NAVIGATION =================
 const ADMIN_ONLY_NAV = [
+  // ✅ MEDIA PLAYER
   {
     section: "Media Player",
     page: "media-player",
-    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>`,
+    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+      <path d="M23 7l-7 5 7 5V7z"/>
+      <rect x="1" y="5" width="15" height="14" rx="2"/>
+    </svg>`,
+  },
+  
+  // ✅ BACKUP
+  {
+    section: "Backup",
+    page: "backup",
+    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+      <path d="M12 16v-8M8 12l4-4 4 4"/>
+      <path d="M20.39 18.39A5 5 0 0018 9h-1.26A8 8 0 103 16.3"/>
+    </svg>`,
   },
 ];
 
-// EXPORT ROLE-BASED NAVIGATION
+// ================= GET NAVIGATION CONFIG =================
 export const getNavConfig = (role = "client") => {
   if (role === "admin") {
     return [...CORE_NAV, ...ADMIN_ONLY_NAV];
@@ -62,18 +141,134 @@ export const getNavConfig = (role = "client") => {
   return CORE_NAV;
 };
 
-// Default export for backward compatibility
+// ================= DEFAULT EXPORT =================
 export const NAV_CONFIG = CORE_NAV;
 
-// CAMERA-SPECIFIC FEATURES - SHOWN WHEN CLICKING A CAMERA
+// ================= CAMERA FEATURES CONFIG =================
+// All features shown in the right-side panel when a camera is selected.
 export const CAMERA_FEATURES_CONFIG = [
-  { label: "Stream Profiles", page: "stream-profiles", icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>` },
-  { label: "Image Config",    page: "image-config",    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93A10 10 0 003 12c0 5.52 4.48 10 10 10s10-4.48 10-10c0-2.76-1.12-5.26-2.93-7.07"/></svg>` },
-  { label: "PTZ Presets",     page: "ptz-presets",     icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>` },
-  { label: "Management",      page: "device-mgmt",     icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 20h9M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>` },
-  { label: "External Sources",page: "ext-data",        icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>` },
-  { label: "Time Sync",       page: "time-sync",       icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>` },
-  { label: "Other Devices",   page: "other-devices",   icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="5" y="2" width="14" height="20" rx="2"/><path d="M12 18h.01"/></svg>` },
-  { label: "I/O Ports",       page: "io-ports",        icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 8h1a4 4 0 010 8h-1M2 8h16v9a4 4 0 01-4 4H6a4 4 0 01-4-4V8zM6 1v3M10 1v3M14 1v3"/></svg>` },
-  { label: "Masking",         page: "masking",         icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="2"/><rect x="7" y="7" width="10" height="10" rx="1" fill="currentColor" opacity="0.35"/><path d="M7 7l10 10M17 7L7 17"/></svg>` },
+  {
+    label: "Stream Profiles",
+    page: "stream-profiles",
+    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+      <path d="M15 10l4.553-2.276A1 1 0 0121 8.723v6.554a1 1 0 01-1.447.894L15 14"/>
+      <rect x="1" y="6" width="15" height="12" rx="2"/>
+    </svg>`,
+  },
+  {
+    label: "Image Config",
+    page: "image-config",
+    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+      <circle cx="12" cy="12" r="3"/>
+      <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+    </svg>`,
+  },
+  {
+    label: "PTZ Presets",
+    page: "ptz-presets",
+    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+      <circle cx="12" cy="12" r="10"/>
+      <path d="M12 8l1.5 3h3l-2.5 2 1 3L12 14.5 9 16l1-3-2.5-2h3z"/>
+    </svg>`,
+  },
+  {
+    label: "Masking",
+    page: "masking",
+    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+      <rect x="3" y="3" width="18" height="18" rx="2"/>
+      <rect x="8" y="8" width="8" height="8" rx="1"/>
+      <path d="M3 8h2M19 8h2M3 16h2M19 16h2M8 3v2M16 3v2M8 19v2M16 19v2"/>
+    </svg>`,
+  },
+  {
+    label: "Camera Features",
+    page: "camera-features",
+    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+      <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"/>
+      <circle cx="12" cy="12" r="3"/>
+    </svg>`,
+  },
+  {
+    label: "IO Ports",
+    page: "io-ports",
+    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+      <rect x="2" y="7" width="20" height="10" rx="2"/>
+      <path d="M6 12h.01M10 12h.01M14 12h.01M18 12h.01"/>
+      <path d="M6 7V5M10 7V5M18 7V5M14 7V5"/>
+    </svg>`,
+  },
+  {
+    label: "External Data",
+    page: "ext-data",
+    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+      <ellipse cx="12" cy="5" rx="9" ry="3"/>
+      <path d="M3 5v4c0 1.66 4.03 3 9 3s9-1.34 9-3V5"/>
+      <path d="M3 9v4c0 1.66 4.03 3 9 3s9-1.34 9-3V9"/>
+      <path d="M3 13v4c0 1.66 4.03 3 9 3s9-1.34 9-3v-4"/>
+    </svg>`,
+  },
+  {
+    label: "Time Sync",
+    page: "time-sync",
+    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+      <circle cx="12" cy="12" r="10"/>
+      <path d="M12 6v6l4 2"/>
+    </svg>`,
+  },
+  {
+    label: "Management",
+    page: "device-mgmt",
+    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+      <circle cx="12" cy="12" r="3"/>
+      <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
+    </svg>`,
+  },
+  // ✅ ANALYTICS RULES (NEW - appears in camera features)
+  {
+    label: "Analytics Rules",
+    page: "analytics-rules",
+    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+      <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+      <circle cx="12" cy="12" r="3"/>
+    </svg>`,
+  },
 ];
+
+// ================= PAGE TITLE MAPPING =================
+export const PAGE_TITLES = {
+  // Core pages
+  dashboard: "Dashboard",
+  "live-view": "Live View",
+  analytics: "Video Analytics",
+  "add-devices": "Add Device",
+  cameras: "Cameras",
+  schedules: "Recording Schedules",
+  "rec-method": "Recording Method",
+  "action-rules": "Action Rules",
+  "storage-mgmt": "Storage Management",
+  "client-settings": "Client Settings",
+  "user-settings": "User Settings",
+  profile: "Profile",
+  about: "About",
+  
+  // Admin pages
+  "media-player": "Media Player",
+  backup: "Backup",
+  
+  // Camera feature pages
+  "stream-profiles": "Stream Profiles",
+  "image-config": "Image Configuration",
+  "ptz-presets": "PTZ Presets",
+  masking: "Privacy Masking",
+  "camera-features": "Camera Features",
+  "io-ports": "I/O Ports",
+  "ext-data": "External Data",
+  "time-sync": "Time Synchronization",
+  "device-mgmt": "Device Management",
+  "analytics-rules": "Analytics Rules",
+};
+
+// ================= HELPER FUNCTION =================
+export const getPageTitle = (pageId) => {
+  return PAGE_TITLES[pageId] || pageId?.replace(/-/g, ' ') || "Mirador VMS";
+};

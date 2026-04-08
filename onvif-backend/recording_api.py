@@ -8,18 +8,24 @@ Endpoints:
   GET  /api/recordings/                    - list all recordings (filterable)
   GET  /api/recordings/cameras             - list cameras with recordings
   GET  /api/recordings/status              - recorder thread status
-  GET  /api/recordings/play                - decrypt + stream a recording (CORS FIXED)
-  GET  /api/recordings/download            - download a single video as MP4 (CORS FIXED)
+  GET  /api/recordings/play                - decrypt + stream a recording
+  GET  /api/recordings/download            - download a single video as MP4
   GET  /api/recordings/{camera_id}         - list recordings for one camera
   POST /api/recordings/decrypt-file        - decrypt uploaded .enc file
   POST /api/recordings/start/{stream_name} - start recording a camera
   POST /api/recordings/stop/{stream_name}  - stop recording a camera
   POST /api/recordings/export-zip          - export date/time range as zip
+
+  GET  /api/storage/management             - list storage locations + disk info
+  POST /api/storage/apply                  - update recording path at runtime (persisted to disk)
+  POST /api/storage/collect-nonindexed     - collect non-indexed files
 """
 
 import os
 import io
 import re
+import json
+import shutil
 import tempfile
 import zipfile
 from datetime import datetime, timedelta
@@ -31,7 +37,6 @@ from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.primitives import padding
 from cryptography.hazmat.backends import default_backend
 
-# Assuming rtsp_recorder is in your path
 import rtsp_recorder as recorder
 
 # ------------------------------------------------------------------
@@ -40,12 +45,136 @@ import rtsp_recorder as recorder
 MONGO_URI = os.environ.get("MONGO_URI", "mongodb://mongo:27017/")
 KEY_FILE  = os.environ.get("VIDEO_KEY_FILE", "/app/data/video.key")
 
+# Path to a small JSON file that persists the user-chosen recording directory.
+# Stored alongside devices.json so it survives container restarts.
+_CONFIG_FILE = os.environ.get(
+    "RECORDING_CONFIG_FILE",
+    "/app/data/recording_config.json"
+)
+
+# The container-side base mount point — D:\REC on the host maps here.
+# Used to validate and sanitize Windows paths entered in the UI.
+_CONTAINER_RECORDINGS_ROOT = os.environ.get("RECORDINGS_DIR", "/recordings")
+
 # ------------------------------------------------------------------
 # MongoDB
 # ------------------------------------------------------------------
 _client     = MongoClient(MONGO_URI)
 _db         = _client["mirador-vms"]
 _collection = _db["recordings"]
+
+# ------------------------------------------------------------------
+# Windows → container path sanitization
+# ------------------------------------------------------------------
+
+def _sanitize_path(raw: str) -> str:
+    """
+    Convert any path the user types into a valid Linux container path.
+
+    Handles all these cases:
+      D:\\REC              → /recordings
+      D:/REC               → /recordings
+      D:\\REC\\subfolder   → /recordings/subfolder
+      D:/REC/subfolder     → /recordings/subfolder
+      /recordings          → /recordings          (already correct)
+      /recordings/subfolder→ /recordings/subfolder (already correct)
+      D:\\recordings       → /recordings
+      D:/recordings        → /recordings
+
+    The rule: any Windows drive-letter path whose first folder is REC or
+    recordings gets mapped to _CONTAINER_RECORDINGS_ROOT.  Everything after
+    that first folder becomes a subfolder of the container root.
+    """
+    path = raw.strip()
+
+    # Detect Windows path:  X:\...  or  X:/...
+    win_match = re.match(r'^[A-Za-z]:[/\\](.*)$', path)
+    if win_match:
+        # Everything after the drive letter + separator
+        rest = win_match.group(1).replace("\\", "/")
+
+        # Strip the first component if it's the known mount folder
+        # (REC, recordings, recording — whatever the host folder is called)
+        parts = rest.split("/")
+        first = parts[0].lower() if parts else ""
+        if first in ("rec", "recordings", "recording"):
+            subfolder = "/".join(parts[1:])
+        else:
+            # Unknown Windows path — use the whole thing as a subfolder
+            subfolder = rest
+
+        path = _CONTAINER_RECORDINGS_ROOT.rstrip("/")
+        if subfolder:
+            path = f"{path}/{subfolder}"
+        return path
+
+    # Already a Linux path — just normalise backslashes (shouldn't happen,
+    # but be safe) and return as-is.
+    return path.replace("\\", "/")
+
+
+# ------------------------------------------------------------------
+# Recording path persistence helpers
+# ------------------------------------------------------------------
+
+def _load_persisted_recording_path() -> str | None:
+    """Read the saved recording path from disk (if any)."""
+    try:
+        with open(_CONFIG_FILE) as f:
+            data = json.load(f)
+            saved = data.get("recording_path") or None
+            if saved:
+                # Re-sanitize on load in case an old bad value was stored
+                sanitized = _sanitize_path(saved)
+                if sanitized != saved:
+                    print(f"[CONFIG] 🔧 Sanitizing stored path: {saved!r} → {sanitized!r}")
+                return sanitized
+            return None
+    except Exception:
+        return None
+
+
+def _save_recording_path(path: str):
+    """Persist the recording path to disk so it survives restarts."""
+    try:
+        os.makedirs(os.path.dirname(os.path.abspath(_CONFIG_FILE)), exist_ok=True)
+        existing = {}
+        try:
+            with open(_CONFIG_FILE) as f:
+                existing = json.load(f)
+        except Exception:
+            pass
+        existing["recording_path"] = path
+        with open(_CONFIG_FILE, "w") as f:
+            json.dump(existing, f, indent=2)
+        print(f"[CONFIG] 💾 Recording path persisted: {path}")
+    except Exception as e:
+        print(f"[CONFIG] ⚠ Could not persist recording path: {e}")
+
+
+def _apply_persisted_path_on_startup():
+    """
+    Called once at import time.
+    If a recording path was previously saved, apply it to the recorder
+    so recordings go to the right place immediately on startup.
+    """
+    saved = _load_persisted_recording_path()
+    if saved:
+        print(f"[CONFIG] ▶ Restoring saved recording path: {saved}")
+        recorder.set_recordings_dir(saved)
+    else:
+        # Ensure the default container path exists
+        default = recorder.get_recordings_dir()
+        try:
+            os.makedirs(default, exist_ok=True)
+            print(f"[CONFIG] ▶ Using default recording path: {default}")
+        except Exception as e:
+            print(f"[CONFIG] ⚠ Could not create default recording dir: {e}")
+
+
+# Apply persisted path as soon as this module is imported
+_apply_persisted_path_on_startup()
+
 
 # ------------------------------------------------------------------
 # AES key + decrypt helpers
@@ -76,7 +205,6 @@ def _decrypt(file_path: str) -> io.BytesIO:
     return decrypt_bytes(raw)
 
 def _decrypt_bytes(encrypted_bytes: bytes) -> io.BytesIO:
-    """Decrypt bytes directly (for user-uploaded .enc files)."""
     try:
         key = _load_key()
     except Exception as e:
@@ -100,9 +228,6 @@ def _decrypt_bytes(encrypted_bytes: bytes) -> io.BytesIO:
 
 # ------------------------------------------------------------------
 # Shared CORS headers
-# Snapshot fix: Cache-Control: no-store prevents the browser from
-# reusing a previously cached non-CORS response for the same URL.
-# Vary: Origin tells caches to store separate copies per origin.
 # ------------------------------------------------------------------
 _CORS_HEADERS = {
     "Access-Control-Allow-Origin":   "*",
@@ -110,20 +235,27 @@ _CORS_HEADERS = {
     "Access-Control-Allow-Headers":  "*",
     "Access-Control-Expose-Headers": "Content-Length, Content-Type, Accept-Ranges, Content-Disposition",
     "Vary":                          "Origin",
-    "Cache-Control":                 "no-store",   # Critical for snapshot fix
+    "Cache-Control":                 "no-store",
 }
 
 # ------------------------------------------------------------------
-# Router
+# Routers
 # ------------------------------------------------------------------
 recording_router = APIRouter(prefix="/api/recordings", tags=["recordings"])
+storage_router   = APIRouter(prefix="/api/storage",    tags=["storage"])
 
 class ExportZipRequest(BaseModel):
-    camera_id: str
+    camera_id:  str
     start_date: str
-    end_date: str
+    end_date:   str
     start_hour: int = 0
-    end_hour: int = 23
+    end_hour:   int = 23
+
+class StorageApplyRequest(BaseModel):
+    location:       str | None = None
+    folder:         str | None = None
+    allocated:      int | None = None
+    recording_path: str | None = None
 
 def _doc_to_dict(doc: dict) -> dict:
     doc.pop("_id", None)
@@ -132,14 +264,149 @@ def _doc_to_dict(doc: dict) -> dict:
     return doc
 
 # ==================================================================
-# GET ROUTES
+# STORAGE ROUTES
+# ==================================================================
+
+@storage_router.get("/management")
+def get_storage_management():
+    """
+    Return real disk usage info for the current recording directory.
+    Always returns the live recording path from the recorder (which includes
+    any persisted override), so the UI shows the correct path after restart.
+    """
+    rec_dir = recorder.get_recordings_dir()
+
+    try:
+        usage    = shutil.disk_usage(rec_dir if os.path.exists(rec_dir) else "/")
+        total_gb = round(usage.total / (1024 ** 3), 1)
+        used_gb  = round(usage.used  / (1024 ** 3), 1)
+        free_gb  = round(usage.free  / (1024 ** 3), 1)
+    except Exception:
+        total_gb, used_gb, free_gb = 0, 0, 0
+
+    # Show the Windows-friendly display path in the UI
+    display_path = _container_to_display_path(rec_dir)
+
+    return [{
+        "location":      display_path,
+        "container_path": rec_dir,
+        "type":          "Local Disk",
+        "total":         total_gb,
+        "used":          used_gb,
+        "free":          free_gb,
+        "allocated":     round(total_gb * 0.9),
+        "status":        "Recording" if recorder._recorders else "OK",
+        "server":        "MIRADOR",
+    }]
+
+
+def _container_to_display_path(container_path: str) -> str:
+    """
+    Convert /recordings/subfolder back to D:\\REC\\subfolder for display in the UI.
+    This is purely cosmetic — the backend always stores/uses the container path.
+    """
+    root = _CONTAINER_RECORDINGS_ROOT.rstrip("/")
+    if container_path.startswith(root):
+        suffix = container_path[len(root):]
+        win_suffix = suffix.replace("/", "\\")
+        return f"D:\\REC{win_suffix}"
+    return container_path
+
+
+@storage_router.post("/apply")
+def apply_storage_settings(req: StorageApplyRequest):
+    """
+    Update the recording path at runtime AND persist it to disk.
+
+    Accepts both Windows paths (D:\\REC, D:/REC\\subfolder) and
+    container paths (/recordings, /recordings/subfolder).
+
+    Windows paths are automatically converted to the correct container path.
+    The recorder uses the new path for all subsequent chunks.
+    On next backend restart the path is automatically restored.
+    """
+    raw = (req.recording_path or req.folder or req.location or "").strip()
+
+    if not raw:
+        raise HTTPException(status_code=400, detail="No recording path provided.")
+
+    # ── Sanitize: convert Windows paths → container Linux paths ──
+    new_path = _sanitize_path(raw)
+    print(f"[STORAGE] Apply: raw={raw!r} → sanitized={new_path!r}")
+
+    # Validate / create the directory on the server
+    try:
+        os.makedirs(new_path, exist_ok=True)
+    except Exception as e:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot create recording directory '{new_path}': {e}"
+        )
+
+    # Tell the recorder to use this path from now on (in-memory)
+    recorder.set_recordings_dir(new_path)
+
+    # Persist the container path to disk so it survives restarts
+    _save_recording_path(new_path)
+
+    # Return both paths so the UI can show the Windows-friendly version
+    return {
+        "ok":             True,
+        "recording_path": new_path,
+        "display_path":   _container_to_display_path(new_path),
+        "message":        f"Recording path updated to: {_container_to_display_path(new_path)}",
+    }
+
+
+@storage_router.post("/collect-nonindexed")
+def collect_nonindexed():
+    """
+    Move files in the recording dir that are not referenced in MongoDB
+    into a 'Non-indexed Files' subfolder.
+    """
+    rec_dir     = recorder.get_recordings_dir()
+    non_idx_dir = os.path.join(rec_dir, "Non-indexed Files")
+    os.makedirs(non_idx_dir, exist_ok=True)
+
+    moved  = 0
+    errors = []
+
+    for root, dirs, files in os.walk(rec_dir):
+        if os.path.abspath(root).startswith(os.path.abspath(non_idx_dir)):
+            continue
+        for fname in files:
+            if not fname.endswith(".mp4"):
+                continue
+            fpath = os.path.join(root, fname)
+            in_db = _collection.find_one({"file_path": fpath})
+            if not in_db:
+                try:
+                    dest = os.path.join(non_idx_dir, fname)
+                    if os.path.exists(dest):
+                        base, ext = os.path.splitext(fname)
+                        dest = os.path.join(non_idx_dir, f"{base}_{moved}{ext}")
+                    shutil.move(fpath, dest)
+                    moved += 1
+                except Exception as e:
+                    errors.append(str(e))
+
+    return {
+        "ok":     True,
+        "moved":  moved,
+        "errors": errors,
+        "folder": non_idx_dir,
+    }
+
+
+# ==================================================================
+# RECORDING GET ROUTES
 # ==================================================================
 
 @recording_router.get("/")
 def list_recordings(
     camera_id: str = Query(None),
-    date: str      = Query(None),
-    limit: int     = Query(100, le=500),
+    date:      str = Query(None),
+    limit:     int = Query(100, le=500),
 ):
     query = {}
     if camera_id:
@@ -160,28 +427,21 @@ def recorder_status():
         for name, thread in recorder._recorders.items()
         if thread.is_alive()
     ]
-    return {"active_recorders": active, "count": len(active)}
+    rec_dir = recorder.get_recordings_dir()
+    return {
+        "active_recorders": active,
+        "count":            len(active),
+        "recording_path":   rec_dir,
+        "display_path":     _container_to_display_path(rec_dir),
+    }
 
 @recording_router.get("/play")
 def play_recording(
     camera_id:  str = Query(...),
     date:       str = Query(...),
     start_time: str = Query(...),
-    _cb:        str = Query(None),   # cache-buster param, ignored server-side
+    _cb:        str = Query(None),
 ):
-    """
-    Decrypt and stream a recording.
-
-    SNAPSHOT FIX:
-      - Cache-Control: no-store  → browser never serves a cached non-CORS copy
-      - Vary: Origin             → CDN/proxy stores separate copies per origin
-      - Access-Control-Allow-Origin: * → required for crossOrigin="anonymous"
-
-    The frontend sets video.crossOrigin = "anonymous" imperatively BEFORE
-    assigning video.src, and appends ?_cb=<timestamp> to bust any stale
-    browser cache entry. Together these ensure canvas.drawImage() on the
-    video element will never raise a SecurityError / tainted canvas.
-    """
     doc = _collection.find_one({
         "camera_id":  camera_id,
         "date":       date,
@@ -204,8 +464,8 @@ def play_recording(
         io.BytesIO(data),
         media_type="video/mp4",
         headers={
-            "Content-Length":  str(len(data)),
-            "Accept-Ranges":   "bytes",
+            "Content-Length": str(len(data)),
+            "Accept-Ranges":  "bytes",
             **_CORS_HEADERS,
         }
     )
@@ -216,7 +476,6 @@ def download_recording(
     date:       str = Query(...),
     start_time: str = Query(...),
 ):
-    """Download a single recording as an MP4 file."""
     doc = _collection.find_one({
         "camera_id":  camera_id,
         "date":       date,
@@ -257,7 +516,7 @@ def list_camera_recordings(camera_id: str, date: str = Query(None)):
     return [_doc_to_dict(d) for d in docs]
 
 # ==================================================================
-# POST ROUTES
+# RECORDING POST ROUTES
 # ==================================================================
 
 @recording_router.post("/decrypt-file")

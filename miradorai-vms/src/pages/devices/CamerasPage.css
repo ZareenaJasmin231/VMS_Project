@@ -1,7 +1,23 @@
 /* ── Table wrap ──────────────────────────────────────────── */
 .cam-table-wrap {
   flex: 1;
+  min-width: 0; /* FIX: allows table to shrink when side panel opens */
   overflow: auto;
+}
+
+/* ── Layout: base ────────────────────────────────────────── */
+.cameras-content-layout {
+  display: flex;
+  gap: 16px;
+  flex: 1;
+  min-height: 0;
+}
+
+/* ── Layout: when side panel is visible ──────────────────── */
+/* FIX: was missing — caused table to NOT shrink when panel opened */
+.cameras-content-layout.has-panel .cam-table-wrap {
+  flex: 1;
+  min-width: 0;
 }
 
 /* ── Thumbnail cell ──────────────────────────────────────── */
@@ -261,17 +277,11 @@
   line-height: 1.5;
 }
 
-/* ── Layout ─────────────────────────────────────────────── */
-.cameras-content-layout {
-  display: flex;
-  gap: 16px;
-  flex: 1;
-  min-height: 0;
-}
-
 /* ── Side Panel ──────────────────────────────────────────── */
+/* FIX: bumped from 280px → 300px, added min-width to prevent crush */
 .cam-side-panel {
-  width: 280px;
+  width: 300px;
+  min-width: 300px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
@@ -279,12 +289,13 @@
 }
 
 .cam-side-panel__header {
-  padding: 16px;
+  padding: 14px 16px;
   display: flex;
   align-items: center;
   gap: 12px;
   border-bottom: 1px solid var(--border-light);
   background: rgba(255, 255, 255, 0.02);
+  flex-shrink: 0;
 }
 
 .cam-side-panel__icon {
@@ -309,7 +320,7 @@
 }
 .cam-side-panel__info h3 {
   margin: 0 0 2px 0;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 500;
   color: var(--text-primary);
   white-space: nowrap;
@@ -318,16 +329,17 @@
 }
 .cam-side-panel__info p {
   margin: 0;
-  font-size: 12px;
+  font-size: 11px;
   color: var(--text-muted);
   font-family: "Consolas", "JetBrains Mono", monospace;
 }
 
+/* FIX: features list now scrolls cleanly — flex:1 + overflow-y:auto */
 .cam-side-panel__features {
-  padding: 8px;
+  padding: 6px 8px;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
   overflow-y: auto;
   flex: 1;
 }
@@ -335,13 +347,13 @@
 .cam-side-feature-btn {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   width: 100%;
-  padding: 10px 12px;
+  padding: 9px 10px;
   border: none;
   background: transparent;
   color: var(--text-secondary);
-  font-size: 13px;
+  font-size: 12.5px;
   border-radius: 6px;
   cursor: pointer;
   transition: all 0.2s ease;
@@ -352,15 +364,21 @@
   color: var(--text-primary);
 }
 
+/* FIX: icon now always a fixed 18×18 box — won't grow or shrink */
 .cam-side-feature-icon {
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
   color: var(--text-muted);
 }
 .cam-side-feature-icon svg {
   width: 18px;
   height: 18px;
+  display: block;
+  flex-shrink: 0;
 }
 .cam-side-feature-btn:hover .cam-side-feature-icon {
   color: var(--teal);
@@ -368,11 +386,15 @@
 
 .cam-side-feature-label {
   flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .cam-side-feature-arrow {
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
   color: var(--text-muted);
   opacity: 0;
   transform: translateX(-4px);
@@ -382,9 +404,6 @@
   opacity: 1;
   transform: translateX(0);
 }
-/* ============================================================
-   PASTE THESE STYLES INTO YOUR CamerasPage.css
-   ============================================================ */
 
 /* ── Toggle switch base ─────────────────────────────────── */
 .cam-toggle {
@@ -541,7 +560,7 @@
 .cam-side-panel__name-row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   flex-wrap: wrap;
 }
 
@@ -550,12 +569,12 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-top: 8px;
+  margin-top: 6px;
   gap: 8px;
 }
 
 .cam-side-panel__toggle-label {
-  font-size: 12px;
+  font-size: 11px;
   color: var(--color-text-secondary);
 }
 
@@ -567,11 +586,11 @@
 
 /* ── Side panel: stream preview area ────────────────────── */
 .cam-side-panel__stream {
-  margin: 12px 0;
-  height: 72px;
+  margin: 0 8px 4px;
+  height: 64px;
   border-radius: 6px;
-  background: var(--color-background-tertiary);
-  border: 1px solid var(--color-border-tertiary);
+  background: var(--color-background-tertiary, rgba(255,255,255,0.03));
+  border: 1px solid var(--border, rgba(255,255,255,0.07));
   display: flex;
   align-items: center;
   justify-content: center;
@@ -602,13 +621,13 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
+  gap: 3px;
   color: var(--color-text-secondary);
   opacity: 0.55;
 }
 
 .cam-stream-paused span {
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 500;
 }
 

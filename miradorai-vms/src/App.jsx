@@ -9,7 +9,7 @@ import LoginPage from "./pages/auth/LoginPage";
 import "./styles/global.css";
 
 function AppContent() {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, userRole } = useAuth();
   const [activePage, setActivePage] = useState("add-devices");
   const [history, setHistory] = useState(["add-devices"]);
   const [historyIndex, setHistoryIndex] = useState(0);
@@ -62,7 +62,7 @@ function AppContent() {
         className="app-root"
         style={{ opacity: appVisible ? 1 : 0, transition: "opacity 0.5s ease" }}
       >
-        <Sidebar activePage={activePage} onNavigate={handleNavigate} />
+        <Sidebar activePage={activePage} onNavigate={handleNavigate} userRole={userRole} />
         <div className="app-main-area">
           <TopBar
             activePage={activePage}
@@ -75,7 +75,7 @@ function AppContent() {
             alarmsOpen={alarmsOpen}
           />
           <main className="app-content">
-            <PageRenderer activePage={activePage} onNavigate={handleNavigate} />
+            <PageRenderer activePage={activePage} onNavigate={handleNavigate} userRole={userRole} />
           </main>
           <AlarmsPanel open={alarmsOpen} onClose={() => setAlarmsOpen(false)} />
         </div>

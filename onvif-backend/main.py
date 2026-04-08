@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from pydantic import BaseModel
@@ -11,21 +11,30 @@ import os
 import re
 import requests as http_requests
 import httpx
-from ome_service import register_stream
-from onvif_service import probe_camera, move_camera_ptz
-import rtsp_recorder as recorder
-import encrypt_service
-from recording_api import recording_router
-from stream_health import start_health_monitoring
 import shutil
 import urllib.parse
+
+from ome_service import register_stream
+from onvif_service import (
+    probe_camera,
+    set_imaging_setting,
+    ptz_go_to_preset,
+    ptz_set_preset,
+    ptz_go_home,
+    trigger_relay,
+    move_camera_ptz,
+    pull_camera_events,
+)
+import rtsp_recorder as recorder
+import encrypt_service
+from recording_api import recording_router, storage_router
+from stream_health import start_health_monitoring
 from masks_router import router as masks_router
+from backup_service import backup_router  # ← moved here, before app is created
 
-
-def normalize_stream_name(ip: str) -> str:
-    return ip.strip().replace(".", "_")
-
-
+# ------------------------------------------------------------------
+# App creation — MUST come before any .include_router() calls
+# ------------------------------------------------------------------
 app = FastAPI(title="MIRADOR ONVIF Backend")
 app.add_middleware(
     CORSMiddleware,
@@ -34,18 +43,32 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(recording_router)
-app.include_router(masks_router)
+# ------------------------------------------------------------------
+# Features router (defined here so routes below can use it)
+# ------------------------------------------------------------------
+features_router = APIRouter(prefix="/api/camera", tags=["camera-features"])
 
+# ------------------------------------------------------------------
+# Register all routers — app exists at this point
+# ------------------------------------------------------------------
+app.include_router(recording_router)
+app.include_router(storage_router)
+app.include_router(masks_router)
+app.include_router(backup_router)
+
+
+# ------------------------------------------------------------------
+# Config
+# ------------------------------------------------------------------
 _health_monitor_task = None
 
-DEVICES_FILE      = os.environ.get("DEVICES_FILE", os.path.join(os.path.dirname(__file__), "..", "devices_data", "devices.json"))
-OME_API           = os.environ.get("OME_URL", "http://ome:8081/v1/vhosts/default/apps/app/streams")
-OME_AUTH          = "Basic bXl2bXNhY2Nlc3N0b2tlbg=="
-MONGO_URI         = os.environ.get("MONGO_URI", "mongodb://mongo:27017/")
-OME_HOST_IP       = os.environ.get("OME_HOST_IP", "localhost")
-OME_WS_PORT       = os.environ.get("OME_WS_PORT", "3333")
-OME_WHIP_BASE     = os.environ.get("OME_WHIP_BASE", "http://192.168.126.200:3333/app")
+DEVICES_FILE  = os.environ.get("DEVICES_FILE", os.path.join(os.path.dirname(__file__), "..", "devices_data", "devices.json"))
+OME_API       = os.environ.get("OME_URL", "http://ome:8081/v1/vhosts/default/apps/app/streams")
+OME_AUTH      = "Basic bXl2bXNhY2Nlc3N0b2tlbg=="
+MONGO_URI     = os.environ.get("MONGO_URI", "mongodb://mongo:27017/")
+OME_HOST_IP   = os.environ.get("OME_HOST_IP", "localhost")
+OME_WS_PORT   = os.environ.get("OME_WS_PORT", "3333")
+OME_WHIP_BASE = os.environ.get("OME_WHIP_BASE", "http://192.168.126.200:3333/app")
 
 WATCHDOG_INTERVAL      = 5
 WATCHDOG_MAX_RETRIES   = 20
@@ -59,22 +82,138 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 try:
     _mongo = MongoClient(MONGO_URI, serverSelectionTimeoutMS=5000)
     _mongo.server_info()
-    _db         = _mongo["mirador-vms"]
-    cameras_col = _db["cameras"]
-    users_col   = _db["users"]
+    _db                = _mongo["mirador-vms"]
+    cameras_col        = _db["cameras"]
+    users_col          = _db["users"]
     users_col.create_index("email", unique=True)
+    analytics_col      = _db["analytics_events"]
+    analytics_subs_col = _db["analytics_subscriptions"]
     print(f"[MONGO] ✅ Connected: {MONGO_URI}")
 except Exception as e:
     print(f"[MONGO] ❌ FAILED to connect: {e}")
-    _mongo      = None
-    _db         = None
-    cameras_col = None
-    users_col   = None
-
+    _mongo             = None
+    _db                = None
+    cameras_col        = None
+    users_col          = None
+    analytics_col      = None
+    analytics_subs_col = None
 
 # ------------------------------------------------------------------
-# Central camera save function
+# Pydantic models
 # ------------------------------------------------------------------
+class CameraCredentials(BaseModel):
+    ip:       str
+    port:     int = 80
+    username: str = ""
+    password: str = ""
+
+
+class ImagingSettingRequest(BaseModel):
+    ip:       str
+    port:     int   = 80
+    username: str   = ""
+    password: str   = ""
+    setting:  str
+    value:    str | float | int
+
+
+class PTZPresetRequest(BaseModel):
+    ip:           str
+    port:         int = 80
+    username:     str = ""
+    password:     str = ""
+    preset_token: str
+
+
+class PTZSavePresetRequest(BaseModel):
+    ip:           str
+    port:         int = 80
+    username:     str = ""
+    password:     str = ""
+    preset_name:  str
+    preset_token: str = None
+
+
+class PTZMoveRequest(BaseModel):
+    ip:       str
+    port:     int   = 80
+    username: str   = ""
+    password: str   = ""
+    pan:      float = 0.0
+    tilt:     float = 0.0
+    zoom:     float = 0.0
+
+
+class RelayRequest(BaseModel):
+    ip:          str
+    port:        int = 80
+    username:    str = ""
+    password:    str = ""
+    relay_token: str
+    state:       str = "Active"
+
+
+class ProbeRequest(BaseModel):
+    ip:       str
+    port:     int = 80
+    username: str = ""
+    password: str = ""
+
+
+class StreamRegisterRequest(BaseModel):
+    rtsp_url:     str
+    ip:           str = ""
+    port:         int = 80
+    username:     str = ""
+    password:     str = ""
+    manufacturer: str = "Unknown"
+    model:        str = "Unknown"
+    mac:          str = "—"
+    device_name:  str = ""
+
+
+class StreamAssignRequest(BaseModel):
+    ip:                str
+    port:              int = 80
+    username:          str = ""
+    manufacturer:      str = "Unknown"
+    model:             str = "Unknown"
+    mac:               str = "—"
+    device_name:       str = ""
+    live_rtsp:         str
+    recording_rtsp:    str
+    live_profile:      str = ""
+    recording_profile: str = ""
+
+
+class SignupRequest(BaseModel):
+    email:    str
+    password: str
+    role:     str = "client"
+
+
+class LoginRequest(BaseModel):
+    email:    str
+    password: str
+    role:     str = "client"
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: str
+
+
+class ResetPasswordRequest(BaseModel):
+    email:            str
+    new_password:     str
+    confirm_password: str
+
+# ------------------------------------------------------------------
+# Helpers
+# ------------------------------------------------------------------
+def normalize_stream_name(ip: str) -> str:
+    return ip.strip().replace(".", "_")
+
+
 def save_camera_to_db(data: dict):
     if cameras_col is None:
         print("[MONGO] ❌ No connection — skipping camera save")
@@ -92,9 +231,6 @@ def save_camera_to_db(data: dict):
         return False
 
 
-# ------------------------------------------------------------------
-# Devices file helpers
-# ------------------------------------------------------------------
 def load_devices():
     if cameras_col is not None:
         try:
@@ -153,17 +289,17 @@ def get_devices_by_ip(ip: str) -> list:
 
 
 devices = load_devices()
+import mask_service as _mask_service
 
 _watchdog_failures: dict[str, int] = {}
 _watchdog_cycle = 0
 
-
 # ------------------------------------------------------------------
-# WebRTC WHIP proxy — bypasses CORS from browser to OME
+# WebRTC WHIP proxy
 # ------------------------------------------------------------------
 @app.post("/api/whip/{stream_key}")
 async def webrtc_proxy(stream_key: str, request: Request):
-    body = await request.body()
+    body    = await request.body()
     ome_url = f"{OME_WHIP_BASE}/{stream_key}"
     try:
         async with httpx.AsyncClient() as client:
@@ -188,11 +324,19 @@ async def webrtc_proxy(stream_key: str, request: Request):
 # OME readiness wait
 # ------------------------------------------------------------------
 async def _wait_for_ome(max_retries: int = 30, delay: int = 5):
+    import socket
     for attempt in range(1, max_retries + 1):
         try:
             r = http_requests.get(OME_API, headers={"Authorization": OME_AUTH}, timeout=3)
             if r.status_code in (200, 201, 404):
-                print(f"[STARTUP] ✅ OME is ready (attempt {attempt})")
+                # Also verify the WebSocket port is accepting connections
+                try:
+                    sock = socket.create_connection(("ome", int(OME_WS_PORT)), timeout=2)
+                    sock.close()
+                except Exception:
+                    raise Exception(f"WS port {OME_WS_PORT} not yet open")
+                print(f"[STARTUP] ✅ OME REST + WS ready (attempt {attempt})")
+                await asyncio.sleep(2)  # brief grace period for stream ingestion
                 return
         except Exception as e:
             print(f"[STARTUP] ⏳ Waiting for OME... attempt {attempt}/{max_retries}: {e}")
@@ -209,9 +353,9 @@ async def stream_watchdog():
     while True:
         _watchdog_cycle += 1
         for device in list(devices):
-            stream_name  = device.get("ome_stream")
-            rtsp_url     = device.get("rtsp_url")
-            rec_rtsp     = device.get("recording_rtsp", rtsp_url)
+            stream_name = device.get("ome_stream")
+            rtsp_url    = device.get("rtsp_url")
+            rec_rtsp    = device.get("recording_rtsp", rtsp_url)
             if not stream_name or not rtsp_url:
                 continue
 
@@ -258,6 +402,48 @@ async def stream_watchdog():
 
 
 # ------------------------------------------------------------------
+# Analytics background polling
+# ------------------------------------------------------------------
+_analytics_tasks: dict[str, asyncio.Task] = {}
+
+
+async def _analytics_poll_loop(ip: str, port: int, username: str, password: str):
+    print(f"[ANALYTICS] ▶ Started polling for {ip}")
+    consecutive_failures = 0
+    while True:
+        try:
+            result = await asyncio.to_thread(
+                pull_camera_events, ip, port, username, password
+            )
+            if result["success"] and result["events"]:
+                for ev in result["events"]:
+                    doc = {
+                        "ip":          ip,
+                        "event_type":  ev["event_type"],
+                        "topic":       ev["topic"],
+                        "utc_time":    ev["utc_time"],
+                        "raw":         ev["raw"],
+                        "received_at": datetime.utcnow(),
+                    }
+                    if analytics_col is not None:
+                        analytics_col.insert_one(doc)
+                    print(f"[ANALYTICS] {ip} → {ev['event_type']}")
+                consecutive_failures = 0
+            elif not result["success"]:
+                consecutive_failures += 1
+                if consecutive_failures >= 10:
+                    print(f"[ANALYTICS] ✗ Giving up on {ip} after 10 failures")
+                    break
+        except asyncio.CancelledError:
+            print(f"[ANALYTICS] ⏹ Stopped for {ip}")
+            break
+        except Exception as e:
+            print(f"[ANALYTICS] ❌ {ip}: {e}")
+            consecutive_failures += 1
+        await asyncio.sleep(5)
+
+
+# ------------------------------------------------------------------
 # Startup / Shutdown
 # ------------------------------------------------------------------
 @app.on_event("startup")
@@ -277,6 +463,21 @@ async def startup():
             register_stream(stream_name, rtsp_url)
 
     asyncio.create_task(stream_watchdog())
+
+    if analytics_subs_col is not None:
+        active_subs = list(analytics_subs_col.find({"enabled": True}))
+        for sub in active_subs:
+            sub_ip = sub.get("ip")
+            if sub_ip:
+                t = asyncio.create_task(
+                    _analytics_poll_loop(
+                        sub_ip, sub.get("port", 80),
+                        sub.get("username", ""), sub.get("password", "")
+                    )
+                )
+                _analytics_tasks[sub_ip] = t
+                print(f"[ANALYTICS] ♻ Restored for {sub_ip}")
+
     _health_monitor_task = asyncio.create_task(start_health_monitoring(devices, cameras_col))
     encrypt_service.start_watcher()
     recorder.start_recording_all(devices)
@@ -316,75 +517,7 @@ def debug_mongo():
 
 
 # ------------------------------------------------------------------
-# Models
-# ------------------------------------------------------------------
-class ProbeRequest(BaseModel):
-    ip:       str
-    port:     int = 80
-    username: str = ""
-    password: str = ""
-
-
-class StreamRegisterRequest(BaseModel):
-    rtsp_url:     str
-    ip:           str = ""
-    port:         int = 80
-    username:     str = ""
-    password:     str = ""
-    manufacturer: str = "Unknown"
-    model:        str = "Unknown"
-    mac:          str = "—"
-    device_name:  str = ""
-
-
-class StreamAssignRequest(BaseModel):
-    ip:                str
-    port:              int = 80
-    username:          str = ""
-    manufacturer:      str = "Unknown"
-    model:             str = "Unknown"
-    mac:               str = "—"
-    device_name:       str = ""
-    live_rtsp:         str
-    recording_rtsp:    str
-    live_profile:      str = ""
-    recording_profile: str = ""
-
-
-class PTZMoveRequest(BaseModel):
-    ip:       str
-    port:     int   = 80
-    username: str   = ""
-    password: str   = ""
-    pan:      float = 0.0
-    tilt:     float = 0.0
-    zoom:     float = 0.0
-
-
-class SignupRequest(BaseModel):
-    email:    str
-    password: str
-    role:     str = "client"
-
-
-class LoginRequest(BaseModel):
-    email:    str
-    password: str
-    role:     str = "client"
-
-
-class ForgotPasswordRequest(BaseModel):
-    email: str
-
-
-class ResetPasswordRequest(BaseModel):
-    email:            str
-    new_password:     str
-    confirm_password: str
-
-
-# ------------------------------------------------------------------
-# Auth Endpoints
+# Auth endpoints
 # ------------------------------------------------------------------
 @app.post("/api/auth/signup")
 def auth_signup(req: SignupRequest):
@@ -490,6 +623,11 @@ def health():
     return {"status": "ok"}
 
 
+@app.get("/api/cameras")
+def get_all_cameras():
+    return devices
+
+
 @app.get("/api/discover-devices")
 async def discover_devices():
     try:
@@ -497,7 +635,60 @@ async def discover_devices():
         print("[DISCOVER] Starting network discovery...")
         found = await asyncio.to_thread(discover_all, 4, 150)
         print(f"[DISCOVER] Found {len(found)} device(s)")
+
+        for device in found:
+            rtsp_url = device.get("rtsp_url")
+            ip       = device.get("ip")
+            if not rtsp_url or not ip:
+                device["ws_url"]        = None
+                device["stream_key"]    = None
+                device["stream_status"] = "no_rtsp"
+                continue
+
+            from urllib.parse import urlparse
+            parsed = urlparse(rtsp_url)
+            if not parsed.username:
+                print(f"[DISCOVER] ⚠ {ip} — no credentials in RTSP URL, skipping OME")
+                device["ws_url"]        = None
+                device["stream_key"]    = None
+                device["stream_status"] = "credentials_required"
+                continue
+
+            stream_name = normalize_stream_name(ip)
+
+            if stream_exists_in_ome(stream_name):
+                print(f"[DISCOVER] ✅ {ip} already in OME")
+                status_code = 200
+            else:
+                ome_result  = register_stream(stream_name, rtsp_url)
+                status_code = ome_result.get("statusCode", 0) \
+                              if isinstance(ome_result, dict) else 0
+                print(f"[DISCOVER] OME register {ip}: HTTP {status_code}")
+
+            if status_code in (200, 201, 409):
+                device["ws_url"]        = f"ws://{OME_HOST_IP}:{OME_WS_PORT}/app/{stream_name}"
+                device["stream_key"]    = stream_name
+                device["stream_status"] = "streaming"
+
+                existing = next((d for d in devices if d.get("ip") == ip), None)
+                if not existing:
+                    new_dev = {
+                        "ome_stream":     stream_name,
+                        "rtsp_url":       rtsp_url,
+                        "recording_rtsp": rtsp_url,
+                        "ip":             ip,
+                        "enabled":        True,
+                    }
+                    devices.append(new_dev)
+                    save_devices(devices)
+                    recorder.start_camera(stream_name, rtsp_url, new_dev)
+            else:
+                device["ws_url"]        = None
+                device["stream_key"]    = None
+                device["stream_status"] = "error"
+
         return {"devices": found}
+
     except Exception as e:
         print(f"[DISCOVER] ❌ Discovery error: {e}")
         return {"devices": [], "error": str(e)}
@@ -927,6 +1118,151 @@ async def get_camera_by_ip(ip: str):
     raise HTTPException(status_code=404, detail=f"Camera {ip} not found")
 
 
+# ------------------------------------------------------------------
+# Camera Features Router endpoints
+# ------------------------------------------------------------------
+@features_router.post("/capabilities")
+async def get_camera_capabilities(req: CameraCredentials):
+    print(f"[FEATURES] Full capability probe: {req.ip}:{req.port}")
+    result = await asyncio.to_thread(
+        probe_camera, req.ip, req.port, req.username, req.password
+    )
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("error", "Probe failed"))
+    return result
+
+
+@features_router.post("/imaging/set")
+async def set_imaging(req: ImagingSettingRequest):
+    print(f"[FEATURES] Set imaging {req.setting}={req.value} on {req.ip}")
+    result = await asyncio.to_thread(
+        set_imaging_setting,
+        req.ip, req.port, req.username, req.password,
+        req.setting, req.value
+    )
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("error"))
+    return result
+
+
+@features_router.post("/ptz/preset/goto")
+async def goto_preset(req: PTZPresetRequest):
+    result = await asyncio.to_thread(
+        ptz_go_to_preset,
+        req.ip, req.port, req.username, req.password,
+        req.preset_token
+    )
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("error"))
+    return result
+
+
+@features_router.post("/ptz/preset/save")
+async def save_preset(req: PTZSavePresetRequest):
+    result = await asyncio.to_thread(
+        ptz_set_preset,
+        req.ip, req.port, req.username, req.password,
+        req.preset_name, req.preset_token
+    )
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("error"))
+    return result
+
+
+@features_router.post("/ptz/home")
+async def goto_home(req: CameraCredentials):
+    result = await asyncio.to_thread(
+        ptz_go_home,
+        req.ip, req.port, req.username, req.password
+    )
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("error"))
+    return result
+
+
+@features_router.post("/ptz/move")
+async def ptz_move(req: PTZMoveRequest):
+    result = await asyncio.to_thread(
+        move_camera_ptz,
+        req.ip, req.port, req.username, req.password,
+        req.pan, req.tilt, req.zoom
+    )
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("error"))
+    return result
+
+
+@features_router.post("/io/relay")
+async def set_relay(req: RelayRequest):
+    result = await asyncio.to_thread(
+        trigger_relay,
+        req.ip, req.port, req.username, req.password,
+        req.relay_token, req.state
+    )
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("error"))
+    return result
+
+
+@features_router.post("/analytics/enable")
+async def enable_analytics(req: CameraCredentials):
+    ip = req.ip
+    if ip in _analytics_tasks and not _analytics_tasks[ip].done():
+        return {"success": True, "message": "Already running"}
+    if analytics_subs_col is not None:
+        analytics_subs_col.update_one(
+            {"ip": ip},
+            {"$set": {
+                "ip": ip, "port": req.port,
+                "username": req.username, "password": req.password,
+                "enabled": True, "enabled_at": datetime.utcnow()
+            }},
+            upsert=True
+        )
+    task = asyncio.create_task(
+        _analytics_poll_loop(ip, req.port, req.username, req.password)
+    )
+    _analytics_tasks[ip] = task
+    print(f"[ANALYTICS] ✅ Enabled for {ip}")
+    return {"success": True, "message": f"Analytics started for {ip}"}
+
+
+@features_router.post("/analytics/disable")
+async def disable_analytics(req: CameraCredentials):
+    ip = req.ip
+    task = _analytics_tasks.get(ip)
+    if task and not task.done():
+        task.cancel()
+        del _analytics_tasks[ip]
+    if analytics_subs_col is not None:
+        analytics_subs_col.update_one({"ip": ip}, {"$set": {"enabled": False}})
+    print(f"[ANALYTICS] ⏹ Disabled for {ip}")
+    return {"success": True, "message": f"Analytics stopped for {ip}"}
+
+
+@features_router.get("/analytics/status/{ip}")
+async def analytics_status(ip: str):
+    running = ip in _analytics_tasks and not _analytics_tasks[ip].done()
+    return {"ip": ip, "running": running}
+
+
+@features_router.get("/analytics/events/{ip}")
+async def get_analytics_events(ip: str, limit: int = 50):
+    if analytics_col is None:
+        return {"events": []}
+    docs = list(
+        analytics_col.find({"ip": ip}, {"_id": 0})
+        .sort("received_at", -1).limit(limit)
+    )
+    for d in docs:
+        if "received_at" in d:
+            d["received_at"] = d["received_at"].isoformat()
+    return {"events": docs}
+
+
+# ------------------------------------------------------------------
+# Device / storage endpoints
+# ------------------------------------------------------------------
 @app.post("/api/devices/")
 async def add_device(device: dict):
     print("DEVICE REGISTERED:", device)
@@ -959,27 +1295,6 @@ async def get_cameras_from_db():
     return docs
 
 
-@app.get("/api/storage/management")
-def storage_management():
-    recordings_dir = os.environ.get("RECORDINGS_DIR", "/recordings")
-    try:
-        total, used, free = shutil.disk_usage(recordings_dir)
-        status = "Recording"
-    except Exception:
-        total, used, free = 0, 0, 0
-        status = "Unavailable"
-    return [{
-        "location":  "C:\\Recording",
-        "type":      "Local Disk",
-        "total":     round(total / (1024**3), 1),
-        "used":      round(used  / (1024**3), 1),
-        "free":      round(free  / (1024**3), 1),
-        "status":    status,
-        "server":    "MIRADOR",
-        "allocated": 459,
-    }]
-
-
 @app.get("/api/storage/selection")
 def storage_selection():
     if cameras_col is None:
@@ -988,7 +1303,7 @@ def storage_selection():
     result = []
     for cam in docs:
         stream         = cam.get("ome_stream", "")
-        recordings_dir = os.environ.get("RECORDINGS_DIR", "/recordings")
+        recordings_dir = recorder.get_recordings_dir()
         cam_dir        = os.path.join(recordings_dir, stream)
         used_bytes = 0
         oldest     = None
@@ -1003,13 +1318,13 @@ def storage_selection():
                             oldest = mtime
                     except:
                         pass
-        used_gb    = round(used_bytes / (1024**3), 2)
+        used_gb    = round(used_bytes / (1024 ** 3), 2)
         oldest_str = datetime.fromtimestamp(oldest).strftime("%d-%m-%Y %H:%M:%S") if oldest else "N/A"
         result.append({
             "device":           f"{cam.get('manufacturer', '')} {cam.get('model', '')}".strip() or cam.get("ip"),
             "ip":               cam.get("ip"),
             "used_storage":     f"{used_gb} GB",
-            "location":         "C:\\Recording",
+            "location":         recordings_dir,
             "retention":        cam.get("retention_days", 70),
             "oldest_recording": oldest_str,
             "failover":         cam.get("failover", False),
@@ -1029,14 +1344,14 @@ def update_storage_selection(payload: dict):
         {"$set": {
             "retention_days": payload.get("retention_days", 70),
             "failover":       payload.get("failover", False),
-            "store_to":       payload.get("store_to", "C:\\Recording"),
+            "store_to":       payload.get("store_to", recorder.get_recordings_dir()),
         }}
     )
     return {"success": True}
 
 
 @app.post("/api/onvif/ptz/move")
-async def ptz_move(req: PTZMoveRequest):
+async def onvif_ptz_move(req: PTZMoveRequest):
     print(f"[PTZ] Moving {req.ip} to P:{req.pan} T:{req.tilt} Z:{req.zoom}")
     result = await asyncio.to_thread(
         move_camera_ptz,
@@ -1044,3 +1359,47 @@ async def ptz_move(req: PTZMoveRequest):
         req.pan, req.tilt, req.zoom
     )
     return result
+
+
+# ------------------------------------------------------------------
+# Dashboard
+# ------------------------------------------------------------------
+@app.get("/api/dashboard/summary")
+async def get_dashboard_summary():
+    if cameras_col is None or analytics_col is None:
+        return {"total_cameras": 0, "active_streams": 0, "alarms_today": 0}
+
+    total_cameras  = cameras_col.count_documents({})
+    active_streams = cameras_col.count_documents({
+        "enabled": {"$ne": False},
+        "stream_status.connected": True
+    })
+    today_start  = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    alarms_today = analytics_col.count_documents({"received_at": {"$gte": today_start}})
+
+    return {
+        "total_cameras":  total_cameras,
+        "active_streams": active_streams,
+        "alarms_today":   alarms_today,
+    }
+
+
+@app.get("/api/dashboard/events")
+async def get_dashboard_events(limit: int = 20):
+    if analytics_col is None:
+        return []
+    docs = list(
+        analytics_col.find({}, {"_id": 0})
+        .sort("received_at", -1)
+        .limit(limit)
+    )
+    for d in docs:
+        if "received_at" in d:
+            d["received_at"] = d["received_at"].isoformat()
+    return docs
+
+
+# ------------------------------------------------------------------
+# Register features router last (routes are defined above)
+# ------------------------------------------------------------------
+app.include_router(features_router)

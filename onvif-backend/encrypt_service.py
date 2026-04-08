@@ -1,5 +1,5 @@
 """
-encrypt_service.py — fixed MongoDB connection
+encrypt_service.py — fixed MongoDB connection + synced recording path
 """
 
 import os
@@ -13,7 +13,10 @@ from cryptography.hazmat.primitives import padding
 from cryptography.hazmat.backends import default_backend
 from pymongo import MongoClient
 
-RECORDINGS_DIR = os.environ.get("RECORDINGS_DIR", "C:/Recording")
+# ── REMOVED hardcoded RECORDINGS_DIR — now always reads from rtsp_recorder ──
+# RECORDINGS_DIR = os.environ.get("RECORDINGS_DIR", "C:/Recording")  ← was wrong
+import rtsp_recorder as recorder   # get_recordings_dir() gives the live path
+
 MONGO_URI      = os.environ.get("MONGO_URI", "mongodb://localhost:27017/")
 KEY_FILE       = os.environ.get("VIDEO_KEY_FILE", os.path.join(os.path.dirname(__file__), "..", "devices_data", "video.key"))
 POLL_INTERVAL  = 5
@@ -125,7 +128,9 @@ def encrypt_file(input_path: str) -> bool:
         print(f"[ENCRYPT] Path parse error {input_path}: {e}")
         return False
 
-    out_dir     = os.path.join(RECORDINGS_DIR, camera_id, date_part)
+    # ── Always write .enc alongside the .mp4 in the SAME directory ──
+    # This ensures the file lands in /recordings/<camera>/<date>/ correctly
+    out_dir     = os.path.dirname(input_path)
     os.makedirs(out_dir, exist_ok=True)
     output_path = os.path.join(out_dir, f"{time_part}.enc")
 
@@ -159,7 +164,13 @@ _stop_event = threading.Event()
 
 
 def _scan_and_encrypt():
-    for root, dirs, files in os.walk(RECORDINGS_DIR):
+    # ── Always use the recorder's current live path ──
+    recordings_dir = recorder.get_recordings_dir()
+
+    for root, dirs, files in os.walk(recordings_dir):
+        # Skip the Non-indexed Files folder
+        if "Non-indexed Files" in root:
+            continue
         for fname in files:
             if not fname.lower().endswith(".mp4"):
                 continue
@@ -175,8 +186,9 @@ def _scan_and_encrypt():
 
 
 def _poll_loop():
-    print(f"[ENCRYPT] Polling {RECORDINGS_DIR} every {POLL_INTERVAL}s")
-    os.makedirs(RECORDINGS_DIR, exist_ok=True)
+    recordings_dir = recorder.get_recordings_dir()
+    print(f"[ENCRYPT] Polling {recordings_dir} every {POLL_INTERVAL}s")
+    os.makedirs(recordings_dir, exist_ok=True)
     while not _stop_event.is_set():
         try:
             _scan_and_encrypt()
@@ -192,7 +204,7 @@ def start_watcher():
     _stop_event.clear()
     _poll_thread = threading.Thread(target=_poll_loop, daemon=True, name="encrypt-poller")
     _poll_thread.start()
-    print("[ENCRYPT] Encryption service started")
+    print(f"[ENCRYPT] Encryption service started → watching {recorder.get_recordings_dir()}")
 
 def stop_watcher():
     _stop_event.set()
