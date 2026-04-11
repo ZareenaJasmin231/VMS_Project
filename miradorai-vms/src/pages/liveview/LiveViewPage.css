@@ -18,6 +18,7 @@
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
   gap: 16px;
+  width: 100%;
 }
 .lv-toolbar__left {
   display: flex;
@@ -92,6 +93,25 @@
   transition: background 0.15s;
 }
 .lv-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
+
+/* ── Main area: grid + alerts panel side by side ─── */
+.lv-main-area {
+  flex: 1;
+  display: flex;
+  flex-direction: row;
+  overflow: hidden;
+  min-height: 0;
+}
+
+/* ── Grid area (takes remaining space) ───────────── */
+.lv-grid-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-width: 0;
+  min-height: 0;
+}
 
 /* ── Grid ────────────────────────────────────────── */
 .lv-grid {
@@ -270,15 +290,7 @@
 
 /* ═══════════════════════════════════════════════════
    NATIVE FULLSCREEN OVERLAY
-   Replaces the old .lv-fullscreen modal approach.
-   The browser makes .lv-fullscreen-overlay fill the
-   entire screen (including taskbar) when fullscreen
-   is granted via requestFullscreen().
 ═══════════════════════════════════════════════════ */
-
-/* While waiting for the browser to grant fullscreen,
-   this sits on top of everything via position:fixed.
-   Once granted, the browser takes over sizing. */
 .lv-fullscreen-overlay {
   position: fixed;
   inset: 0;
@@ -286,11 +298,8 @@
   display: flex;
   flex-direction: column;
   background: #000;
-  outline: none; /* suppress focus ring from tabIndex=-1 */
+  outline: none;
 }
-
-/* Standard + vendor-prefixed :fullscreen so the element
-   fills the screen in Chrome, Firefox, and Safari */
 .lv-fullscreen-overlay:fullscreen,
 .lv-fullscreen-overlay:-webkit-full-screen,
 .lv-fullscreen-overlay:-moz-full-screen,
@@ -301,8 +310,6 @@
   height: 100%;
   background: #000;
 }
-
-/* ── Top bar inside fullscreen ── */
 .lv-fullscreen-overlay__bar {
   display: flex;
   align-items: center;
@@ -312,17 +319,14 @@
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
   flex-shrink: 0;
   gap: 12px;
-  /* Always visible on top of the video */
   z-index: 2;
 }
-
 .lv-fullscreen-overlay__info {
   display: flex;
   align-items: center;
   gap: 8px;
   min-width: 0;
 }
-
 .lv-fullscreen-overlay__name {
   font-size: 14px;
   font-weight: 600;
@@ -331,15 +335,12 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
-
 .lv-fullscreen-overlay__ip {
   font-size: 11px;
   color: rgba(255, 255, 255, 0.35);
   font-family: var(--font-mono, monospace);
   flex-shrink: 0;
 }
-
-/* Exit fullscreen button */
 .lv-fullscreen-overlay__exit {
   display: flex;
   align-items: center;
@@ -361,8 +362,6 @@
   color: #fff;
   border-color: rgba(255, 255, 255, 0.3);
 }
-
-/* ── Player area fills remaining height ── */
 .lv-fullscreen-overlay__player {
   flex: 1;
   min-height: 0;
@@ -373,8 +372,6 @@
   overflow: hidden;
   position: relative;
 }
-
-/* Make WebRTCPlayer / video / canvas fill the space */
 .lv-fullscreen-overlay__player > *,
 .lv-fullscreen-overlay__player video,
 .lv-fullscreen-overlay__player canvas {
@@ -382,4 +379,159 @@
   height: 100% !important;
   object-fit: contain;
   display: block;
+}
+
+/* ═══════════════════════════════════════════════════
+   ALERTS PANEL
+═══════════════════════════════════════════════════ */
+.lv-alerts-panel {
+  width: 260px;
+  min-width: 260px;
+  background: var(--bg-surface);
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transition: width 0.2s ease, min-width 0.2s ease;
+  flex-shrink: 0;
+}
+.lv-alerts-panel--collapsed {
+  width: 32px;
+  min-width: 32px;
+}
+
+/* Header */
+.lv-alerts-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  gap: 8px;
+}
+.lv-alerts-panel__title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+}
+.lv-alerts-panel__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--teal);
+  box-shadow: 0 0 5px var(--teal);
+  animation: livePulse 2s ease-in-out infinite;
+  flex-shrink: 0;
+}
+.lv-alerts-panel__count {
+  font-size: 10px;
+  background: var(--teal-subtle);
+  color: var(--teal);
+  padding: 1px 6px;
+  border-radius: 10px;
+}
+.lv-alerts-panel__toggle {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 10px;
+  padding: 2px 4px;
+  border-radius: 3px;
+  flex-shrink: 0;
+  transition: color 0.15s;
+}
+.lv-alerts-panel__toggle:hover { color: var(--text-primary); }
+
+/* List */
+.lv-alerts-panel__list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.lv-alerts-panel__list::-webkit-scrollbar       { width: 4px; }
+.lv-alerts-panel__list::-webkit-scrollbar-track  { background: transparent; }
+.lv-alerts-panel__list::-webkit-scrollbar-thumb  { background: var(--border); border-radius: 2px; }
+
+.lv-alerts-panel__empty {
+  text-align: center;
+  font-size: 11px;
+  color: var(--text-muted);
+  padding: 24px 0;
+}
+
+/* Alert card */
+.lv-alert-card {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 9px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border-left: 3px solid var(--border);
+  transition: border-color 0.2s;
+}
+.lv-alert-card--active   { border-left-color: var(--teal); }
+.lv-alert-card--inactive { border-left-color: #333; }
+
+.lv-alert-card__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+.lv-alert-card__serial {
+  font-size: 10px;
+  font-family: var(--font-mono);
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.lv-alert-card__badge {
+  font-size: 9px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+.lv-alert-card__badge--on  { background: var(--teal-subtle); color: var(--teal); }
+.lv-alert-card__badge--off { background: rgba(255,255,255,0.04); color: rgba(255,255,255,0.3); }
+
+.lv-alert-card__row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.lv-alert-card__label {
+  font-size: 9px;
+  color: var(--text-muted);
+  width: 54px;
+  flex-shrink: 0;
+}
+.lv-alert-card__value {
+  font-size: 10px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.lv-alert-card__value--time  { color: var(--teal); font-family: var(--font-mono); }
+.lv-alert-card__value--human { color: #f0a500; }
+
+.lv-alert-card__time {
+  font-size: 9px;
+  color: var(--text-muted);
+  margin-top: 2px;
+  font-family: var(--font-mono);
 }

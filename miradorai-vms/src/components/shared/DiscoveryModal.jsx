@@ -143,6 +143,7 @@ export default function DiscoveryModal({ isOpen, onClose, onAddDevices }) {
   toAdd.map(async (device) => {
 
     const creds = deviceCreds[device.id] || {};   // ✅ MOVE HERE FIRST
+    console.log("[DEBUG] Probing", device.ip, "with creds:", creds);
 
     const probePayload = {
       ip: device.ip,

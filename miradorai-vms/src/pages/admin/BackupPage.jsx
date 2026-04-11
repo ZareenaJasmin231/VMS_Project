@@ -200,22 +200,83 @@ export default function BackupPage() {
   };
 
   // ── manual backup ──────────────────────────────────────────────────────────
-  const handleManualStart = async () => {
-    if (!networkSaved)      return notify('error', 'Save network settings first.');
-    if (!manual.cameras.length) return notify('error', 'Select at least one camera.');
-    if (!manual.start_date)     return notify('error', 'Select a start date.');
-    if (!manual.end_date)       return notify('error', 'Select an end date.');
-    setLoad('manual', true);
-    try {
-      const res = await fetch(`${API}/manual/start`, {
-        method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify(manual)
-      });
-      const d = await res.json();
-      res.ok ? notify('success', d.message) : notify('error', d.detail);
-    } catch { notify('error', 'Failed to start backup.'); }
-    finally { setLoad('manual', false); }
-  };
+  // const handleManualStart = async () => {
+  //   if (!networkSaved)      return notify('error', 'Save network settings first.');
+  //   if (!manual.cameras.length) return notify('error', 'Select at least one camera.');
+  //   if (!manual.start_date)     return notify('error', 'Select a start date.');
+  //   if (!manual.end_date)       return notify('error', 'Select an end date.');
+  //   setLoad('manual', true);
+  //   try {
+  //     const res = await fetch(`${API}/manual/start`, {
+  //       method:'POST', headers:{'Content-Type':'application/json'},
+  //       body: JSON.stringify(manual)
+  //     });
+  //     const d = await res.json();
+  //     res.ok ? notify('success', d.message) : notify('error', d.detail);
+  //   } catch { notify('error', 'Failed to start backup.'); }
+  //   finally { setLoad('manual', false); }
+  // };
+const handleManualDownload = async () => {
+  if (!manual.cameras.length)   return notify('error', 'Select at least one camera.');
+  if (!manual.start_date)       return notify('error', 'Select a start date.');
+  if (!manual.end_date)         return notify('error', 'Select an end date.');
+
+  setLoad('manual', true);
+  try {
+    const { format, ...payload } = manual;
+    const res = await fetch(`${API}/manual/download`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Unknown error' }));
+      return notify('error', err.detail || 'No files found for selected range.');
+    }
+
+    const blob = await res.blob();
+
+    // ── Try native Save-As picker (Chrome/Edge) ──────────────────────────────
+    if (window.showSaveFilePicker) {
+      try {
+        const handle = await window.showSaveFilePicker({
+          suggestedName: `backup_${manual.start_date}_to_${manual.end_date}.zip`,
+          types: [{
+            description: 'ZIP archive',
+            accept: { 'application/zip': ['.zip'] },
+          }],
+        });
+        const writable = await handle.createWritable();
+        await writable.write(blob);
+        await writable.close();
+        notify('success', 'Backup saved successfully.');
+        return;
+      } catch (pickerErr) {
+        // User cancelled the picker — don't fall through to auto-download
+        if (pickerErr.name === 'AbortError') return;
+        // Any other error: fall through to regular download
+      }
+    }
+
+    // ── Fallback: regular browser download (Firefox / Safari) ────────────────
+    const url = window.URL.createObjectURL(blob);
+    const a   = document.createElement('a');
+    a.href     = url;
+    a.download = `backup_${manual.start_date}_to_${manual.end_date}.zip`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
+    notify('success', 'Backup download started.');
+
+  } catch (e) {
+    console.error('[ManualBackup]', e);
+    notify('error', 'Download failed. Check console.');
+  } finally {
+    setLoad('manual', false);
+  }
+};
 
   // ── retention ──────────────────────────────────────────────────────────────
   const handleRetentionPreview = async () => {
@@ -429,14 +490,21 @@ export default function BackupPage() {
               <div className="input-group">
                 <label>Select cameras</label>
                 <div className="camera-selector">
-                  {cameras.map(c => (
-                    <div key={c.ip} className="cam-item">
-                      <input type="checkbox"
-                        checked={manual.cameras.includes(c.ip)}
-                        onChange={() => toggleCamera(setManual, c.ip)}/>
-                      <span>{c.manufacturer} {c.model} ({c.ip})</span>
-                    </div>
-                  ))}
+                        {/* inside the manual cameras list */}
+                        {cameras
+                          .filter(c => c.enabled !== false && c.status !== 'offline')
+                          .map(c => (
+                            <div key={c.ip} className="cam-item">
+                              <input type="checkbox"
+                                checked={manual.cameras.includes(c.ip)}
+                                onChange={() => toggleCamera(setManual, c.ip)} />
+                              <span>
+                                {c.device_name || `${c.manufacturer || ''} ${c.model || ''}`.trim() || c.ip}
+                                <span style={{ fontSize: 11, color: '#64748b', marginLeft: 6 }}>({c.ip})</span>
+                              </span>
+                            </div>
+                          ))
+                        }
                   {!cameras.length &&
                     <div className="empty-msg">No cameras configured.</div>}
                 </div>
@@ -487,7 +555,7 @@ export default function BackupPage() {
                 </div>
               )}
 
-              <button className="btn-primary" onClick={handleManualStart}
+              <button className="btn-primary" onClick={handleManualDownload}
                 disabled={loading.manual || status.status === 'Processing'}
                 style={{ display:'flex', justifyContent:'center', alignItems:'center', gap:10 }}>
                 <FaPlayCircle/> Start manual backup
@@ -585,7 +653,7 @@ export default function BackupPage() {
             <div className="input-group">
               <label>Select cameras</label>
               <div className="camera-selector">
-                {cameras.map(c => (
+                {cameras.filter(c => c.enabled !== false).map(c => (
                   <div key={c.ip} className="cam-item">
                     <input type="checkbox"
                       checked={restore.cameras.includes(c.ip)}

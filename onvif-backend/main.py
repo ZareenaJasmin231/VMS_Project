@@ -13,7 +13,6 @@ import requests as http_requests
 import httpx
 import shutil
 import urllib.parse
-
 from ome_service import register_stream
 from onvif_service import (
     probe_camera,
@@ -25,12 +24,14 @@ from onvif_service import (
     move_camera_ptz,
     pull_camera_events,
 )
+from camera_api_detector import detect_camera_api, get_api_summary
 import rtsp_recorder as recorder
 import encrypt_service
 from recording_api import recording_router, storage_router
 from stream_health import start_health_monitoring
 from masks_router import router as masks_router
 from backup_service import backup_router  # ← moved here, before app is created
+from brand_control import brand_router
 
 # ------------------------------------------------------------------
 # App creation — MUST come before any .include_router() calls
@@ -39,6 +40,7 @@ app = FastAPI(title="MIRADOR ONVIF Backend")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
+     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -55,6 +57,7 @@ app.include_router(recording_router)
 app.include_router(storage_router)
 app.include_router(masks_router)
 app.include_router(backup_router)
+app.include_router(brand_router)
 
 
 # ------------------------------------------------------------------
@@ -329,14 +332,13 @@ async def _wait_for_ome(max_retries: int = 30, delay: int = 5):
         try:
             r = http_requests.get(OME_API, headers={"Authorization": OME_AUTH}, timeout=3)
             if r.status_code in (200, 201, 404):
-                # Also verify the WebSocket port is accepting connections
                 try:
                     sock = socket.create_connection(("ome", int(OME_WS_PORT)), timeout=2)
                     sock.close()
                 except Exception:
                     raise Exception(f"WS port {OME_WS_PORT} not yet open")
                 print(f"[STARTUP] ✅ OME REST + WS ready (attempt {attempt})")
-                await asyncio.sleep(2)  # brief grace period for stream ingestion
+                await asyncio.sleep(2)
                 return
         except Exception as e:
             print(f"[STARTUP] ⏳ Waiting for OME... attempt {attempt}/{max_retries}: {e}")
@@ -776,7 +778,7 @@ async def delete_camera_by_ip(ip: str):
 
 
 # ------------------------------------------------------------------
-# ONVIF probe
+# ONVIF probe  ← KEY FIX: always delete + re-register in OME
 # ------------------------------------------------------------------
 @app.post("/api/onvif/probe")
 async def onvif_probe(req: ProbeRequest):
@@ -791,6 +793,7 @@ async def onvif_probe(req: ProbeRequest):
         rtsp = result["stream_uri"]
         rtsp = re.sub(r"[&?]proto=Onvif", "", rtsp)
 
+        # Inject credentials into RTSP URL so OME can pull the stream
         url_authority = rtsp.split("://", 1)[-1].split("/")[0]
         if req.username and "@" not in url_authority:
             safe_user = urllib.parse.quote(req.username, safe="")
@@ -800,56 +803,70 @@ async def onvif_probe(req: ProbeRequest):
         stream_name = normalize_stream_name(req.ip)
         existing    = next((d for d in devices if d.get("ome_stream") == stream_name), None)
 
-        if not existing or not stream_exists_in_ome(stream_name):
-            print(f"[ONVIF] Registering stream in OME: {stream_name}")
-            ome_response = register_stream(stream_name, rtsp)
-            print(f"[ONVIF] OME response: {ome_response}")
+        # Always delete stale OME stream first, then re-register with fresh credentials.
+        # This fixes the 502 case where OME has the stream registered with wrong/missing creds.
+        if stream_exists_in_ome(stream_name):
+            print(f"[ONVIF] Deleting stale OME stream before re-registering: {stream_name}")
+            try:
+                http_requests.delete(
+                    f"{OME_API}/{stream_name}",
+                    headers={"Authorization": OME_AUTH},
+                    timeout=5,
+                )
+            except Exception as del_err:
+                print(f"[ONVIF] OME delete failed (non-fatal): {del_err}")
+            import time as _time
+            _time.sleep(0.5)
 
-            if not existing:
-                new_device = {
-                    "ome_stream":     stream_name,
-                    "rtsp_url":       rtsp,
-                    "recording_rtsp": rtsp,
-                    "ip":             req.ip,
-                    "port":           req.port,
-                    "username":       req.username,
-                    "password":       req.password,
-                    "enabled":        True,
-                }
-                devices.append(new_device)
-                save_devices(devices)
-            else:
-                existing["rtsp_url"]       = rtsp
-                existing["recording_rtsp"] = existing.get("recording_rtsp", rtsp)
-                existing["port"]           = req.port
-                existing["username"]       = req.username
-                existing["password"]       = req.password
-                save_devices(devices)
+        print(f"[ONVIF] Registering stream in OME: {stream_name} → {rtsp[:80]}...")
+        ome_response = register_stream(stream_name, rtsp)
+        print(f"[ONVIF] OME response: {ome_response}")
 
-            save_camera_to_db({
-                "ip":              req.ip,
-                "ome_stream":      stream_name,
-                "rtsp_url":        rtsp,
-                "recording_rtsp":  rtsp,
-                "manufacturer":    result.get("manufacturer", ""),
-                "model":           result.get("model", ""),
-                "mac":             result.get("mac", ""),
-                "port":            req.port,
-                "username":        req.username,
-                "password":        req.password,
-                "added_at":        datetime.utcnow(),
-                "status":          "streaming",
-                "enabled":         True,
-                "stream_count":    result.get("stream_count", 0),
-                "stream_profiles": result.get("profiles", []),
-            })
-
-            recorder.start_camera(stream_name, rtsp, new_device if not existing else existing)
-            print(f"[ONVIF] 🎥 Recording started for {stream_name}")
-
+        # Update or create device entry
+        if not existing:
+            new_device = {
+                "ome_stream":     stream_name,
+                "rtsp_url":       rtsp,
+                "recording_rtsp": rtsp,
+                "ip":             req.ip,
+                "port":           req.port,
+                "username":       req.username,
+                "password":       req.password,
+                "enabled":        True,
+            }
+            devices.append(new_device)
+            save_devices(devices)
         else:
-            print(f"[ONVIF] Stream {stream_name} already live in OME, skipping.")
-            ome_response = {"message": "Already registered", "statusCode": 200}
+            existing["rtsp_url"]       = rtsp
+            existing["recording_rtsp"] = existing.get("recording_rtsp", rtsp)
+            existing["port"]           = req.port
+            existing["username"]       = req.username
+            existing["password"]       = req.password
+            new_device                 = existing
+            save_devices(devices)
+
+        save_camera_to_db({
+            "ip":              req.ip,
+            "ome_stream":      stream_name,
+            "rtsp_url":        rtsp,
+            "recording_rtsp":  rtsp,
+            "manufacturer":    result.get("manufacturer", ""),
+            "model":           result.get("model", ""),
+            "mac":             result.get("mac", ""),
+            "port":            req.port,
+            "username":        req.username,
+            "password":        req.password,
+            "added_at":        datetime.utcnow(),
+            "status":          "streaming",
+            "enabled":         True,
+            "stream_count":    result.get("stream_count", 0),
+            "stream_profiles": result.get("profiles", []),
+            "api_profile":     result.get("api_profile"),
+        })
+
+        recorder.stop_camera(stream_name)
+        recorder.start_camera(stream_name, rtsp, new_device)
+        print(f"[ONVIF] 🎥 Recording started for {stream_name}")
 
         result["ome_stream"]   = stream_name
         result["ome_response"] = ome_response
@@ -1397,6 +1414,86 @@ async def get_dashboard_events(limit: int = 20):
         if "received_at" in d:
             d["received_at"] = d["received_at"].isoformat()
     return docs
+
+
+@features_router.post("/detect-api")
+async def detect_camera_api_endpoint(req: CameraCredentials):
+    cam_doc = {}
+    if cameras_col is not None:
+        cam_doc = cameras_col.find_one({"ip": req.ip}, {"_id": 0}) or {}
+
+    api_profile = await asyncio.to_thread(
+        detect_camera_api,
+        req.ip,
+        cam_doc.get("manufacturer", ""),
+        cam_doc.get("model", ""),
+        req.username or cam_doc.get("username", ""),
+        req.password or cam_doc.get("password", ""),
+    )
+
+    if cameras_col is not None:
+        cameras_col.update_one(
+            {"ip": req.ip},
+            {"$set": {
+                "api_profile":    api_profile,
+                "api_scanned_at": datetime.utcnow(),
+            }},
+        )
+
+    return {
+        "success":     True,
+        "ip":          req.ip,
+        "api_profile": api_profile,
+        "summary":     get_api_summary(api_profile),
+    }
+
+
+@features_router.get("/api-profile/{ip}")
+async def get_camera_api_profile(ip: str):
+    if cameras_col is None:
+        raise HTTPException(status_code=503, detail="DB not connected")
+
+    doc = cameras_col.find_one({"ip": ip}, {"_id": 0, "api_profile": 1})
+    if not doc or not doc.get("api_profile"):
+        cam = cameras_col.find_one({"ip": ip}, {"_id": 0}) or {}
+        api_profile = await asyncio.to_thread(
+            detect_camera_api,
+            ip,
+            cam.get("manufacturer", ""),
+            cam.get("model", ""),
+            cam.get("username", ""),
+            cam.get("password", ""),
+        )
+        cameras_col.update_one(
+            {"ip": ip},
+            {"$set": {
+                "api_profile":    api_profile,
+                "api_scanned_at": datetime.utcnow(),
+            }},
+        )
+        return {"ip": ip, "api_profile": api_profile, "summary": get_api_summary(api_profile)}
+
+    return {"ip": ip, "api_profile": doc["api_profile"], "summary": get_api_summary(doc["api_profile"])}
+
+
+# ------------------------------------------------------------------
+# MQTT Alerts endpoint — reads from mqtt_logs collection
+# ------------------------------------------------------------------
+@app.get("/api/alerts")
+async def get_alerts(limit: int = 50):
+    if _db is None:
+        return {"alerts": []}
+    try:
+        mqtt_col = _db["mqtt_logs"]
+        docs = list(
+            mqtt_col.find({}, {"_id": 0})
+            .sort("received_at", -1)
+            .limit(limit)
+        )
+        return {"alerts": docs}
+    except Exception as e:
+        print(f"[ALERTS] ❌ {e}")
+        return {"alerts": []}
 
 
 # ------------------------------------------------------------------

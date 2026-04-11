@@ -13,6 +13,8 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import MaskingSection, { MASKING_CSS } from "./MaskingSection";
+import ApiProfileSection from "./ApiProfileSection";
+import BrandFeaturesSection from "./BrandFeaturesSection";
 const API = "http://192.168.126.200:8000";
 
 // ── tiny helpers ─────────────────────────────────────────────────
@@ -314,6 +316,7 @@ const NAV_SECTIONS = [
     items: [
       { id: "overview",  label: "Overview",      icon: "⊞", capKey: null },
       { id: "network",   label: "Network",       icon: "⌘", capKey: null },
+      { id: "api-profile", label: "API Profile", icon: "⚙", capKey: null }
     ],
   },
   {
@@ -335,6 +338,7 @@ const NAV_SECTIONS = [
       { id: "events",    label: "Events & Alarms",icon: "◎", capKey: "null" },
       { id: "analytics", label: "Analytics",     icon: "◈", capKey: "null" },
           { id: "masking",   label: "Privacy Masks",   icon: "▣", capKey: null  },  // ← ADD THIS
+          { id: "brand-features", label: "Event Settings", icon: "◉", capKey: null }
 
     ],
   },
@@ -1267,8 +1271,11 @@ export default function CameraFeaturesPage({ onNavigate }) {
       case "network":    return <NetworkSection   {...props} />;
       case "streams":    return <StreamsSection   {...props} />;
       case "analytics":  return <AnalyticsSection {...props} />;
-      default:           return <OverviewSection  {...props} />;
       case "masking":    return <MaskingSection   {...props} />;
+      case "api-profile": return <ApiProfileSection {...props} />;
+      case "brand-features": return <BrandFeaturesSection {...props} />;
+      default:           return <OverviewSection  {...props} />;
+
     }
   };
 

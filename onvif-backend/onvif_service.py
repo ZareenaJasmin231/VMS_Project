@@ -2,6 +2,7 @@ import re
 import ssl
 import os
 from datetime import datetime, timedelta, timezone
+from camera_api_detector import detect_camera_api
 
 # ── Patch SSL BEFORE any other imports so zeep/requests never verify certs ──
 os.environ['CURL_CA_BUNDLE'] = ''
@@ -58,9 +59,40 @@ except Exception:
     pass
 
 
+# ─────────────────────────────────────────────────────────────────
+# CAMERA FACTORY
+# ─────────────────────────────────────────────────────────────────
+
 def _make_cam(ip, port, username, password):
     """Create ONVIFCamera with SSL verification disabled."""
-    cam = ONVIFCamera(ip, port, username, password)
+    wsdl_dir = None
+    try:
+        import onvif
+        wsdl_dir = os.path.join(os.path.dirname(onvif.__file__), 'wsdl')
+    except Exception:
+        pass
+
+    # AXIS cameras enforce HTTPS — detect via HSTS header and switch port 80 → 443
+    if port == 80:
+        try:
+            _test = requests.get(
+                f'http://{ip}/', verify=False, timeout=3, allow_redirects=False
+            )
+            if ('Strict-Transport-Security' in _test.headers or
+                    _test.status_code in (301, 302, 307, 308)):
+                print(f"[CAM] {ip} enforces HTTPS — switching port 80 → 443")
+                port = 443
+        except Exception:
+            pass
+
+    try:
+        if wsdl_dir and os.path.exists(wsdl_dir):
+            cam = ONVIFCamera(ip, port, username, password, wsdl_dir)
+        else:
+            cam = ONVIFCamera(ip, port, username, password)
+    except Exception:
+        cam = ONVIFCamera(ip, port, username, password)
+
     try:
         for attr in dir(cam):
             if attr.startswith('_'):
@@ -75,6 +107,10 @@ def _make_cam(ip, port, username, password):
         pass
     return cam
 
+
+# ─────────────────────────────────────────────────────────────────
+# TIME / TIMEZONE HELPERS
+# ─────────────────────────────────────────────────────────────────
 
 def _parse_onvif_time(date_obj, time_obj):
     if date_obj is None or time_obj is None:
@@ -675,11 +711,420 @@ def _classify_event(topic: str) -> str:
 
 
 # ─────────────────────────────────────────────────────────────────
+# AXIS DIGEST AUTH FALLBACK
+# Used when standard WSSE token auth returns "Unknown fault occurred"
+# AXIS cameras support HTTP Digest auth on their ONVIF endpoints
+# ─────────────────────────────────────────────────────────────────
+
+def _probe_axis_fallback(ip: str, port: int, username: str, password: str) -> dict:
+    """
+    AXIS cameras often reject WSSE/UsernameToken auth and require HTTP Digest.
+    This fallback sends raw SOAP requests with HTTPDigestAuth directly.
+    Handles: AXIS P, Q, M, T series and all ARTPEC-based cameras.
+    """
+    from requests.auth import HTTPDigestAuth
+    import xml.etree.ElementTree as ET
+
+    DEVICE_NS = "http://www.onvif.org/ver10/device/wsdl"
+    MEDIA_NS  = "http://www.onvif.org/ver10/media/wsdl"
+    SCHEMA_NS = "http://www.onvif.org/ver10/schema"
+
+    auth = HTTPDigestAuth(username, password)
+    from urllib.parse import urlparse
+
+    print(f"[AXIS] Trying HTTP Digest fallback for {ip}:{port} ...")
+
+    # ── Auto-detect HTTP vs HTTPS and correct port ────────────────
+    # AXIS cameras with newer firmware redirect HTTP → HTTPS (302).
+    # We try all combinations to find what works.
+    if port == 443:
+        schemes_ports = [("https", 443)]
+    elif port == 80:
+        # AXIS blocks POST on HTTP entirely — go straight to HTTPS 443
+        schemes_ports = [("https", 443)]
+    else:
+        schemes_ports = [("https", port), ("https", 443), ("http", port)]
+
+    headers_variants = [
+        {"Content-Type": "text/xml; charset=utf-8"},
+        {"Content-Type": "application/soap+xml; charset=utf-8"},
+    ]
+    device_paths = [
+        "/onvif/device_service",
+        "/onvif/services",
+        "/onvif/devicemgmt",
+        "/onvif/device",
+    ]
+
+    get_time_body = """<?xml version="1.0" encoding="UTF-8"?>
+<s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope"
+            xmlns:tds="http://www.onvif.org/ver10/device/wsdl">
+  <s:Body><tds:GetSystemDateAndTime/></s:Body>
+</s:Envelope>"""
+
+    working_headers     = None
+    working_device_path = None
+    base                = None
+
+    for scheme, try_port in schemes_ports:
+        if working_headers:
+            break
+        try_base = f"{scheme}://{ip}:{try_port}"
+        for h in headers_variants:
+            if working_headers:
+                break
+            for path in device_paths:
+                try:
+                    r = requests.post(
+                        f"{try_base}{path}", data=get_time_body,
+                        headers={**h, "SOAPAction": '"http://www.onvif.org/ver10/device/wsdl/GetSystemDateAndTime"'},
+                        auth=auth,
+                        verify=False,
+                        timeout=5,
+                        allow_redirects=False,
+                    )
+                    print(f"[AXIS] {try_base}{path} ({h['Content-Type'].split(';')[0]}) → HTTP {r.status_code}")
+
+                    # Handle HTTP→HTTPS redirect explicitly
+                    if r.status_code in (301, 302, 307, 308):
+                        location = r.headers.get("Location", "")
+                        print(f"[AXIS] Redirect → {location}")
+                        if location.startswith("https://"):
+                            r2 = requests.post(
+                                location, data=get_time_body,
+                                headers={**h, "SOAPAction": '"http://www.onvif.org/ver10/device/wsdl/GetSystemDateAndTime"'},
+                                auth=auth, verify=False, timeout=5,
+                            )
+                            print(f"[AXIS] After redirect → HTTP {r2.status_code}")
+                            if r2.status_code in (200, 400, 401):
+                                parsed = urlparse(location)
+                                base                = f"{parsed.scheme}://{parsed.netloc}"
+                                working_device_path = parsed.path
+                                working_headers     = h
+                                print(f"[AXIS] ✅ HTTPS redirect: {base}{working_device_path}")
+                                break
+                        continue
+
+                    if r.status_code in (200, 400, 401):
+                        base                = try_base
+                        working_device_path = path
+                        working_headers     = h
+                        print(f"[AXIS] ✅ Device endpoint: {try_base}{path}")
+                        break
+                except Exception as e:
+                    print(f"[AXIS] {try_base}{path} failed: {e}")
+
+    if not working_headers or not base:
+        return {"success": False, "error": "AXIS ONVIF not reachable — tried HTTP/HTTPS on all paths"}
+
+    headers = working_headers
+
+    # ── Step 1: GetDeviceInformation ──────────────────────────────
+    get_info_body = """<?xml version="1.0" encoding="UTF-8"?>
+<s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope"
+            xmlns:tds="http://www.onvif.org/ver10/device/wsdl">
+  <s:Body><tds:GetDeviceInformation/></s:Body>
+</s:Envelope>"""
+
+    info_headers = {**headers, "SOAPAction": '"http://www.onvif.org/ver10/device/wsdl/GetDeviceInformation"'}
+    manufacturer = "Axis"
+    model        = "Unknown"
+    firmware     = ""
+    serial       = ""
+
+    try:
+        resp = requests.post(
+            f"{base}{working_device_path}",
+            data=get_info_body,
+            headers=info_headers,
+            auth=auth,
+            verify=False,
+            timeout=10,
+        )
+        print(f"[AXIS] GetDeviceInformation → HTTP {resp.status_code}")
+
+        if resp.status_code == 401:
+            return {"success": False, "error": "AXIS authentication failed — check username/password"}
+            return {"success": False, "error": "AXIS authentication failed — check username/password"}
+        if resp.status_code not in (200, 201):
+            return {"success": False, "error": f"AXIS ONVIF returned HTTP {resp.status_code}"}
+
+        root         = ET.fromstring(resp.text)
+        manufacturer = root.findtext(f".//{{{DEVICE_NS}}}Manufacturer") or "Axis"
+        model        = root.findtext(f".//{{{DEVICE_NS}}}Model")        or "Unknown"
+        firmware     = root.findtext(f".//{{{DEVICE_NS}}}FirmwareVersion") or ""
+        serial       = root.findtext(f".//{{{DEVICE_NS}}}SerialNumber")    or ""
+        print(f"[AXIS] ✅ Device: {manufacturer} {model} fw={firmware}")
+
+    except ET.ParseError as e:
+        print(f"[AXIS] XML parse error on GetDeviceInformation: {e}")
+        return {"success": False, "error": f"AXIS returned invalid XML: {e}"}
+    except Exception as e:
+        return {"success": False, "error": f"AXIS SOAP request failed: {e}"}
+
+    # ── Step 2: Discover working media endpoint ───────────────────
+    media_paths = ["/onvif/media_service", "/onvif/media", "/onvif/services"]
+    working_media_path = None
+    probe_body = """<?xml version="1.0" encoding="UTF-8"?>
+<s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope"
+            xmlns:trt="http://www.onvif.org/ver10/media/wsdl">
+  <s:Body><trt:GetProfiles/></s:Body>
+</s:Envelope>"""
+    for mpath in media_paths:
+        try:
+            tr = requests.post(
+                f"{base}{mpath}", data=probe_body,
+                headers={**headers, "SOAPAction": '"http://www.onvif.org/ver10/media/wsdl/GetProfiles"'},
+                verify=False, timeout=4,
+            )
+            print(f"[AXIS] Media probe {mpath} → HTTP {tr.status_code}")
+            if tr.status_code in (200, 400, 401):
+                working_media_path = mpath
+                print(f"[AXIS] ✅ Media endpoint: {mpath}")
+                break
+        except Exception as me:
+            print(f"[AXIS] Media probe {mpath} failed: {me}")
+
+    if not working_media_path:
+        working_media_path = "/onvif/media_service"
+        print(f"[AXIS] ⚠ No media endpoint responded — defaulting to {working_media_path}")
+
+    # ── Step 3: GetProfiles ───────────────────────────────────────
+    get_profiles_body = """<?xml version="1.0" encoding="UTF-8"?>
+<s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope"
+            xmlns:trt="http://www.onvif.org/ver10/media/wsdl">
+  <s:Body><trt:GetProfiles/></s:Body>
+</s:Envelope>"""
+
+    profile_list = []
+    stream_uri   = None
+
+    try:
+        profiles_headers = {**headers, "SOAPAction": '"http://www.onvif.org/ver10/media/wsdl/GetProfiles"'}
+        resp2 = requests.post(
+            f"{base}{working_media_path}",
+            data=get_profiles_body,
+            headers=profiles_headers,
+            auth=auth,
+            verify=False,
+            timeout=10,
+        )
+        print(f"[AXIS] GetProfiles → HTTP {resp2.status_code}")
+
+        root2 = ET.fromstring(resp2.text)
+
+        # Try multiple namespace variants that AXIS uses
+        all_profiles = (
+            root2.findall(f".//{{{SCHEMA_NS}}}Profiles") or
+            root2.findall(f".//{{{MEDIA_NS}}}Profiles")  or
+            root2.findall(".//{*}Profiles")
+        )
+        print(f"[AXIS] Found {len(all_profiles)} profile(s)")
+
+        for idx, p in enumerate(all_profiles):
+            token = p.get("token", f"profile_{idx}")
+            name  = (
+                p.findtext(f"{{{SCHEMA_NS}}}Name") or
+                p.findtext(f"{{{MEDIA_NS}}}Name")  or
+                f"Profile {idx}"
+            )
+
+            # ── Step 4: GetStreamUri per profile ─────────────────
+            get_uri_body = f"""<?xml version="1.0" encoding="UTF-8"?>
+<s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope"
+            xmlns:trt="http://www.onvif.org/ver10/media/wsdl"
+            xmlns:tt="http://www.onvif.org/ver10/schema">
+  <s:Body>
+    <trt:GetStreamUri>
+      <trt:StreamSetup>
+        <tt:Stream>RTP-Unicast</tt:Stream>
+        <tt:Transport><tt:Protocol>RTSP</tt:Protocol></tt:Transport>
+      </trt:StreamSetup>
+      <trt:ProfileToken>{token}</trt:ProfileToken>
+    </trt:GetStreamUri>
+  </s:Body>
+</s:Envelope>"""
+
+            rtsp_url = None
+            try:
+                uri_headers = {**headers, "SOAPAction": '"http://www.onvif.org/ver10/media/wsdl/GetStreamUri"'}
+                resp3    = requests.post(
+                    f"{base}{working_media_path}",
+                    data=get_uri_body,
+                    headers=uri_headers,
+                    auth=auth,
+                    verify=False,
+                    timeout=10,
+                )
+                uri_root = ET.fromstring(resp3.text)
+                rtsp_url = (
+                    uri_root.findtext(f".//{{{SCHEMA_NS}}}Uri") or
+                    uri_root.findtext(f".//{{{MEDIA_NS}}}Uri")  or
+                    uri_root.findtext(".//{*}Uri")
+                )
+                if rtsp_url and idx == 0:
+                    stream_uri = rtsp_url
+                print(f"[AXIS] Profile '{token}' → {rtsp_url}")
+            except Exception as e:
+                print(f"[AXIS] GetStreamUri failed for profile '{token}': {e}")
+
+            label = ["MAIN", "SUB", "EXTRA"][idx] if idx < 3 else f"STREAM {idx+1}"
+            profile_list.append({
+                "name":     name,
+                "token":    token,
+                "label":    label,
+                "rtsp_url": rtsp_url or "",
+            })
+
+    except Exception as e:
+        print(f"[AXIS] GetProfiles failed: {e} — using AXIS default RTSP path")
+
+    # ── Fallback: use AXIS default RTSP path if no profiles found ─
+    if not stream_uri:
+        stream_uri = f"rtsp://{ip}/axis-media/media.amp"
+        print(f"[AXIS] No stream URI from ONVIF — using default: {stream_uri}")
+
+    if not profile_list:
+        profile_list = [{
+            "name":     "Main Stream",
+            "token":    "profile_1_h264",
+            "label":    "MAIN",
+            "rtsp_url": stream_uri,
+        }]
+
+    valid_profiles = [
+        p for p in profile_list
+        if p.get("rtsp_url") and "rtsp://" in p.get("rtsp_url", "")
+    ]
+    if not valid_profiles:
+        valid_profiles = profile_list
+
+    # ── Step 5: Get MAC address ───────────────────────────────────
+    mac = "—"
+    get_interfaces_body = """<?xml version="1.0" encoding="UTF-8"?>
+<s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope"
+            xmlns:tds="http://www.onvif.org/ver10/device/wsdl">
+  <s:Body><tds:GetNetworkInterfaces/></s:Body>
+</s:Envelope>"""
+    try:
+        mac_headers = {**headers, "SOAPAction": '"http://www.onvif.org/ver10/device/wsdl/GetNetworkInterfaces"'}
+        resp_mac = requests.post(
+            f"{base}{working_device_path}",
+            data=get_interfaces_body,
+            headers=mac_headers,
+            auth=auth,
+            verify=False,
+            timeout=5,
+        )
+        mac_root = ET.fromstring(resp_mac.text)
+        hw_addr  = mac_root.findtext(".//{*}HwAddress")
+        if hw_addr:
+            mac = hw_addr.strip()
+    except Exception:
+        pass
+
+    # ── Step 5: Try to detect full capabilities via ONVIF ─────────
+    caps = {
+        "ptz": False, "imaging": False, "events": False,
+        "analytics": False, "io": False,
+        "audio_in": False, "audio_out": False,
+    }
+    try:
+        get_caps_body = """<?xml version="1.0" encoding="UTF-8"?>
+<s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope"
+            xmlns:tds="http://www.onvif.org/ver10/device/wsdl">
+  <s:Body>
+    <tds:GetCapabilities>
+      <tds:Category>All</tds:Category>
+    </tds:GetCapabilities>
+  </s:Body>
+</s:Envelope>"""
+        caps_headers = {**headers, "SOAPAction": '"http://www.onvif.org/ver10/device/wsdl/GetCapabilities"'}
+        resp_caps = requests.post(
+            f"{base}{working_device_path}",
+            data=get_caps_body,
+            headers=caps_headers,
+            auth=auth,
+            verify=False,
+            timeout=5,
+        )
+        caps_root = ET.fromstring(resp_caps.text)
+        caps_text = resp_caps.text.lower()
+        caps["ptz"]      = "ptz" in caps_text and "<tt:ptz" in caps_text.replace(" ", "")
+        caps["imaging"]  = "imaging" in caps_text
+        caps["events"]   = "events" in caps_text
+        caps["audio_in"] = "audio" in caps_text
+        caps["io"]       = "io" in caps_text and ("relay" in caps_text or "input" in caps_text)
+        print(f"[AXIS] Capabilities: {caps}")
+    except Exception as e:
+        print(f"[AXIS] GetCapabilities failed (non-fatal): {e}")
+
+    # ── Try api_profile detection ─────────────────────────────────
+    api_profile = None
+    try:
+        api_profile = detect_camera_api(
+            ip=ip,
+            manufacturer=manufacturer,
+            model=model,
+            username=username,
+            password=password,
+        )
+    except Exception as e:
+        print(f"[AXIS] detect_camera_api failed (non-fatal): {e}")
+
+    print(f"[AXIS] ✅ Fallback probe complete: {manufacturer} {model}, "
+          f"{len(valid_profiles)} stream(s), uri={stream_uri}")
+
+    return {
+        "success":      True,
+        "manufacturer": manufacturer,
+        "model":        model,
+        "firmware":     firmware,
+        "serial":       serial,
+        "mac":          mac,
+        "stream_uri":   stream_uri,
+        "profiles":     profile_list,
+        "stream_count": len(profile_list),
+        "ptz":          "Yes" if caps.get("ptz") else "No",
+        "capabilities": {
+            "ptz":       caps.get("ptz", False),
+            "imaging":   caps.get("imaging", False),
+            "events":    caps.get("events", False),
+            "analytics": caps.get("analytics", False),
+            "io":        caps.get("io", False),
+            "audio_in":  caps.get("audio_in", False),
+            "audio_out": caps.get("audio_out", False),
+            "imaging_settings": {"supported": False},
+            "ptz_info":         {"supported": False, "presets": []},
+            "event_info":       {"supported": False},
+            "audio_info":       {"input_supported": caps.get("audio_in", False), "output_supported": False},
+            "network_info":     {},
+            "io_info":          {"relay_outputs": [], "alarm_inputs": []},
+            "analytics_info":   {"supported": False},
+        },
+        "api_profile": api_profile,
+    }
+
+
+# ─────────────────────────────────────────────────────────────────
 # MAIN PROBE FUNCTION
 # ─────────────────────────────────────────────────────────────────
 
 def probe_camera(ip: str, port: int, username: str, password: str) -> dict:
     try:
+        # AXIS cameras block all ONVIF on HTTP — detect HSTS and go direct to HTTPS fallback
+        if port == 80:
+            try:
+                _hsts_test = requests.get(
+                    f'http://{ip}/', verify=False, timeout=3, allow_redirects=False
+                )
+                if ('Strict-Transport-Security' in _hsts_test.headers or
+                        _hsts_test.status_code in (301, 302, 307, 308)):
+                    print(f"[ONVIF] {ip} has HSTS/redirect — routing directly to AXIS HTTPS fallback")
+                    return _probe_axis_fallback(ip, 443, username, password)
+            except Exception:
+                pass
+
         cam = _make_cam(ip, port, username, password)
 
         device_service = cam.create_devicemgmt_service()
@@ -687,6 +1132,23 @@ def probe_camera(ip: str, port: int, username: str, password: str) -> dict:
             device_service.transport.session.verify = False
         except Exception:
             pass
+
+        # ── AXIS / WSSE auth check ────────────────────────────────
+        # Try GetSystemDateAndTime first — it's lightweight and reveals auth failures
+        # before we attempt the heavier GetDeviceInformation call.
+        # AXIS cameras return "Unknown fault occurred" or "Sender" fault on bad WSSE auth.
+        try:
+            device_service.GetSystemDateAndTime()
+        except Exception as time_err:
+            err_str = str(time_err).lower()
+            if any(k in err_str for k in [
+                "unknown fault", "sender", "unauthorized",
+                "authentication", "actionnotauthorized", "notauthorized",
+            ]):
+                print(f"[ONVIF] Auth fault detected for {ip} ({time_err}) "
+                      f"— switching to AXIS Digest fallback")
+                return _probe_axis_fallback(ip, port, username, password)
+            # Other errors (timeout, network) — continue and let GetDeviceInformation fail naturally
 
         info = device_service.GetDeviceInformation()
 
@@ -815,6 +1277,14 @@ def probe_camera(ip: str, port: int, username: str, password: str) -> dict:
               f"IO={top_caps.get('io')}, "
               f"Analytics={analytics.get('supported')}")
 
+        api_profile = detect_camera_api(
+            ip=ip,
+            manufacturer=info.Manufacturer,
+            model=info.Model,
+            username=username,
+            password=password,
+        )
+
         return {
             "success":      True,
             "manufacturer": info.Manufacturer,
@@ -828,9 +1298,18 @@ def probe_camera(ip: str, port: int, username: str, password: str) -> dict:
             "stream_count": len(profile_list),
             "ptz":          "Yes" if ptz_info.get("supported") else "No",
             "capabilities": capabilities,
+            "api_profile":  api_profile,
         }
 
     except Exception as e:
+        err_str = str(e).lower()
+        # Last-resort catch — if any unhandled exception looks like AXIS auth, try fallback
+        if any(k in err_str for k in [
+            "unknown fault", "sender", "unauthorized",
+            "authentication", "actionnotauthorized",
+        ]):
+            print(f"[ONVIF] Unhandled auth exception for {ip}: {e} — trying AXIS fallback")
+            return _probe_axis_fallback(ip, port, username, password)
         return {"success": False, "error": str(e)}
 
 
@@ -1130,7 +1609,6 @@ def _fetch_hikvision_events(ip, username, password) -> list:
             stream=True,
         )
         if resp.status_code == 200:
-            # Just check it's reachable — actual streaming handled by ONVIF PullPoint
             print(f"[HIK] {ip} ISAPI alert stream reachable")
         return []
     except Exception:
@@ -1175,7 +1653,6 @@ def pull_camera_events(ip, port, username, password, max_messages=50):
             events_service = cam.create_events_service()
             events_service.transport.session.verify = False
 
-            # Create pull-point subscription
             sub = events_service.CreatePullPointSubscription({
                 'RequestedTerminationTime': 'PT1H',
             })
@@ -1213,7 +1690,6 @@ def pull_camera_events(ip, port, username, password, max_messages=50):
             bosch_events = _fetch_bosch_events(ip, username, password)
             if bosch_events:
                 return {"success": True, "events": bosch_events}
-            # If reachable but no events yet — still success, keep polling
             resp_check = requests.get(
                 f"http://{ip}/api/event/notification/eventlog",
                 auth=(username, password),
@@ -1221,19 +1697,15 @@ def pull_camera_events(ip, port, username, password, max_messages=50):
                 timeout=3,
             )
             if resp_check.status_code in (200, 204, 401, 403):
-                # Camera is Bosch-type, just no events right now
                 print(f"[BOSCH] {ip} reachable, no events currently")
                 return {"success": True, "events": []}
         except Exception:
             pass
 
-        # ── METHOD 3: Silent fallback — keep polling alive ────────
-        # Camera uses push-mode or unsupported event method.
-        # Return success with empty events so polling loop never crashes.
+        # ── METHOD 3: Silent fallback ─────────────────────────────
         print(f"[EVENTS] {ip} — no compatible event method found, polling silently")
         return {"success": True, "events": []}
 
     except Exception as e:
         print(f"[EVENTS] Fatal error for {ip}: {e}")
-        # Still return success=True so polling doesn't give up
         return {"success": True, "events": []}

@@ -6,6 +6,9 @@ import httpx
 from pathlib import Path
 from datetime import datetime, timedelta
 import rtsp_recorder as recorder
+from fastapi.responses import FileResponse
+import zipfile
+from tempfile import gettempdir
 
 backup_router = APIRouter(prefix="/api/backup", tags=["backup"])
 HOST_AGENT = "http://host.docker.internal:9500"
@@ -320,62 +323,46 @@ async def update_auto_config(req: AutoConfigRequest):
 
 
 # ── Manual backup ─────────────────────────────────────────────────────────────
-async def run_manual_backup(req: ManualBackupRequest):
-    global backup_state
-    backup_state.update({"status": "Processing", "progress": 0})
-    append_log(f"Manual backup started — {len(req.cameras)} camera(s)", "Info")
-    try:
-        local    = get_local_path()
-        start_dt = datetime.strptime(req.start_date, "%Y-%m-%d")
-        end_dt   = datetime.strptime(req.end_date,   "%Y-%m-%d") + timedelta(days=1)
+@backup_router.post("/manual/download")
+async def manual_download(req: ManualBackupRequest):
+    local = get_local_path()
 
-        all_files: list[Path] = []
-        for camera in req.cameras:
-            cam_ip_norm = camera.replace(".", "_")
-            for cam_dir in local.iterdir():
-                if not cam_dir.is_dir() or cam_ip_norm not in cam_dir.name:
+    start_dt = datetime.strptime(req.start_date, "%Y-%m-%d")
+    end_dt   = datetime.strptime(req.end_date, "%Y-%m-%d") + timedelta(days=1)
+
+    files = []
+
+    for camera in req.cameras:
+        cam_ip_norm = camera.replace(".", "_")
+
+        for cam_dir in local.iterdir():
+            if not cam_dir.is_dir():
+                continue
+
+            if cam_dir.name != cam_ip_norm:
+                continue
+
+            for f in cam_dir.rglob("*"):
+
+                # ✅ IMPORTANT (protect your system)
+                if f.suffix.lower() not in [".enc", ".meta"]:
                     continue
-                for ext in ["enc", "meta", "mp4"]:
-                    for f in cam_dir.rglob(f"*.{ext}"):
-                        mtime = datetime.fromtimestamp(f.stat().st_mtime)
-                        if start_dt <= mtime <= end_dt:
-                            all_files.append(f)
 
-        total = len(all_files)
-        if total == 0:
-            backup_state.update({"status": "Completed", "progress": 100})
-            append_log("Manual backup done — no files in date range", "Warning")
-            return
+                mtime = datetime.fromtimestamp(f.stat().st_mtime)
 
-        copied = 0
-        for i, f in enumerate(all_files):
-            if copy_file_to_network(f):
-                copied += 1
-            backup_state["progress"] = int(((i + 1) / total) * 100)
-            await asyncio.sleep(0.02)
+                if start_dt <= mtime <= end_dt:
+                    files.append(f)
 
-        backup_state.update({
-            "status":      "Completed",
-            "last_backup": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        })
-        append_log(f"Manual backup done — {copied}/{total} copied", "Success")
+    if not files:
+        raise HTTPException(status_code=404, detail="No files found")
 
-    except Exception as e:
-        backup_state["status"] = "Failed"
-        append_log(f"Manual backup failed: {e}", "Error")
-        print(f"[BACKUP] Manual error: {e}")
+    zip_path = Path(gettempdir()) / "manual_backup.zip"
 
+    with zipfile.ZipFile(zip_path, 'w') as zipf:
+        for f in files:
+            zipf.write(f, arcname=f.name)
 
-@backup_router.post("/manual/start")
-async def start_manual_backup(req: ManualBackupRequest, background_tasks: BackgroundTasks):
-    if backup_state["status"] == "Processing":
-        raise HTTPException(status_code=400, detail="A backup is already running.")
-    if not is_network_available():
-        raise HTTPException(status_code=400, detail="Network storage not accessible.")
-    background_tasks.add_task(run_manual_backup, req)
-    return {"status": "success", "message": "Manual backup started."}
-
-
+    return FileResponse(zip_path, filename="backup.zip",media_type="application/zip")
 # ── Retention ─────────────────────────────────────────────────────────────────
 @backup_router.get("/retention/preview")
 async def preview_retention(days: int = 7):
