@@ -9,6 +9,7 @@ import asyncio
 import json
 import os
 import re
+import subprocess
 import requests as http_requests
 import httpx
 import shutil
@@ -209,7 +210,8 @@ class ResetPasswordRequest(BaseModel):
     email:            str
     new_password:     str
     confirm_password: str
-
+class StoragePathRequest(BaseModel):
+    path: str
 # ------------------------------------------------------------------
 # Helpers
 # ------------------------------------------------------------------
@@ -332,13 +334,14 @@ async def _wait_for_ome(max_retries: int = 30, delay: int = 5):
         try:
             r = http_requests.get(OME_API, headers={"Authorization": OME_AUTH}, timeout=3)
             if r.status_code in (200, 201, 404):
+                # Also verify the WebSocket port is accepting connections
                 try:
                     sock = socket.create_connection(("ome", int(OME_WS_PORT)), timeout=2)
                     sock.close()
                 except Exception:
                     raise Exception(f"WS port {OME_WS_PORT} not yet open")
                 print(f"[STARTUP] ✅ OME REST + WS ready (attempt {attempt})")
-                await asyncio.sleep(2)
+                await asyncio.sleep(2)  # brief grace period for stream ingestion
                 return
         except Exception as e:
             print(f"[STARTUP] ⏳ Waiting for OME... attempt {attempt}/{max_retries}: {e}")
@@ -778,7 +781,7 @@ async def delete_camera_by_ip(ip: str):
 
 
 # ------------------------------------------------------------------
-# ONVIF probe  ← KEY FIX: always delete + re-register in OME
+# ONVIF probe
 # ------------------------------------------------------------------
 @app.post("/api/onvif/probe")
 async def onvif_probe(req: ProbeRequest):
@@ -793,7 +796,6 @@ async def onvif_probe(req: ProbeRequest):
         rtsp = result["stream_uri"]
         rtsp = re.sub(r"[&?]proto=Onvif", "", rtsp)
 
-        # Inject credentials into RTSP URL so OME can pull the stream
         url_authority = rtsp.split("://", 1)[-1].split("/")[0]
         if req.username and "@" not in url_authority:
             safe_user = urllib.parse.quote(req.username, safe="")
@@ -803,70 +805,57 @@ async def onvif_probe(req: ProbeRequest):
         stream_name = normalize_stream_name(req.ip)
         existing    = next((d for d in devices if d.get("ome_stream") == stream_name), None)
 
-        # Always delete stale OME stream first, then re-register with fresh credentials.
-        # This fixes the 502 case where OME has the stream registered with wrong/missing creds.
-        if stream_exists_in_ome(stream_name):
-            print(f"[ONVIF] Deleting stale OME stream before re-registering: {stream_name}")
-            try:
-                http_requests.delete(
-                    f"{OME_API}/{stream_name}",
-                    headers={"Authorization": OME_AUTH},
-                    timeout=5,
-                )
-            except Exception as del_err:
-                print(f"[ONVIF] OME delete failed (non-fatal): {del_err}")
-            import time as _time
-            _time.sleep(0.5)
+        if not existing or not stream_exists_in_ome(stream_name):
+            print(f"[ONVIF] Registering stream in OME: {stream_name}")
+            ome_response = register_stream(stream_name, rtsp)
+            print(f"[ONVIF] OME response: {ome_response}")
 
-        print(f"[ONVIF] Registering stream in OME: {stream_name} → {rtsp[:80]}...")
-        ome_response = register_stream(stream_name, rtsp)
-        print(f"[ONVIF] OME response: {ome_response}")
+            if not existing:
+                new_device = {
+                    "ome_stream":     stream_name,
+                    "rtsp_url":       rtsp,
+                    "recording_rtsp": rtsp,
+                    "ip":             req.ip,
+                    "port":           req.port,
+                    "username":       req.username,
+                    "password":       req.password,
+                    "enabled":        True,
+                }
+                devices.append(new_device)
+                save_devices(devices)
+            else:
+                existing["rtsp_url"]       = rtsp
+                existing["recording_rtsp"] = existing.get("recording_rtsp", rtsp)
+                existing["port"]           = req.port
+                existing["username"]       = req.username
+                existing["password"]       = req.password
+                save_devices(devices)
 
-        # Update or create device entry
-        if not existing:
-            new_device = {
-                "ome_stream":     stream_name,
-                "rtsp_url":       rtsp,
-                "recording_rtsp": rtsp,
-                "ip":             req.ip,
-                "port":           req.port,
-                "username":       req.username,
-                "password":       req.password,
-                "enabled":        True,
-            }
-            devices.append(new_device)
-            save_devices(devices)
+            save_camera_to_db({
+                "ip":              req.ip,
+                "ome_stream":      stream_name,
+                "rtsp_url":        rtsp,
+                "recording_rtsp":  rtsp,
+                "manufacturer":    result.get("manufacturer", ""),
+                "model":           result.get("model", ""),
+                "mac":             result.get("mac", ""),
+                "port":            req.port,
+                "username":        req.username,
+                "password":        req.password,
+                "added_at":        datetime.utcnow(),
+                "status":          "streaming",
+                "enabled":         True,
+                "stream_count":    result.get("stream_count", 0),
+                "stream_profiles": result.get("profiles", []),
+                "api_profile":     result.get("api_profile"),
+            })
+
+            recorder.start_camera(stream_name, rtsp, new_device if not existing else existing)
+            print(f"[ONVIF] 🎥 Recording started for {stream_name}")
+
         else:
-            existing["rtsp_url"]       = rtsp
-            existing["recording_rtsp"] = existing.get("recording_rtsp", rtsp)
-            existing["port"]           = req.port
-            existing["username"]       = req.username
-            existing["password"]       = req.password
-            new_device                 = existing
-            save_devices(devices)
-
-        save_camera_to_db({
-            "ip":              req.ip,
-            "ome_stream":      stream_name,
-            "rtsp_url":        rtsp,
-            "recording_rtsp":  rtsp,
-            "manufacturer":    result.get("manufacturer", ""),
-            "model":           result.get("model", ""),
-            "mac":             result.get("mac", ""),
-            "port":            req.port,
-            "username":        req.username,
-            "password":        req.password,
-            "added_at":        datetime.utcnow(),
-            "status":          "streaming",
-            "enabled":         True,
-            "stream_count":    result.get("stream_count", 0),
-            "stream_profiles": result.get("profiles", []),
-            "api_profile":     result.get("api_profile"),
-        })
-
-        recorder.stop_camera(stream_name)
-        recorder.start_camera(stream_name, rtsp, new_device)
-        print(f"[ONVIF] 🎥 Recording started for {stream_name}")
+            print(f"[ONVIF] Stream {stream_name} already live in OME, skipping.")
+            ome_response = {"message": "Already registered", "statusCode": 200}
 
         result["ome_stream"]   = stream_name
         result["ome_response"] = ome_response
@@ -996,74 +985,47 @@ async def assign_streams(req: StreamAssignRequest):
     host        = req.ip.strip()
     stream_name = normalize_stream_name(host)
 
-    print(f"[ASSIGN] {host}: live={req.live_profile!r} ({req.live_rtsp})"
-          f"  rec={req.recording_profile!r} ({req.recording_rtsp})")
+    print(f"[ASSIGN] {host}: live={req.live_profile!r} rec={req.recording_profile!r}")
+    print(f"[ASSIGN] live_rtsp={req.live_rtsp!r}")
+    print(f"[ASSIGN] rec_rtsp={req.recording_rtsp!r}")
 
-    ome_ok = False
-    try:
-        ome_response = register_stream(stream_name, req.live_rtsp)
-        status_code  = ome_response.get("statusCode", 0) if isinstance(ome_response, dict) else 0
-
-        if status_code in (200, 201):
-            ome_ok = True
-            print(f"[ASSIGN] ✅ OME registered {stream_name} (HTTP {status_code})")
-
-        elif status_code == 409:
-            print(f"[ASSIGN] 409 — stream exists, attempting delete+re-register for {stream_name}")
-            delete_ok = False
-            try:
-                del_resp = http_requests.delete(
-                    f"{OME_API}/{stream_name}",
-                    headers={"Authorization": OME_AUTH},
-                    timeout=5,
-                )
-                if del_resp.status_code in (200, 204):
-                    delete_ok = True
-                    print(f"[ASSIGN] ✅ OME deleted {stream_name} (HTTP {del_resp.status_code})")
-                else:
-                    print(f"[ASSIGN] ⚠ OME delete returned HTTP {del_resp.status_code} — skipping re-register")
-            except Exception as del_err:
-                print(f"[ASSIGN] ⚠ OME delete failed ({del_err}) — skipping re-register")
-
-            if delete_ok:
-                import time as _time
-                _time.sleep(0.8)
-                try:
-                    ome_response2 = register_stream(stream_name, req.live_rtsp)
-                    sc2           = ome_response2.get("statusCode", 0) if isinstance(ome_response2, dict) else 0
-                    if sc2 in (200, 201):
-                        ome_ok = True
-                        print(f"[ASSIGN] ✅ OME re-registered {stream_name} (HTTP {sc2})")
-                    else:
-                        ome_ok = True
-                        print(f"[ASSIGN] ⚠ Re-register returned HTTP {sc2} — watchdog will recover")
-                except Exception as rereg_err:
-                    ome_ok = True
-                    print(f"[ASSIGN] ⚠ Re-register exception ({rereg_err}) — watchdog will recover")
-            else:
-                ome_ok = True
-                print(f"[ASSIGN] ℹ Keeping existing OME stream; recorder switching to new recording RTSP")
-
-        else:
-            err_msg = (
-                ome_response.get("message", f"OME registration failed (HTTP {status_code})")
-                if isinstance(ome_response, dict)
-                else f"OME registration failed (HTTP {status_code})"
-            )
-            print(f"[ASSIGN] ❌ {err_msg}")
-            return {"success": False, "error": err_msg}
-
-    except Exception as e:
-        print(f"[ASSIGN] ❌ OME error: {e}")
-        return {"success": False, "error": str(e)}
-
-    if not ome_ok:
-        return {"success": False, "error": "OME registration failed unexpectedly"}
-
+    # ── 1. Update OME only if live RTSP actually changed ──────────────
     existing = next(
         (d for d in devices if d.get("ome_stream") == stream_name or d.get("ip") == host),
         None
     )
+    current_live_rtsp = existing.get("rtsp_url") if existing else None
+    live_rtsp_changed = current_live_rtsp != req.live_rtsp
+
+    if live_rtsp_changed or not stream_exists_in_ome(stream_name):
+        print(f"[ASSIGN] Live RTSP changed or stream missing — re-registering OME")
+        try:
+            # Delete existing first to avoid 409
+            try:
+                http_requests.delete(
+                    f"{OME_API}/{stream_name}",
+                    headers={"Authorization": OME_AUTH},
+                    timeout=5,
+                )
+            except:
+                pass
+
+            import time as _time
+            _time.sleep(0.5)
+
+            ome_response = register_stream(stream_name, req.live_rtsp)
+            status_code  = ome_response.get("statusCode", 0) if isinstance(ome_response, dict) else 0
+            print(f"[ASSIGN] OME register HTTP {status_code}: {ome_response}")
+
+            if status_code not in (200, 201):
+                # Don't fail the whole assign — log and continue
+                print(f"[ASSIGN] ⚠ OME registration failed (HTTP {status_code}) — saving profile anyway")
+        except Exception as e:
+            print(f"[ASSIGN] ⚠ OME error: {e} — saving profile anyway")
+    else:
+        print(f"[ASSIGN] Live RTSP unchanged and stream exists — skipping OME re-register")
+
+    # ── 2. Always update device entry and DB ──────────────────────────
     if existing:
         existing["rtsp_url"]            = req.live_rtsp
         existing["recording_rtsp"]      = req.recording_rtsp
@@ -1102,9 +1064,10 @@ async def assign_streams(req: StreamAssignRequest):
         "updated_at":           datetime.utcnow(),
     })
 
+    # ── 3. Restart recorder on recording RTSP ─────────────────────────
     recorder.stop_camera(stream_name)
     recorder.start_camera(stream_name, req.recording_rtsp, device_entry)
-    print(f"[ASSIGN] 🎥 Recorder restarted → recording profile: {req.recording_profile!r}")
+    print(f"[ASSIGN] 🎥 Recorder → {req.recording_profile!r} ({req.recording_rtsp})")
 
     _watchdog_failures[stream_name] = 0
 
@@ -1118,7 +1081,6 @@ async def assign_streams(req: StreamAssignRequest):
         "live_profile":      req.live_profile,
         "recording_profile": req.recording_profile,
     }
-
 
 # ------------------------------------------------------------------
 # Camera lookup by IP
@@ -1414,8 +1376,6 @@ async def get_dashboard_events(limit: int = 20):
         if "received_at" in d:
             d["received_at"] = d["received_at"].isoformat()
     return docs
-
-
 @features_router.post("/detect-api")
 async def detect_camera_api_endpoint(req: CameraCredentials):
     cam_doc = {}
@@ -1475,10 +1435,6 @@ async def get_camera_api_profile(ip: str):
 
     return {"ip": ip, "api_profile": doc["api_profile"], "summary": get_api_summary(doc["api_profile"])}
 
-
-# ------------------------------------------------------------------
-# MQTT Alerts endpoint — reads from mqtt_logs collection
-# ------------------------------------------------------------------
 @app.get("/api/alerts")
 async def get_alerts(limit: int = 50):
     if _db is None:

@@ -8,7 +8,13 @@ function loadDevices() {
   try { return JSON.parse(localStorage.getItem("miradorai_devices") || "[]"); }
   catch { return []; }
 }
-
+function getAlertFilter(cameraIp) {
+  try {
+    const saved = JSON.parse(localStorage.getItem(`miradorai_alert_filter_${cameraIp}`) || "{}");
+    const hasAny = Object.values(saved).some(Boolean);
+    return hasAny ? saved : null;
+  } catch { return null; }
+}
 const LAYOUTS = [
   { id: "1x1", label: "1×1", cols: 1, icon: "▣" },
   { id: "2x2", label: "2×2", cols: 2, icon: "⊞" },

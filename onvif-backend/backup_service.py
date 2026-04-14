@@ -6,9 +6,6 @@ import httpx
 from pathlib import Path
 from datetime import datetime, timedelta
 import rtsp_recorder as recorder
-from fastapi.responses import FileResponse
-import zipfile
-from tempfile import gettempdir
 
 backup_router = APIRouter(prefix="/api/backup", tags=["backup"])
 HOST_AGENT = "http://host.docker.internal:9500"
@@ -20,20 +17,13 @@ async def _agent(path: str):
     except Exception as e:
         print(f"[BACKUP] Host agent call failed ({path}): {e}")
 
-# ── Paths from environment (set in docker-compose) ────────────────────────────
+# ── Paths from environment ────────────────────────────────────────────────────
 CONFIG_FILE      = Path(os.environ.get("BACKUP_CONFIG",      "/app/data/backup_config.json"))
 HEALTH_LOG       = Path(os.environ.get("BACKUP_HEALTH",      "/app/data/health_log.json"))
 NETWORK_BASE_DIR = Path(os.environ.get("BACKUP_NETWORK_DIR", "/network_backup"))
-#
-# Full backup flow:
-#   /recordings  →  copy_file_to_network()  →  /network_backup
-#   /network_backup  =  C:\vmsrecording_backup  (Docker volume mount)
-#   C:\vmsrecording_backup  →  Robocopy  →  \\10.22.101.30\vmsrecording  (laptop)
-#
-# NOTE: Docker cannot mount UNC paths directly. Always use a local Windows
-#       folder as the staging area and let Robocopy push it to the network.
 
-RECORDING_EXTENSIONS = {".enc", ".meta"}   # actual file types saved by this VMS
+# Only .enc and .meta — these are the actual recording files
+RECORDING_EXTENSIONS = {".enc", ".meta"}
 
 backup_state = {
     "status":        "Idle",
@@ -41,7 +31,7 @@ backup_state = {
     "last_backup":   None,
     "storage_usage": 0,
 }
-auto_watcher_active  = False
+auto_watcher_active   = False
 _auto_backup_task: Optional[asyncio.Task] = None
 
 # ── Config helpers ────────────────────────────────────────────────────────────
@@ -83,26 +73,60 @@ def get_storage_usage() -> int:
     except Exception:
         return 0
 
-def copy_file_to_network(src: Path) -> bool:
+def copy_file_to_dest(src: Path, dest_base: Path, local_base: Path) -> bool:
     """
-    Copy one file from /recordings → /network_backup preserving folder structure.
-    Example:
-      /recordings/192_168_126_234/2026-04-07/00-17-27.enc
-      → /network_backup/192_168_126_234/2026-04-07/00-17-27.enc
-      → C:\\vmsrecording_backup\\...  (same path, via Docker volume)
-      → Robocopy → \\\\10.22.101.30\\vmsrecording\\...
+    Copy src file to dest_base, preserving folder structure relative to local_base.
+    e.g. /recordings/192_168_1_101/2026-04-07/00-17-27.enc
+         → <dest_base>/192_168_1_101/2026-04-07/00-17-27.enc
     """
     try:
-        local = get_local_path()
-        rel   = src.relative_to(local)
-        dest  = NETWORK_BASE_DIR / rel
+        rel  = src.relative_to(local_base)
+        dest = dest_base / rel
         dest.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(src, dest)
-        print(f"[BACKUP] ✓ {src.name} → {dest}")
+        print(f"[BACKUP] ✓ {rel} → {dest_base}")
         return True
     except Exception as e:
         print(f"[BACKUP] ✗ Copy failed {src.name}: {e}")
         return False
+
+def copy_file_to_network(src: Path) -> bool:
+    """Auto-backup helper — always copies to NETWORK_BASE_DIR."""
+    return copy_file_to_dest(src, NETWORK_BASE_DIR, get_local_path())
+
+def collect_files_in_range(
+    base_dir: Path,
+    cam_ip_norm: str,
+    start_dt: "datetime.date",
+    end_dt: "datetime.date",
+) -> list:
+    """
+    Walk base_dir/<cam_folder>/<YYYY-MM-DD>/ and collect .enc/.meta files
+    whose DATE FOLDER name falls within [start_dt, end_dt].
+    Uses folder name for date — NOT mtime (mtime is unreliable in Docker volumes).
+    """
+    files = []
+    try:
+        for cam_dir in base_dir.iterdir():
+            if not cam_dir.is_dir():
+                continue
+            if cam_ip_norm not in cam_dir.name:
+                continue
+            for date_dir in cam_dir.iterdir():
+                if not date_dir.is_dir():
+                    continue
+                try:
+                    folder_date = datetime.strptime(date_dir.name, "%Y-%m-%d").date()
+                except ValueError:
+                    continue  # not a date folder, skip
+                if not (start_dt <= folder_date <= end_dt):
+                    continue
+                for f in date_dir.iterdir():
+                    if f.is_file() and f.suffix.lower() in RECORDING_EXTENSIONS:
+                        files.append(f)
+    except Exception as e:
+        print(f"[BACKUP] collect_files error: {e}")
+    return files
 
 def tag_health(camera: str, timestamp: str, status: str):
     try:
@@ -154,10 +178,11 @@ class NetworkConfig(BaseModel):
     path:     str = ""
 
 class ManualBackupRequest(BaseModel):
-    cameras:    list[str]
-    start_date: str
-    end_date:   str
-    format:     str = "MP4"
+    cameras:          list[str]
+    start_date:       str
+    end_date:         str
+    format:           str = "ENC"
+    destination_path: str = ""   # D:\, C:\, Z:\, custom path — empty = NETWORK_BASE_DIR
 
 class RetentionRequest(BaseModel):
     retention_days: int = 7
@@ -174,9 +199,8 @@ class AutoConfigRequest(BaseModel):
 # ── Auto-backup: asyncio polling ──────────────────────────────────────────────
 async def auto_backup_polling():
     """
-    Polls /recordings every 3 seconds for new .enc/.meta files.
-    Copies any unseen files to /network_backup (C:\\vmsrecording_backup).
-    Robocopy then picks them up and pushes to \\\\10.22.101.30\\vmsrecording.
+    Polls /recordings every 3 s for new .enc/.meta files.
+    Copies any unseen (size-stable) files to NETWORK_BASE_DIR.
     """
     print("[AutoBackup] ▶ Polling started")
     seen: set[str] = set()
@@ -190,7 +214,7 @@ async def auto_backup_polling():
                 key = str(file)
                 if key in seen:
                     continue
-                # Wait until file is fully written (size stable)
+                # Wait until write is complete (size stable over 1 s)
                 try:
                     size1 = file.stat().st_size
                     await asyncio.sleep(1)
@@ -200,7 +224,7 @@ async def auto_backup_polling():
                 except Exception:
                     continue
 
-                print(f"[AutoBackup] New: {file.name}")
+                print(f"[AutoBackup] New file: {file.name}")
                 if copy_file_to_network(file):
                     seen.add(key)
                     cam = file.parent.parent.name
@@ -222,14 +246,12 @@ def start_auto_watcher():
     if auto_watcher_active:
         return
     if not is_network_available():
-        print("[AutoBackup] ✗ /network_backup not accessible. "
-              "Ensure C:/vmsrecording_backup:/network_backup is in docker-compose and container restarted.")
+        print("[AutoBackup] ✗ /network_backup not accessible.")
         return
     auto_watcher_active = True
     _auto_backup_task = asyncio.create_task(auto_backup_polling())
     asyncio.create_task(_agent("/start"))
     print(f"[AutoBackup] ✓ Watching: {get_local_path()} → {NETWORK_BASE_DIR}")
-    
     append_log("Auto backup polling started", "Info")
 
 
@@ -244,20 +266,12 @@ def stop_auto_watcher():
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
-
-# @backup_router.on_event("startup") if False else None  # placeholder — startup handled in main.py
-
 @backup_router.get("/config")
 async def get_config():
     cfg = load_config()
     cfg["local_path"]        = str(get_local_path())
     cfg["network_path"]      = str(NETWORK_BASE_DIR)
     cfg["network_available"] = is_network_available()
-    cfg["unc_display"]       = (
-        f"\\\\{cfg['network'].get('ip', '')}\\vmsrecording"
-        if cfg["network"].get("ip")
-        else "\\\\10.22.101.30\\vmsrecording"
-    )
     return cfg
 
 
@@ -266,23 +280,22 @@ async def test_network_connection(config: NetworkConfig):
     cfg = load_config()
     cfg["network"] = config.dict()
     save_config(cfg)
-
     if is_network_available():
         append_log("Connection test passed", "Success")
         return {
             "status":  "success",
             "message": (
-                "✅ /network_backup accessible!\n"
-                "Flow: D:\\REC → /network_backup (C:\\vmsrecording_backup) "
-                "→ Robocopy → \\\\10.22.101.30\\vmsrecording"
+                "✅ /network_backup accessible! "
+                "Flow: /recordings → /network_backup (C:\\vmsrecording_backup) "
+                "→ Robocopy → laptop share"
             ),
         }
     raise HTTPException(
         status_code=400,
         detail=(
             "❌ /network_backup not accessible inside container. "
-            "Make sure docker-compose.yml has: C:/vmsrecording_backup:/network_backup "
-            "and run: docker-compose down && docker-compose up -d"
+            "Check docker-compose volume: C:/vmsrecording_backup:/network_backup "
+            "then run: docker-compose down && docker-compose up -d"
         ),
     )
 
@@ -298,7 +311,7 @@ async def save_network_settings(config: NetworkConfig):
     append_log("Network settings saved", "Info")
     return {
         "status":  "success",
-        "message": "Saved. Flow: /network_backup → C:\\vmsrecording_backup → Robocopy → \\\\10.22.101.30\\vmsrecording",
+        "message": "Network settings saved.",
     }
 
 
@@ -323,46 +336,118 @@ async def update_auto_config(req: AutoConfigRequest):
 
 
 # ── Manual backup ─────────────────────────────────────────────────────────────
-@backup_router.post("/manual/download")
-async def manual_download(req: ManualBackupRequest):
-    local = get_local_path()
+async def run_manual_backup(req: ManualBackupRequest):
+    global backup_state
+    backup_state.update({"status": "Processing", "progress": 0})
 
-    start_dt = datetime.strptime(req.start_date, "%Y-%m-%d")
-    end_dt   = datetime.strptime(req.end_date, "%Y-%m-%d") + timedelta(days=1)
+    # Resolve destination
+    dest_base = Path(req.destination_path.strip()) if req.destination_path.strip() else NETWORK_BASE_DIR
 
-    files = []
+    append_log(
+        f"Manual backup started — {len(req.cameras)} camera(s), "
+        f"{req.start_date} → {req.end_date}, dest: {dest_base}",
+        "Info"
+    )
 
-    for camera in req.cameras:
-        cam_ip_norm = camera.replace(".", "_")
+    try:
+        local    = get_local_path()
+        start_dt = datetime.strptime(req.start_date, "%Y-%m-%d").date()
+        end_dt   = datetime.strptime(req.end_date,   "%Y-%m-%d").date()
 
-        for cam_dir in local.iterdir():
-            if not cam_dir.is_dir():
-                continue
+        # Create destination
+        try:
+            dest_base.mkdir(parents=True, exist_ok=True)
+        except Exception as e:
+            backup_state["status"] = "Failed"
+            append_log(f"Cannot create destination {dest_base}: {e}", "Error")
+            return
 
-            if cam_dir.name != cam_ip_norm:
-                continue
+        # Verify source exists
+        if not local.exists():
+            backup_state["status"] = "Failed"
+            append_log(f"Source recordings folder not found: {local}", "Error")
+            return
 
-            for f in cam_dir.rglob("*"):
+        print(f"[BACKUP] Source: {local}")
+        print(f"[BACKUP] Destination: {dest_base}")
+        print(f"[BACKUP] Date range: {start_dt} → {end_dt}")
+        print(f"[BACKUP] Cameras: {req.cameras}")
 
-                # ✅ IMPORTANT (protect your system)
-                if f.suffix.lower() not in [".enc", ".meta"]:
-                    continue
+        # Collect all matching .enc and .meta files
+        all_files: list[Path] = []
+        for camera in req.cameras:
+            cam_ip_norm = camera.replace(".", "_")
+            print(f"[BACKUP] Looking for camera folder matching: {cam_ip_norm}")
+            found = collect_files_in_range(local, cam_ip_norm, start_dt, end_dt)
+            print(f"[BACKUP] Found {len(found)} files for camera {camera}")
+            all_files.extend(found)
 
-                mtime = datetime.fromtimestamp(f.stat().st_mtime)
+        total = len(all_files)
+        chunks = total // 2  # each recording = 1 .enc + 1 .meta
+        print(f"[BACKUP] Total: {total} files ({chunks} recording chunks) to copy → {dest_base}")
 
-                if start_dt <= mtime <= end_dt:
-                    files.append(f)
+        if total == 0:
+            backup_state.update({"status": "Completed", "progress": 100})
+            append_log(
+                f"Manual backup: no .enc/.meta files found for {req.cameras} "
+                f"between {req.start_date} and {req.end_date}. "
+                f"Check that recordings exist in {local}",
+                "Warning"
+            )
+            return
 
-    if not files:
-        raise HTTPException(status_code=404, detail="No files found")
+        copied = 0
+        failed = 0
+        for i, f in enumerate(all_files):
+            try:
+                rel  = f.relative_to(local)
+                dest = dest_base / rel
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(f, dest)
+                copied += 1
+                print(f"[BACKUP] ✓ ({i+1}/{total}) {rel}")
+            except Exception as e:
+                failed += 1
+                print(f"[BACKUP] ✗ ({i+1}/{total}) {f.name}: {e}")
 
-    zip_path = Path(gettempdir()) / "manual_backup.zip"
+            backup_state["progress"] = int(((i + 1) / total) * 100)
+            await asyncio.sleep(0.01)
 
-    with zipfile.ZipFile(zip_path, 'w') as zipf:
-        for f in files:
-            zipf.write(f, arcname=f.name)
+        backup_state.update({
+            "status":      "Completed",
+            "progress":    100,
+            "last_backup": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        })
+        append_log(
+            f"Manual backup done — {copied}/{total} files ({copied//2} chunks) "
+            f"copied to {dest_base}, {failed} failed",
+            "Success" if failed == 0 else "Warning"
+        )
 
-    return FileResponse(zip_path, filename="backup.zip",media_type="application/zip")
+    except Exception as e:
+        backup_state["status"] = "Failed"
+        append_log(f"Manual backup failed: {e}", "Error")
+        print(f"[BACKUP] Manual error: {e}")
+
+
+@backup_router.post("/manual/start")
+async def start_manual_backup(req: ManualBackupRequest, background_tasks: BackgroundTasks):
+    if backup_state["status"] == "Processing":
+        raise HTTPException(status_code=400, detail="A backup is already running.")
+
+    # If destination is the default network mount, check it's accessible
+    dest = req.destination_path.strip()
+    if not dest and not is_network_available():
+        raise HTTPException(
+            status_code=400,
+            detail="Network storage not accessible. Set a destination path or fix the network mount."
+        )
+
+    background_tasks.add_task(run_manual_backup, req)
+    dest_display = dest if dest else str(NETWORK_BASE_DIR)
+    return {"status": "success", "message": f"Manual backup started → {dest_display}"}
+
+
 # ── Retention ─────────────────────────────────────────────────────────────────
 @backup_router.get("/retention/preview")
 async def preview_retention(days: int = 7):
@@ -370,17 +455,18 @@ async def preview_retention(days: int = 7):
     local  = get_local_path()
     files  = []
     try:
-        for pattern in ["*.enc", "*.meta", "*.mp4"]:
-            for f in local.rglob(pattern):
-                mtime = datetime.fromtimestamp(f.stat().st_mtime)
-                if mtime < cutoff:
-                    parts  = f.parts
-                    camera = parts[-3] if len(parts) >= 3 else "unknown"
-                    files.append({
-                        "file":     f.name,
-                        "camera":   camera,
-                        "modified": mtime.strftime("%Y-%m-%d %H:%M"),
-                    })
+        for f in local.rglob("*"):
+            if not f.is_file() or f.suffix.lower() not in RECORDING_EXTENSIONS:
+                continue
+            mtime = datetime.fromtimestamp(f.stat().st_mtime)
+            if mtime < cutoff:
+                parts  = f.parts
+                camera = parts[-3] if len(parts) >= 3 else "unknown"
+                files.append({
+                    "file":     f.name,
+                    "camera":   camera,
+                    "modified": mtime.strftime("%Y-%m-%d %H:%M"),
+                })
     except Exception as e:
         print(f"[BACKUP] Preview error: {e}")
     return {"count": len(files), "files": files[:20]}
@@ -394,14 +480,15 @@ async def enforce_retention(req: RetentionRequest):
     local         = get_local_path()
     moved, failed = 0, 0
     try:
-        for pattern in ["*.enc", "*.meta", "*.mp4"]:
-            for f in local.rglob(pattern):
-                if datetime.fromtimestamp(f.stat().st_mtime) < cutoff:
-                    if copy_file_to_network(f):
-                        f.unlink()
-                        moved += 1
-                    else:
-                        failed += 1
+        for f in local.rglob("*"):
+            if not f.is_file() or f.suffix.lower() not in RECORDING_EXTENSIONS:
+                continue
+            if datetime.fromtimestamp(f.stat().st_mtime) < cutoff:
+                if copy_file_to_network(f):
+                    f.unlink()
+                    moved += 1
+                else:
+                    failed += 1
     except Exception as e:
         print(f"[BACKUP] Retention error: {e}")
 
@@ -428,34 +515,25 @@ async def run_restore(req: RestoreRequest):
     try:
         net      = NETWORK_BASE_DIR
         local    = get_local_path()
-        start_dt = datetime.strptime(req.start_date, "%Y-%m-%d")
-        end_dt   = datetime.strptime(req.end_date,   "%Y-%m-%d") + timedelta(days=1)
+        start_dt = datetime.strptime(req.start_date, "%Y-%m-%d").date()
+        end_dt   = datetime.strptime(req.end_date,   "%Y-%m-%d").date()
 
         if req.use_smart_restore and req.cameras:
-            smart_end = get_last_healthy(req.cameras[0], end_dt.isoformat())
+            smart_end = get_last_healthy(req.cameras[0], req.end_date + "T23:59:59")
             if smart_end:
-                end_dt = datetime.fromisoformat(smart_end)
+                end_dt = datetime.fromisoformat(smart_end).date()
                 append_log(f"Smart restore point: {smart_end}", "Info")
 
         all_files: list[Path] = []
         for camera in req.cameras:
             cam_ip_norm = camera.replace(".", "_")
-            for cam_dir in net.iterdir():
-                if not cam_dir.is_dir() or cam_ip_norm not in cam_dir.name:
-                    continue
-                for f in (
-                    list(cam_dir.rglob("*.enc"))
-                    + list(cam_dir.rglob("*.meta"))
-                    + list(cam_dir.rglob("*.mp4"))
-                ):
-                    mtime = datetime.fromtimestamp(f.stat().st_mtime)
-                    if start_dt <= mtime <= end_dt:
-                        all_files.append(f)
+            found = collect_files_in_range(net, cam_ip_norm, start_dt, end_dt)
+            all_files.extend(found)
 
         total = len(all_files)
         if total == 0:
             backup_state.update({"status": "Completed", "progress": 100})
-            append_log("Restore done — no files found", "Warning")
+            append_log("Restore done — no files found in network backup", "Warning")
             return
 
         for i, f in enumerate(all_files):
@@ -464,16 +542,18 @@ async def run_restore(req: RestoreRequest):
                 dest = local / rel
                 dest.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(f, dest)
+                print(f"[RESTORE] ✓ {rel}")
             except Exception as e:
-                print(f"[BACKUP] Restore copy error: {e}")
+                print(f"[RESTORE] ✗ {f.name}: {e}")
             backup_state["progress"] = int(((i + 1) / total) * 100)
-            await asyncio.sleep(0.02)
+            await asyncio.sleep(0.01)
 
         backup_state.update({
             "status":      "Completed",
+            "progress":    100,
             "last_backup": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         })
-        append_log(f"Restore done — {total} file(s) restored", "Success")
+        append_log(f"Restore done — {total} file(s) restored to {local}", "Success")
 
     except Exception as e:
         backup_state["status"] = "Failed"

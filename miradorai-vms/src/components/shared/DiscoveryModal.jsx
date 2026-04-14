@@ -143,7 +143,6 @@ export default function DiscoveryModal({ isOpen, onClose, onAddDevices }) {
   toAdd.map(async (device) => {
 
     const creds = deviceCreds[device.id] || {};   // ✅ MOVE HERE FIRST
-    console.log("[DEBUG] Probing", device.ip, "with creds:", creds);
 
     const probePayload = {
       ip: device.ip,
@@ -175,6 +174,7 @@ export default function DiscoveryModal({ isOpen, onClose, onAddDevices }) {
     let streamProfiles = [];
     let streamCount = 0;
 
+    let data = null;  // ✅ hoist outside try block
     try {
       const res = await fetch(`${STREAM_API}/api/onvif/probe`, {
         method: "POST",
@@ -182,7 +182,7 @@ export default function DiscoveryModal({ isOpen, onClose, onAddDevices }) {
         body: JSON.stringify(probePayload),
       });
 
-      const data = res.ok ? await res.json() : null;
+      data = res.ok ? await res.json() : null;  // ✅ assign, not declare
 
       if (data?.success && data?.ws_url) {
         ws_url = data.ws_url;
@@ -224,7 +224,7 @@ export default function DiscoveryModal({ isOpen, onClose, onAddDevices }) {
       type: "entrance",
       name: enrichedName || `Camera @ ${device.ip}`,
       ip: device.ip,
-      mac: device.mac || "—",
+     mac: data?.mac || device.mac || "—",
       status: ws_url ? "Online" : "Offline",
       manufacturer: enrichedManufacturer,
       model: enrichedModel,

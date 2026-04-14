@@ -303,7 +303,7 @@ def probe_onvif_device(ip: str, port: int = 80, username: str = "", password: st
             return {
                 'id':            f"device-{ip}",
                 'ip':            ip,
-                'mac':           result.get('serial', 'Unknown'),
+                'mac': result.get('mac', 'Unknown'),
                 'status':        'online',
                 'manufacturer':  result.get('manufacturer', 'Unknown'),
                 'model':         result.get('model', 'Unknown'),

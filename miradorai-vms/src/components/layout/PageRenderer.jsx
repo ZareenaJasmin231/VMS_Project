@@ -36,8 +36,7 @@ import BackupPage              from "../../pages/admin/BackupPage";
 // ✅ IMPORTANT PAGES
 import DashboardPage           from "../../pages/Dashboard/DashboardPage";
 
-// ✅ ADD ANALYTICS PAGE IMPORT
-import AnalyticsPage           from "../../pages/analytics/AnalyticsPage";
+
 
 
 // ================= PAGE MAP =================
@@ -47,7 +46,6 @@ const MAP = {
   "dashboard": DashboardPage,
 
   // ✅ ANALYTICS (NEW)
-  "analytics": AnalyticsPage,
 
   // ================= DEVICES =================
   "add-devices":     AddDevicesPage,
