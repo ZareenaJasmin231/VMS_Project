@@ -555,8 +555,8 @@ export default function BackupPage() {
                 <div className="input-group">
                   <label>Select cameras</label>
                   <div className="camera-selector">
-                    {cameras.map(c => (
-                      <div key={c.ip} className="cam-item">
+                    {cameras.map((c, i) => (
+                      <div key={`manual-${c.ip}-${i}`} className="cam-item">
                         <input type="checkbox"
                           checked={manual.cameras.includes(c.ip)}
                           onChange={() => toggleCamera(setManual, c.ip)} />
@@ -726,8 +726,8 @@ export default function BackupPage() {
             <div className="input-group">
               <label>Select cameras</label>
               <div className="camera-selector">
-                {cameras.map(c => (
-                  <div key={c.ip} className="cam-item">
+                {cameras.map((c, i) => (
+                  <div key={`restore-${c.ip}-${i}`} className="cam-item">
                     <input type="checkbox"
                       checked={restore.cameras.includes(c.ip)}
                       onChange={() => toggleCamera(setRestore, c.ip)} />

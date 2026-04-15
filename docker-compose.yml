@@ -90,6 +90,10 @@ services:
       - ./devices_data:/app/data
       - D:/REC:/recordings
       - C:/vmsrecording_backup:/network_backup
+      - D:/:/mnt/dest_d        # ← add this
+      # - E:/:/mnt/dest_e        # ← add this (USB)
+      # - F:/:/mnt/dest_f        # ← add this (USB)
+      - C:/:/mnt/dest_c        # ← add this
       - /etc/localtime:/etc/localtime:ro
     depends_on:
       - ome

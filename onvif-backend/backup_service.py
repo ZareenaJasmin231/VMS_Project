@@ -333,7 +333,33 @@ async def update_auto_config(req: AutoConfigRequest):
         "status":  "success",
         "message": f"Auto backup {'enabled ✅' if req.enabled else 'disabled ⏹'}.",
     }
+def windows_path_to_container(windows_path: str) -> Path:
+    """
+    Convert a Windows path selected in the UI → container mount path.
+    
+    Examples:
+      D:\\Backup        → /mnt/dest_d/Backup
+      D:\\              → /mnt/dest_d
+      E:\\MyUSB\\clips  → /mnt/dest_e/MyUSB/clips
+      C:\\Backup        → /mnt/dest_c/Backup
+      Z:\\              → /network_backup  (already mounted)
+    """
+    stripped = windows_path.strip()
 
+    # Not a Windows path — return as-is (already a Linux path)
+    if len(stripped) < 2 or stripped[1] != ':':
+        return Path(stripped) if stripped else NETWORK_BASE_DIR
+
+    drive_letter = stripped[0].lower()          # "d"
+    rest         = stripped[2:].lstrip("\\/")   # "Backup" or "" or "MyUSB\\clips"
+    rest_linux   = rest.replace("\\", "/")      # "Backup" or "" or "MyUSB/clips"
+
+    # Z: is already the network_backup mount
+    if drive_letter == 'z':
+        return NETWORK_BASE_DIR / rest_linux if rest_linux else NETWORK_BASE_DIR
+
+    container_root = Path(f"/mnt/dest_{drive_letter}")
+    return container_root / rest_linux if rest_linux else container_root
 
 # ── Manual backup ─────────────────────────────────────────────────────────────
 async def run_manual_backup(req: ManualBackupRequest):
@@ -341,8 +367,7 @@ async def run_manual_backup(req: ManualBackupRequest):
     backup_state.update({"status": "Processing", "progress": 0})
 
     # Resolve destination
-    dest_base = Path(req.destination_path.strip()) if req.destination_path.strip() else NETWORK_BASE_DIR
-
+    dest_base = windows_path_to_container(req.destination_path) if req.destination_path.strip() else NETWORK_BASE_DIR
     append_log(
         f"Manual backup started — {len(req.cameras)} camera(s), "
         f"{req.start_date} → {req.end_date}, dest: {dest_base}",
