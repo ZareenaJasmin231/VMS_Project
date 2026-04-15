@@ -17,8 +17,7 @@ function saveDevices(devices) {
   try { localStorage.setItem("miradorai_devices", JSON.stringify(devices)); } catch {}
 }
 
-const API_BASE = "http://localhost:8000";
-
+const API_BASE = "http://192.168.126.200:8000";
 // Pages that render inline inside CamerasPage instead of navigating away.
 // Add more page keys here as needed (e.g. "camera-features").
 const INLINE_PAGES = ["masking"];
@@ -116,15 +115,32 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
     setAuthModal(null);
   };
 
-  const confirmRemove = () => {
-    callCameraAction(removeModal, "delete");
-    const updated = cameras.filter((c) => String(c.id) !== String(removeModal.id));
-    setCameras(updated);
-    saveDevices(updated);
-    setSelected(null);
-    setRemoveModal(null);
-  };
+  const confirmRemove = async () => {
+  if (!removeModal) return;
 
+  try {
+    const ip = encodeURIComponent(removeModal.ip);
+
+    const res = await fetch(
+      `${API_BASE}/api/cameras/by-ip/${ip}/delete`,
+      { method: "DELETE" }
+    );
+
+    const data = await res.json();
+    console.log("✅ Deleted from DB:", data);
+
+  } catch (err) {
+    console.error("❌ Delete failed:", err);
+  }
+
+  // ✅ Update UI AFTER backend success
+  const updated = cameras.filter((c) => String(c.id) !== String(removeModal.id));
+  setCameras(updated);
+  saveDevices(updated);
+
+  setSelected(null);
+  setRemoveModal(null);
+};
   const selectedCam = cameras.find((c) => String(c.id) === String(selected));
 
   /* ── If an inline page is active, render it full-screen ── */

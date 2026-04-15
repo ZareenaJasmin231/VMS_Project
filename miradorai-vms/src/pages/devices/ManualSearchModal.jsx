@@ -313,7 +313,13 @@ export default function ManualSearchModal({ onClose, onEnroll }) {
       clearTimeout(timeoutId);
 
       const json = await res.json();
+if (!res.ok) {
+  alert(json.detail || "Camera limit exceeded");
 
+  setProbe("fail");
+setErrors({ ip: json.detail || "Camera limit exceeded" });
+  return;
+}
       if (json.success) {
         setProbe("success");
         setDetectedPort(json.port || port);
@@ -544,7 +550,7 @@ export default function ManualSearchModal({ onClose, onEnroll }) {
             {probe === "fail" && (
               <div className="msm-probe fail">
                 <div className="msm-probe-dot" />
-                {`No ONVIF device found at ${ip}${port ? `:${port}` : " on standard ports"}. Check IP, port, or credentials.`}
+{errors.ip || `No ONVIF device found at ${ip}${port ? `:${port}` : ""}`}
               </div>
             )}
 

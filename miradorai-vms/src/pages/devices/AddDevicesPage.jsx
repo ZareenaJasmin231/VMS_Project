@@ -221,10 +221,26 @@ export default function AddDevicesPage({ onNavigate }) {
     setDevices((prev) => prev.map((d) => d.id === updated.id ? updated : d));
   }, [setDevices]);
 
-  const handleRemoveDevice = useCallback((deviceId) => {
-    setDevices((prev) => prev.filter((d) => d.id !== deviceId));
-    setChecked((prev) => prev.filter((id) => id !== deviceId));
-  }, [setDevices]);
+ const handleRemoveDevice = useCallback(async (deviceId) => {
+  const device = devices.find((d) => d.id === deviceId);
+  if (!device) return;
+
+  try {
+    // 🔥 CALL BACKEND DELETE API (CORRECT ONE)
+    await fetch(`${STREAM_API}/api/cameras/by-ip/${device.ip}/delete`, {
+      method: "DELETE",
+    });
+
+    console.log("✅ Deleted from DB:", device.ip);
+  } catch (err) {
+    console.error("❌ Failed to delete from DB:", err);
+  }
+
+  // ✅ Update UI
+  setDevices((prev) => prev.filter((d) => d.id !== deviceId));
+  setChecked((prev) => prev.filter((id) => id !== deviceId));
+
+}, [devices, setDevices]);
 
   // ── NEW: Navigate to Stream Profiles for a specific camera ───────────────
   const handleStreamProfiles = useCallback((deviceId) => {
@@ -282,13 +298,32 @@ export default function AddDevicesPage({ onNavigate }) {
     });
   }, [setDevices]);
 
-  const handleRemoveSelected = useCallback(() => {
-    if (checked.length === 0) return;
-    if (window.confirm(`Are you sure you want to remove ${checked.length} device${checked.length > 1 ? "s" : ""}?`)) {
-      setDevices((prev) => prev.filter((d) => !checked.includes(d.id)));
-      setChecked([]);
+  const handleRemoveSelected = useCallback(async () => {
+  if (checked.length === 0) return;
+
+  if (!window.confirm(`Are you sure you want to remove ${checked.length} device(s)?`)) return;
+
+  for (const id of checked) {
+    const device = devices.find((d) => d.id === id);
+    if (!device) continue;
+
+    try {
+      // 🔥 CALL BACKEND DELETE API
+      await fetch(`${STREAM_API}/api/cameras/by-ip/${device.ip}/delete`, {
+        method: "DELETE",
+      });
+
+      console.log("✅ Deleted from DB:", device.ip);
+    } catch (err) {
+      console.error("❌ Delete failed:", device.ip);
     }
-  }, [checked, setDevices]);
+  }
+
+  // ✅ Update UI
+  setDevices((prev) => prev.filter((d) => !checked.includes(d.id)));
+  setChecked([]);
+
+}, [checked, devices, setDevices]);
 
   const handleEnroll = async (device) => {
     setEnrolling(true);

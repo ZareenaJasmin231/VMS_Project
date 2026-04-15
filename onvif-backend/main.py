@@ -33,7 +33,8 @@ from stream_health import start_health_monitoring
 from masks_router import router as masks_router
 from backup_service import backup_router  # ← moved here, before app is created
 from brand_control import brand_router
-
+from license.license_store import load_license
+from license.license_validator import validate_license
 # ------------------------------------------------------------------
 # App creation — MUST come before any .include_router() calls
 # ------------------------------------------------------------------
@@ -221,21 +222,41 @@ def normalize_stream_name(ip: str) -> str:
 
 def save_camera_to_db(data: dict):
     if cameras_col is None:
-        print("[MONGO] ❌ No connection — skipping camera save")
+        print("[MONGO] ❌ No connection")
         return False
+
+    # 🔐 STEP 1: Load license
+    token = load_license()
+    valid, license_data = validate_license(token)
+
+    # 🔐 STEP 2: Check valid
+    if not valid:
+        print("❌ License invalid")
+        return False
+
+    # 🔐 STEP 3: Count cameras
+    current_count = cameras_col.count_documents({"enabled": True})
+
+    print("CURRENT:", current_count)
+    print("MAX:", license_data["max_cameras"])
+
+    # 🔐 STEP 4: Block if exceeded
+    if current_count >= license_data["max_cameras"]:
+        print("❌ Camera limit reached")
+        return False
+
+    # ✅ STEP 5: Save camera
     try:
-        result = cameras_col.update_one(
+        cameras_col.update_one(
             {"ip": data["ip"]},
             {"$set": data},
             upsert=True
         )
-        print(f"[MONGO] ✅ Camera saved — matched:{result.matched_count} upserted:{result.upserted_id}")
+        print("✅ Camera saved")
         return True
     except Exception as e:
-        print(f"[MONGO] ❌ Save FAILED: {e}")
+        print("❌ Save failed:", e)
         return False
-
-
 def load_devices():
     if cameras_col is not None:
         try:
@@ -684,8 +705,11 @@ async def discover_devices():
                         "ip":             ip,
                         "enabled":        True,
                     }
-                    devices.append(new_dev)
-                    save_devices(devices)
+                    saved = save_camera_to_db(new_dev)
+
+                    if saved:
+                        devices.append(new_dev)
+                        save_devices(devices)
                     recorder.start_camera(stream_name, rtsp_url, new_dev)
             else:
                 device["ws_url"]        = None
@@ -786,6 +810,17 @@ async def delete_camera_by_ip(ip: str):
 @app.post("/api/onvif/probe")
 async def onvif_probe(req: ProbeRequest):
     print(f"[ONVIF] Probing {req.ip}:{req.port} ...")
+    token = load_license()
+    valid, data = validate_license(token)
+
+    if not valid:
+        raise HTTPException(status_code=400, detail="Invalid License")
+
+    if cameras_col is not None:
+        current_count = cameras_col.count_documents({"enabled": True})
+
+        if current_count >= data["max_cameras"]:
+            raise HTTPException(status_code=400, detail="Camera limit exceeded")
     result = await asyncio.to_thread(
         probe_camera, req.ip, req.port, req.username, req.password
     )
@@ -875,6 +910,17 @@ async def onvif_probe(req: ProbeRequest):
 # ------------------------------------------------------------------
 @app.post("/api/streams/register")
 async def register_rtsp_stream(req: StreamRegisterRequest):
+    token = load_license()
+    valid, data = validate_license(token)
+
+    if not valid:
+        return {"success": False, "error": "Invalid License"}
+
+    if cameras_col is not None:
+        current_count = cameras_col.count_documents({"enabled": True})
+
+        if current_count >= data["max_cameras"]:
+            return {"success": False, "error": "Camera limit exceeded"}
     rtsp = req.rtsp_url.strip()
     print(f"[RTSP] Registering stream: {rtsp}")
 
@@ -1451,7 +1497,25 @@ async def get_alerts(limit: int = 50):
         print(f"[ALERTS] ❌ {e}")
         return {"alerts": []}
 
+@app.get("/api/license")
+def get_license():
+    from license.license_store import load_license
+    from license.license_validator import validate_license
 
+    token = load_license()
+
+    if not token:
+        return {"status": "error", "max_cameras": 0}
+
+    valid, data = validate_license(token)
+
+    if not valid:
+        return {"status": "error", "max_cameras": 0}
+
+    return {
+        "status": "ok",
+        "max_cameras": data["max_cameras"]
+    }
 # ------------------------------------------------------------------
 # Register features router last (routes are defined above)
 # ------------------------------------------------------------------

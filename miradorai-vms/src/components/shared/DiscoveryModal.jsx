@@ -182,8 +182,19 @@ export default function DiscoveryModal({ isOpen, onClose, onAddDevices }) {
         body: JSON.stringify(probePayload),
       });
 
-      data = res.ok ? await res.json() : null;  // ✅ assign, not declare
+const data = await res.json();
 
+// 🔴 ADD THIS BLOCK HERE
+if (!res.ok) {
+  alert(` ${device.ip} → ${data.detail || "Camera limit exceeded"}`);
+
+  setRegStatus((prev) => ({
+    ...prev,
+    [device.id]: { status: "error", error: data.detail }
+  }));
+
+  return null; // stop this device
+}
       if (data?.success && data?.ws_url) {
         ws_url = data.ws_url;
         stream_key = data.stream_key || data.ome_stream || null;
@@ -243,7 +254,7 @@ export default function DiscoveryModal({ isOpen, onClose, onAddDevices }) {
 
     await new Promise((r) => setTimeout(r, 600));
     setIsRegistering(false);
-    onAddDevices(results);
+onAddDevices(results.filter(Boolean));
     onClose();
   };
 
