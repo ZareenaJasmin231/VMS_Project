@@ -5,8 +5,8 @@ SECRET = "MIRADOR_SUPER_SECURE_KEY_12345678901234567890"
 
 def generate_license(device_id):
     payload = {
-        "plan": "BASIC_2",
-        "max_cameras": 2,
+        "plan": "BASIC_5",
+        "max_cameras": 5,
         "device_id": device_id,
         "exp": datetime.now(UTC) + timedelta(days=3650)
     }

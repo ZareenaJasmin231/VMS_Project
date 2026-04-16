@@ -80,19 +80,23 @@ input, select, button, textarea { font-family: var(--font-ui); }
   flex: 1;
   overflow-y: auto;
   background: var(--bg-base);
-  padding: 24px 28px;
+  padding: 24px 16px;   /* 🔥 reduce side padding */
 }
-
-/* ── Page Shell ─────────────────────────────────── */
+.mgmt-stat {
+  align-items: flex-start !important;  /* 🔥 FORCE LEFT */
+  text-align: left;
+}
 .page-shell {
   display: flex;
   flex-direction: column;
+  align-items: stretch;   /* 🔥 FORCE LEFT ALIGN */
   gap: 20px;
+  width: 100%;            /* 🔥 IMPORTANT */
+  max-width: 100%;        /* 🔥 prevent centering */
   height: 100%;
   overflow-y: auto;
   overflow-x: hidden;
   padding-bottom: 16px;
-  animation: pageFadeIn 0.2s ease;
 }
 
 @keyframes pageFadeIn {

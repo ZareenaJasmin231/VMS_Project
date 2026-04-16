@@ -118,13 +118,7 @@ function AlertsPanel() {
             </>
           )}
         </div>
-        <button
-          className="lv-alerts-panel__toggle"
-          onClick={() => setCollapsed(c => !c)}
-          title={collapsed ? "Expand alerts" : "Collapse alerts"}
-        >
-          {collapsed ? "◀" : "▶"}
-        </button>
+
       </div>
 
       {/* Alert list */}
@@ -161,8 +155,8 @@ function AlertsPanel() {
                   <div className="lv-alert-card__row">
                     <span className="lv-alert-card__label">Type</span>
                     <span className="lv-alert-card__value">
-                      {alert.topic_analytics || "—"}
-                    </span>
+   {alert.topic_analytics || "—"}
+</span>
                   </div>
 
                   {/* Topic event */}

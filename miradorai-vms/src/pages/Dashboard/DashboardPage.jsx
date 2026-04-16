@@ -59,8 +59,11 @@ const DashboardPage = () => {
       <div className="cards">
         {stats.map((item, index) => (
           <div className="card" key={index}>
-            <div className="icon" style={{ background: item.color }}>
-              {item.icon}
+<div className={`icon ${
+  index === 0 ? "blue" :
+  index === 1 ? "green" :
+  index === 2 ? "red" : "orange"
+}`}>              {item.icon}
             </div>
             <div className="card-content">
               <p className="title">{item.title}</p>

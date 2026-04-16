@@ -55,7 +55,6 @@ export default function StorageManagementPage() {
   const [folder, setFolder]             = useState("");
   const [allocated, setAllocated]       = useState(352);
   const [allocWarning, setAllocWarning] = useState("");
-  const [collectPhase, setCollectPhase] = useState("idle");
   const [addModal, setAddModal]         = useState(false);
   const [newPath, setNewPath]           = useState("");
   const [applyMsg, setApplyMsg]         = useState("");
@@ -240,14 +239,6 @@ export default function StorageManagementPage() {
     setTimeout(() => setApplyMsg(""), 6000);
   };
 
-  const handleCollect = async () => {
-    setCollectPhase("running");
-    try {
-      await fetch(`${BACKEND}/api/storage/collect-nonindexed`, { method: "POST" });
-    } catch {}
-    setTimeout(() => setCollectPhase("done"), 3000);
-  };
-
   return (
     <div className="page-shell">
 
@@ -401,13 +392,13 @@ export default function StorageManagementPage() {
               container path, so D:\ paths can never reach ffmpeg.
             */}
             <div className="sm-folder-row">
-              <input
-                className="sm-input"
-                value={folder}
-                onChange={(e) => setFolder(e.target.value)}
-                placeholder="D:\REC"
-                title="You can type a Windows path (D:\REC\subfolder) or a container path (/recordings/subfolder). Both work."
-              />
+             <input
+  type="text"
+  value={folder}
+  onChange={(e) => setFolder(e.target.value)}
+  placeholder="Enter storage path (e.g., D:\REC or D:\MyFolder)"
+  className="sm-input"
+/>
             </div>
             <div style={{ fontSize: "0.72rem", color: "var(--text-muted, #888)", marginTop: 4 }}>
               Type a Windows path like <code>D:\REC\site-A</code> or a container path like{" "}
@@ -428,37 +419,7 @@ export default function StorageManagementPage() {
             </div>
           </div>
 
-          <div className="sm-collect card">
-            <div className="sm-panel-title">Collect Non-indexed Files</div>
-            <p className="sm-collect-desc">
-              Start a task collecting non-indexed files in the recording folder.
-              Non-indexed files are files that are not referenced in the current
-              database. When the task is completed the files can be found in the
-              folder "Non-indexed Files", which is located in the recording folder.
-            </p>
-
-            {collectPhase === "running" && (
-              <div className="sm-collect-progress">
-                <div className="sm-collect-progress__bar" />
-                <span>Scanning recording folder...</span>
-              </div>
-            )}
-            {collectPhase === "done" && (
-              <div className="sm-collect-done">
-                ✅ Collection complete. Check the "Non-indexed Files" folder.
-              </div>
-            )}
-
-            <div className="sm-collect-footer">
-              <button
-                className="sm-btn sm-btn--primary"
-                disabled={collectPhase === "running"}
-                onClick={handleCollect}
-              >
-                {collectPhase === "running" ? "Collecting..." : "Collect"}
-              </button>
-            </div>
-          </div>
+          
 
         </div>
       )}

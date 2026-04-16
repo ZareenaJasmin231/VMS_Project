@@ -11,15 +11,18 @@
   gap: 16px;
   flex: 1;
   min-height: 0;
+  justify-content: flex-start; /* 🔥 ADD THIS */
+  align-items: flex-start;     /* 🔥 ADD THIS */
 }
 
 /* ── Layout: when side panel is visible ──────────────────── */
 /* FIX: was missing — caused table to NOT shrink when panel opened */
 .cameras-content-layout.has-panel .cam-table-wrap {
-  flex: 1;
-  min-width: 0;
+  flex: 0 0 calc(100% - 320px); /* 🔥 shrink based on panel width */
 }
-
+.cameras-content-layout:not(.has-panel) .cam-table-wrap {
+  flex: 1 1 100%; /* 🔥 full width */
+}
 /* ── Thumbnail cell ──────────────────────────────────────── */
 .cam-thumb-cell {
   display: flex;
@@ -280,8 +283,8 @@
 /* ── Side Panel ──────────────────────────────────────────── */
 /* FIX: bumped from 280px → 300px, added min-width to prevent crush */
 .cam-side-panel {
-  width: 300px;
-  min-width: 300px;
+  width: 320px;
+  min-width: 320px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
@@ -676,4 +679,8 @@
 .ec-toggle-sub {
   font-size: 11px;
   color: var(--color-text-secondary);
+}
+.m-table {
+  width: 100%;
+  table-layout: auto; /* 🔥 dynamic column sizing */
 }

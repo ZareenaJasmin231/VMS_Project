@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import CameraThumb from "../../components/shared/CameraThumb";
-import Toggle from "../../components/shared/Toggle";
 import Button from "../../components/shared/Button";
 import SearchBar from "../../components/shared/SearchBar";
 import StatusBadge from "../../components/shared/StatusBadge";
@@ -177,7 +176,6 @@ function EditDeviceModal({ device, onClose, onSave }) {
 // ── onNavigate added to props ────────────────────────────────────────────────
 export default function AddDevicesPage({ onNavigate }) {
   const [filter, setFilter]                     = useState("");
-  const [includePrerecorded, setInclude]        = useState(true);
   const [checked, setChecked]                   = useState([]);
   const [showManualSearch, setShowManualSearch] = useState(false);
   const [showStreamURL, setShowStreamURL]       = useState(false);
@@ -476,14 +474,9 @@ export default function AddDevicesPage({ onNavigate }) {
           />
         </div>
       </div>
-
-      <div className="add-dev__options-bar">
-        <div className="add-dev__toggle-row">
-          <Toggle value={includePrerecorded} onChange={setInclude} />
-          <span>Include prerecorded video</span>
-        </div>
-        <SearchBar value={filter} onChange={setFilter} placeholder="Filter devices..." />
-      </div>
+<div className="add-dev__options-bar">
+  <SearchBar value={filter} onChange={setFilter} placeholder="Filter devices..." />
+</div>
 
       <div className="add-dev__info-pill">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="13" height="13" style={{ flexShrink: 0 }}>

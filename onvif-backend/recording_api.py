@@ -62,6 +62,7 @@ _CONTAINER_RECORDINGS_ROOT = os.environ.get("RECORDINGS_DIR", "/recordings")
 _client     = MongoClient(MONGO_URI)
 _db         = _client["mirador-vms"]
 _collection = _db["recordings"]
+storage_collection = _db["storage_settings"]
 
 # ------------------------------------------------------------------
 # Windows → container path sanitization
@@ -152,24 +153,32 @@ def _save_recording_path(path: str):
         print(f"[CONFIG] ⚠ Could not persist recording path: {e}")
 
 
+def _load_recording_path_from_db():
+    try:
+        doc = storage_collection.find_one({"type": "recording_path"})
+        if doc:
+            return doc.get("recording_path")
+    except Exception as e:
+        print("[CONFIG] DB load failed:", e)
+    return None
+
+
 def _apply_persisted_path_on_startup():
-    """
-    Called once at import time.
-    If a recording path was previously saved, apply it to the recorder
-    so recordings go to the right place immediately on startup.
-    """
-    saved = _load_persisted_recording_path()
+
+    # ✅ FIRST: try DB
+    saved = _load_recording_path_from_db()
+
+    # fallback to file
+    if not saved:
+        saved = _load_persisted_recording_path()
+
     if saved:
-        print(f"[CONFIG] ▶ Restoring saved recording path: {saved}")
+        print(f"[CONFIG] ▶ Loaded from DB: {saved}")
         recorder.set_recordings_dir(saved)
     else:
-        # Ensure the default container path exists
         default = recorder.get_recordings_dir()
-        try:
-            os.makedirs(default, exist_ok=True)
-            print(f"[CONFIG] ▶ Using default recording path: {default}")
-        except Exception as e:
-            print(f"[CONFIG] ⚠ Could not create default recording dir: {e}")
+        os.makedirs(default, exist_ok=True)
+        print(f"[CONFIG] ▶ Using default path: {default}")
 
 
 # Apply persisted path as soon as this module is imported
@@ -315,46 +324,36 @@ def _container_to_display_path(container_path: str) -> str:
 
 @storage_router.post("/apply")
 def apply_storage_settings(req: StorageApplyRequest):
-    """
-    Update the recording path at runtime AND persist it to disk.
 
-    Accepts both Windows paths (D:\\REC, D:/REC\\subfolder) and
-    container paths (/recordings, /recordings/subfolder).
+    raw_path = req.recording_path or req.folder or req.location
 
-    Windows paths are automatically converted to the correct container path.
-    The recorder uses the new path for all subsequent chunks.
-    On next backend restart the path is automatically restored.
-    """
-    raw = (req.recording_path or req.folder or req.location or "").strip()
+    if not raw_path:
+        raise HTTPException(status_code=400, detail="No path provided")
 
-    if not raw:
-        raise HTTPException(status_code=400, detail="No recording path provided.")
+    # ✅ Convert Windows → container path
+    sanitized = _sanitize_path(raw_path)
 
-    # ── Sanitize: convert Windows paths → container Linux paths ──
-    new_path = _sanitize_path(raw)
-    print(f"[STORAGE] Apply: raw={raw!r} → sanitized={new_path!r}")
+    # ✅ Apply to recorder (THIS IS MAIN)
+    recorder.set_recordings_dir(sanitized)
 
-    # Validate / create the directory on the server
-    try:
-        os.makedirs(new_path, exist_ok=True)
-    except Exception as e:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Cannot create recording directory '{new_path}': {e}"
-        )
+    # ✅ SAVE TO MONGODB (NEW)
+    storage_collection.update_one(
+        {"type": "recording_path"},
+        {
+            "$set": {
+                "recording_path": sanitized,
+                "updated_at": datetime.utcnow()
+            }
+        },
+        upsert=True
+    )
 
-    # Tell the recorder to use this path from now on (in-memory)
-    recorder.set_recordings_dir(new_path)
+    # ✅ Optional (keep your existing file backup)
+    _save_recording_path(sanitized)
 
-    # Persist the container path to disk so it survives restarts
-    _save_recording_path(new_path)
-
-    # Return both paths so the UI can show the Windows-friendly version
     return {
-        "ok":             True,
-        "recording_path": new_path,
-        "display_path":   _container_to_display_path(new_path),
-        "message":        f"Recording path updated to: {_container_to_display_path(new_path)}",
+        "message": "Recording path updated successfully",
+        "recording_path": sanitized
     }
 
 
