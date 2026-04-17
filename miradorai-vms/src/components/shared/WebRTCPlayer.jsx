@@ -349,10 +349,11 @@
 
 
 
-import { useEffect, useRef, useState, memo } from 'react'
+import { useEffect, useRef, useState, memo } from 'react';
+import { useImageConfig } from '../../hooks/useImageConfig';
 
-function WebRTCPlayer({ serverUrl }) {
-  const videoRef    = useRef(null)
+function WebRTCPlayer({ serverUrl, cameraId }) {
+  const videoRef    = useRef(null);
   const pcRef       = useRef(null)
   const wsRef       = useRef(null)
   const peerIdRef   = useRef(null)
@@ -361,6 +362,8 @@ function WebRTCPlayer({ serverUrl }) {
 
   const [connected, setConnected] = useState(false)
   const [error,     setError]     = useState('')
+
+  const { cssFilter, cssTransform } = useImageConfig(cameraId);
 
   useEffect(() => {
     // ← Guard against StrictMode double-mount
@@ -555,7 +558,15 @@ function WebRTCPlayer({ serverUrl }) {
       <video
         ref={videoRef}
         autoPlay muted playsInline
-        style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+        style={{ 
+          width: '100%', 
+          height: '100%', 
+          objectFit: 'cover', 
+          display: 'block',
+          filter: cssFilter || 'none',
+          transform: cssTransform || 'none',
+          transition: "filter 0.1s ease, transform 0.2s ease"
+        }}
       />
       {!connected && !error && (
         <div style={centreStyle}>

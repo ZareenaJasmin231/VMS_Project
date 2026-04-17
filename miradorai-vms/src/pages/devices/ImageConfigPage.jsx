@@ -61,7 +61,31 @@ export default function ImageConfigPage() {
   const [selected, setSelected] = useState(() => localStorage.getItem("miradorai_selected_camera_id") || null);
   const [vals, setVals]         = useState(DEFAULT_VALS);
 
-  const setV = (k, v) => setVals((f) => ({ ...f, [k]: v }));
+  // Load saved config when camera is selected
+  useEffect(() => {
+    if (!selected) {
+      setVals(DEFAULT_VALS);
+      return;
+    }
+    try {
+      const saved = localStorage.getItem(`miradorai_imgconf_${selected}`);
+      if (saved) setVals(JSON.parse(saved));
+      else setVals(DEFAULT_VALS);
+    } catch {
+      setVals(DEFAULT_VALS);
+    }
+  }, [selected]);
+
+  const setV = (k, v) => {
+    setVals((f) => {
+      const newVals = { ...f, [k]: v };
+      if (selected) {
+        localStorage.setItem(`miradorai_imgconf_${selected}`, JSON.stringify(newVals));
+        window.dispatchEvent(new Event("miradorai_imgconf_changed"));
+      }
+      return newVals;
+    });
+  };
 
   const devices = loadDevices();
   const selectedDevice = devices.find((d) => String(d.id) === String(selected));
@@ -83,7 +107,13 @@ export default function ImageConfigPage() {
   const cssFilter    = buildCSSFilter(vals);
   const cssTransform = buildTransform(vals);
 
-  const handleReset = () => setVals(DEFAULT_VALS);
+  const handleReset = () => {
+    setVals(DEFAULT_VALS);
+    if (selected) {
+      localStorage.setItem(`miradorai_imgconf_${selected}`, JSON.stringify(DEFAULT_VALS));
+      window.dispatchEvent(new Event("miradorai_imgconf_changed"));
+    }
+  };
 
   const handleSelectCamera = (id) => {
     if (selected === id) {
@@ -152,16 +182,8 @@ export default function ImageConfigPage() {
               </div>
               <div className="ic-preview__video-wrap">
                 {wsUrl ? (
-                  <div
-                    style={{
-                      filter: cssFilter,
-                      transform: cssTransform,
-                      transition: "filter 0.1s ease, transform 0.2s ease",
-                      width: "100%",
-                      height: "100%",
-                    }}
-                  >
-                    <WebRTCPlayer serverUrl={wsUrl} />
+                  <div style={{ width: "100%", height: "100%" }}>
+                    <WebRTCPlayer serverUrl={wsUrl} cameraId={selected} />
                   </div>
                 ) : (
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "center",

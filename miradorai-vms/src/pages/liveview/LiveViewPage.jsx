@@ -341,7 +341,7 @@ export default function LiveViewPage() {
             <div className="lv-fullscreen-overlay__player" style={{ position: "relative" }}>
               {fsDevice.ws_url ? (
                 <>
-                  <WebRTCPlayer key={`fs-${fsDevice.ws_url}`} serverUrl={fsDevice.ws_url} />
+                  <WebRTCPlayer key={`fs-${fsDevice.ws_url}`} serverUrl={fsDevice.ws_url} cameraId={fsDevice.id} />
                   <MaskOverlay ip={fsDevice.ip} />
                 </>
               ) : (
@@ -456,7 +456,7 @@ function CameraCell({ device, onFullscreen }) {
       <div className="lv-cam__player" style={{ position: "relative" }}>
         {device.ws_url ? (
           <>
-            <WebRTCPlayer key={device.ws_url} serverUrl={device.ws_url} />
+            <WebRTCPlayer key={device.ws_url} serverUrl={device.ws_url} cameraId={device.id} />
             <MaskOverlay ip={device.ip} />
           </>
         ) : (

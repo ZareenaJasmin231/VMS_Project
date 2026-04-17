@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { useAuth } from "../../context/AuthContext";
+import { useImageConfig } from "../../hooks/useImageConfig";
 import "./MediaPlayerPage.css";
 
 const STREAM_API = "http://192.168.126.200:8000";
@@ -39,6 +40,12 @@ export default function MediaPlayerPage() {
   const [cameras]                               = useState(loadDevices);
   const [recordingCameras, setRecordingCameras] = useState([]);
   const [selectedCam, setSelectedCam]           = useState(null);
+  
+  const configCameraId = selectedCam ? 
+    (cameras.find(c => c.ip === selectedCam.stream_key || String(c.id) === String(selectedCam.stream_key) || c.name === selectedCam.stream_key)?.id || selectedCam.stream_key) 
+    : null;
+  const { cssFilter, cssTransform } = useImageConfig(configCameraId);
+
   const [camDropdownOpen, setCamDropdownOpen]   = useState(false);
   const [files, setFiles]                       = useState([]);
   const [loadingFiles, setLoadingFiles]         = useState(false);
@@ -651,6 +658,11 @@ export default function MediaPlayerPage() {
                     ref={videoRef}
                     className="mp-video"
                     playsInline
+                    style={{
+                      filter: cssFilter || 'none',
+                      transform: cssTransform || 'none',
+                      transition: "filter 0.1s ease, transform 0.2s ease"
+                    }}
                   />
                   {isVideoLoading && (
                     <div className="mp-loading-overlay">
