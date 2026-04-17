@@ -60,6 +60,7 @@ export default function ImageConfigPage() {
   const [filter, setFilter]     = useState("");
   const [selected, setSelected] = useState(() => localStorage.getItem("miradorai_selected_camera_id") || null);
   const [vals, setVals]         = useState(DEFAULT_VALS);
+  const [applyState, setApplyState] = useState("Apply");
 
   // Load saved config when camera is selected
   useEffect(() => {
@@ -85,6 +86,14 @@ export default function ImageConfigPage() {
       }
       return newVals;
     });
+  };
+
+  const handleApply = () => {
+    if (!selected) return;
+    localStorage.setItem(`miradorai_imgconf_${selected}`, JSON.stringify(vals));
+    window.dispatchEvent(new Event("miradorai_imgconf_changed"));
+    setApplyState("Applied! ✓");
+    setTimeout(() => setApplyState("Apply"), 1500);
   };
 
   const devices = loadDevices();
@@ -309,7 +318,7 @@ export default function ImageConfigPage() {
         <span />
         <div className="page-footer-right">
           <Button label="Reset to defaults" disabled={!selected} onClick={handleReset} />
-          <Button label="Apply" variant="primary" disabled={!selected} />
+          <Button label={applyState} variant="primary" disabled={!selected} onClick={handleApply} />
         </div>
       </div>
     </div>

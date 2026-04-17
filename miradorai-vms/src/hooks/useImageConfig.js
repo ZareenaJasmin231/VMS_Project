@@ -58,8 +58,14 @@ export function useImageConfig(cameraId) {
     load();
 
     const handleStorage = (e) => {
-      if (!e) load(); // custom event dispatch
-      else if (e.key === `miradorai_imgconf_${cameraId}`) load(); // StorageEvent from other tabs
+      // If it's the custom event (type === "miradorai_imgconf_changed"), load immediately.
+      if (e.type === "miradorai_imgconf_changed") {
+        load();
+      } 
+      // If it's a StorageEvent from another tab, only load if the key matches.
+      else if (e.type === "storage" && e.key === `miradorai_imgconf_${cameraId}`) {
+        load();
+      }
     };
 
     window.addEventListener("miradorai_imgconf_changed", handleStorage);
