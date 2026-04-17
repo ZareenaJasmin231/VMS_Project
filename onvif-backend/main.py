@@ -25,7 +25,6 @@ from onvif_service import (
     move_camera_ptz,
     pull_camera_events,
 )
-from camera_api_detector import detect_camera_api, get_api_summary
 import rtsp_recorder as recorder
 import encrypt_service
 from recording_api import recording_router, storage_router
@@ -1422,64 +1421,6 @@ async def get_dashboard_events(limit: int = 20):
         if "received_at" in d:
             d["received_at"] = d["received_at"].isoformat()
     return docs
-@features_router.post("/detect-api")
-async def detect_camera_api_endpoint(req: CameraCredentials):
-    cam_doc = {}
-    if cameras_col is not None:
-        cam_doc = cameras_col.find_one({"ip": req.ip}, {"_id": 0}) or {}
-
-    api_profile = await asyncio.to_thread(
-        detect_camera_api,
-        req.ip,
-        cam_doc.get("manufacturer", ""),
-        cam_doc.get("model", ""),
-        req.username or cam_doc.get("username", ""),
-        req.password or cam_doc.get("password", ""),
-    )
-
-    if cameras_col is not None:
-        cameras_col.update_one(
-            {"ip": req.ip},
-            {"$set": {
-                "api_profile":    api_profile,
-                "api_scanned_at": datetime.utcnow(),
-            }},
-        )
-
-    return {
-        "success":     True,
-        "ip":          req.ip,
-        "api_profile": api_profile,
-        "summary":     get_api_summary(api_profile),
-    }
-
-
-@features_router.get("/api-profile/{ip}")
-async def get_camera_api_profile(ip: str):
-    if cameras_col is None:
-        raise HTTPException(status_code=503, detail="DB not connected")
-
-    doc = cameras_col.find_one({"ip": ip}, {"_id": 0, "api_profile": 1})
-    if not doc or not doc.get("api_profile"):
-        cam = cameras_col.find_one({"ip": ip}, {"_id": 0}) or {}
-        api_profile = await asyncio.to_thread(
-            detect_camera_api,
-            ip,
-            cam.get("manufacturer", ""),
-            cam.get("model", ""),
-            cam.get("username", ""),
-            cam.get("password", ""),
-        )
-        cameras_col.update_one(
-            {"ip": ip},
-            {"$set": {
-                "api_profile":    api_profile,
-                "api_scanned_at": datetime.utcnow(),
-            }},
-        )
-        return {"ip": ip, "api_profile": api_profile, "summary": get_api_summary(api_profile)}
-
-    return {"ip": ip, "api_profile": doc["api_profile"], "summary": get_api_summary(doc["api_profile"])}
 
 @app.get("/api/alerts")
 async def get_alerts(limit: int = 50):

@@ -161,15 +161,15 @@ export const CAMERA_FEATURES_CONFIG = [
       <path d="M12 8l1.5 3h3l-2.5 2 1 3L12 14.5 9 16l1-3-2.5-2h3z"/>
     </svg>`,
   },
-  {
-    label: "Masking",
-    page: "masking",
-    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-      <rect x="3" y="3" width="18" height="18" rx="2"/>
-      <rect x="8" y="8" width="8" height="8" rx="1"/>
-      <path d="M3 8h2M19 8h2M3 16h2M19 16h2M8 3v2M16 3v2M8 19v2M16 19v2"/>
-    </svg>`,
-  },
+  // {
+  //   label: "Masking",
+  //   page: "masking",
+  //   icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+  //     <rect x="3" y="3" width="18" height="18" rx="2"/>
+  //     <rect x="8" y="8" width="8" height="8" rx="1"/>
+  //     <path d="M3 8h2M19 8h2M3 16h2M19 16h2M8 3v2M16 3v2M8 19v2M16 19v2"/>
+  //   </svg>`,
+  // },
   {
     label: "Camera Features",
     page: "camera-features",
@@ -178,50 +178,42 @@ export const CAMERA_FEATURES_CONFIG = [
       <circle cx="12" cy="12" r="3"/>
     </svg>`,
   },
-  {
-    label: "IO Ports",
-    page: "io-ports",
-    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-      <rect x="2" y="7" width="20" height="10" rx="2"/>
-      <path d="M6 12h.01M10 12h.01M14 12h.01M18 12h.01"/>
-      <path d="M6 7V5M10 7V5M18 7V5M14 7V5"/>
-    </svg>`,
-  },
-  {
-    label: "External Data",
-    page: "ext-data",
-    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-      <ellipse cx="12" cy="5" rx="9" ry="3"/>
-      <path d="M3 5v4c0 1.66 4.03 3 9 3s9-1.34 9-3V5"/>
-      <path d="M3 9v4c0 1.66 4.03 3 9 3s9-1.34 9-3V9"/>
-      <path d="M3 13v4c0 1.66 4.03 3 9 3s9-1.34 9-3v-4"/>
-    </svg>`,
-  },
-  {
-    label: "Time Sync",
-    page: "time-sync",
-    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-      <circle cx="12" cy="12" r="10"/>
-      <path d="M12 6v6l4 2"/>
-    </svg>`,
-  },
-  {
-    label: "Management",
-    page: "device-mgmt",
-    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-      <circle cx="12" cy="12" r="3"/>
-      <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
-    </svg>`,
-  },
-  // ✅ ANALYTICS RULES (NEW - appears in camera features)
-  {
-    label: "Analytics Rules",
-    page: "analytics-rules",
-    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-      <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
-      <circle cx="12" cy="12" r="3"/>
-    </svg>`,
-  },
+  // {
+  //   label: "IO Ports",
+  //   page: "io-ports",
+  //   icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+  //     <rect x="2" y="7" width="20" height="10" rx="2"/>
+  //     <path d="M6 12h.01M10 12h.01M14 12h.01M18 12h.01"/>
+  //     <path d="M6 7V5M10 7V5M18 7V5M14 7V5"/>
+  //   </svg>`,
+  // },
+  // {
+  //   label: "External Data",
+  //   page: "ext-data",
+  //   icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+  //     <ellipse cx="12" cy="5" rx="9" ry="3"/>
+  //     <path d="M3 5v4c0 1.66 4.03 3 9 3s9-1.34 9-3V5"/>
+  //     <path d="M3 9v4c0 1.66 4.03 3 9 3s9-1.34 9-3V9"/>
+  //     <path d="M3 13v4c0 1.66 4.03 3 9 3s9-1.34 9-3v-4"/>
+  //   </svg>`,
+  // },
+  // {
+  //   label: "Time Sync",
+  //   page: "time-sync",
+  //   icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+  //     <circle cx="12" cy="12" r="10"/>
+  //     <path d="M12 6v6l4 2"/>
+  //   </svg>`,
+  // },
+  // {
+  //   label: "Management",
+  //   page: "device-mgmt",
+  //   icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+  //     <circle cx="12" cy="12" r="3"/>
+  //     <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
+  //   </svg>`,
+  // },
+  
 ];
 
 // ================= PAGE TITLE MAPPING =================

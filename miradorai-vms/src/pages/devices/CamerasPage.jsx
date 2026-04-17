@@ -556,14 +556,15 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
           confirmLabel="Remove"
           confirmVariant="danger"
         >
-          <p className="m-confirm-text">
-            Remove{" "}
-            <strong style={{ color: "var(--text-primary)" }}>{removeModal.name}</strong>
-            {" "}from MIRADORAI VMS?
-          </p>
-          <p className="m-confirm-warn">
-            This will delete all associated recordings and configurations.
-          </p>
+<p className="m-confirm-text">
+  Are you sure you want to remove{" "}
+  <strong style={{ color: "var(--text-primary)" }}>
+    {removeModal.name || "this camera"}
+  </strong>
+  {" "}from MIRADORAI VMS?
+</p>
+
+
         </Modal>
       )}
 
