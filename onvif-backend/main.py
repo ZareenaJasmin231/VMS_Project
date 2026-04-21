@@ -92,7 +92,6 @@ try:
     users_col.create_index("email", unique=True)
     analytics_col      = _db["analytics_events"]
     analytics_subs_col = _db["analytics_subscriptions"]
-    image_config_col   = _db["image_config_history"]
     print(f"[MONGO] ✅ Connected: {MONGO_URI}")
 except Exception as e:
     print(f"[MONGO] ❌ FAILED to connect: {e}")
@@ -102,7 +101,6 @@ except Exception as e:
     users_col          = None
     analytics_col      = None
     analytics_subs_col = None
-    image_config_col   = None
 
 # ------------------------------------------------------------------
 # Pydantic models
@@ -214,10 +212,6 @@ class ResetPasswordRequest(BaseModel):
     confirm_password: str
 class StoragePathRequest(BaseModel):
     path: str
-
-class ImageConfigVals(BaseModel):
-    vals: dict
-
 # ------------------------------------------------------------------
 # Helpers
 # ------------------------------------------------------------------
@@ -277,7 +271,6 @@ def load_devices():
                     "username":       d.get("username", ""),
                     "password":       d.get("password", ""),
                     "enabled":        d.get("enabled", True),
-                    "recording_requested": d.get("recording_requested", False),
                 } for d in docs if d.get("ome_stream") and d.get("rtsp_url")])
                 return docs
         except Exception as e:
@@ -413,13 +406,10 @@ async def stream_watchdog():
                     if status_code in (200, 201):
                         print(f"[WATCHDOG] ✅ Re-registered {stream_name}")
                         _watchdog_failures[stream_name] = 0
-                        
-                        # Only start recorder if explicitly requested
-                        if device.get("recording_requested"):
-                            if stream_name not in recorder._recorders or \
-                               not recorder._recorders[stream_name].is_alive():
-                                recorder.start_camera(stream_name, rec_rtsp, device)
-                                print(f"[WATCHDOG] 🎥 Restarted recorder for {stream_name}")
+                        if stream_name not in recorder._recorders or \
+                           not recorder._recorders[stream_name].is_alive():
+                            recorder.start_camera(stream_name, rec_rtsp, device)
+                            print(f"[WATCHDOG] 🎥 Restarted recorder for {stream_name}")
                     else:
                         _watchdog_failures[stream_name] = fail_count + 1
                         print(f"[WATCHDOG] ❌ Re-register failed for {stream_name}: {result}")
@@ -429,13 +419,6 @@ async def stream_watchdog():
                     _watchdog_failures[stream_name] = fail_count + 1
                     print(f"[WATCHDOG] ❌ Exception for {stream_name}: {e}")
             else:
-                # Stream is live in OME, but maybe recorder crashed?
-                if device.get("recording_requested"):
-                    if stream_name not in recorder._recorders or \
-                       not recorder._recorders[stream_name].is_alive():
-                        print(f"[WATCHDOG] 🎥 Recorder for {stream_name} is down but requested — restarting...")
-                        recorder.start_camera(stream_name, rec_rtsp, device)
-                
                 if _watchdog_failures.get(stream_name, 0) > 0:
                     print(f"[WATCHDOG] ✅ {stream_name} recovered")
                 _watchdog_failures[stream_name] = 0
@@ -503,12 +486,6 @@ async def startup():
         if stream_name and rtsp_url:
             print(f"[STARTUP] Registering stream: {stream_name}")
             register_stream(stream_name, rtsp_url)
-            
-            # Start recorder ONLY if previously requested
-            if device.get("recording_requested"):
-                rec_rtsp = device.get("recording_rtsp", rtsp_url)
-                print(f"[STARTUP] 🎥 Resuming recorder for {stream_name}")
-                recorder.start_camera(stream_name, rec_rtsp, device)
 
     asyncio.create_task(stream_watchdog())
 
@@ -528,11 +505,10 @@ async def startup():
 
     _health_monitor_task = asyncio.create_task(start_health_monitoring(devices, cameras_col))
     encrypt_service.start_watcher()
-    
+    recorder.start_recording_all(devices)
 
     enabled_count = sum(1 for d in devices if d.get("enabled") is not False)
-    recording_count = sum(1 for d in devices if d.get("recording_requested"))
-    print(f"[STARTUP] 🎥 {recording_count} camera(s) set to record")
+    print(f"[STARTUP] 🎥 Recording started for {enabled_count}/{len(devices)} enabled camera(s)")
     print(f"[STARTUP] ✓ Stream health monitoring started")
 
 
@@ -597,45 +573,6 @@ def auth_signup(req: SignupRequest):
         print(f"[AUTH] ❌ Signup failed: {e}")
         raise HTTPException(status_code=500, detail="Failed to create account")
     return {"success": True, "message": "Account created successfully! Please sign in."}
- 
- 
-@recording_router.post("/start/{stream_name}")
-async def start_recording(stream_name: str, rtsp_url: str = None):
-    global devices
-    device = next((d for d in devices if d.get("ome_stream") == stream_name), None)
-    if not device:
-        raise HTTPException(status_code=404, detail="Camera not found")
- 
-    # Use provided RTSP or fallback to device's recording profile
-    url_to_use = rtsp_url or device.get("recording_rtsp") or device.get("rtsp_url")
-    if not url_to_use:
-        raise HTTPException(status_code=400, detail="No RTSP URL available for recording")
- 
-    device["recording_requested"] = True
-    save_devices(devices)
-    if cameras_col is not None:
-        cameras_col.update_one({"ip": device["ip"]}, {"$set": {"recording_requested": True}})
- 
-    recorder.start_camera(stream_name, url_to_use, device)
-    print(f"[API] 🎥 Manual start requested for {stream_name}")
-    return {"success": True, "message": f"Recording started for {stream_name}"}
- 
- 
-@recording_router.post("/stop/{stream_name}")
-async def stop_recording(stream_name: str):
-    global devices
-    device = next((d for d in devices if d.get("ome_stream") == stream_name), None)
-    if not device:
-        raise HTTPException(status_code=404, detail="Camera not found")
- 
-    device["recording_requested"] = False
-    save_devices(devices)
-    if cameras_col is not None:
-        cameras_col.update_one({"ip": device["ip"]}, {"$set": {"recording_requested": False}})
- 
-    recorder.stop_camera(stream_name)
-    print(f"[API] ⏹ Manual stop requested for {stream_name}")
-    return {"success": True, "message": f"Recording stopped for {stream_name}"}
 
 
 @app.post("/api/auth/login")
@@ -704,30 +641,6 @@ def auth_reset_password(req: ResetPasswordRequest):
 
 
 # ------------------------------------------------------------------
-# Image Config History Endpoints
-# ------------------------------------------------------------------
-@app.post("/api/cameras/{camera_id}/image-config")
-def save_image_config(camera_id: str, payload: ImageConfigVals):
-    if image_config_col is None:
-        raise HTTPException(status_code=500, detail="Database not connected")
-    
-    doc = {
-        "camera_id": camera_id,
-        "timestamp": int(datetime.utcnow().timestamp() * 1000),
-        "vals": payload.vals
-    }
-    image_config_col.insert_one(doc)
-    return {"success": True, "message": "Saved image config history"}
-
-@app.get("/api/cameras/{camera_id}/image-config-history")
-def get_image_config_history(camera_id: str):
-    if image_config_col is None:
-        return []
-    records = list(image_config_col.find({"camera_id": camera_id}, {"_id": 0}).sort("timestamp", 1))
-    return records
-
-
-# ------------------------------------------------------------------
 # Basic endpoints
 # ------------------------------------------------------------------
 @app.get("/health")
@@ -790,13 +703,13 @@ async def discover_devices():
                         "recording_rtsp": rtsp_url,
                         "ip":             ip,
                         "enabled":        True,
-                        "recording_requested": False,
                     }
                     saved = save_camera_to_db(new_dev)
 
                     if saved:
                         devices.append(new_dev)
                         save_devices(devices)
+                    recorder.start_camera(stream_name, rtsp_url, new_dev)
             else:
                 device["ws_url"]        = None
                 device["stream_key"]    = None
@@ -830,14 +743,9 @@ async def enable_camera_by_ip(ip: str):
             register_stream(stream_name, rtsp_url)
         except Exception as e:
             print(f"[ENABLE] OME re-register failed for {stream_name}: {e}")
-        
-        # Only start if recording was requested for this camera
-        if device.get("recording_requested"):
-            recorder.start_camera(stream_name, rec_rtsp, device)
-            started.append(stream_name)
-            print(f"[ENABLE] ✅ {stream_name} enabled and recording resumed")
-        else:
-            print(f"[ENABLE] ✅ {stream_name} enabled (recording remains OFF)")
+        recorder.start_camera(stream_name, rec_rtsp, device)
+        started.append(stream_name)
+        print(f"[ENABLE] ✅ {stream_name} enabled and recording started")
     save_devices(devices)
     if cameras_col is not None:
         cameras_col.update_one({"ip": ip}, {"$set": {"enabled": True}})
@@ -946,7 +854,6 @@ async def onvif_probe(req: ProbeRequest):
                     "username":       req.username,
                     "password":       req.password,
                     "enabled":        True,
-                    "recording_requested": False,
                 }
                 devices.append(new_device)
                 save_devices(devices)
@@ -975,11 +882,10 @@ async def onvif_probe(req: ProbeRequest):
                 "stream_count":    result.get("stream_count", 0),
                 "stream_profiles": result.get("profiles", []),
                 "api_profile":     result.get("api_profile"),
-                "recording_requested": False,
             })
 
-            # recorder.start_camera(...) REMOVED - manual start only now
-            # print(f"[ONVIF] 🎥 Recording started for {stream_name}")
+            recorder.start_camera(stream_name, rtsp, new_device if not existing else existing)
+            print(f"[ONVIF] 🎥 Recording started for {stream_name}")
 
         else:
             print(f"[ONVIF] Stream {stream_name} already live in OME, skipping.")
@@ -1103,8 +1009,8 @@ async def register_rtsp_stream(req: StreamRegisterRequest):
     })
 
     _watchdog_failures[stream_name] = 0
-    # recorder.start_camera removed - manual only
-    # print(f"[RTSP] 🎥 Recording started for {stream_name}")
+    recorder.start_camera(stream_name, rtsp, new_device)
+    print(f"[RTSP] 🎥 Recording started for {stream_name}")
 
     return {
         "success":    True,
@@ -1203,16 +1109,10 @@ async def assign_streams(req: StreamAssignRequest):
         "updated_at":           datetime.utcnow(),
     })
 
-    # ── 3. Restart recorder on recording RTSP ONLY if currently recording ──
-    if device_entry.get("recording_requested"):
-        print(f"[ASSIGN] 🎥 Restarting active recorder with new profile: {req.recording_profile}")
-        recorder.stop_camera(stream_name)
-        recorder.start_camera(stream_name, req.recording_rtsp, device_entry)
-        print(f"[ASSIGN] 🎥 Recorder → {req.recording_profile!r} ({req.recording_rtsp})")
-    else:
-        print(f"[ASSIGN] ℹ Recording is OFF, only updating recording profile URL")
-        # Ensure we stop any stray recorder just in case
-        recorder.stop_camera(stream_name)
+    # ── 3. Restart recorder on recording RTSP ─────────────────────────
+    recorder.stop_camera(stream_name)
+    recorder.start_camera(stream_name, req.recording_rtsp, device_entry)
+    print(f"[ASSIGN] 🎥 Recorder → {req.recording_profile!r} ({req.recording_rtsp})")
 
     _watchdog_failures[stream_name] = 0
 

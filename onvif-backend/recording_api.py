@@ -541,6 +541,15 @@ async def decrypt_file(file: UploadFile = File(...)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Decryption failed: {str(e)}")
 
+@recording_router.post("/start/{stream_name}")
+def start_recording(stream_name: str, rtsp_url: str = Query(...)):
+    recorder.start_camera(stream_name, rtsp_url)
+    return {"message": f"Recording started for {stream_name}"}
+
+@recording_router.post("/stop/{stream_name}")
+def stop_recording(stream_name: str):
+    recorder.stop_camera(stream_name)
+    return {"message": f"Recording stopped for {stream_name}"}
 
 @recording_router.post("/export-zip")
 def export_zip(request: ExportZipRequest, background_tasks: BackgroundTasks):
