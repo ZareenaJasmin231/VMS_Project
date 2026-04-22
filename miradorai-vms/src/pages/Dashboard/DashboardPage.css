@@ -208,3 +208,24 @@
     grid-template-columns: 1fr;
   }
 }
+/* 🚨 Critical alerts */
+.critical-alerts {
+  border-left: 3px solid #ef4444;
+}
+
+.alert-item {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  padding: 6px 0;
+  color: #f87171;
+}
+
+/* 💾 Storage warning */
+.storage-path.warning {
+  color: #f59e0b;
+}
+
+.storage-path.critical {
+  color: #ef4444;
+}

@@ -406,3 +406,161 @@
   margin-top: 2px;
   flex-shrink: 0;
 }
+.ar-simple-list {
+  margin-top: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ar-simple-card {
+  background: #141922;
+  border: 1px solid rgba(255,255,255,0.05);
+  border-radius: 10px;
+  padding: 14px 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+/* ─────────────────────────────────────────────────────────────
+   BUILT-IN ANALYTICS EXTENSIONS (SAFE ADDITIONS)
+───────────────────────────────────────────────────────────── */
+
+/* ── Tab bar inside sub-modal ──────────────────────────────── */
+.ar-sub-modal__tabs {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-card, #13131f);
+  padding: 0 16px;
+}
+
+.ar-sub-modal__tab {
+  padding: 10px 16px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ar-sub-modal__tab:hover {
+  color: var(--text-primary);
+}
+
+.ar-sub-modal__tab--active {
+  color: var(--teal);
+  border-bottom-color: var(--teal);
+}
+
+.ar-sub-modal__tab-badge {
+  background: var(--teal);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  border-radius: 10px;
+  padding: 1px 6px;
+}
+
+/* ── MQTT badge ───────────────────────────────────────────── */
+.ar-sub-modal__item-badge,
+.ar-card__hint-badge {
+  font-size: 9px;
+  font-weight: 700;
+  color: #fff;
+  background: var(--teal);
+  border-radius: 4px;
+  padding: 1px 5px;
+  margin-right: 6px;
+}
+
+/* ── No analytics supported ───────────────────────────────── */
+.ar-sub-modal__no-analytics {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 24px 16px;
+  text-align: center;
+  gap: 8px;
+}
+
+.ar-sub-modal__no-analytics-icon {
+  font-size: 26px;
+  color: #f5a623;
+}
+
+.ar-sub-modal__no-analytics-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.ar-sub-modal__no-analytics-desc {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+/* ── Loading spinner ──────────────────────────────────────── */
+.ar-sub-modal__loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 30px;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.ar-sub-modal__spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--border);
+  border-top-color: var(--teal);
+  border-radius: 50%;
+  animation: ar-spin 0.7s linear infinite;
+}
+
+@keyframes ar-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ── Camera selector in triggers ──────────────────────────── */
+.ar-step__device-select {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 10px 0;
+  padding: 10px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.ar-step__device-label {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* ── Remove button in trigger list ───────────────────────── */
+.ar-step__list-remove {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 11px;
+  margin-left: auto;
+}
+
+.ar-step__list-remove:hover {
+  color: #e55;
+}
+
+/* ── Built-in analytics hint ─────────────────────────────── */
+.ar-card__hint--builtin {
+  color: var(--teal);
+  font-size: 11px;
+}

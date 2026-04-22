@@ -4,17 +4,15 @@ import "./LiveViewPage.css";
 
 const API = "http://192.168.126.200:8000";
 
+function getAuthHeaders() {
+  const token = localStorage.getItem("miradorai_token");
+  return token ? { "Authorization": "Bearer " + token } : {};
+}
 function loadDevices() {
   try { return JSON.parse(localStorage.getItem("miradorai_devices") || "[]"); }
   catch { return []; }
 }
-function getAlertFilter(cameraIp) {
-  try {
-    const saved = JSON.parse(localStorage.getItem(`miradorai_alert_filter_${cameraIp}`) || "{}");
-    const hasAny = Object.values(saved).some(Boolean);
-    return hasAny ? saved : null;
-  } catch { return null; }
-}
+
 const LAYOUTS = [
   { id: "1x1", label: "1×1", cols: 1, icon: "▣" },
   { id: "2x2", label: "2×2", cols: 2, icon: "⊞" },
@@ -24,6 +22,41 @@ const LAYOUTS = [
 
 const MASK_CANVAS_W = 640;
 const MASK_CANVAS_H = 360;
+
+// ── 🔥 Read enabled alert types from Action Rules ─────────────────
+function getEnabledAlertTypes() {
+  try {
+    const rules = JSON.parse(localStorage.getItem("miradorai_action_rules") || "[]");
+
+    if (rules.length === 0) {
+      // No rules configured → show all
+      return ["motion", "object", "device","occupancy"];
+    }
+
+    return rules
+      .filter((r) => r.enabled)
+      .map((r) => (r.trigger || "").toLowerCase());
+  } catch {
+    return ["motion", "object", "device", "occupancy"];
+  }
+}
+
+// ── 🔥 Check if a single alert passes the enabled filter ──────────
+function isAlertAllowed(alert) {
+  const enabledTypes = getEnabledAlertTypes();
+  const type = (alert.type || "").toLowerCase();
+
+  return enabledTypes.some((t) => {
+    const key = t.toLowerCase();
+
+    if (key.includes("motion")) return type.includes("motion");
+    if (key.includes("tamper")) return type.includes("tamper");
+    if (key.includes("object")) return type.includes("object");
+    if (key.includes("occupancy")) return type.includes("occupancy");
+
+    return type.includes(key);
+  });
+}
 
 // ── MaskOverlay ───────────────────────────────────────────────────
 function MaskOverlay({ ip }) {
@@ -88,9 +121,17 @@ function AlertsPanel() {
 
   const fetchAlerts = useCallback(async () => {
     try {
-      const res  = await fetch(`${API}/api/alerts?limit=50`);
+      const res  = await fetch(`${API}/api/alerts?limit=50`,{
+          headers: getAuthHeaders()
+      });
+      
       const data = await res.json();
-      setAlerts(data.alerts || []);
+
+      // 🔥 Filter fetched alerts by Action Rules
+      const filtered = (data.alerts || [])
+      .filter((a) => a.status === "Active")   // ✅ ADD THIS
+      .filter(isAlertAllowed);
+      setAlerts(filtered);
     } catch (e) {
       console.error("[Alerts] fetch failed:", e);
     } finally {
@@ -98,11 +139,33 @@ function AlertsPanel() {
     }
   }, []);
 
+  // ✅ 1. Fetch existing alerts on mount
   useEffect(() => {
     fetchAlerts();
-    const interval = setInterval(fetchAlerts, 5000);
-    return () => clearInterval(interval);
   }, [fetchAlerts]);
+
+  // ✅ 2. WebSocket for live alerts
+  useEffect(() => {
+    const ws = new WebSocket("ws://192.168.126.200:8000/ws/events");
+
+    ws.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+
+      // 🔥 Filter live alert by Action Rules
+      if (!isAlertAllowed(data)) return;
+      if (!isAlertAllowed(data)) return;
+
+      setAlerts((prev) => {
+        const exists = prev.some((e) => e.received_at === data.received_at);
+        if (exists) return prev;
+        return [data, ...prev];
+      });
+
+      setLoading(false);
+    };
+
+    return () => ws.close();
+  }, []);
 
   return (
     <div className={`lv-alerts-panel ${collapsed ? "lv-alerts-panel--collapsed" : ""}`}>
@@ -118,7 +181,6 @@ function AlertsPanel() {
             </>
           )}
         </div>
-
       </div>
 
       {/* Alert list */}
@@ -130,16 +192,23 @@ function AlertsPanel() {
             <div className="lv-alerts-panel__empty">No alerts yet</div>
           ) : (
             alerts.map((alert, i) => {
-              const data       = alert.message?.data || {};
-              const isActive   = data.active === true;
-              const timeOnly   = data.triggerTime
-                ? data.triggerTime.split("T")[1]?.split("+")[0]
+              const data      = alert;
+              const isActive  = data.status === "Active";
+              const type      = (data.type || "").toLowerCase();
+
+              let typeClass = "lv-alert-card--other";
+              if (type.includes("motion"))      typeClass = "lv-alert-card--motion";
+              else if (type.includes("object")) typeClass = "lv-alert-card--object";
+              else if (type.includes("occupancy")) typeClass = "lv-alert-card--object"; // reuse style
+
+              const timeOnly = data.time
+                ? data.time.split("T")[1]?.split("+")[0]
                 : null;
 
               return (
                 <div
                   key={i}
-                  className={`lv-alert-card ${isActive ? "lv-alert-card--active" : "lv-alert-card--inactive"}`}
+                  className={`lv-alert-card ${typeClass} ${isActive ? "lv-alert-card--active" : ""}`}
                 >
                   {/* Serial + badge */}
                   <div className="lv-alert-card__top">
@@ -151,21 +220,32 @@ function AlertsPanel() {
                     </span>
                   </div>
 
-                  {/* Topic analytics */}
+                  {/* Type */}
                   <div className="lv-alert-card__row">
                     <span className="lv-alert-card__label">Type</span>
                     <span className="lv-alert-card__value">
-   {alert.topic_analytics || "—"}
-</span>
+                      {data.type  || "—"}
+                    </span>
                   </div>
 
-                  {/* Topic event */}
+                  {/* Event */}
                   <div className="lv-alert-card__row">
                     <span className="lv-alert-card__label">Event</span>
                     <span className="lv-alert-card__value">
-                      {alert.topic_event || "—"}
+                      {data.scenario  || "—"}
                     </span>
                   </div>
+
+                  {/* Occupancy Count */}
+                  {data.type === "OccupancyInArea" && (
+                    <div className="lv-alert-card__row">
+                      <span className="lv-alert-card__label">People</span>
+                      <span className="lv-alert-card__value">
+                        👥 {data.human}
+                      </span>
+                    </div>
+                  )}
+
 
                   {/* Trigger time */}
                   {timeOnly && (
@@ -177,19 +257,21 @@ function AlertsPanel() {
                     </div>
                   )}
 
-                  {/* Human detection (cam1) */}
-                  {data.classTypes && (
+                  {/* Class types (human detection) */}
+                  {data.class && (
                     <div className="lv-alert-card__row">
                       <span className="lv-alert-card__label">Class</span>
                       <span className="lv-alert-card__value lv-alert-card__value--human">
-                        👤 {data.classTypes}
+                        👤 {data.class}
                       </span>
                     </div>
                   )}
-                  {data.objectId && (
+
+                  {/* Object ID */}
+                  {data.object_id && (
                     <div className="lv-alert-card__row">
                       <span className="lv-alert-card__label">Object ID</span>
-                      <span className="lv-alert-card__value">{data.objectId}</span>
+                      <span className="lv-alert-card__value">{data.object_id}</span>
                     </div>
                   )}
 
@@ -286,7 +368,7 @@ export default function LiveViewPage() {
   return (
     <div className="lv-page">
 
-      {/* ── Toolbar — full width ── */}
+      {/* ── Toolbar ── */}
       <div className="lv-toolbar">
         <div className="lv-toolbar__left">
           <span className="lv-toolbar__title">Live View</span>
@@ -357,7 +439,7 @@ export default function LiveViewPage() {
           </div>
         )}
 
-        {/* ── Camera grid / empty states ── */}
+        {/* ── Camera grid ── */}
         <div className="lv-grid-area">
           {devices.length === 0 ? (
             <div className="lv-empty">
@@ -424,7 +506,7 @@ export default function LiveViewPage() {
           )}
         </div>
 
-        {/* ── Alerts panel — right side ── */}
+        {/* ── Alerts panel ── */}
         <AlertsPanel />
 
       </div>

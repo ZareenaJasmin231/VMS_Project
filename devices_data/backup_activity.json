@@ -1,602 +1,602 @@
 [
   {
     "id": 101,
-    "time": "2026-04-08 10:07:40",
-    "event": "Auto backup stopped",
-    "status": "Info"
+    "time": "2026-04-21 23:34:17",
+    "event": "Auto-push failed: 10-10-03.meta",
+    "status": "Error"
   },
   {
     "id": 101,
-    "time": "2026-04-08 10:07:39",
-    "event": "Auto-pushed: 19-46-07.meta",
-    "status": "Success"
+    "time": "2026-04-21 23:34:10",
+    "event": "Auto-push failed: 10-10-03.enc",
+    "status": "Error"
   },
   {
     "id": 101,
-    "time": "2026-04-08 10:07:38",
-    "event": "Auto-pushed: 19-46-07.enc",
-    "status": "Success"
+    "time": "2026-04-21 23:34:00",
+    "event": "Auto-push failed: 10-05-00.meta",
+    "status": "Error"
   },
   {
     "id": 101,
-    "time": "2026-04-08 10:07:34",
-    "event": "Auto-pushed: 19-41-05.meta",
-    "status": "Success"
+    "time": "2026-04-21 23:33:59",
+    "event": "Auto-push failed: 10-05-00.enc",
+    "status": "Error"
   },
   {
     "id": 101,
-    "time": "2026-04-08 10:07:33",
-    "event": "Auto-pushed: 19-41-05.enc",
-    "status": "Success"
+    "time": "2026-04-21 23:33:57",
+    "event": "Auto-push failed: 09-59-56.meta",
+    "status": "Error"
   },
   {
     "id": 101,
-    "time": "2026-04-08 10:07:29",
-    "event": "Auto-pushed: 19-36-02.meta",
-    "status": "Success"
+    "time": "2026-04-21 23:33:56",
+    "event": "Auto-push failed: 09-59-56.enc",
+    "status": "Error"
   },
   {
     "id": 101,
-    "time": "2026-04-08 10:07:28",
-    "event": "Auto-pushed: 19-36-02.enc",
-    "status": "Success"
+    "time": "2026-04-21 23:33:53",
+    "event": "Auto-push failed: 09-54-53.meta",
+    "status": "Error"
   },
   {
     "id": 101,
-    "time": "2026-04-08 10:07:23",
-    "event": "Auto-pushed: 19-31-00.meta",
-    "status": "Success"
+    "time": "2026-04-21 23:33:50",
+    "event": "Auto-push failed: 09-54-53.enc",
+    "status": "Error"
   },
   {
     "id": 101,
-    "time": "2026-04-08 10:07:17",
-    "event": "Auto-pushed: 19-31-00.enc",
-    "status": "Success"
+    "time": "2026-04-21 23:33:48",
+    "event": "Auto-push failed: 09-49-49.enc",
+    "status": "Error"
   },
   {
     "id": 101,
-    "time": "2026-04-08 10:07:06",
-    "event": "Auto-pushed: 19-25-57.meta",
-    "status": "Success"
+    "time": "2026-04-21 23:33:35",
+    "event": "Auto-push failed: 20-23-00.meta",
+    "status": "Error"
   },
   {
     "id": 101,
-    "time": "2026-04-08 10:07:04",
-    "event": "Auto-pushed: 19-25-57.enc",
-    "status": "Success"
+    "time": "2026-04-21 23:33:30",
+    "event": "Auto-push failed: 20-23-00.enc",
+    "status": "Error"
   },
   {
     "id": 101,
-    "time": "2026-04-08 10:07:00",
-    "event": "Auto-pushed: 19-20-55.meta",
-    "status": "Success"
+    "time": "2026-04-21 23:33:26",
+    "event": "Auto-push failed: 20-17-56.meta",
+    "status": "Error"
   },
   {
     "id": 101,
-    "time": "2026-04-08 10:06:59",
-    "event": "Auto-pushed: 19-20-55.enc",
-    "status": "Success"
+    "time": "2026-04-21 23:33:20",
+    "event": "Auto-push failed: 20-17-56.enc",
+    "status": "Error"
   },
   {
     "id": 101,
-    "time": "2026-04-08 10:06:52",
-    "event": "Auto-pushed: 19-15-53.meta",
-    "status": "Success"
+    "time": "2026-04-21 23:33:11",
+    "event": "Auto-push failed: 20-12-54.meta",
+    "status": "Error"
   },
   {
     "id": 101,
-    "time": "2026-04-08 10:06:51",
-    "event": "Auto-pushed: 19-15-53.enc",
-    "status": "Success"
+    "time": "2026-04-21 23:33:06",
+    "event": "Auto-push failed: 20-12-54.enc",
+    "status": "Error"
   },
   {
     "id": 101,
-    "time": "2026-04-08 10:06:45",
-    "event": "Auto-pushed: 19-10-50.meta",
-    "status": "Success"
+    "time": "2026-04-21 23:33:04",
+    "event": "Auto-push failed: 20-07-51.meta",
+    "status": "Error"
   },
   {
     "id": 101,
-    "time": "2026-04-08 10:06:43",
-    "event": "Auto-pushed: 19-10-50.enc",
-    "status": "Success"
+    "time": "2026-04-21 23:32:58",
+    "event": "Auto-push failed: 20-07-51.enc",
+    "status": "Error"
   },
   {
     "id": 101,
-    "time": "2026-04-08 10:06:40",
-    "event": "Auto-pushed: 19-05-48.meta",
-    "status": "Success"
+    "time": "2026-04-21 23:32:57",
+    "event": "Auto-push failed: 20-02-48.meta",
+    "status": "Error"
   },
   {
     "id": 101,
-    "time": "2026-04-08 10:06:39",
-    "event": "Auto-pushed: 19-05-48.enc",
-    "status": "Success"
+    "time": "2026-04-21 23:32:56",
+    "event": "Auto-push failed: 20-02-48.enc",
+    "status": "Error"
   },
   {
     "id": 101,
-    "time": "2026-04-08 10:06:35",
-    "event": "Auto-pushed: 19-00-45.meta",
-    "status": "Success"
+    "time": "2026-04-21 23:32:53",
+    "event": "Auto-push failed: 19-57-00.meta",
+    "status": "Error"
   },
   {
     "id": 101,
-    "time": "2026-04-08 10:06:34",
-    "event": "Auto-pushed: 19-00-45.enc",
-    "status": "Success"
+    "time": "2026-04-21 23:32:44",
+    "event": "Auto-push failed: 19-57-00.enc",
+    "status": "Error"
   },
   {
     "id": 101,
-    "time": "2026-04-08 10:06:31",
-    "event": "Auto-pushed: 18-55-43.meta",
-    "status": "Success"
+    "time": "2026-04-21 23:32:40",
+    "event": "Auto-push failed: 19-51-57.meta",
+    "status": "Error"
   },
   {
     "id": 101,
-    "time": "2026-04-08 10:06:30",
-    "event": "Auto-pushed: 18-55-43.enc",
-    "status": "Success"
+    "time": "2026-04-21 23:32:36",
+    "event": "Auto-push failed: 19-51-57.enc",
+    "status": "Error"
   },
   {
     "id": 101,
-    "time": "2026-04-08 10:06:27",
-    "event": "Auto-pushed: 18-50-40.meta",
-    "status": "Success"
+    "time": "2026-04-21 23:32:35",
+    "event": "Auto-push failed: 19-46-54.meta",
+    "status": "Error"
   },
   {
     "id": 101,
-    "time": "2026-04-08 10:06:26",
-    "event": "Auto-pushed: 18-50-40.enc",
-    "status": "Success"
+    "time": "2026-04-21 23:32:32",
+    "event": "Auto-push failed: 19-46-54.enc",
+    "status": "Error"
   },
   {
     "id": 101,
-    "time": "2026-04-08 10:06:23",
-    "event": "Auto-pushed: 18-45-38.meta",
-    "status": "Success"
+    "time": "2026-04-21 23:32:31",
+    "event": "Auto-push failed: 19-41-51.meta",
+    "status": "Error"
   },
   {
     "id": 101,
-    "time": "2026-04-08 10:06:21",
-    "event": "Auto-pushed: 18-45-38.enc",
-    "status": "Success"
+    "time": "2026-04-21 23:32:29",
+    "event": "Auto-push failed: 19-41-51.enc",
+    "status": "Error"
   },
   {
     "id": 101,
-    "time": "2026-04-08 10:06:18",
-    "event": "Auto-pushed: 18-40-35.meta",
-    "status": "Success"
+    "time": "2026-04-21 23:32:28",
+    "event": "Auto-push failed: 19-36-48.meta",
+    "status": "Error"
   },
   {
     "id": 101,
-    "time": "2026-04-08 10:06:17",
-    "event": "Auto-pushed: 18-40-35.enc",
-    "status": "Success"
+    "time": "2026-04-21 23:32:22",
+    "event": "Auto-push failed: 19-36-48.enc",
+    "status": "Error"
   },
   {
     "id": 101,
-    "time": "2026-04-08 10:06:14",
-    "event": "Auto-pushed: 18-35-33.meta",
-    "status": "Success"
+    "time": "2026-04-21 23:32:21",
+    "event": "Auto-push failed: 19-31-45.meta",
+    "status": "Error"
   },
   {
     "id": 101,
-    "time": "2026-04-08 10:06:12",
-    "event": "Auto-pushed: 18-35-33.enc",
-    "status": "Success"
+    "time": "2026-04-21 23:32:20",
+    "event": "Auto-push failed: 19-31-45.enc",
+    "status": "Error"
   },
   {
     "id": 101,
-    "time": "2026-04-08 10:06:09",
-    "event": "Auto-pushed: 18-30-31.meta",
-    "status": "Success"
+    "time": "2026-04-21 23:32:19",
+    "event": "Auto-push failed: 19-26-43.meta",
+    "status": "Error"
   },
   {
     "id": 101,
-    "time": "2026-04-08 10:06:08",
-    "event": "Auto-pushed: 18-30-31.enc",
-    "status": "Success"
+    "time": "2026-04-21 23:32:18",
+    "event": "Auto-push failed: 19-26-43.enc",
+    "status": "Error"
   },
   {
     "id": 101,
-    "time": "2026-04-08 10:06:04",
-    "event": "Auto-pushed: 18-25-29.meta",
-    "status": "Success"
+    "time": "2026-04-21 23:32:17",
+    "event": "Auto-push failed: 19-21-40.meta",
+    "status": "Error"
   },
   {
     "id": 101,
-    "time": "2026-04-08 10:06:03",
-    "event": "Auto-pushed: 18-25-29.enc",
-    "status": "Success"
+    "time": "2026-04-21 23:32:16",
+    "event": "Auto-push failed: 19-21-40.enc",
+    "status": "Error"
   },
   {
     "id": 101,
-    "time": "2026-04-08 10:06:00",
-    "event": "Auto-pushed: 18-20-27.meta",
-    "status": "Success"
+    "time": "2026-04-21 23:32:14",
+    "event": "Auto-push failed: 19-16-36.meta",
+    "status": "Error"
   },
   {
     "id": 101,
-    "time": "2026-04-08 10:05:58",
-    "event": "Auto-pushed: 18-20-27.enc",
-    "status": "Success"
+    "time": "2026-04-21 23:32:13",
+    "event": "Auto-push failed: 19-16-36.enc",
+    "status": "Error"
   },
   {
     "id": 101,
-    "time": "2026-04-08 10:05:55",
-    "event": "Auto-pushed: 18-15-24.meta",
-    "status": "Success"
+    "time": "2026-04-21 23:32:12",
+    "event": "Auto-push failed: 19-11-33.meta",
+    "status": "Error"
   },
   {
     "id": 101,
-    "time": "2026-04-08 10:05:54",
-    "event": "Auto-pushed: 18-15-24.enc",
-    "status": "Success"
+    "time": "2026-04-21 23:32:11",
+    "event": "Auto-push failed: 19-11-33.enc",
+    "status": "Error"
   },
   {
     "id": 101,
-    "time": "2026-04-08 10:05:51",
-    "event": "Auto-pushed: 18-10-23.meta",
-    "status": "Success"
+    "time": "2026-04-21 23:32:10",
+    "event": "Auto-push failed: 19-06-31.meta",
+    "status": "Error"
   },
   {
     "id": 101,
-    "time": "2026-04-08 10:05:50",
-    "event": "Auto-pushed: 18-10-23.enc",
-    "status": "Success"
+    "time": "2026-04-21 23:32:09",
+    "event": "Auto-push failed: 19-06-31.enc",
+    "status": "Error"
   },
   {
     "id": 101,
-    "time": "2026-04-08 10:05:46",
-    "event": "Auto-pushed: 18-05-20.meta",
-    "status": "Success"
+    "time": "2026-04-21 23:32:08",
+    "event": "Auto-push failed: 18-55-21.meta",
+    "status": "Error"
   },
   {
     "id": 101,
-    "time": "2026-04-08 10:05:45",
-    "event": "Auto-pushed: 18-05-20.enc",
-    "status": "Success"
+    "time": "2026-04-21 23:32:01",
+    "event": "Auto-push failed: 18-55-21.enc",
+    "status": "Error"
   },
   {
     "id": 101,
-    "time": "2026-04-08 10:05:42",
-    "event": "Auto-pushed: 18-00-17.meta",
-    "status": "Success"
+    "time": "2026-04-21 23:32:00",
+    "event": "Auto-push failed: 09-11-19.enc",
+    "status": "Error"
   },
   {
     "id": 101,
-    "time": "2026-04-08 10:05:41",
-    "event": "Auto-pushed: 18-00-17.enc",
-    "status": "Success"
+    "time": "2026-04-21 23:31:58",
+    "event": "Auto-push failed: 16-37-01.meta",
+    "status": "Error"
   },
   {
     "id": 101,
-    "time": "2026-04-08 10:05:35",
-    "event": "Auto-pushed: 17-55-14.meta",
-    "status": "Success"
+    "time": "2026-04-21 23:31:57",
+    "event": "Auto-push failed: 16-37-01.enc",
+    "status": "Error"
   },
   {
     "id": 101,
-    "time": "2026-04-08 10:05:34",
-    "event": "Auto-pushed: 17-55-14.enc",
-    "status": "Success"
+    "time": "2026-04-21 23:31:56",
+    "event": "Auto-push failed: 16-31-59.meta",
+    "status": "Error"
   },
   {
     "id": 101,
-    "time": "2026-04-08 10:05:31",
-    "event": "Auto-pushed: 17-50-12.meta",
-    "status": "Success"
+    "time": "2026-04-21 23:31:55",
+    "event": "Auto-push failed: 16-31-59.enc",
+    "status": "Error"
   },
   {
     "id": 101,
-    "time": "2026-04-08 10:05:30",
-    "event": "Auto-pushed: 17-50-12.enc",
-    "status": "Success"
+    "time": "2026-04-21 23:31:54",
+    "event": "Auto-push failed: 16-26-56.meta",
+    "status": "Error"
   },
   {
     "id": 101,
-    "time": "2026-04-08 10:05:26",
-    "event": "Auto-pushed: 17-17-34.meta",
-    "status": "Success"
+    "time": "2026-04-21 23:31:53",
+    "event": "Auto-push failed: 16-26-56.enc",
+    "status": "Error"
   },
   {
     "id": 101,
-    "time": "2026-04-08 10:05:25",
-    "event": "Auto-pushed: 17-17-34.enc",
-    "status": "Success"
+    "time": "2026-04-21 23:31:52",
+    "event": "Auto-push failed: 16-21-54.meta",
+    "status": "Error"
   },
   {
     "id": 101,
-    "time": "2026-04-08 10:05:22",
-    "event": "Auto-pushed: 17-12-31.meta",
-    "status": "Success"
+    "time": "2026-04-21 23:31:46",
+    "event": "Auto-push failed: 16-21-54.enc",
+    "status": "Error"
   },
   {
     "id": 101,
-    "time": "2026-04-08 10:05:20",
-    "event": "Auto-pushed: 17-12-31.enc",
-    "status": "Success"
+    "time": "2026-04-21 23:31:45",
+    "event": "Auto-push failed: 16-16-52.meta",
+    "status": "Error"
   },
   {
     "id": 101,
-    "time": "2026-04-08 10:05:17",
-    "event": "Auto-pushed: 15-12-19.meta",
-    "status": "Success"
+    "time": "2026-04-21 23:31:43",
+    "event": "Auto-push failed: 16-16-52.enc",
+    "status": "Error"
   },
   {
     "id": 101,
-    "time": "2026-04-08 10:05:16",
-    "event": "Auto-pushed: 15-12-19.enc",
-    "status": "Success"
+    "time": "2026-04-21 23:31:42",
+    "event": "Auto-push failed: 16-11-49.meta",
+    "status": "Error"
   },
   {
     "id": 101,
-    "time": "2026-04-08 10:05:14",
-    "event": "Auto-pushed: 15-03-43.meta",
-    "status": "Success"
+    "time": "2026-04-21 23:31:41",
+    "event": "Auto-push failed: 16-11-49.enc",
+    "status": "Error"
   },
   {
     "id": 101,
-    "time": "2026-04-08 10:05:13",
-    "event": "Auto-pushed: 15-03-43.enc",
-    "status": "Success"
+    "time": "2026-04-21 23:31:40",
+    "event": "Auto-push failed: 16-06-46.meta",
+    "status": "Error"
   },
   {
     "id": 101,
-    "time": "2026-04-08 10:05:11",
-    "event": "Auto-pushed: 15-01-35.meta",
-    "status": "Success"
+    "time": "2026-04-21 23:31:39",
+    "event": "Auto-push failed: 16-06-46.enc",
+    "status": "Error"
   },
   {
     "id": 101,
-    "time": "2026-04-08 10:05:10",
-    "event": "Auto-pushed: 15-01-35.enc",
-    "status": "Success"
+    "time": "2026-04-21 23:31:38",
+    "event": "Auto-push failed: 16-01-43.meta",
+    "status": "Error"
   },
   {
     "id": 101,
-    "time": "2026-04-08 10:05:08",
-    "event": "Auto-pushed: 14-56-32.meta",
-    "status": "Success"
+    "time": "2026-04-21 23:31:37",
+    "event": "Auto-push failed: 16-01-43.enc",
+    "status": "Error"
   },
   {
     "id": 101,
-    "time": "2026-04-08 10:05:07",
-    "event": "Auto-pushed: 14-56-32.enc",
-    "status": "Success"
+    "time": "2026-04-21 23:31:36",
+    "event": "Auto-push failed: 15-56-36.meta",
+    "status": "Error"
   },
   {
     "id": 101,
-    "time": "2026-04-08 10:05:04",
-    "event": "Auto-pushed: 14-51-30.meta",
-    "status": "Success"
+    "time": "2026-04-21 23:31:35",
+    "event": "Auto-push failed: 15-56-36.enc",
+    "status": "Error"
   },
   {
     "id": 101,
-    "time": "2026-04-08 10:05:03",
-    "event": "Auto-pushed: 14-51-30.enc",
-    "status": "Success"
+    "time": "2026-04-21 23:31:34",
+    "event": "Auto-push failed: 15-51-33.meta",
+    "status": "Error"
   },
   {
     "id": 101,
-    "time": "2026-04-08 10:04:58",
-    "event": "Auto-pushed: 14-46-26.meta",
-    "status": "Success"
+    "time": "2026-04-21 23:31:33",
+    "event": "Auto-push failed: 15-51-33.enc",
+    "status": "Error"
   },
   {
     "id": 101,
-    "time": "2026-04-08 10:04:57",
-    "event": "Auto-pushed: 14-46-26.enc",
-    "status": "Success"
+    "time": "2026-04-21 23:31:32",
+    "event": "Auto-push failed: 15-46-29.meta",
+    "status": "Error"
   },
   {
     "id": 101,
-    "time": "2026-04-08 10:04:53",
-    "event": "Auto-pushed: 14-41-23.meta",
-    "status": "Success"
+    "time": "2026-04-21 23:31:31",
+    "event": "Auto-push failed: 15-46-29.enc",
+    "status": "Error"
   },
   {
     "id": 101,
-    "time": "2026-04-08 10:04:52",
-    "event": "Auto-pushed: 14-41-23.enc",
-    "status": "Success"
+    "time": "2026-04-21 23:31:30",
+    "event": "Auto-push failed: 15-41-41.meta",
+    "status": "Error"
   },
   {
     "id": 101,
-    "time": "2026-04-08 10:04:49",
-    "event": "Auto-pushed: 14-36-21.meta",
-    "status": "Success"
+    "time": "2026-04-21 23:31:29",
+    "event": "Auto-push failed: 15-41-41.enc",
+    "status": "Error"
   },
   {
     "id": 101,
-    "time": "2026-04-08 10:04:48",
-    "event": "Auto-pushed: 14-36-21.enc",
-    "status": "Success"
+    "time": "2026-04-21 23:31:28",
+    "event": "Auto-push failed: 15-36-37.meta",
+    "status": "Error"
   },
   {
     "id": 101,
-    "time": "2026-04-08 10:04:44",
-    "event": "Auto-pushed: 14-35-40.meta",
-    "status": "Success"
+    "time": "2026-04-21 23:31:27",
+    "event": "Auto-push failed: 15-36-37.enc",
+    "status": "Error"
   },
   {
     "id": 101,
-    "time": "2026-04-08 10:04:43",
-    "event": "Auto-pushed: 14-35-40.enc",
-    "status": "Success"
+    "time": "2026-04-21 23:31:25",
+    "event": "Auto-push failed: 15-32-02.meta",
+    "status": "Error"
   },
   {
     "id": 101,
-    "time": "2026-04-08 10:04:42",
-    "event": "Auto-pushed: 14-30-37.meta",
-    "status": "Success"
+    "time": "2026-04-21 23:31:24",
+    "event": "Auto-push failed: 15-32-02.enc",
+    "status": "Error"
   },
   {
     "id": 101,
-    "time": "2026-04-08 10:04:40",
-    "event": "Auto-pushed: 14-30-37.enc",
-    "status": "Success"
+    "time": "2026-04-21 23:31:23",
+    "event": "Auto-push failed: 15-27-00.meta",
+    "status": "Error"
   },
   {
     "id": 101,
-    "time": "2026-04-08 10:04:36",
-    "event": "Auto-pushed: 14-25-35.meta",
-    "status": "Success"
+    "time": "2026-04-21 23:31:22",
+    "event": "Auto-push failed: 15-27-00.enc",
+    "status": "Error"
   },
   {
     "id": 101,
-    "time": "2026-04-08 10:04:35",
-    "event": "Auto-pushed: 14-25-35.enc",
-    "status": "Success"
+    "time": "2026-04-21 23:31:21",
+    "event": "Auto-push failed: 15-22-03.meta",
+    "status": "Error"
   },
   {
     "id": 101,
-    "time": "2026-04-08 10:04:32",
-    "event": "Auto-pushed: 12-40-54.meta",
-    "status": "Success"
+    "time": "2026-04-21 23:31:20",
+    "event": "Auto-push failed: 15-22-03.enc",
+    "status": "Error"
   },
   {
     "id": 101,
-    "time": "2026-04-08 10:04:31",
-    "event": "Auto-pushed: 12-40-54.enc",
-    "status": "Success"
+    "time": "2026-04-21 23:31:19",
+    "event": "Auto-push failed: 15-16-35.meta",
+    "status": "Error"
   },
   {
     "id": 101,
-    "time": "2026-04-08 10:04:29",
-    "event": "Auto-pushed: 12-35-51.meta",
-    "status": "Success"
+    "time": "2026-04-21 23:31:18",
+    "event": "Auto-push failed: 15-16-35.enc",
+    "status": "Error"
   },
   {
     "id": 101,
-    "time": "2026-04-08 10:04:28",
-    "event": "Auto-pushed: 12-35-51.enc",
-    "status": "Success"
+    "time": "2026-04-21 23:31:17",
+    "event": "Auto-push failed: 15-11-32.meta",
+    "status": "Error"
   },
   {
     "id": 101,
-    "time": "2026-04-08 10:04:24",
-    "event": "Auto-pushed: 12-30-49.meta",
-    "status": "Success"
+    "time": "2026-04-21 23:31:16",
+    "event": "Auto-push failed: 15-11-32.enc",
+    "status": "Error"
   },
   {
     "id": 101,
-    "time": "2026-04-08 10:04:23",
-    "event": "Auto-pushed: 12-30-49.enc",
-    "status": "Success"
+    "time": "2026-04-21 23:31:09",
+    "event": "Auto-push failed: 15-06-29.meta",
+    "status": "Error"
   },
   {
     "id": 101,
-    "time": "2026-04-08 10:04:19",
-    "event": "Auto-pushed: 12-25-47.meta",
-    "status": "Success"
+    "time": "2026-04-21 23:31:08",
+    "event": "Auto-push failed: 15-06-29.enc",
+    "status": "Error"
   },
   {
     "id": 101,
-    "time": "2026-04-08 10:04:18",
-    "event": "Auto-pushed: 12-25-47.enc",
-    "status": "Success"
+    "time": "2026-04-21 23:31:07",
+    "event": "Auto-push failed: 15-01-27.meta",
+    "status": "Error"
   },
   {
     "id": 101,
-    "time": "2026-04-08 10:04:15",
-    "event": "Auto-pushed: 12-20-44.meta",
-    "status": "Success"
+    "time": "2026-04-21 23:31:06",
+    "event": "Auto-push failed: 15-01-27.enc",
+    "status": "Error"
   },
   {
     "id": 101,
-    "time": "2026-04-08 10:04:14",
-    "event": "Auto-pushed: 12-20-44.enc",
-    "status": "Success"
+    "time": "2026-04-21 23:31:05",
+    "event": "Auto-push failed: 14-54-25.meta",
+    "status": "Error"
   },
   {
     "id": 101,
-    "time": "2026-04-08 10:04:10",
-    "event": "Auto-pushed: 12-15-42.meta",
-    "status": "Success"
+    "time": "2026-04-21 23:31:04",
+    "event": "Auto-push failed: 14-54-25.enc",
+    "status": "Error"
   },
   {
     "id": 101,
-    "time": "2026-04-08 10:04:09",
-    "event": "Auto-pushed: 12-15-42.enc",
-    "status": "Success"
+    "time": "2026-04-21 23:31:03",
+    "event": "Auto-push failed: 14-49-21.meta",
+    "status": "Error"
   },
   {
     "id": 101,
-    "time": "2026-04-08 10:04:06",
-    "event": "Auto-pushed: 12-10-40.meta",
-    "status": "Success"
+    "time": "2026-04-21 23:31:02",
+    "event": "Auto-push failed: 14-49-21.enc",
+    "status": "Error"
   },
   {
     "id": 101,
-    "time": "2026-04-08 10:04:05",
-    "event": "Auto-pushed: 12-10-40.enc",
-    "status": "Success"
+    "time": "2026-04-21 23:31:01",
+    "event": "Auto-push failed: 14-44-17.meta",
+    "status": "Error"
   },
   {
     "id": 101,
-    "time": "2026-04-08 10:04:01",
-    "event": "Auto-pushed: 12-05-37.meta",
-    "status": "Success"
+    "time": "2026-04-21 23:30:55",
+    "event": "Auto-push failed: 14-44-17.enc",
+    "status": "Error"
   },
   {
     "id": 101,
-    "time": "2026-04-08 10:04:00",
-    "event": "Auto-pushed: 12-05-37.enc",
-    "status": "Success"
+    "time": "2026-04-21 23:30:54",
+    "event": "Auto-push failed: 14-40-48.meta",
+    "status": "Error"
   },
   {
     "id": 101,
-    "time": "2026-04-08 10:03:57",
-    "event": "Auto-pushed: 12-00-35.meta",
-    "status": "Success"
+    "time": "2026-04-21 23:30:53",
+    "event": "Auto-push failed: 14-40-48.enc",
+    "status": "Error"
   },
   {
     "id": 101,
-    "time": "2026-04-08 10:03:56",
-    "event": "Auto-pushed: 12-00-35.enc",
-    "status": "Success"
+    "time": "2026-04-21 23:30:51",
+    "event": "Auto-push failed: 14-35-46.meta",
+    "status": "Error"
   },
   {
     "id": 101,
-    "time": "2026-04-08 10:03:52",
-    "event": "Auto-pushed: 11-55-34.meta",
-    "status": "Success"
+    "time": "2026-04-21 23:30:50",
+    "event": "Auto-push failed: 14-35-46.enc",
+    "status": "Error"
   },
   {
     "id": 101,
-    "time": "2026-04-08 10:03:51",
-    "event": "Auto-pushed: 11-55-34.enc",
-    "status": "Success"
+    "time": "2026-04-21 23:30:49",
+    "event": "Auto-push failed: 14-30-43.meta",
+    "status": "Error"
   },
   {
     "id": 101,
-    "time": "2026-04-08 10:03:47",
-    "event": "Auto-pushed: 11-54-43.meta",
-    "status": "Success"
+    "time": "2026-04-21 23:30:48",
+    "event": "Auto-push failed: 14-30-43.enc",
+    "status": "Error"
   },
   {
     "id": 101,
-    "time": "2026-04-08 10:03:46",
-    "event": "Auto-pushed: 11-54-43.enc",
-    "status": "Success"
+    "time": "2026-04-21 23:30:47",
+    "event": "Auto-push failed: 14-25-41.meta",
+    "status": "Error"
   },
   {
     "id": 101,
-    "time": "2026-04-08 10:03:44",
-    "event": "Auto-pushed: 11-53-12.meta",
-    "status": "Success"
+    "time": "2026-04-21 23:30:46",
+    "event": "Auto-push failed: 14-25-41.enc",
+    "status": "Error"
   },
   {
     "id": 101,
-    "time": "2026-04-08 10:03:43",
-    "event": "Auto-pushed: 11-53-12.enc",
-    "status": "Success"
+    "time": "2026-04-21 23:30:45",
+    "event": "Auto-push failed: 14-20-38.meta",
+    "status": "Error"
   },
   {
     "id": 101,
-    "time": "2026-04-08 10:03:42",
-    "event": "Auto-pushed: 11-48-09.meta",
-    "status": "Success"
+    "time": "2026-04-21 23:30:44",
+    "event": "Auto-push failed: 14-20-38.enc",
+    "status": "Error"
   }
 ]

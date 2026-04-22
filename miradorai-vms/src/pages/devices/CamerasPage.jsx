@@ -5,6 +5,7 @@ import Modal from "../../components/shared/Modal";
 import { CAMERA_FEATURES_CONFIG } from "../../data/navConfig";
 import "./CamerasPage.css";
 import MaskingPage from "./MaskingPage";
+import { useNavigate } from "react-router-dom";
 
 function loadDevices() {
   try {
@@ -32,6 +33,7 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
   const [authModal, setAuthModal]     = useState(null);
   const [authForm, setAuthForm]       = useState({ username: "", password: "" });
   const [activePage, setActivePage]   = useState(null);
+  const navigate = useNavigate();
 
   const filtered = cameras.filter((c) =>
     !filter ||
@@ -391,7 +393,7 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
                     if (INLINE_PAGES.includes(feature.page)) {
                       setActivePage(feature.page);
                     } else {
-                      if (onNavigate) onNavigate(feature.page);
+                      navigate(`/${feature.page}`);
                     }
                   }}
                 >

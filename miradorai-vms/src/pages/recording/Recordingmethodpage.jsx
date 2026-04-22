@@ -1,45 +1,26 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Button from "../../components/shared/Button";
 import Toggle from "../../components/shared/Toggle";
 import "./RecordingMethodPage.css";
 
-const STREAM_PROFILES = [
-  "High (1920x1080, 30 fps, H.264)",
-  "Medium (1280x720, 15 fps, H.264)",
-  "Low (640x360, 10 fps, H.264)",
-  "Mobile (320x180, 8 fps, H.264)",
-];
+const STREAM_API = "http://192.168.126.200:8000";
 
 const SCHEDULES = ["Always", "Office Hours", "Weekends", "New schedule"];
 
 const DEFAULT_MOTION = {
-  enabled: false, profile: "High (1920x1080, 30 fps, H.264)",
+  enabled: false, profile: "",
   prebuffer: 5, postbuffer: 10, raiseAlarm: true,
   schedule: "Always", triggerPeriod: 10,
 };
 const DEFAULT_CONTINUOUS = {
-  enabled: false, profile: "Medium (1280x720, 15 fps, H.264)",
+  enabled: false, profile: "",
   prebuffer: 0, postbuffer: 0, schedule: "Always",
   avgBitrate: true, maxStorage: 352,
 };
 const DEFAULT_MANUAL = {
-  enabled: false, profile: "High (1920x1080, 30 fps, H.264)",
+  enabled: false, profile: "",
   prebuffer: 0, postbuffer: 0,
 };
-
-function loadDevices() {
-  try {
-    const saved = localStorage.getItem("miradorai_devices");
-    return saved ? JSON.parse(saved) : [];
-  } catch { return []; }
-}
-
-function loadRecSettings() {
-  try {
-    const saved = localStorage.getItem("miradorai_rec_settings");
-    return saved ? JSON.parse(saved) : {};
-  } catch { return {}; }
-}
 
 function saveRecSettings(settings) {
   try {
@@ -103,7 +84,14 @@ function ColumnPanel({ title, data, onChange, showAlarm, showTrigger, showBitrat
         <label className="rm-label">Profile:</label>
         <select className="rm-select" value={data.profile}
           disabled={dis} onChange={(e) => set("profile", e.target.value)}>
-          {STREAM_PROFILES.map((p) => <option key={p}>{p}</option>)}
+          {data.availableProfiles && data.availableProfiles.length > 0
+            ? data.availableProfiles.map((p) => (
+                <option key={p.token} value={p.token}>
+                  {p.label}: {p.resolution || "Unknown"} ({p.encoding || "H.264"})
+                </option>
+              ))
+            : <option value="">No profiles found</option>
+          }
         </select>
       </div>
 
@@ -168,7 +156,7 @@ function ColumnPanel({ title, data, onChange, showAlarm, showTrigger, showBitrat
                 <span className="rm-unit">GB</span>
               </div>
               <p className="rm-bitrate-hint">
-                The average bitrate will be 488 Kbit/s based on the configured max storage and retention time.
+                The average bitrate will be calculated based on the configured max storage and retention time.
               </p>
             </>
           )}
@@ -178,38 +166,160 @@ function ColumnPanel({ title, data, onChange, showAlarm, showTrigger, showBitrat
   );
 }
 
-// ── Truncate helper ───────────────────────────────────────────
-const trunc = (str, n = 24) => str && str.length > n ? str.slice(0, n) + "…" : (str || "—");
-
 // ── Main Page ─────────────────────────────────────────────────
 export default function RecordingMethodPage() {
   const [filter,      setFilter]      = useState("");
   const [selectedId,  setSelectedId]  = useState(null);
-  const [recSettings, setRecSettings] = useState(loadRecSettings);
+  const [devices,     setDevices]     = useState([]);
+  const [loading,     setLoading]     = useState(true);
+  const [recSettings, setRecSettings] = useState({});
 
-  const devices = loadDevices();
+  useEffect(() => {
+    fetchDevices();
+  }, []);
 
-  // Get or init settings for a device
-  const getSettings = (id) => recSettings[id] ?? {
-    motion:     { ...DEFAULT_MOTION },
-    continuous: { ...DEFAULT_CONTINUOUS },
-    manual:     { ...DEFAULT_MANUAL },
+  const fetchDevices = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`${STREAM_API}/api/cameras/`);
+      const data = await res.json();
+      setDevices(data);
+
+      // Initialize recSettings from backend data
+      const initialSettings = {};
+      data.forEach(cam => {
+        const profiles = cam.stream_profiles || [];
+        const activeRecProfile = cam.active_rec_profile || (profiles[0]?.token || "");
+
+        initialSettings[cam.ome_stream] = {
+          motion:     { 
+            ...DEFAULT_MOTION, 
+            enabled: !!cam.motion_enabled,
+            profile: activeRecProfile, 
+            availableProfiles: profiles 
+          },
+          continuous: { 
+            ...DEFAULT_CONTINUOUS, 
+            enabled: !!cam.continuous_enabled,
+            profile: activeRecProfile, 
+            availableProfiles: profiles 
+          },
+          manual:     {
+            ...DEFAULT_MANUAL,
+            enabled: !!cam.recording_requested,
+            profile: activeRecProfile,
+            availableProfiles: profiles
+          },
+        };
+      });
+      setRecSettings(initialSettings);
+    } catch (err) {
+      console.error("Failed to fetch devices:", err);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const updateSection = (section, data) => {
+  const updateSection = async (section, data) => {
     if (!selectedId) return;
-    const updated = {
+
+    const prevSettings = recSettings[selectedId];
+    const newSettings = {
       ...recSettings,
       [selectedId]: {
-        ...getSettings(selectedId),
+        ...prevSettings,
         [section]: data,
       },
     };
-    setRecSettings(updated);
-    saveRecSettings(updated);
+    setRecSettings(newSettings);
+
+    const cam = devices.find(d => d.ome_stream === selectedId);
+    if (!cam) return;
+
+    // ── 1. Handle Persistence for ALL toggles ──
+    if (data.enabled !== prevSettings[section].enabled) {
+      try {
+        const payload = {};
+        if (section === "continuous") payload.continuous_enabled = data.enabled;
+        if (section === "motion")     payload.motion_enabled     = data.enabled;
+        if (section === "manual")     payload.manual_enabled     = data.enabled;
+
+        await fetch(`${STREAM_API}/api/recordings/settings/${cam.ome_stream}`, {
+          method:  "POST",
+          headers: { "Content-Type": "application/json" },
+          body:    JSON.stringify(payload)
+        });
+        console.log(`Persistent setting updated for ${section}`);
+
+        // Update the local 'devices' state so the list/dots reflect the new requested state
+        setDevices(prev => prev.map(d => 
+          d.ome_stream === cam.ome_stream 
+            ? { ...d, ...payload, recording_requested: payload.manual_enabled ?? d.recording_requested } 
+            : d
+        ));
+
+        // If it's a primary recording trigger (Manual or Continuous), toggle the actual recording process
+        if (section === "manual" || section === "continuous") {
+          const endpoint = data.enabled ? "start" : "stop";
+          const selectedProfile = data.availableProfiles?.find(p => p.token === data.profile);
+          const urlParam = selectedProfile ? `?rtsp_url=${encodeURIComponent(selectedProfile.rtsp_url)}` : "";
+
+          const startRes = await fetch(`${STREAM_API}/api/recordings/${endpoint}/${cam.ome_stream}${urlParam}`, {
+            method: "POST"
+          });
+          
+          if (startRes.ok) {
+             // Update the recording_requested flag locally to update 'Active' dot
+             setDevices(prev => prev.map(d => 
+               d.ome_stream === cam.ome_stream ? { ...d, recording_requested: data.enabled } : d
+             ));
+             console.log(`Backend recording ${endpoint} successful`);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to update recording settings:", err);
+        // ROLLBACK on error: revert state to previous
+        setRecSettings(prev => ({
+          ...prev,
+          [selectedId]: prevSettings
+        }));
+      }
+    }
+
+    // ── 2. Handle Profile Change ──
+    if (data.profile !== prevSettings[section].profile) {
+      const selectedProfile = data.availableProfiles?.find(p => p.token === data.profile);
+      if (selectedProfile) {
+        try {
+          await fetch(`${STREAM_API}/api/streams/assign`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              ip: cam.ip,
+              port: cam.port || 80,
+              username: cam.username || "",
+              live_rtsp: cam.rtsp_url,
+              recording_rtsp: selectedProfile.rtsp_url,
+              live_profile: cam.active_live_profile || "MAIN",
+              recording_profile: selectedProfile.label || selectedProfile.name,
+              manufacturer: cam.manufacturer,
+              model: cam.model,
+              mac: cam.mac,
+              device_name: cam.device_name || cam.name
+            })
+          });
+          console.log("Profile assignment updated on backend");
+          setTimeout(fetchDevices, 500);
+        } catch (err) {
+          console.error("Profile change failed:", err);
+        }
+      }
+    }
   };
 
-  const handleApply = () => saveRecSettings(recSettings);
+  const handleApply = () => {
+    alert("Settings synchronized with backend.");
+  };
 
   const filtered = devices.filter((d) =>
     !filter ||
@@ -218,8 +328,7 @@ export default function RecordingMethodPage() {
       .some((c) => c.toLowerCase().includes(filter.toLowerCase()))
   );
 
-  const selected    = selectedId ? getSettings(selectedId) : null;
-  const selDevice   = devices.find((d) => String(d.id) === String(selectedId));
+  const selected    = selectedId ? recSettings[selectedId] : null;
 
   return (
     <div className="rm-page">
@@ -229,11 +338,13 @@ export default function RecordingMethodPage() {
           <h1 className="rm-page-title">Recording method</h1>
           <p className="rm-page-desc">
             Select which stream profile to use for recording. To edit stream profiles, go to Stream profiles.
-            To manage events, go to Action rules.
           </p>
         </div>
-        <input className="rm-filter" placeholder="Type to filter"
-          value={filter} onChange={(e) => setFilter(e.target.value)} />
+        <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+          {loading && <span style={{ color: "var(--teal)", fontSize: 12 }}>Syncing...</span>}
+          <input className="rm-filter" placeholder="Type to filter"
+            value={filter} onChange={(e) => setFilter(e.target.value)} />
+        </div>
       </div>
 
       {/* Camera table */}
@@ -243,16 +354,18 @@ export default function RecordingMethodPage() {
             <tr>
               <th style={{ width: 40 }}></th>
               <th>Name</th>
-              <th>Motion detection</th>
+              <th>Motion</th>
               <th>Continuous</th>
-              <th>Motion profile</th>
-              <th>Continuous profile</th>
-              <th>Manual profile</th>
+              <th>Manual</th>
+              <th>Recording Profile</th>
+              <th>Status</th>
               <th>Server</th>
             </tr>
           </thead>
           <tbody>
-            {filtered.length === 0 ? (
+            {loading && devices.length === 0 ? (
+               <tr><td colSpan={8} style={{ textAlign: "center", padding: 40 }}>Loading devices...</td></tr>
+            ) : filtered.length === 0 ? (
               <tr>
                 <td colSpan={8} style={{ textAlign: "center", color: "var(--text-muted)",
                   padding: "20px", fontSize: 12 }}>
@@ -260,11 +373,12 @@ export default function RecordingMethodPage() {
                 </td>
               </tr>
             ) : filtered.map((cam) => {
-              const s = getSettings(String(cam.id));
+              const s = recSettings[cam.ome_stream];
+              if (!s) return null;
               return (
-                <tr key={cam.id}
-                  className={String(cam.id) === String(selectedId) ? "selected" : ""}
-                  onClick={() => setSelectedId(String(cam.id))}>
+                <tr key={cam.ome_stream}
+                  className={cam.ome_stream === selectedId ? "selected" : ""}
+                  onClick={() => setSelectedId(cam.ome_stream)}>
                   <td>
                     <div className="rm-thumb">
                       {cam.snapshot_url
@@ -272,12 +386,21 @@ export default function RecordingMethodPage() {
                         : <div className="rm-thumb__placeholder" />}
                     </div>
                   </td>
-                  <td>{cam.name}</td>
+                  <td>{cam.manufacturer} {cam.model} <br/><small style={{opacity:0.6}}>{cam.ip}</small></td>
                   <td className="rm-cell-center">{s.motion.enabled     ? "✓" : ""}</td>
                   <td className="rm-cell-center">{s.continuous.enabled  ? "✓" : ""}</td>
-                  <td className="rm-cell-mono">{s.motion.enabled     ? trunc(s.motion.profile)     : "—"}</td>
-                  <td className="rm-cell-mono">{s.continuous.enabled  ? trunc(s.continuous.profile) : "—"}</td>
-                  <td className="rm-cell-mono">{s.manual.enabled      ? trunc(s.manual.profile)     : "—"}</td>
+                  <td className="rm-cell-center">
+                    <span style={{ color: s.manual.enabled ? "var(--teal)" : "inherit" }}>
+                      {s.manual.enabled ? "● RECORDING" : "OFF"}
+                    </span>
+                  </td>
+                  <td className="rm-cell-mono">
+                    {cam.active_rec_profile || "Default"}
+                  </td>
+                  <td>
+                    <span className={`status-dot ${cam.recording_requested ? "recording" : ""}`} />
+                    {cam.recording_requested ? "Active" : "Idle"}
+                  </td>
                   <td>MIRADOR</td>
                 </tr>
               );
@@ -286,10 +409,8 @@ export default function RecordingMethodPage() {
         </table>
       </div>
 
-      {/* Divider */}
       <div className="rm-divider"><div className="rm-divider__handle" /></div>
 
-      {/* Detail panel */}
       {selected && (
         <div className="rm-detail">
           <ColumnPanel
@@ -313,12 +434,15 @@ export default function RecordingMethodPage() {
             showSchedule={false}
           />
           <div className="rm-apply-row">
-            <Button label="Apply" variant="primary" onClick={handleApply} />
+             <p style={{ fontSize: 11, color: "var(--text-muted)", marginRight: "auto" }}>
+               Changes are applied immediately.
+             </p>
+            <Button label="Refresh Sync" variant="outline" onClick={fetchDevices} />
+            <Button label="Done" variant="primary" onClick={handleApply} />
           </div>
         </div>
       )}
 
-      {/* Placeholder when nothing selected */}
       {!selected && filtered.length > 0 && (
         <div className="rm-detail rm-detail--empty">
           <span>Select a camera above to configure recording settings.</span>

@@ -3,6 +3,7 @@ import "./DiscoveryModal.css";
 
 const STREAM_API = "http://192.168.126.200:8000";
 
+
 export default function DiscoveryModal({ isOpen, onClose, onAddDevices }) {
   const [discoveredDevices, setDiscoveredDevices] = useState([]);
   const [selectedDevices, setSelectedDevices] = useState(new Set());

@@ -385,12 +385,9 @@
    ALERTS PANEL
 ═══════════════════════════════════════════════════ */
 .lv-alerts-panel {
-width: 300px;                 /* 🔥 bigger */
+  width: 300px;
   min-width: 300px;
-  background: #0f141c;          /* 🔥 stronger contrast */
-  border-left: 1px solid var(--border);
-  box-shadow: -4px 0 20px rgba(0,0,0,0.6); /* 🔥 depth */  min-width: 260px;
-  background: var(--bg-surface);
+  background: #0f141c;
   border-left: 1px solid var(--border);
   display: flex;
   flex-direction: column;
@@ -409,11 +406,10 @@ width: 300px;                 /* 🔥 bigger */
   align-items: center;
   justify-content: space-between;
   padding: 8px 10px;
-  border-bottom: 1px solid var(--border);
+  background: transparent;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
   flex-shrink: 0;
   gap: 8px;
-  background: rgba(255, 0, 0, 0.05); /* 🔥 subtle red */
-  border-bottom: 1px solid rgba(255, 0, 0, 0.2);
 }
 .lv-alerts-panel__title {
   display: flex;
@@ -421,11 +417,9 @@ width: 300px;                 /* 🔥 bigger */
   gap: 6px;
   font-size: 12px;
   font-weight: 600;
-  color: var(--text-primary);
+  color: #e8eaf0;
   white-space: nowrap;
   overflow: hidden;
-  color: #ff4d4f; /* 🔥 alert red */
-  font-weight: 700;
 }
 .lv-alerts-panel__dot {
   width: 6px;
@@ -449,22 +443,19 @@ width: 300px;                 /* 🔥 bigger */
   display: flex;
   align-items: center;
   justify-content: center;
-
   border: 1px solid var(--border-light);
   border-radius: 6px;
   background: var(--bg-elevated);
-
   color: var(--text-secondary);
   cursor: pointer;
-
   transition: all 0.15s ease;
 }
-
 .lv-alerts-panel__toggle:hover {
   background: var(--bg-hover);
   color: var(--text-primary);
   border-color: var(--teal);
 }
+
 /* List */
 .lv-alerts-panel__list {
   flex: 1;
@@ -485,30 +476,52 @@ width: 300px;                 /* 🔥 bigger */
   padding: 24px 0;
 }
 
+/* ── Alert Cards ─────────────────────────────────── */
+
+/* Base card */
 .lv-alert-card {
   background: #141922;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 10px;
-  border-left: 4px solid #444;
-  transition: all 0.2s;
-}
-.lv-alert-card--active {
-  border-left-color: #ff4d4f; /* 🔥 RED */
-  background: rgba(255, 77, 79, 0.08);
-  box-shadow: 0 0 12px rgba(255, 77, 79, 0.25); /* 🔥 glow */
-}
-.lv-alert-card--active {
-  animation: alertPulse 1.2s infinite;
+  border-radius: 10px;
+  padding: 12px;
+  margin-bottom: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  transition: all 0.15s ease;
+  box-shadow: none;
 }
 
-@keyframes alertPulse {
-  0%   { box-shadow: 0 0 6px rgba(255, 77, 79, 0.2); }
-  50%  { box-shadow: 0 0 16px rgba(255, 77, 79, 0.6); }
-  100% { box-shadow: 0 0 6px rgba(255, 77, 79, 0.2); }
+/* Hover — subtle lift only */
+.lv-alert-card:hover {
+  background: #1a1f2a;
+  transform: translateY(-1px);
 }
-.lv-alert-card--inactive { border-left-color: #333; }
 
+/* 🔴 Motion */
+.lv-alert-card--motion {
+  border-left: 3px solid #ff4d4f;
+}
+
+/* 🟡 Object */
+.lv-alert-card--object {
+  border-left: 3px solid #f0a500;
+}
+
+/* 🔵 Other */
+.lv-alert-card--other {
+  border-left: 3px solid #4da6ff;
+}
+
+/* Active = slight lift only, no glow, no colored background */
+.lv-alert-card--active {
+  transform: translateY(-1px);
+  box-shadow: none;
+}
+
+/* Inactive */
+.lv-alert-card--inactive {
+  border-left-color: #333;
+}
+
+/* Card content rows */
 .lv-alert-card__top {
   display: flex;
   align-items: center;
@@ -531,7 +544,7 @@ width: 300px;                 /* 🔥 bigger */
   flex-shrink: 0;
 }
 .lv-alert-card__badge--on  { background: var(--teal-subtle); color: var(--teal); }
-.lv-alert-card__badge--off { background: rgba(255,255,255,0.04); color: rgba(255,255,255,0.3); }
+.lv-alert-card__badge--off { background: rgba(255, 255, 255, 0.04); color: rgba(255, 255, 255, 0.3); }
 
 .lv-alert-card__row {
   display: flex;
@@ -540,22 +553,16 @@ width: 300px;                 /* 🔥 bigger */
 }
 .lv-alert-card__label {
   font-size: 10px;
-  color: #8892a4;
+  color: #6b7280;
   width: 54px;
   flex-shrink: 0;
 }
-.lv-alerts-panel__dot {
-  background: #ff4d4f;
-  box-shadow: 0 0 8px #ff4d4f;
-}
 .lv-alert-card__value {
-  font-size: 10px;
-  color: var(--text-secondary);
+  font-size: 11px;
+  color: #e8eaf0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  font-size: 11px;   /* 🔥 bigger */
-  color: #e8eaf0;    /* 🔥 brighter */
 }
 .lv-alert-card__value--time  { color: var(--teal); font-family: var(--font-mono); }
 .lv-alert-card__value--human { color: #f0a500; }

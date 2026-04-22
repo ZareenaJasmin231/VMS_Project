@@ -1,5 +1,6 @@
 import os
 import json
+import asyncio
 import paho.mqtt.client as mqtt
 from pymongo import MongoClient
 from datetime import datetime, timezone, timedelta
@@ -71,41 +72,93 @@ def on_message(client, userdata, msg):
 
     data = payload.get("message", {}).get("data", {})
 
-    # ✅ Only store REAL alerts
-    if data.get("active") != "1":
+    # ✅ Convert topic
+    topic_parts = break_topic(msg.topic)
+
+    # ─────────────────────────────────────────
+    # 🔥 DETECT EVENT TYPE (CRITICAL FIX)
+    # ─────────────────────────────────────────
+
+    scenario      = data.get("scenario")
+    scenario_type = data.get("scenarioType")
+
+    # ✅ Fallback for motion / tampering
+    event_type = (
+        scenario_type
+        or topic_parts.get("topic_event")
+        or topic_parts.get("topic_analytics")
+    )
+
+    event_name = (
+        scenario
+        or topic_parts.get("topic_analytics")
+        or topic_parts.get("topic_event")
+    )
+
+    # Normalize
+    event_type = (event_type or "").strip()
+    event_name = (event_name or "").strip()
+
+    # ─────────────────────────────────────────
+    # 🔥 ACTIVE CHECK (IMPORTANT)
+    # ─────────────────────────────────────────
+
+    scenario_type = data.get("scenarioType")
+    scenario      = data.get("scenario")
+    active        = data.get("active")
+
+    # ✅ Object Analytics → ONLY active = 1
+    is_object_event = (
+        scenario_type == "ObjectInArea" and active == "1"
+    )
+
+    # ✅ Occupancy → always valid
+    is_occupancy = scenario == "OccupancyCount"
+
+    # ✅ Motion / Tampering (no active field)
+    is_other_event = active is None and scenario_type is None
+
+    # 🚀 FINAL FILTER
+    if not (is_object_event or is_occupancy or is_other_event):
         return
 
-    # ✅ Convert topic to old format
-    topic_parts = break_topic(msg.topic)
+    # ─────────────────────────────────────────
+    # 🔥 FINAL DOCUMENT
+    # ─────────────────────────────────────────
 
     document = {
         "received_at": datetime.now(IST).strftime("%Y-%m-%dT%H:%M:%S+05:30"),
 
-        # ── Topic (UI depends on this) ──
         "topic": topic_parts["topic"],
         "topic_platform": topic_parts["topic_platform"],
         "topic_analytics": topic_parts["topic_analytics"],
         "topic_event": topic_parts["topic_event"],
 
-        # ── Camera Info ──
         "timestamp": payload.get("timestamp"),
         "serial": payload.get("serial"),
 
-        # ── Event Data ──
+        # ✅ MAIN FIELDS (FIXED)
+        "time": data.get("triggerTime"),
+        "scenario": event_name,
+        "type": event_type,
+        "human": data.get("human"),
+        "total": data.get("total"),
+        "class": data.get("classTypes"),
+        "object_id": data.get("objectId"),
+
+        # ✅ IMPORTANT
+        "status": "Active",
+
+        # ── Raw message (for debugging) ──
         "message": {
             "source": payload.get("message", {}).get("source", {}),
             "key": payload.get("message", {}).get("key", {}),
-            "data": {
-                "triggerTime": data.get("triggerTime"),
-                "active": True,   # boolean for UI
-                "objectId": data.get("objectId"),
-                "classTypes": data.get("classTypes"),
-            }
+            "data": data
         }
     }
 
     result = collection.insert_one(document)
-    print(f"[SAVED] {result.inserted_id}")
+    print(f"[SAVED] {result.inserted_id} | {event_type}")
 
 
 # ── Run Client ─────────────────────────────────────────────────────

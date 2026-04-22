@@ -184,6 +184,25 @@ const css = `
     display: flex; justify-content: flex-end; gap: 10px;
     flex-shrink: 0;
   }
+    /* Hide default browser password reveal icon */
+
+/* Edge / Chrome */
+input[type="password"]::-ms-reveal,
+input[type="password"]::-ms-clear {
+  display: none;
+}
+
+/* Chrome (new versions) */
+input[type="password"]::-webkit-credentials-auto-fill-button,
+input[type="password"]::-webkit-textfield-decoration-container {
+  display: none !important;
+}
+
+/* Safari */
+input[type="password"]::-webkit-contacts-auto-fill-button {
+  display: none !important;
+}
+
   .msm-btn {
     font-family: 'DM Mono', monospace; font-size: 12px; font-weight: 500;
     padding: 9px 18px; border-radius: 8px; cursor: pointer;

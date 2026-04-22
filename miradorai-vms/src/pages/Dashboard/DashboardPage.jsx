@@ -41,14 +41,30 @@ const DashboardPage = () => {
     const interval = setInterval(fetchData, 10000); // Polling every 10s
     return () => clearInterval(interval);
   }, []);
-
+// 🚨 Critical alerts filter
+const criticalEvents = events.filter(
+  (e) =>
+    e.event_type?.toLowerCase().includes("intrusion") ||
+    e.event_type?.toLowerCase().includes("offline") ||
+    e.event_type?.toLowerCase().includes("error")
+);
   const stats = [
     { title: "Total Cameras", value: summary.total_cameras, icon: <FaVideo />, color: "#3b82f6" },
     { title: "Active Streams", value: summary.active_streams, icon: <FaVideo />, color: "#22c55e" },
     { title: "Alarms Today", value: summary.alarms_today, icon: <FaBell />, color: "#ef4444" },
     { title: "Disk Capacity", value: `${storage.used} / ${storage.total} GB`, icon: <FaHdd />, color: "#f59e0b" },
+    {
+  title: "Recording Cameras",
+  value: `${cameras.filter(c => c.stream_status?.connected).length} / ${cameras.length}`,
+  icon: <FaCircle />,
+  color: "#ef4444"
+}
   ];
+const storagePercent = (storage.used / storage.total) * 100;
 
+let storageStatus = "normal";
+if (storagePercent > 90) storageStatus = "critical";
+else if (storagePercent > 80) storageStatus = "warning";
   if (loading) return <div className="dashboard-loading">Loading Dashboard...</div>;
 
   return (
@@ -74,7 +90,21 @@ const DashboardPage = () => {
       </div>
 
       <div className="dashboard-grid">
-        
+        {/* 🚨 Critical Alerts */}
+<div className="widget critical-alerts">
+  <h3>🚨 Critical Alerts</h3>
+
+  {criticalEvents.length > 0 ? (
+    criticalEvents.slice(0, 5).map((e, i) => (
+      <div key={i} className="alert-item">
+        <span>{e.event_type} - {e.ip}</span>
+        <span>{new Date(e.received_at).toLocaleTimeString()}</span>
+      </div>
+    ))
+  ) : (
+    <p className="empty-msg">No critical alerts</p>
+  )}
+</div>
         {/* 🔹 Camera Health Grid (Real Data) */}
         <div className="widget camera-health-section">
           <h3>Camera Health Details</h3>
@@ -128,9 +158,11 @@ const DashboardPage = () => {
             style={{ width: `${(storage.used / storage.total) * 100}%` }} 
           />
         </div>
-        <p className="storage-path">
-          <FaHdd /> <strong>Storage Location:</strong> {storage.location} ({((storage.used / storage.total) * 100).toFixed(1)}% full)
-        </p>
+<p className={`storage-path ${storageStatus}`}>
+  <FaHdd /> 
+  <strong>Storage Location:</strong> {storage.location} 
+  ({storagePercent.toFixed(1)}% full)
+</p>
       </div>
 
     </div>

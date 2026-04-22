@@ -512,4 +512,49 @@
   border-color: var(--teal, #10b981);
   background: rgba(16,185,129,0.04);
 }
+.dm-password-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
 
+.dm-password-input {
+  padding-right: 32px; /* space for eye icon */
+}
+
+.dm-eye-btn {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted, #4a5060);
+}
+
+.dm-eye-btn svg {
+  display: block;
+}
+/* Hide default browser password reveal icon */
+
+/* Edge / Chrome */
+input[type="password"]::-ms-reveal,
+input[type="password"]::-ms-clear {
+  display: none;
+}
+
+/* Chrome (new versions) */
+input[type="password"]::-webkit-credentials-auto-fill-button,
+input[type="password"]::-webkit-textfield-decoration-container {
+  display: none !important;
+}
+
+/* Safari */
+input[type="password"]::-webkit-contacts-auto-fill-button {
+  display: none !important;
+}

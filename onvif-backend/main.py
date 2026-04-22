@@ -5,6 +5,7 @@ from pydantic import BaseModel
 from pymongo import MongoClient
 from datetime import datetime
 from passlib.context import CryptContext
+from camera_analytics_router import camera_analytics_router
 import asyncio
 import json
 import os
@@ -34,14 +35,33 @@ from backup_service import backup_router  # ← moved here, before app is create
 from brand_control import brand_router
 from license.license_store import load_license
 from license.license_validator import validate_license
+from fastapi import WebSocket, WebSocketDisconnect
+from fastapi.middleware.cors import CORSMiddleware
+from urllib.parse import urlparse, urlunparse, quote
+
+
+connected_clients = []
+
+
+async def watch_mongo_changes():
+    print("[WS] 👀 Watching MongoDB for alerts...")
+
+    with watch_collection.watch() as stream:
+        for change in stream:
+            if change["operationType"] == "insert":
+                doc = change["fullDocument"]
+
+                print("[WS] 🚨 New alert from Mongo")
+
+                await broadcast_event(doc)
 # ------------------------------------------------------------------
 # App creation — MUST come before any .include_router() calls
 # ------------------------------------------------------------------
 app = FastAPI(title="MIRADOR ONVIF Backend")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-     allow_credentials=True,
+    allow_origins=["*"],   # 🔥 IMPORTANT
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -59,6 +79,9 @@ app.include_router(storage_router)
 app.include_router(masks_router)
 app.include_router(backup_router)
 app.include_router(brand_router)
+app.include_router(camera_analytics_router)
+
+
 
 
 # ------------------------------------------------------------------
@@ -70,6 +93,9 @@ DEVICES_FILE  = os.environ.get("DEVICES_FILE", os.path.join(os.path.dirname(__fi
 OME_API       = os.environ.get("OME_URL", "http://ome:8081/v1/vhosts/default/apps/app/streams")
 OME_AUTH      = "Basic bXl2bXNhY2Nlc3N0b2tlbg=="
 MONGO_URI     = os.environ.get("MONGO_URI", "mongodb://mongo:27017/")
+# ✅ Mongo Watch Setup (AFTER MONGO_URI defined)
+mongo_watch_client = MongoClient(MONGO_URI)
+watch_collection = mongo_watch_client["mirador-vms"]["mqtt_logs"]
 OME_HOST_IP   = os.environ.get("OME_HOST_IP", "localhost")
 OME_WS_PORT   = os.environ.get("OME_WS_PORT", "3333")
 OME_WHIP_BASE = os.environ.get("OME_WHIP_BASE", "http://192.168.126.200:3333/app")
@@ -344,7 +370,35 @@ async def webrtc_proxy(stream_key: str, request: Request):
         print(f"[WHIP] ❌ Proxy error for {stream_key}: {e}")
         raise HTTPException(status_code=502, detail=str(e))
 
+@app.websocket("/ws/events")
+async def websocket_events(websocket: WebSocket):
+    try:
+        print("🔥 WS HIT")
 
+        await websocket.accept()
+
+        connected_clients.append(websocket)
+
+        print(f"✅ WS Connected | Total: {len(connected_clients)}")
+
+        while True:
+            await websocket.receive_text()
+
+    except WebSocketDisconnect:
+        print("❌ WS Disconnected")
+
+    except Exception as e:
+        print(f"❌ WS ERROR: {e}")
+
+    finally:
+        if websocket in connected_clients:
+            connected_clients.remove(websocket)
+async def broadcast_event(event):
+    for client in connected_clients:
+        try:
+            await client.send_json(event)
+        except Exception as e:
+            print("[WS ERROR]", e)
 # ------------------------------------------------------------------
 # OME readiness wait
 # ------------------------------------------------------------------
@@ -509,8 +563,9 @@ async def startup():
 
     enabled_count = sum(1 for d in devices if d.get("enabled") is not False)
     print(f"[STARTUP] 🎥 Recording started for {enabled_count}/{len(devices)} enabled camera(s)")
-    print(f"[STARTUP] ✓ Stream health monitoring started")
+    asyncio.create_task(watch_mongo_changes())
 
+    print(f"[STARTUP] ✓ Stream health monitoring started")
 
 @app.on_event("shutdown")
 async def shutdown():
@@ -827,15 +882,40 @@ async def onvif_probe(req: ProbeRequest):
     if result["success"]:
         print(f"[ONVIF] ✅ {result['manufacturer']} {result['model']} "
               f"— {result.get('stream_count', '?')} stream(s)")
+        # changes starts
         rtsp = result["stream_uri"]
         rtsp = re.sub(r"[&?]proto=Onvif", "", rtsp)
 
-        url_authority = rtsp.split("://", 1)[-1].split("/")[0]
-        if req.username and "@" not in url_authority:
+        rtsp = result["stream_uri"]
+        rtsp = re.sub(r"[&?]proto=Onvif", "", rtsp)
+
+        parsed = urllib.parse.urlparse(rtsp)
+
+        if req.username and not parsed.username:
             safe_user = urllib.parse.quote(req.username, safe="")
             safe_pass = urllib.parse.quote(req.password, safe="")
-            rtsp = rtsp.replace("rtsp://", f"rtsp://{safe_user}:{safe_pass}@")
 
+            netloc = f"{safe_user}:{safe_pass}@{parsed.hostname}"
+            if parsed.port:
+                netloc += f":{parsed.port}"
+
+            rtsp = urllib.parse.urlunparse((
+                parsed.scheme,
+                netloc,
+                parsed.path,
+                parsed.params,
+                parsed.query,
+                parsed.fragment
+            ))
+
+        if "transport=" not in rtsp:
+            if "?" in rtsp:
+                rtsp += "&transport=tcp"
+            else:
+                rtsp += "?transport=tcp"
+
+        print("FINAL RTSP:", rtsp)
+        # changes ends
         stream_name = normalize_stream_name(req.ip)
         existing    = next((d for d in devices if d.get("ome_stream") == stream_name), None)
 
@@ -1426,14 +1506,49 @@ async def get_dashboard_events(limit: int = 20):
 async def get_alerts(limit: int = 50):
     if _db is None:
         return {"alerts": []}
+
     try:
         mqtt_col = _db["mqtt_logs"]
+
         docs = list(
             mqtt_col.find({}, {"_id": 0})
             .sort("received_at", -1)
             .limit(limit)
         )
-        return {"alerts": docs}
+
+        formatted = []
+
+        for d in docs:
+            msg = d.get("message", {})
+            data = msg.get("data", {})
+
+            formatted.append({
+                # 🔥 BASIC
+                "ip": d.get("ip"),
+                "serial": d.get("serial"),
+                "time": data.get("triggerTime"),
+
+                # 🔥 MAIN FIXES
+                "scenario": data.get("scenario"),   # ✅ OccupancyCount
+                "type": data.get("scenarioType"),  # ✅ OccupancyInArea
+
+                # 🔥 OCCUPANCY
+                "human": data.get("human"),
+                "total": data.get("total"),
+
+                # 🔥 OBJECT EVENTS
+                "class": data.get("classTypes"),
+                "object_id": data.get("objectId"),
+
+                # 🔥 STATUS
+                "status": "Active",
+
+                # keep original if needed
+                "received_at": d.get("received_at")
+            })
+
+        return {"alerts": formatted}
+
     except Exception as e:
         print(f"[ALERTS] ❌ {e}")
         return {"alerts": []}
@@ -1457,6 +1572,7 @@ def get_license():
         "status": "ok",
         "max_cameras": data["max_cameras"]
     }
+    
 # ------------------------------------------------------------------
 # Register features router last (routes are defined above)
 # ------------------------------------------------------------------

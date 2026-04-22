@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Button from "../../components/shared/Button";
 import Toggle from "../../components/shared/Toggle";
 import SearchBar from "../../components/shared/SearchBar";
@@ -6,7 +6,8 @@ import "./ActionRulesPage.css";
 
 const SCHEDULES = ["Always", "Always on", "Office Hours", "Weekends", "Never"];
 
-const TRIGGER_LIST = [
+// Non-analytics triggers (always available regardless of camera)
+const GENERIC_TRIGGER_LIST = [
   { type: "Motion detection",        desc: "This type occurs when a camera detects motion within its defined area. The detection is performed by the camera which means that no processing load is added to the server." },
   { type: "Active Tampering Alarm",  desc: "Triggered when camera tampering is detected, such as blocking or defocusing the lens." },
   { type: "AXIS Cross Line Detection", desc: "Triggered when an object crosses a defined virtual line in the camera view." },
@@ -48,10 +49,66 @@ function saveRules(rules) {
   catch {}
 }
 
+// ── Fetch built-in analytics for a camera from MQTT logs ──────────
+// Calls GET /api/camera-analytics/:deviceId
+// Backend should return { analytics: [ { type, scenario, description } ] }
+// If no MQTT logs for that camera serial/ip → return { analytics: [] }
+async function fetchCameraAnalytics(deviceId) {
+  if (!deviceId) return { analytics: [], noSupport: false };
+  try {
+    const res = await fetch(`/api/camera-analytics/${deviceId}`);
+    if (!res.ok) return { analytics: [], noSupport: true };
+    const data = await res.json();
+    if (!data.analytics || data.analytics.length === 0) {
+      return { analytics: [], noSupport: true };
+    }
+    return { analytics: data.analytics, noSupport: false };
+  } catch {
+    return { analytics: [], noSupport: true };
+  }
+}
+
 /* ── Add Trigger Sub-Modal ─────────────────────────────────── */
-function AddTriggerModal({ onAdd, onClose }) {
-  const [sel, setSel] = useState(TRIGGER_LIST[0].type);
-  const desc = TRIGGER_LIST.find((t) => t.type === sel)?.desc || "";
+function AddTriggerModal({ deviceId, onAdd, onClose }) {
+  const [sel, setSel] = useState(null);
+  const [builtinAnalytics, setBuiltinAnalytics] = useState([]);
+  const [noBuiltinSupport, setNoBuiltinSupport] = useState(false);
+  const [loadingAnalytics, setLoadingAnalytics] = useState(false);
+  const [activeTab, setActiveTab] = useState("generic"); // "generic" | "builtin"
+
+  // Combined trigger list shown in left panel based on active tab
+  const displayList = activeTab === "builtin" ? builtinAnalytics : GENERIC_TRIGGER_LIST;
+
+  useEffect(() => {
+    if (!deviceId) return;
+    setLoadingAnalytics(true);
+    fetchCameraAnalytics(deviceId).then(({ analytics, noSupport }) => {
+      setBuiltinAnalytics(analytics);
+      setNoBuiltinSupport(noSupport);
+      setLoadingAnalytics(false);
+    });
+  }, [deviceId]);
+
+  // Auto-select first item when tab or list changes
+  useEffect(() => {
+    if (displayList.length > 0) {
+      setSel(displayList[0].type);
+    } else {
+      setSel(null);
+    }
+  }, [activeTab, builtinAnalytics]);
+
+  const selectedDesc = displayList.find((t) => t.type === sel)?.desc
+    || displayList.find((t) => t.type === sel)?.description
+    || "";
+
+  const handleOk = () => {
+    if (!sel) return;
+    // Tag built-in analytics triggers so alerts page can filter by them
+    const isBuiltin = activeTab === "builtin";
+    onAdd(sel, isBuiltin);
+    onClose();
+  };
 
   return (
     <div className="ar-modal-overlay ar-modal-overlay--top" onClick={onClose}>
@@ -60,26 +117,92 @@ function AddTriggerModal({ onAdd, onClose }) {
           <span>Add Trigger</span>
           <button className="ar-modal__close" onClick={onClose}>✕</button>
         </div>
+
+        {/* Tab bar — only show Built-in tab if a device is selected */}
+        <div className="ar-sub-modal__tabs">
+          <button
+            className={`ar-sub-modal__tab ${activeTab === "generic" ? "ar-sub-modal__tab--active" : ""}`}
+            onClick={() => setActiveTab("generic")}
+          >
+            Standard Triggers
+          </button>
+          {deviceId && (
+            <button
+              className={`ar-sub-modal__tab ${activeTab === "builtin" ? "ar-sub-modal__tab--active" : ""}`}
+              onClick={() => setActiveTab("builtin")}
+            >
+              Built-in Analytics
+              {!loadingAnalytics && builtinAnalytics.length > 0 && (
+                <span className="ar-sub-modal__tab-badge">{builtinAnalytics.length}</span>
+              )}
+            </button>
+          )}
+        </div>
+
         <div className="ar-sub-modal__body">
           <div className="ar-sub-modal__left">
-            <div className="ar-sub-modal__section">Trigger</div>
-            {TRIGGER_LIST.map((t) => (
-              <div key={t.type}
-                className={`ar-sub-modal__item ${sel === t.type ? "ar-sub-modal__item--active" : ""}`}
-                onClick={() => setSel(t.type)}>
-                {t.type}
+            <div className="ar-sub-modal__section">
+              {activeTab === "builtin" ? "Analytics" : "Trigger"}
+            </div>
+
+            {/* Loading state */}
+            {activeTab === "builtin" && loadingAnalytics && (
+              <div className="ar-sub-modal__loading">
+                <div className="ar-sub-modal__spinner" />
+                <span>Checking camera analytics…</span>
               </div>
-            ))}
+            )}
+
+            {/* No built-in support */}
+            {activeTab === "builtin" && !loadingAnalytics && noBuiltinSupport && (
+              <div className="ar-sub-modal__no-analytics">
+                <div className="ar-sub-modal__no-analytics-icon">⚠</div>
+                <div className="ar-sub-modal__no-analytics-title">No Built-in Analytics Supported</div>
+                <div className="ar-sub-modal__no-analytics-desc">
+                  This camera has not reported any analytics events via MQTT. 
+                  Use Standard Triggers instead.
+                </div>
+              </div>
+            )}
+
+            {/* List of analytics/triggers */}
+            {!(activeTab === "builtin" && (loadingAnalytics || noBuiltinSupport)) &&
+              displayList.map((t) => (
+                <div
+                  key={t.type}
+                  className={`ar-sub-modal__item ${sel === t.type ? "ar-sub-modal__item--active" : ""}`}
+                  onClick={() => setSel(t.type)}
+                >
+                  {activeTab === "builtin" && (
+                    <span className="ar-sub-modal__item-badge">MQTT</span>
+                  )}
+                  {t.type}
+                </div>
+              ))
+            }
           </div>
+
           <div className="ar-sub-modal__right">
             <div className="ar-sub-modal__section">Description</div>
-            <p className="ar-sub-modal__desc">{desc}</p>
+            {activeTab === "builtin" && !loadingAnalytics && noBuiltinSupport ? (
+              <p className="ar-sub-modal__desc ar-sub-modal__desc--warn">
+                Switch to <strong>Standard Triggers</strong> to configure triggers for this camera.
+              </p>
+            ) : (
+              <p className="ar-sub-modal__desc">{selectedDesc}</p>
+            )}
           </div>
         </div>
+
         <div className="ar-sub-modal__footer">
           <Button label="Help" onClick={() => {}} />
           <div className="ar-wizard__footer-right">
-            <Button label="OK" variant="primary" onClick={() => { onAdd(sel); onClose(); }} />
+            <Button
+              label="OK"
+              variant="primary"
+              disabled={!sel || (activeTab === "builtin" && (loadingAnalytics || noBuiltinSupport))}
+              onClick={handleOk}
+            />
             <Button label="Cancel" onClick={onClose} />
           </div>
         </div>
@@ -131,12 +254,19 @@ function AddActionModal({ onAdd, onClose }) {
 /* ── Step: Triggers ────────────────────────────────────────── */
 function StepTriggers({ form, setForm, devices }) {
   const [showAdd, setShowAdd] = useState(false);
+  // Track which device is selected for the *next* trigger to be added
+  const [pendingDeviceId, setPendingDeviceId] = useState(
+    form.triggers[0]?.deviceId || devices[0]?.id || ""
+  );
+
   const s = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
-  const addTrigger = (type) =>
-    s("triggers", [...form.triggers, { type, deviceId: devices[0]?.id || "" }]);
+  const addTrigger = (type, isBuiltin = false) =>
+    s("triggers", [...form.triggers, { type, deviceId: pendingDeviceId, isBuiltin }]);
+
   const removeTrigger = (i) =>
     s("triggers", form.triggers.filter((_, idx) => idx !== i));
+
   const editTrigger = (i, key, val) =>
     s("triggers", form.triggers.map((t, idx) => idx === i ? { ...t, [key]: val } : t));
 
@@ -150,28 +280,52 @@ function StepTriggers({ form, setForm, devices }) {
         <span>All triggers must be active simultaneously to trigger the actions</span>
       </label>
 
+      {/* Camera selector — picked BEFORE clicking Add, so analytics load correctly */}
+      <div className="ar-step__device-select">
+        <label className="ar-step__device-label">Camera for next trigger:</label>
+        <select
+          className="ar-select"
+          value={pendingDeviceId}
+          onChange={(e) => setPendingDeviceId(e.target.value)}
+        >
+          <option value="">— Select camera —</option>
+          {devices.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+        </select>
+      </div>
+
       <div className="ar-step__split">
         {/* Trigger list */}
         <div className="ar-step__list-box">
           {form.triggers.length === 0
             ? <div className="ar-step__list-empty">No triggers added yet.</div>
-            : form.triggers.map((t, i) => (
-              <div key={i} className="ar-step__list-item">
-                <span className="ar-step__list-item-type">{t.type}</span>
-                <span className="ar-step__list-item-on">on</span>
-                <select className="ar-select ar-select--sm" value={t.deviceId}
-                  onChange={(e) => editTrigger(i, "deviceId", e.target.value)}>
-                  <option value="">— device —</option>
-                  {devices.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
-                </select>
-              </div>
-            ))}
+            : form.triggers.map((t, i) => {
+              const dev = devices.find((d) => String(d.id) === String(t.deviceId));
+              return (
+                <div key={i} className="ar-step__list-item">
+                  {t.isBuiltin && <span className="ar-card__hint-badge">MQTT</span>}
+                  <span className="ar-step__list-item-type">{t.type}</span>
+                  <span className="ar-step__list-item-on">on</span>
+                  <select
+                    className="ar-select ar-select--sm"
+                    value={t.deviceId}
+                    onChange={(e) => editTrigger(i, "deviceId", e.target.value)}
+                  >
+                    <option value="">— device —</option>
+                    {devices.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+                  </select>
+                  <button
+                    className="ar-step__list-remove"
+                    onClick={() => removeTrigger(i)}
+                    title="Remove trigger"
+                  >✕</button>
+                </div>
+              );
+            })}
         </div>
 
         {/* Buttons */}
         <div className="ar-step__list-btns">
           <Button label="Add..." onClick={() => setShowAdd(true)} />
-          <Button label="Edit..." disabled={form.triggers.length === 0} onClick={() => {}} />
           <Button label="Remove" disabled={form.triggers.length === 0}
             onClick={() => removeTrigger(form.triggers.length - 1)} />
         </div>
@@ -179,6 +333,7 @@ function StepTriggers({ form, setForm, devices }) {
 
       {showAdd && (
         <AddTriggerModal
+          deviceId={pendingDeviceId}
           onAdd={addTrigger}
           onClose={() => setShowAdd(false)}
         />
@@ -291,7 +446,11 @@ function WizardModal({ initialRule, devices, onSave, onClose }) {
     const actionLabel = form.actions[0]?.label     ?? "";
     const action      = form.actions[0]?.type      ?? "Raise alarm";
     const deviceId    = form.triggers[0]?.deviceId || form.deviceId || "";
-    onSave({ ...form, trigger, action, actionLabel, deviceId });
+    // Collect all builtin analytics trigger types for this rule for alert filtering
+    const builtinTriggerTypes = form.triggers
+      .filter((t) => t.isBuiltin)
+      .map((t) => t.type);
+    onSave({ ...form, trigger, action, actionLabel, deviceId, builtinTriggerTypes });
   };
 
   const stepContent = [
@@ -310,7 +469,6 @@ function WizardModal({ initialRule, devices, onSave, onClose }) {
         </div>
 
         <div className="ar-wizard__body">
-          {/* Sidebar steps */}
           <div className="ar-wizard__sidebar">
             <div className="ar-wizard__sidebar-label">Steps</div>
             {STEPS.map((label, i) => (
@@ -324,7 +482,6 @@ function WizardModal({ initialRule, devices, onSave, onClose }) {
             ))}
           </div>
 
-          {/* Content */}
           <div className="ar-wizard__content">
             {stepContent[step]}
           </div>
@@ -351,6 +508,7 @@ function RuleCard({ rule, devices, selected, onSelect, onToggle }) {
   const actionText = rule.actionLabel
     ? `${rule.action} '${rule.actionLabel}'`
     : rule.action;
+  const hasBuiltin = rule.builtinTriggerTypes?.length > 0;
 
   return (
     <div className={`ar-card${selected ? " ar-card--selected" : ""}`} onClick={onSelect}>
@@ -364,6 +522,11 @@ function RuleCard({ rule, devices, selected, onSelect, onToggle }) {
         {rule.allTriggers && (
           <span className="ar-card__hint">
             All triggers must be active simultaneously to trigger the actions
+          </span>
+        )}
+        {hasBuiltin && (
+          <span className="ar-card__hint ar-card__hint--builtin">
+            ⚡ Built-in Analytics: {rule.builtinTriggerTypes.join(", ")}
           </span>
         )}
         <div className="ar-card__row">

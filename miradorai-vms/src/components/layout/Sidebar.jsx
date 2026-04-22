@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import { getNavConfig } from "../../data/navConfig";
 import { useAuth } from "../../context/AuthContext";
 import logoImg from "../../assets/logo.jpg";
@@ -8,33 +9,31 @@ function SvgIcon({ html }) {
   return <span className="nav-icon" dangerouslySetInnerHTML={{ __html: html }} />;
 }
 
-export default function Sidebar({ activePage, onNavigate }) {
+export default function Sidebar({ userRole }) {
   const { user, logout } = useAuth();
-  const navConfig = getNavConfig(user?.role);
-  
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  // Derive active path for highlight checks
+  const activePath = location.pathname; // e.g. "/live-view"
+  const toPath = (page) => `/${page}`; // "live-view" → "/live-view"
+
+  const navConfig = getNavConfig(userRole || user?.role);
+
   const [expanded, setExpanded] = useState({
-    Cameras: true, 
-    "Recording & Events": false, 
-    Storage: false, 
+    Cameras: true,
+    "Recording & Events": false,
+    Storage: false,
     Client: false,
   });
   const [search, setSearch] = useState("");
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
-  
+
   const toggle = (s) => setExpanded((p) => ({ ...p, [s]: !p[s] }));
 
-  const handleLogoutClick = () => {
-    setShowLogoutConfirm(true);
-  };
-
-  const confirmLogout = () => {
-    setShowLogoutConfirm(false);
-    logout();
-  };
-
-  const cancelLogout = () => {
-    setShowLogoutConfirm(false);
-  };
+  const handleLogoutClick = () => setShowLogoutConfirm(true);
+  const confirmLogout = () => { setShowLogoutConfirm(false); logout(); };
+  const cancelLogout = () => setShowLogoutConfirm(false);
 
   return (
     <aside className="sidebar" aria-label="Main navigation">
@@ -66,17 +65,17 @@ export default function Sidebar({ activePage, onNavigate }) {
       {/* Nav */}
       <nav className="sidebar__nav" role="navigation" aria-label="Application menu">
         {navConfig.map(({ section, page, icon, items }) => {
-          // If item has a page property, it's a direct navigate item (like Live View or About)
+          // Direct nav item (e.g. Live View, About)
           if (page) {
-            const isActive = activePage === page;
+            const isActive = activePath === toPath(page);
             const matchesSearch = !search || section.toLowerCase().includes(search.toLowerCase());
             if (!matchesSearch) return null;
-            
+
             return (
               <button
                 key={section}
                 className={`sidebar__direct-item ${isActive ? "sidebar__direct-item--active" : ""}`}
-                onClick={() => onNavigate(page)}
+                onClick={() => navigate(toPath(page))}
                 aria-current={isActive ? "page" : undefined}
               >
                 <SvgIcon html={icon} />
@@ -86,14 +85,14 @@ export default function Sidebar({ activePage, onNavigate }) {
             );
           }
 
-          // If item has items array, it's expandable
+          // Expandable group
           const visible = items?.filter((i) =>
             !search || i.label.toLowerCase().includes(search.toLowerCase())
           ) || [];
-          
+
           if (search && visible.length === 0) return null;
-          
-          const hasActiveItem = items?.some((i) => i.page === activePage);
+
+          const hasActiveItem = items?.some((i) => activePath === toPath(i.page));
 
           return (
             <div key={section} className="sidebar__group">
@@ -105,19 +104,28 @@ export default function Sidebar({ activePage, onNavigate }) {
               >
                 <SvgIcon html={icon} />
                 <span className="sidebar__group-label">{section}</span>
-                <svg className={`sidebar__chevron ${expanded[section] ? "sidebar__chevron--open" : ""}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <svg
+                  className={`sidebar__chevron ${expanded[section] ? "sidebar__chevron--open" : ""}`}
+                  viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+                >
                   <path d="M9 18l6-6-6-6"/>
                 </svg>
               </button>
+
               {(expanded[section] || search) && (
-                <div className="sidebar__items" id={`group-${section.replace(/\s+/g, "-").toLowerCase()}`} role="group" aria-label={`${section} submenu`}>
+                <div
+                  className="sidebar__items"
+                  id={`group-${section.replace(/\s+/g, "-").toLowerCase()}`}
+                  role="group"
+                  aria-label={`${section} submenu`}
+                >
                   {visible.map((item) => {
-                    const isActive = activePage === item.page;
+                    const isActive = activePath === toPath(item.page);
                     return (
                       <button
                         key={item.page}
                         className={`sidebar__item ${isActive ? "sidebar__item--active" : ""}`}
-                        onClick={() => onNavigate(item.page)}
+                        onClick={() => navigate(toPath(item.page))}
                         aria-current={isActive ? "page" : undefined}
                       >
                         <SvgIcon html={item.icon} />
@@ -151,7 +159,7 @@ export default function Sidebar({ activePage, onNavigate }) {
             </div>
           </div>
         </div>
-        <button 
+        <button
           className="sidebar__logout-btn"
           onClick={handleLogoutClick}
           title="Logout"
