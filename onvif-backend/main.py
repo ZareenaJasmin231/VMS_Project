@@ -236,8 +236,10 @@ class ResetPasswordRequest(BaseModel):
     email:            str
     new_password:     str
     confirm_password: str
+
 class StoragePathRequest(BaseModel):
     path: str
+
 # ------------------------------------------------------------------
 # Helpers
 # ------------------------------------------------------------------
@@ -282,6 +284,8 @@ def save_camera_to_db(data: dict):
     except Exception as e:
         print("❌ Save failed:", e)
         return False
+
+
 def load_devices():
     if cameras_col is not None:
         try:
@@ -297,6 +301,9 @@ def load_devices():
                     "username":       d.get("username", ""),
                     "password":       d.get("password", ""),
                     "enabled":        d.get("enabled", True),
+                        "active_live_profile": d.get("active_live_profile", ""),
+    "active_rec_profile":  d.get("active_rec_profile", ""),
+    "recording_profile":   d.get("recording_profile", ""),
                 } for d in docs if d.get("ome_stream") and d.get("rtsp_url")])
                 return docs
         except Exception as e:
@@ -317,8 +324,19 @@ def load_devices():
 def save_devices(devs):
     try:
         os.makedirs(os.path.dirname(DEVICES_FILE), exist_ok=True)
+
+        from datetime import datetime
+
+        def serialize(obj):
+            if isinstance(obj, datetime):
+                return obj.isoformat()
+            return str(obj)
+
         with open(DEVICES_FILE, "w") as f:
-            json.dump(devs, f)
+            json.dump(devs, f, default=serialize, indent=2)
+
+        print("[DEVICES] ✅ Saved successfully")
+
     except Exception as e:
         print(f"[DEVICES] ⚠ Could not save devices.json: {e}")
 
@@ -393,12 +411,14 @@ async def websocket_events(websocket: WebSocket):
     finally:
         if websocket in connected_clients:
             connected_clients.remove(websocket)
+
 async def broadcast_event(event):
     for client in connected_clients:
         try:
             await client.send_json(event)
         except Exception as e:
             print("[WS ERROR]", e)
+
 # ------------------------------------------------------------------
 # OME readiness wait
 # ------------------------------------------------------------------
@@ -1107,10 +1127,12 @@ async def register_rtsp_stream(req: StreamRegisterRequest):
 # ------------------------------------------------------------------
 @app.post("/api/streams/assign")
 async def assign_streams(req: StreamAssignRequest):
+    import time
+
     host        = req.ip.strip()
     stream_name = normalize_stream_name(host)
 
-    print(f"[ASSIGN] {host}: live={req.live_profile!r} rec={req.recording_profile!r}")
+    print(f"[ASSIGN] {host}: live={req.live_profile!r}  rec={req.recording_profile!r}")
     print(f"[ASSIGN] live_rtsp={req.live_rtsp!r}")
     print(f"[ASSIGN] rec_rtsp={req.recording_rtsp!r}")
 
@@ -1135,27 +1157,26 @@ async def assign_streams(req: StreamAssignRequest):
             except:
                 pass
 
-            import time as _time
-            _time.sleep(0.5)
+            time.sleep(0.5)
 
             ome_response = register_stream(stream_name, req.live_rtsp)
             status_code  = ome_response.get("statusCode", 0) if isinstance(ome_response, dict) else 0
             print(f"[ASSIGN] OME register HTTP {status_code}: {ome_response}")
 
             if status_code not in (200, 201):
-                # Don't fail the whole assign — log and continue
-                print(f"[ASSIGN] ⚠ OME registration failed (HTTP {status_code}) — saving profile anyway")
+                print(f"[ASSIGN] ⚠ OME registration returned HTTP {status_code} — continuing anyway")
         except Exception as e:
-            print(f"[ASSIGN] ⚠ OME error: {e} — saving profile anyway")
+            print(f"[ASSIGN] ⚠ OME error (non-fatal): {e} — continuing")
     else:
         print(f"[ASSIGN] Live RTSP unchanged and stream exists — skipping OME re-register")
 
-    # ── 2. Always update device entry and DB ──────────────────────────
+    # ── 2. Always update device entry ────────────────────────────────
     if existing:
         existing["rtsp_url"]            = req.live_rtsp
         existing["recording_rtsp"]      = req.recording_rtsp
         existing["active_live_profile"] = req.live_profile
         existing["active_rec_profile"]  = req.recording_profile
+        existing["recording_profile"]   = req.recording_profile
         device_entry = existing
     else:
         device_entry = {
@@ -1173,6 +1194,7 @@ async def assign_streams(req: StreamAssignRequest):
 
     save_devices(devices)
 
+    # ── 3. Persist to MongoDB ─────────────────────────────────────────
     save_camera_to_db({
         "ip":                   host,
         "ome_stream":           stream_name,
@@ -1189,11 +1211,16 @@ async def assign_streams(req: StreamAssignRequest):
         "updated_at":           datetime.utcnow(),
     })
 
-    # ── 3. Restart recorder on recording RTSP ─────────────────────────
+    # ── 4. Restart recorder with new recording RTSP ───────────────────
+    # IMPORTANT: stop first, wait 1s for the thread to fully exit,
+    # then start with the new RTSP URL so the profile change takes effect.
+    print(f"[ASSIGN] 🔄 Restarting recorder with new profile")
     recorder.stop_camera(stream_name)
+    time.sleep(1)  # let the old thread fully exit before starting new one
     recorder.start_camera(stream_name, req.recording_rtsp, device_entry)
-    print(f"[ASSIGN] 🎥 Recorder → {req.recording_profile!r} ({req.recording_rtsp})")
+    print(f"[ASSIGN] ✅ Recorder restarted with: {req.recording_rtsp}")
 
+    # ── 5. Reset watchdog so the stream is not blacklisted ───────────
     _watchdog_failures[stream_name] = 0
 
     return {
@@ -1206,6 +1233,7 @@ async def assign_streams(req: StreamAssignRequest):
         "live_profile":      req.live_profile,
         "recording_profile": req.recording_profile,
     }
+
 
 # ------------------------------------------------------------------
 # Camera lookup by IP
@@ -1502,6 +1530,7 @@ async def get_dashboard_events(limit: int = 20):
             d["received_at"] = d["received_at"].isoformat()
     return docs
 
+
 @app.get("/api/alerts")
 async def get_alerts(limit: int = 50):
     if _db is None:
@@ -1519,32 +1548,21 @@ async def get_alerts(limit: int = 50):
         formatted = []
 
         for d in docs:
-            msg = d.get("message", {})
+            msg  = d.get("message", {})
             data = msg.get("data", {})
 
             formatted.append({
-                # 🔥 BASIC
-                "ip": d.get("ip"),
-                "serial": d.get("serial"),
-                "time": data.get("triggerTime"),
-
-                # 🔥 MAIN FIXES
-                "scenario": data.get("scenario"),   # ✅ OccupancyCount
-                "type": data.get("scenarioType"),  # ✅ OccupancyInArea
-
-                # 🔥 OCCUPANCY
-                "human": data.get("human"),
-                "total": data.get("total"),
-
-                # 🔥 OBJECT EVENTS
-                "class": data.get("classTypes"),
+                "ip":        d.get("ip"),
+                "serial":    d.get("serial"),
+                "time":      data.get("triggerTime"),
+                "scenario":  data.get("scenario"),
+                "type":      data.get("scenarioType"),
+                "human":     data.get("human"),
+                "total":     data.get("total"),
+                "class":     data.get("classTypes"),
                 "object_id": data.get("objectId"),
-
-                # 🔥 STATUS
-                "status": "Active",
-
-                # keep original if needed
-                "received_at": d.get("received_at")
+                "status":    "Active",
+                "received_at": d.get("received_at"),
             })
 
         return {"alerts": formatted}
@@ -1552,6 +1570,7 @@ async def get_alerts(limit: int = 50):
     except Exception as e:
         print(f"[ALERTS] ❌ {e}")
         return {"alerts": []}
+
 
 @app.get("/api/license")
 def get_license():
@@ -1569,10 +1588,11 @@ def get_license():
         return {"status": "error", "max_cameras": 0}
 
     return {
-        "status": "ok",
-        "max_cameras": data["max_cameras"]
+        "status":      "ok",
+        "max_cameras": data["max_cameras"],
     }
-    
+
+
 # ------------------------------------------------------------------
 # Register features router last (routes are defined above)
 # ------------------------------------------------------------------

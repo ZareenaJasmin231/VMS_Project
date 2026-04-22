@@ -7,25 +7,30 @@ const STREAM_API = "http://192.168.126.200:8000";
 
 const SCHEDULES = ["Always", "Office Hours", "Weekends", "New schedule"];
 
-const DEFAULT_MOTION = {
-  enabled: false, profile: "",
-  prebuffer: 5, postbuffer: 10, raiseAlarm: true,
-  schedule: "Always", triggerPeriod: 10,
-};
 const DEFAULT_CONTINUOUS = {
-  enabled: false, profile: "",
-  prebuffer: 0, postbuffer: 0, schedule: "Always",
-  avgBitrate: true, maxStorage: 352,
-};
-const DEFAULT_MANUAL = {
-  enabled: false, profile: "",
-  prebuffer: 0, postbuffer: 0,
+  enabled: true,
+  profile: "",
+  prebuffer: 0,
+  postbuffer: 0,
+  schedule: "Always",
+  avgBitrate: true,
+  maxStorage: 352,
 };
 
-function saveRecSettings(settings) {
+// ── Inject credentials into RTSP URL if missing ───────────────
+// ONVIF profile URLs often come back without auth — this ensures
+// ffmpeg never hits a 401 when switching to a sub-stream profile.
+function injectAuth(rtsp, username, password) {
   try {
-    localStorage.setItem("miradorai_rec_settings", JSON.stringify(settings));
-  } catch {}
+    const url = new URL(rtsp);
+    if (!url.username) {
+      url.username = encodeURIComponent(username || "");
+      url.password = encodeURIComponent(password || "");
+    }
+    return url.toString();
+  } catch {
+    return rtsp;
+  }
 }
 
 // ── Spinner ───────────────────────────────────────────────────
@@ -36,15 +41,28 @@ function Spinner({ value, onChange, min = 0, max = 9999, disabled }) {
         type="number"
         className="rm-spinner__input"
         value={value}
-        min={min} max={max}
+        min={min}
+        max={max}
         disabled={disabled}
-        onChange={(e) => onChange(Math.max(min, Math.min(max, Number(e.target.value))))}
+        onChange={(e) =>
+          onChange(Math.max(min, Math.min(max, Number(e.target.value))))
+        }
       />
       <div className="rm-spinner__btns">
-        <button className="rm-spinner__btn" disabled={disabled}
-          onClick={() => onChange(Math.min(max, value + 1))}>▲</button>
-        <button className="rm-spinner__btn" disabled={disabled}
-          onClick={() => onChange(Math.max(min, value - 1))}>▼</button>
+        <button
+          className="rm-spinner__btn"
+          disabled={disabled}
+          onClick={() => onChange(Math.min(max, value + 1))}
+        >
+          ▲
+        </button>
+        <button
+          className="rm-spinner__btn"
+          disabled={disabled}
+          onClick={() => onChange(Math.max(min, value - 1))}
+        >
+          ▼
+        </button>
       </div>
     </div>
   );
@@ -54,9 +72,15 @@ function Spinner({ value, onChange, min = 0, max = 9999, disabled }) {
 function ScheduleRow({ value, onChange, disabled }) {
   return (
     <div className="rm-schedule-row">
-      <select className="rm-select rm-select--schedule" value={value}
-        onChange={(e) => onChange(e.target.value)} disabled={disabled}>
-        {SCHEDULES.map((s) => <option key={s}>{s}</option>)}
+      <select
+        className="rm-select rm-select--schedule"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        disabled={disabled}
+      >
+        {SCHEDULES.map((s) => (
+          <option key={s}>{s}</option>
+        ))}
       </select>
       <Button label="Edit..." variant="outline" disabled={disabled} onClick={() => {}} />
       <Button label="New..."  variant="outline" disabled={disabled} onClick={() => {}} />
@@ -64,17 +88,25 @@ function ScheduleRow({ value, onChange, disabled }) {
   );
 }
 
-// ── Column Panel ──────────────────────────────────────────────
-function ColumnPanel({ title, data, onChange, showAlarm, showTrigger, showBitrate, showSchedule = true }) {
-  const dis = !data.enabled;
+// ── Continuous Column Panel ───────────────────────────────────
+function ContinuousPanel({ data, onChange }) {
   const set = (key, val) => onChange({ ...data, [key]: val });
 
   return (
     <div className="rm-col">
-      {/* Header */}
+      {/* Header — no toggle, always ON */}
       <div className="rm-col__header">
-        <span className="rm-col__title">{title}</span>
-        <Toggle value={data.enabled} onChange={(v) => set("enabled", v)} />
+        <span className="rm-col__title">Continuous</span>
+        <span
+          style={{
+            fontSize: 11,
+            color: "var(--teal)",
+            fontWeight: 600,
+            letterSpacing: "0.05em",
+          }}
+        >
+          ● ALWAYS ON
+        </span>
       </div>
 
       {/* Video settings */}
@@ -82,84 +114,69 @@ function ColumnPanel({ title, data, onChange, showAlarm, showTrigger, showBitrat
 
       <div className="rm-field">
         <label className="rm-label">Profile:</label>
-        <select className="rm-select" value={data.profile}
-          disabled={dis} onChange={(e) => set("profile", e.target.value)}>
-          {data.availableProfiles && data.availableProfiles.length > 0
-            ? data.availableProfiles.map((p) => (
-                <option key={p.token} value={p.token}>
-                  {p.label}: {p.resolution || "Unknown"} ({p.encoding || "H.264"})
-                </option>
-              ))
-            : <option value="">No profiles found</option>
-          }
+        <select
+          className="rm-select"
+          value={data.profile}
+          onChange={(e) => set("profile", e.target.value)}
+        >
+          {data.availableProfiles && data.availableProfiles.length > 0 ? (
+            data.availableProfiles.map((p) => (
+              <option key={p.token} value={p.token}>
+                {p.label}: {p.resolution || "Unknown"} ({p.encoding || "H.264"})
+              </option>
+            ))
+          ) : (
+            <option value="">No profiles found</option>
+          )}
         </select>
       </div>
 
       <div className="rm-field rm-field--inline">
         <label className="rm-label">Prebuffer:</label>
-        <Spinner value={data.prebuffer} onChange={(v) => set("prebuffer", v)} disabled={dis} />
+        <Spinner value={data.prebuffer} onChange={(v) => set("prebuffer", v)} />
         <span className="rm-unit">seconds</span>
       </div>
 
       <div className="rm-field rm-field--inline">
         <label className="rm-label">Postbuffer:</label>
-        <Spinner value={data.postbuffer} onChange={(v) => set("postbuffer", v)} disabled={dis} />
+        <Spinner value={data.postbuffer} onChange={(v) => set("postbuffer", v)} />
         <span className="rm-unit">seconds</span>
       </div>
 
-      {showAlarm && (
-        <label className={`rm-checkbox-row${dis ? " rm-checkbox-row--disabled" : ""}`}>
-          <input type="checkbox" checked={data.raiseAlarm} disabled={dis}
-            onChange={(e) => set("raiseAlarm", e.target.checked)} />
-          <span>Raise alarm</span>
-        </label>
-      )}
-
       {/* Schedule */}
-      {showSchedule && (
-        <>
-          <div className="rm-col__section-label">Schedule</div>
-          <ScheduleRow value={data.schedule} onChange={(v) => set("schedule", v)} disabled={dis} />
-        </>
-      )}
+      <div className="rm-col__section-label">Schedule</div>
+      <ScheduleRow
+        value={data.schedule}
+        onChange={(v) => set("schedule", v)}
+      />
 
       {/* Advanced */}
-      {(showTrigger || showBitrate) && (
-        <div className="rm-col__section-label">Advanced</div>
-      )}
+      <div className="rm-col__section-label">Advanced</div>
 
-      {showTrigger && (
+      <div className="rm-field rm-field--inline rm-field--toggle">
+        <label className="rm-label">Average bitrate</label>
+        <Toggle
+          value={data.avgBitrate}
+          onChange={(v) => set("avgBitrate", v)}
+        />
+      </div>
+
+      {data.avgBitrate && (
         <>
           <div className="rm-field rm-field--inline">
-            <label className="rm-label">Trigger period:</label>
-            <Spinner value={data.triggerPeriod} onChange={(v) => set("triggerPeriod", v)} disabled={dis} />
-            <span className="rm-unit">seconds</span>
+            <label className="rm-label">Max storage:</label>
+            <Spinner
+              value={data.maxStorage}
+              onChange={(v) => set("maxStorage", v)}
+              min={1}
+              max={9999}
+            />
+            <span className="rm-unit">GB</span>
           </div>
-          <div className="rm-adv-btn">
-            <Button label="Motion settings..." variant="outline" disabled={dis} onClick={() => {}} />
-          </div>
-        </>
-      )}
-
-      {showBitrate && (
-        <>
-          <div className="rm-field rm-field--inline rm-field--toggle">
-            <label className="rm-label">Average bitrate</label>
-            <Toggle value={data.avgBitrate} onChange={(v) => set("avgBitrate", v)} disabled={dis} />
-          </div>
-          {data.avgBitrate && !dis && (
-            <>
-              <div className="rm-field rm-field--inline">
-                <label className="rm-label">Max storage:</label>
-                <Spinner value={data.maxStorage} onChange={(v) => set("maxStorage", v)}
-                  disabled={dis} min={1} max={9999} />
-                <span className="rm-unit">GB</span>
-              </div>
-              <p className="rm-bitrate-hint">
-                The average bitrate will be calculated based on the configured max storage and retention time.
-              </p>
-            </>
-          )}
+          <p className="rm-bitrate-hint">
+            The average bitrate will be calculated based on the configured max
+            storage and retention time.
+          </p>
         </>
       )}
     </div>
@@ -181,34 +198,20 @@ export default function RecordingMethodPage() {
   const fetchDevices = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${STREAM_API}/api/cameras/`);
+      const res  = await fetch(`${STREAM_API}/api/cameras/`);
       const data = await res.json();
       setDevices(data);
 
-      // Initialize recSettings from backend data
       const initialSettings = {};
-      data.forEach(cam => {
-        const profiles = cam.stream_profiles || [];
-        const activeRecProfile = cam.active_rec_profile || (profiles[0]?.token || "");
-
+      data.forEach((cam) => {
+        const profiles         = cam.stream_profiles || [];
+const activeRecProfile = cam.active_rec_profile || profiles[0]?.token || "";
         initialSettings[cam.ome_stream] = {
-          motion:     { 
-            ...DEFAULT_MOTION, 
-            enabled: !!cam.motion_enabled,
-            profile: activeRecProfile, 
-            availableProfiles: profiles 
-          },
-          continuous: { 
-            ...DEFAULT_CONTINUOUS, 
-            enabled: !!cam.continuous_enabled,
-            profile: activeRecProfile, 
-            availableProfiles: profiles 
-          },
-          manual:     {
-            ...DEFAULT_MANUAL,
-            enabled: !!cam.recording_requested,
-            profile: activeRecProfile,
-            availableProfiles: profiles
+          continuous: {
+            ...DEFAULT_CONTINUOUS,
+            enabled:           true,
+            profile:           activeRecProfile,
+            availableProfiles: profiles,
           },
         };
       });
@@ -224,111 +227,75 @@ export default function RecordingMethodPage() {
     if (!selectedId) return;
 
     const prevSettings = recSettings[selectedId];
-    const newSettings = {
+    const newSettings  = {
       ...recSettings,
-      [selectedId]: {
-        ...prevSettings,
-        [section]: data,
-      },
+      [selectedId]: { ...prevSettings, [section]: data },
     };
     setRecSettings(newSettings);
 
-    const cam = devices.find(d => d.ome_stream === selectedId);
+    const cam = devices.find((d) => d.ome_stream === selectedId);
     if (!cam) return;
 
-    // ── 1. Handle Persistence for ALL toggles ──
-    if (data.enabled !== prevSettings[section].enabled) {
-      try {
-        const payload = {};
-        if (section === "continuous") payload.continuous_enabled = data.enabled;
-        if (section === "motion")     payload.motion_enabled     = data.enabled;
-        if (section === "manual")     payload.manual_enabled     = data.enabled;
-
-        await fetch(`${STREAM_API}/api/recordings/settings/${cam.ome_stream}`, {
-          method:  "POST",
-          headers: { "Content-Type": "application/json" },
-          body:    JSON.stringify(payload)
-        });
-        console.log(`Persistent setting updated for ${section}`);
-
-        // Update the local 'devices' state so the list/dots reflect the new requested state
-        setDevices(prev => prev.map(d => 
-          d.ome_stream === cam.ome_stream 
-            ? { ...d, ...payload, recording_requested: payload.manual_enabled ?? d.recording_requested } 
-            : d
-        ));
-
-        // If it's a primary recording trigger (Manual or Continuous), toggle the actual recording process
-        if (section === "manual" || section === "continuous") {
-          const endpoint = data.enabled ? "start" : "stop";
-          const selectedProfile = data.availableProfiles?.find(p => p.token === data.profile);
-          const urlParam = selectedProfile ? `?rtsp_url=${encodeURIComponent(selectedProfile.rtsp_url)}` : "";
-
-          const startRes = await fetch(`${STREAM_API}/api/recordings/${endpoint}/${cam.ome_stream}${urlParam}`, {
-            method: "POST"
-          });
-          
-          if (startRes.ok) {
-             // Update the recording_requested flag locally to update 'Active' dot
-             setDevices(prev => prev.map(d => 
-               d.ome_stream === cam.ome_stream ? { ...d, recording_requested: data.enabled } : d
-             ));
-             console.log(`Backend recording ${endpoint} successful`);
-          }
-        }
-      } catch (err) {
-        console.error("Failed to update recording settings:", err);
-        // ROLLBACK on error: revert state to previous
-        setRecSettings(prev => ({
-          ...prev,
-          [selectedId]: prevSettings
-        }));
-      }
-    }
-
-    // ── 2. Handle Profile Change ──
+    // ── Profile Change → call /api/streams/assign ──────────────
+    // The backend will stop + restart the recorder with the new RTSP URL.
+    // We inject credentials here because ONVIF profile URLs often arrive
+    // without auth, which causes ffmpeg to return 401 Unauthorized.
     if (data.profile !== prevSettings[section].profile) {
-      const selectedProfile = data.availableProfiles?.find(p => p.token === data.profile);
+      const selectedProfile = data.availableProfiles?.find(
+        (p) => p.token === data.profile
+      );
+
       if (selectedProfile) {
+        // ✅ Inject cam credentials into the sub-stream RTSP URL
+        const authedRtsp = injectAuth(
+          selectedProfile.rtsp_url,
+          cam.username,
+          cam.password
+        );
+
         try {
-          await fetch(`${STREAM_API}/api/streams/assign`, {
-            method: "POST",
+          const res = await fetch(`${STREAM_API}/api/streams/assign`, {
+            method:  "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              ip: cam.ip,
-              port: cam.port || 80,
-              username: cam.username || "",
-              live_rtsp: cam.rtsp_url,
-              recording_rtsp: selectedProfile.rtsp_url,
-              live_profile: cam.active_live_profile || "MAIN",
-              recording_profile: selectedProfile.label || selectedProfile.name,
-              manufacturer: cam.manufacturer,
-              model: cam.model,
-              mac: cam.mac,
-              device_name: cam.device_name || cam.name
-            })
+              ip:                cam.ip,
+              port:              cam.port || 80,
+              username:          cam.username || "",
+              live_rtsp:         cam.rtsp_url,
+              recording_rtsp:    authedRtsp,          // ✅ credentials injected
+              live_profile:      cam.active_live_profile || "MAIN",
+recording_profile: selectedProfile.token,
+              manufacturer:      cam.manufacturer,
+              model:             cam.model,
+              mac:               cam.mac,
+              device_name:       cam.device_name || cam.name || "",
+            }),
           });
-          console.log("Profile assignment updated on backend");
-          setTimeout(fetchDevices, 500);
+
+          if (res.ok) {
+            console.log(`[PROFILE] ✅ Profile updated to ${selectedProfile.label} → ${authedRtsp}`);
+            setTimeout(fetchDevices, 600);
+          } else {
+            console.error("[PROFILE] ❌ assign failed:", await res.text());
+            setRecSettings((prev) => ({ ...prev, [selectedId]: prevSettings }));
+          }
         } catch (err) {
-          console.error("Profile change failed:", err);
+          console.error("[PROFILE] ❌ Network error:", err);
+          setRecSettings((prev) => ({ ...prev, [selectedId]: prevSettings }));
         }
       }
     }
   };
 
-  const handleApply = () => {
-    alert("Settings synchronized with backend.");
-  };
-
-  const filtered = devices.filter((d) =>
-    !filter ||
-    [d.name, d.ip, d.manufacturer, d.model]
-      .filter(Boolean)
-      .some((c) => c.toLowerCase().includes(filter.toLowerCase()))
+  const filtered = devices.filter(
+    (d) =>
+      !filter ||
+      [d.name, d.ip, d.manufacturer, d.model]
+        .filter(Boolean)
+        .some((c) => c.toLowerCase().includes(filter.toLowerCase()))
   );
 
-  const selected    = selectedId ? recSettings[selectedId] : null;
+  const selected = selectedId ? recSettings[selectedId] : null;
 
   return (
     <div className="rm-page">
@@ -337,13 +304,20 @@ export default function RecordingMethodPage() {
         <div>
           <h1 className="rm-page-title">Recording method</h1>
           <p className="rm-page-desc">
-            Select which stream profile to use for recording. To edit stream profiles, go to Stream profiles.
+            Select which stream profile to use for recording. To edit stream
+            profiles, go to Stream profiles.
           </p>
         </div>
         <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-          {loading && <span style={{ color: "var(--teal)", fontSize: 12 }}>Syncing...</span>}
-          <input className="rm-filter" placeholder="Type to filter"
-            value={filter} onChange={(e) => setFilter(e.target.value)} />
+          {loading && (
+            <span style={{ color: "var(--teal)", fontSize: 12 }}>Syncing...</span>
+          )}
+          <input
+            className="rm-filter"
+            placeholder="Type to filter"
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+          />
         </div>
       </div>
 
@@ -354,9 +328,7 @@ export default function RecordingMethodPage() {
             <tr>
               <th style={{ width: 40 }}></th>
               <th>Name</th>
-              <th>Motion</th>
               <th>Continuous</th>
-              <th>Manual</th>
               <th>Recording Profile</th>
               <th>Status</th>
               <th>Server</th>
@@ -364,81 +336,90 @@ export default function RecordingMethodPage() {
           </thead>
           <tbody>
             {loading && devices.length === 0 ? (
-               <tr><td colSpan={8} style={{ textAlign: "center", padding: 40 }}>Loading devices...</td></tr>
+              <tr>
+                <td colSpan={6} style={{ textAlign: "center", padding: 40 }}>
+                  Loading devices...
+                </td>
+              </tr>
             ) : filtered.length === 0 ? (
               <tr>
-                <td colSpan={8} style={{ textAlign: "center", color: "var(--text-muted)",
-                  padding: "20px", fontSize: 12 }}>
+                <td
+                  colSpan={6}
+                  style={{
+                    textAlign: "center",
+                    color:     "var(--text-muted)",
+                    padding:   "20px",
+                    fontSize:  12,
+                  }}
+                >
                   No cameras enrolled. Go to Add Devices first.
                 </td>
               </tr>
-            ) : filtered.map((cam) => {
-              const s = recSettings[cam.ome_stream];
-              if (!s) return null;
-              return (
-                <tr key={cam.ome_stream}
-                  className={cam.ome_stream === selectedId ? "selected" : ""}
-                  onClick={() => setSelectedId(cam.ome_stream)}>
-                  <td>
-                    <div className="rm-thumb">
-                      {cam.snapshot_url
-                        ? <img src={cam.snapshot_url} alt={cam.name} />
-                        : <div className="rm-thumb__placeholder" />}
-                    </div>
-                  </td>
-                  <td>{cam.manufacturer} {cam.model} <br/><small style={{opacity:0.6}}>{cam.ip}</small></td>
-                  <td className="rm-cell-center">{s.motion.enabled     ? "✓" : ""}</td>
-                  <td className="rm-cell-center">{s.continuous.enabled  ? "✓" : ""}</td>
-                  <td className="rm-cell-center">
-                    <span style={{ color: s.manual.enabled ? "var(--teal)" : "inherit" }}>
-                      {s.manual.enabled ? "● RECORDING" : "OFF"}
-                    </span>
-                  </td>
-                  <td className="rm-cell-mono">
-                    {cam.active_rec_profile || "Default"}
-                  </td>
-                  <td>
-                    <span className={`status-dot ${cam.recording_requested ? "recording" : ""}`} />
-                    {cam.recording_requested ? "Active" : "Idle"}
-                  </td>
-                  <td>MIRADOR</td>
-                </tr>
-              );
-            })}
+            ) : (
+              filtered.map((cam) => {
+                const s = recSettings[cam.ome_stream];
+                if (!s) return null;
+                return (
+                  <tr
+                    key={cam.ome_stream}
+                    className={cam.ome_stream === selectedId ? "selected" : ""}
+                    onClick={() => setSelectedId(cam.ome_stream)}
+                  >
+                    <td>
+                      <div className="rm-thumb">
+                        {cam.snapshot_url ? (
+                          <img src={cam.snapshot_url} alt={cam.name} />
+                        ) : (
+                          <div className="rm-thumb__placeholder" />
+                        )}
+                      </div>
+                    </td>
+                    <td>
+                      {cam.manufacturer} {cam.model}
+                      <br />
+                      <small style={{ opacity: 0.6 }}>{cam.ip}</small>
+                    </td>
+                    <td className="rm-cell-center">
+                      <span style={{ color: "var(--teal)", fontWeight: 600 }}>✓</span>
+                    </td>
+<td className="rm-cell-mono">
+  {
+    cam.stream_profiles?.find(p => p.token === cam.active_rec_profile)?.label
+    || cam.active_rec_profile
+    || "Default"
+  }
+</td>
+                    <td>
+                      <span
+                        className={`status-dot ${cam.recording_requested ? "recording" : ""}`}
+                      />
+                      {cam.recording_requested ? "Active" : "Idle"}
+                    </td>
+                    <td>MIRADOR</td>
+                  </tr>
+                );
+              })
+            )}
           </tbody>
         </table>
       </div>
 
-      <div className="rm-divider"><div className="rm-divider__handle" /></div>
+      <div className="rm-divider">
+        <div className="rm-divider__handle" />
+      </div>
 
       {selected && (
         <div className="rm-detail">
-          <ColumnPanel
-            title="Motion detection"
-            data={selected.motion}
-            onChange={(d) => updateSection("motion", d)}
-            showAlarm showTrigger showSchedule
-          />
-          <div className="rm-col-sep" />
-          <ColumnPanel
-            title="Continuous"
+          <ContinuousPanel
             data={selected.continuous}
             onChange={(d) => updateSection("continuous", d)}
-            showBitrate showSchedule
-          />
-          <div className="rm-col-sep" />
-          <ColumnPanel
-            title="Manual"
-            data={selected.manual}
-            onChange={(d) => updateSection("manual", d)}
-            showSchedule={false}
           />
           <div className="rm-apply-row">
-             <p style={{ fontSize: 11, color: "var(--text-muted)", marginRight: "auto" }}>
-               Changes are applied immediately.
-             </p>
-            <Button label="Refresh Sync" variant="outline" onClick={fetchDevices} />
-            <Button label="Done" variant="primary" onClick={handleApply} />
+            <p style={{ fontSize: 11, color: "var(--text-muted)", marginRight: "auto" }}>
+              Profile changes apply immediately. Recording runs continuously.
+            </p>
+            <Button label="Refresh" variant="outline" onClick={fetchDevices} />
+            <Button label="Done"    variant="primary"  onClick={() => setSelectedId(null)} />
           </div>
         </div>
       )}

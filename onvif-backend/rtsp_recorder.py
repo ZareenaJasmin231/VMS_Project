@@ -182,10 +182,9 @@ def start_camera(
     camera_data: dict | None = None,
     vf_filter: str = "",
 ):
-    """Start recording a single camera. Safe to call multiple times."""
-    if stream_name in _recorders and _recorders[stream_name].is_alive():
-        print(f"[RECORDER] Already recording {stream_name}, skipping.")
-        return
+    if stream_name in _recorders:
+        print(f"[RECORDER] 🔄 Force restarting {stream_name}")
+        stop_camera(stream_name)
 
     # Auto-load mask filter from mask_service if no explicit vf_filter was passed
     if not vf_filter and camera_data and camera_data.get("ip"):
