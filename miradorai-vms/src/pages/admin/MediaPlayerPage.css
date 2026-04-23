@@ -1294,3 +1294,52 @@
   background: var(--amber);
   box-shadow: 0 0 6px rgba(245, 166, 35, 0.5);
 }
+.mp-browse-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+
+  padding: 8px 10px;
+  border-radius: var(--radius-md);
+
+  background: var(--bg-raised);
+  border: 1px solid var(--border-subtle);
+
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+
+  cursor: pointer;
+  transition: all var(--transition);
+}
+
+/* Hover */
+.mp-browse-btn:hover {
+  background: var(--bg-hover);
+  border-color: var(--amber-dim);
+  color: var(--amber);
+}
+
+/* Active click */
+.mp-browse-btn:active {
+  transform: scale(0.97);
+}
+
+/* Icon style */
+.mp-browse-btn svg {
+  flex-shrink: 0;
+}
+/* 📌 Make left panel column layout proper */
+.mp-left {
+  display: flex;
+  flex-direction: column;
+}
+
+/* 📌 Push browse section to bottom */
+.mp-browse-section {
+  margin-top: auto;   /* 🔥 THIS pushes it down */
+  padding: 12px;
+  border-top: 1px solid var(--border-subtle);
+}

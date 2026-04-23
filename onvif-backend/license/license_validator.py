@@ -1,6 +1,6 @@
 import jwt
 
-SECRET = "MIRADOR_SECRET_KEY"
+SECRET = "!@#$%^&*"
 
 def validate_license(token):
     try:

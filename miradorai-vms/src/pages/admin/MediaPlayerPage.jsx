@@ -76,11 +76,15 @@ export default function MediaPlayerPage() {
   const [snapshotFlash, setSnapshotFlash]       = useState(false);
   const [isVideoLoading, setIsVideoLoading]     = useState(false);
 
+  // Ref to track blob URL created from uploaded .enc so we can revoke it later
+  const uploadedBlobUrl = useRef(null);
+
   const videoRef       = useRef(null);
   const playerWrap     = useRef(null);
   const progressRef    = useRef(null);
   const isDragging     = useRef(false);
   const camDropdownRef = useRef(null);
+  const browseInputRef = useRef(null);
 
   // ── Close camera dropdown on outside click ─────────────────────
   useEffect(() => {
@@ -209,8 +213,23 @@ export default function MediaPlayerPage() {
   useEffect(() => { if (videoRef.current) videoRef.current.volume      = volume; }, [volume]);
   useEffect(() => { if (videoRef.current) videoRef.current.playbackRate = speed;  }, [speed]);
 
+  // ── Revoke blob URL on unmount to avoid memory leaks ──────────
+  useEffect(() => {
+    return () => {
+      if (uploadedBlobUrl.current) {
+        URL.revokeObjectURL(uploadedBlobUrl.current);
+        uploadedBlobUrl.current = null;
+      }
+    };
+  }, []);
+
   // ── playFile ──────────────────────────────────────────────────
   const playFile = (file) => {
+    // Revoke any previous uploaded blob URL
+    if (uploadedBlobUrl.current) {
+      URL.revokeObjectURL(uploadedBlobUrl.current);
+      uploadedBlobUrl.current = null;
+    }
     setPlayingFile(file);
     setPlaying(false);
     setCurrentTime(0);
@@ -229,6 +248,68 @@ export default function MediaPlayerPage() {
       v.load();
       v.play().catch(() => {});
     }, 50);
+  };
+
+  // ── Browse & upload .enc file ──────────────────────────────────
+  const handleBrowseFile = async (e) => {
+    const file = e.target.files[0];
+    // Reset input so the same file can be re-selected if needed
+    if (browseInputRef.current) browseInputRef.current.value = "";
+    if (!file) return;
+
+    if (!file.name.endsWith(".enc")) {
+      alert("Please select a valid .enc file");
+      return;
+    }
+
+    try {
+      setIsVideoLoading(true);
+
+      // Revoke any previous uploaded blob URL before creating a new one
+      if (uploadedBlobUrl.current) {
+        URL.revokeObjectURL(uploadedBlobUrl.current);
+        uploadedBlobUrl.current = null;
+      }
+
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const res = await fetch(`${STREAM_API}/api/recordings/decrypt-upload`, {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!res.ok) throw new Error(`Decryption failed (${res.status})`);
+
+      const blob = await res.blob();
+      const videoURL = URL.createObjectURL(blob);
+      uploadedBlobUrl.current = videoURL;
+
+      setPlayingFile({
+        camera_id:  "Uploaded File",
+        date:       "—",
+        start_time: file.name,
+      });
+      setPlaying(false);
+      setCurrentTime(0);
+      setDuration(0);
+
+      setTimeout(() => {
+        const v = videoRef.current;
+        if (!v) return;
+        // No crossOrigin needed for blob URLs
+        v.removeAttribute("crossorigin");
+        v.src = videoURL;
+        v.load();
+        v.play().catch(() => {});
+      }, 50);
+
+    } catch (err) {
+      console.error("Browse decrypt error:", err);
+      alert("Failed to decrypt file: " + err.message);
+    } finally {
+      setIsVideoLoading(false);
+    }
   };
 
   const playNext = () => {
@@ -578,6 +659,26 @@ export default function MediaPlayerPage() {
                 value={selectedDate}
                 onChange={(e) => { setSelectedDate(e.target.value); setPlayingFile(null); }}
               />
+            </div>
+
+            {/* ── Browse .enc File ── */}
+            <div className="mp-browse-section">
+              <input
+                ref={browseInputRef}
+                type="file"
+                accept=".enc"
+                id="mp-browse-input"
+                style={{ display: "none" }}
+                onChange={handleBrowseFile}
+              />
+              <label htmlFor="mp-browse-input" className="mp-browse-btn">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" width="13" height="13">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                  <polyline points="17 8 12 3 7 8"/>
+                  <line x1="12" y1="3" x2="12" y2="15"/>
+                </svg>
+                Open .enc File
+              </label>
             </div>
 
             <div className="mp-file-list">

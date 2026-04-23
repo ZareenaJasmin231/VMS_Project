@@ -15,6 +15,9 @@ import requests as http_requests
 import httpx
 import shutil
 import urllib.parse
+from fastapi import UploadFile, File
+from fastapi.responses import StreamingResponse
+import tempfile
 from ome_service import register_stream
 from onvif_service import (
     probe_camera,
@@ -260,6 +263,7 @@ def save_camera_to_db(data: dict):
     if not valid:
         print("❌ License invalid")
         return False
+    existing = cameras_col.find_one({"ip": data["ip"]})
 
     # 🔐 STEP 3: Count cameras
     current_count = cameras_col.count_documents({"enabled": True})
@@ -268,8 +272,8 @@ def save_camera_to_db(data: dict):
     print("MAX:", license_data["max_cameras"])
 
     # 🔐 STEP 4: Block if exceeded
-    if current_count >= license_data["max_cameras"]:
-        print("❌ Camera limit reached")
+    if not existing and current_count >= license_data["max_cameras"]:
+        print("❌ Camera limit reached (new camera blocked)")
         return False
 
     # ✅ STEP 5: Save camera
@@ -726,8 +730,58 @@ def health():
 @app.get("/api/cameras")
 def get_all_cameras():
     return devices
+@app.post("/api/recordings/decrypt-upload")
+async def decrypt_uploaded_file(file: UploadFile = File(...)):
+    enc_path = None
+    dec_path = None
 
+    try:
+        print(f"[UPLOAD] Received file: {file.filename}")
 
+        # ✅ Validate extension
+        if not file.filename.endswith(".enc"):
+            raise HTTPException(status_code=400, detail="Only .enc files allowed")
+
+        # ✅ Save temp encrypted file
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".enc") as temp_enc:
+            temp_enc.write(await file.read())
+            enc_path = temp_enc.name
+
+        # ✅ Output path
+        dec_path = enc_path.replace(".enc", ".mp4")
+
+        print(f"[DECRYPT] Input: {enc_path}")
+        print(f"[DECRYPT] Output: {dec_path}")
+
+        # 🔥 Decrypt
+        encrypt_service.decrypt_file(enc_path, dec_path)
+
+        # ✅ Read file fully (important for frontend)
+        with open(dec_path, "rb") as f:
+            data = f.read()
+
+        return Response(
+            content=data,
+            media_type="video/mp4",
+            headers={
+                "Content-Disposition": f"inline; filename={file.filename.replace('.enc','.mp4')}",
+                "Cache-Control": "no-store"
+            }
+        )
+
+    except Exception as e:
+        print(f"[DECRYPT ERROR] {e}")
+        raise HTTPException(status_code=500, detail="Decryption failed")
+
+    finally:
+        # ✅ Cleanup temp files
+        try:
+            if enc_path and os.path.exists(enc_path):
+                os.remove(enc_path)
+            if dec_path and os.path.exists(dec_path):
+                os.remove(dec_path)
+        except Exception as cleanup_err:
+            print("[CLEANUP ERROR]", cleanup_err)
 @app.get("/api/discover-devices")
 async def discover_devices():
     try:
@@ -1189,6 +1243,8 @@ async def assign_streams(req: StreamAssignRequest):
             "enabled":              True,
             "active_live_profile":  req.live_profile,
             "active_rec_profile":   req.recording_profile,
+            "recording_profile":    req.recording_profile,
+
         }
         devices.append(device_entry)
 
@@ -1196,20 +1252,24 @@ async def assign_streams(req: StreamAssignRequest):
 
     # ── 3. Persist to MongoDB ─────────────────────────────────────────
     save_camera_to_db({
-        "ip":                   host,
-        "ome_stream":           stream_name,
-        "rtsp_url":             req.live_rtsp,
-        "recording_rtsp":       req.recording_rtsp,
-        "manufacturer":         req.manufacturer,
-        "model":                req.model,
-        "mac":                  req.mac,
-        "device_name":          req.device_name or f"Camera @ {host}",
-        "port":                 req.port,
-        "username":             req.username,
-        "active_live_profile":  req.live_profile,
-        "active_rec_profile":   req.recording_profile,
-        "updated_at":           datetime.utcnow(),
-    })
+    "ip":                   host,
+    "ome_stream":           stream_name,
+    "rtsp_url":             req.live_rtsp,
+    "recording_rtsp":       req.recording_rtsp,
+    "manufacturer":         req.manufacturer,
+    "model":                req.model,
+    "mac":                  req.mac,
+    "device_name":          req.device_name or f"Camera @ {host}",
+    "port":                 req.port,
+    "username":             req.username,
+
+    # 🔥 THIS IS THE MISSING FIX
+    "active_live_profile":  req.live_profile,
+    "active_rec_profile":   req.recording_profile,
+    "recording_profile":    req.recording_profile,
+
+    "updated_at":           datetime.utcnow(),
+})
 
     # ── 4. Restart recorder with new recording RTSP ───────────────────
     # IMPORTANT: stop first, wait 1s for the thread to fully exit,

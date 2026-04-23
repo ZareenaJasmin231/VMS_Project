@@ -205,8 +205,11 @@ export default function RecordingMethodPage() {
       const initialSettings = {};
       data.forEach((cam) => {
         const profiles         = cam.stream_profiles || [];
-const activeRecProfile = cam.active_rec_profile || profiles[0]?.token || "";
-        initialSettings[cam.ome_stream] = {
+const activeRecProfile =
+  cam.active_rec_profile ||
+  cam.recording_profile ||   
+  profiles[0]?.token ||
+  "";        initialSettings[cam.ome_stream] = {
           continuous: {
             ...DEFAULT_CONTINUOUS,
             enabled:           true,

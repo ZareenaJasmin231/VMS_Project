@@ -1,7 +1,12 @@
 import jwt
 from datetime import datetime, timedelta, UTC
+import uuid
 
-SECRET = "MIRADOR_SUPER_SECURE_KEY_12345678901234567890"
+SECRET = "!@#$%^&*"
+
+# ✅ ADD THIS FUNCTION
+def get_device_id():
+    return str(uuid.getnode())
 
 def generate_license(device_id):
     payload = {
@@ -14,5 +19,5 @@ def generate_license(device_id):
     token = jwt.encode(payload, SECRET, algorithm="HS256")
     return token
 
-
-print(generate_license("MY_PC_001"))
+# ✅ NOW THIS WILL WORK
+print(generate_license(get_device_id()))
