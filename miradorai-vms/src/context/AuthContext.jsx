@@ -112,9 +112,15 @@ export const AuthProvider = ({ children }) => {
         sessionId: Math.random().toString(36).substring(2, 11),
       };
 
-      setUser(userData);
-      localStorage.setItem("miradorai_user", JSON.stringify(userData));
-      return { success: true };
+setUser(userData);
+localStorage.setItem("miradorai_user", JSON.stringify(userData));
+
+// 🔥 ADD THIS (IMPORTANT)
+if (data.token) {
+  localStorage.setItem("miradorai_token", data.token);
+}
+
+return { success: true };
     } catch (err) {
       console.error("[AUTH] Login error:", err);
       return { success: false, error: "Cannot connect to server. Please try again." };
@@ -236,10 +242,11 @@ export const AuthProvider = ({ children }) => {
   // ------------------------------------------------------------------
   // Logout
   // ------------------------------------------------------------------
-  const logout = () => {
-    setUser(null);
-    localStorage.removeItem("miradorai_user");
-  };
+ const logout = () => {
+  setUser(null);
+  localStorage.removeItem("miradorai_user");
+  localStorage.removeItem("miradorai_token"); 
+};
 
   const isAdmin        = user?.role === "admin";
   const isClient       = user?.role === "client";

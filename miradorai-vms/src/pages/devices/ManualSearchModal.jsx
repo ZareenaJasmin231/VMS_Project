@@ -18,7 +18,6 @@ const css = `
     border: 1px solid #1e2a3a;
     border-radius: 14px;
     width: 480px;
-    /* ✅ FIX 1: Enable scroll — card never taller than 90% of viewport */
     max-height: 90vh;
     display: flex;
     flex-direction: column;
@@ -48,7 +47,6 @@ const css = `
   }
   .msm-close:hover { color: #e8edf5; }
 
-  /* ✅ FIX 1 continued: body scrolls, header/footer stay fixed */
   .msm-body {
     padding: 24px;
     display: flex; flex-direction: column; gap: 16px;
@@ -56,7 +54,6 @@ const css = `
     flex: 1;
   }
 
-  /* Custom scrollbar to match the dark theme */
   .msm-body::-webkit-scrollbar { width: 6px; }
   .msm-body::-webkit-scrollbar-track { background: transparent; }
   .msm-body::-webkit-scrollbar-thumb { background: #1e2a3a; border-radius: 3px; }
@@ -184,24 +181,12 @@ const css = `
     display: flex; justify-content: flex-end; gap: 10px;
     flex-shrink: 0;
   }
-    /* Hide default browser password reveal icon */
 
-/* Edge / Chrome */
-input[type="password"]::-ms-reveal,
-input[type="password"]::-ms-clear {
-  display: none;
-}
-
-/* Chrome (new versions) */
-input[type="password"]::-webkit-credentials-auto-fill-button,
-input[type="password"]::-webkit-textfield-decoration-container {
-  display: none !important;
-}
-
-/* Safari */
-input[type="password"]::-webkit-contacts-auto-fill-button {
-  display: none !important;
-}
+  input[type="password"]::-ms-reveal,
+  input[type="password"]::-ms-clear { display: none; }
+  input[type="password"]::-webkit-credentials-auto-fill-button,
+  input[type="password"]::-webkit-textfield-decoration-container { display: none !important; }
+  input[type="password"]::-webkit-contacts-auto-fill-button { display: none !important; }
 
   .msm-btn {
     font-family: 'DM Mono', monospace; font-size: 12px; font-weight: 500;
@@ -256,23 +241,25 @@ function validateIP(ip) {
 }
 
 export default function ManualSearchModal({ onClose, onEnroll }) {
-  const [ip, setIp]                     = useState("");
-  const [port, setPort]                 = useState("");
-  const [user, setUser]                 = useState("");
-  const [pass, setPass]                 = useState("");
-  const [showPassword, setShowPassword] = useState(false);
-  const [rtspUrl, setRtspUrl]           = useState("");
-  const [urlLabel, setUrlLabel]         = useState("");
-  const [mode]                          = useState("onvif");
-  const [probe, setProbe]               = useState("idle");
-  const [discovered, setDiscovered]     = useState(null);
-  const [detectedPort, setDetectedPort] = useState(null);
-  const [errors, setErrors]             = useState({});
+  // ✅ FIX 3 STEP 1: Added cameraName state
+  const [cameraName, setCameraName]             = useState("");
+  const [ip, setIp]                             = useState("");
+  const [port, setPort]                         = useState("");
+  const [user, setUser]                         = useState("");
+  const [pass, setPass]                         = useState("");
+  const [showPassword, setShowPassword]         = useState(false);
+  const [rtspUrl, setRtspUrl]                   = useState("");
+  const [urlLabel, setUrlLabel]                 = useState("");
+  const [mode]                                  = useState("onvif");
+  const [probe, setProbe]                       = useState("idle");
+  const [discovered, setDiscovered]             = useState(null);
+  const [detectedPort, setDetectedPort]         = useState(null);
+  const [errors, setErrors]                     = useState({});
 
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.target.tagName !== 'INPUT') return;
-    const inputs = document.querySelectorAll('.msm-card input[tabindex]');
+      const inputs = document.querySelectorAll('.msm-card input[tabindex]');
       const currentIndex = Array.from(inputs).findIndex(input => input === e.target);
       if (currentIndex === -1) return;
 
@@ -332,13 +319,12 @@ export default function ManualSearchModal({ onClose, onEnroll }) {
       clearTimeout(timeoutId);
 
       const json = await res.json();
-if (!res.ok) {
-  alert(json.detail || "Camera limit exceeded");
-
-  setProbe("fail");
-setErrors({ ip: json.detail || "Camera limit exceeded" });
-  return;
-}
+      if (!res.ok) {
+        alert(json.detail || "Camera limit exceeded");
+        setProbe("fail");
+        setErrors({ ip: json.detail || "Camera limit exceeded" });
+        return;
+      }
       if (json.success) {
         setProbe("success");
         setDetectedPort(json.port || port);
@@ -415,7 +401,9 @@ setErrors({ ip: json.detail || "Camera limit exceeded" });
   const handleEnroll = () => {
     if (mode === "onvif") {
       const enrollPort = detectedPort || port || "80";
+      // ✅ FIX 3 STEP 3: Pass cameraName in onEnroll payload
       onEnroll?.({
+        cameraName,
         ip,
         port:            enrollPort,
         user,
@@ -429,6 +417,7 @@ setErrors({ ip: json.detail || "Camera limit exceeded" });
       });
     } else {
       onEnroll?.({
+        cameraName,
         rtspUrl,
         label:           urlLabel,
         discovered,
@@ -448,35 +437,46 @@ setErrors({ ip: json.detail || "Camera limit exceeded" });
     <>
       <style>{css}</style>
 
-      {/*
-        ✅ FIX 2: Overlay click does NOTHING — removed the onClick handler entirely.
-        The modal only closes via the X button, Cancel button, or Enroll Camera button.
-      */}
       <div className="msm-overlay">
         <div className="msm-card">
 
-          {/* Header — stays fixed at top */}
+          {/* Header */}
           <div className="msm-header">
             <div>
               <div className="msm-eyebrow">ONVIF Discovery</div>
               <h2 className="msm-title">Manual Camera Search</h2>
             </div>
-            <button className="msm-close" onClick={onClose} tabIndex={8}>
+            <button className="msm-close" onClick={onClose} tabIndex={9}>
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M18 6L6 18M6 6l12 12" />
               </svg>
             </button>
           </div>
 
-      {/* Body — scrolls when content overflows */}
-      <div className="msm-body">
+          {/* Body */}
+          <div className="msm-body">
+
+            {/* ✅ FIX 3 STEP 2: Camera Name field — top of form */}
+            <div className="msm-field">
+              <label className="msm-label">
+                Camera Name{" "}
+                <span style={{ fontSize: "11px", fontWeight: "400", color: "#9ca3af" }}>(optional)</span>
+              </label>
+              <input
+                tabIndex={1}
+                className="msm-input"
+                placeholder="e.g. Front Gate Camera"
+                value={cameraName}
+                onChange={(e) => setCameraName(e.target.value)}
+              />
+            </div>
 
             {/* IP + Port */}
             <div className="msm-row">
               <div className="msm-field">
                 <label className="msm-label">IP Address</label>
                 <input
-                  tabIndex={1}
+                  tabIndex={2}
                   className={`msm-input ${errors.ip ? "error" : ""}`}
                   placeholder="192.168.1.64"
                   value={ip}
@@ -495,7 +495,7 @@ setErrors({ ip: json.detail || "Camera limit exceeded" });
                   <span style={{ fontSize: "11px", fontWeight: "400", color: "#9ca3af" }}>(optional)</span>
                 </label>
                 <input
-                  tabIndex={2}
+                  tabIndex={3}
                   className={`msm-input ${errors.port ? "error" : ""}`}
                   placeholder="auto-detect"
                   value={port}
@@ -511,7 +511,7 @@ setErrors({ ip: json.detail || "Camera limit exceeded" });
               <div className="msm-field">
                 <label className="msm-label">Username</label>
                 <input
-                  tabIndex={3}
+                  tabIndex={4}
                   className="msm-input"
                   placeholder="admin"
                   value={user}
@@ -522,7 +522,7 @@ setErrors({ ip: json.detail || "Camera limit exceeded" });
                 <label className="msm-label">Password</label>
                 <div className="msm-password-wrapper">
                   <input
-                    tabIndex={4}
+                    tabIndex={5}
                     className="msm-input msm-password-input"
                     type={showPassword ? "text" : "password"}
                     placeholder="••••••••"
@@ -569,7 +569,7 @@ setErrors({ ip: json.detail || "Camera limit exceeded" });
             {probe === "fail" && (
               <div className="msm-probe fail">
                 <div className="msm-probe-dot" />
-{errors.ip || `No ONVIF device found at ${ip}${port ? `:${port}` : ""}`}
+                {errors.ip || `No ONVIF device found at ${ip}${port ? `:${port}` : ""}`}
               </div>
             )}
 
@@ -612,21 +612,21 @@ setErrors({ ip: json.detail || "Camera limit exceeded" });
                       </span>
                     </div>
                     <div className="msm-profiles-scroll">
-                    {discovered.profiles.map((p, i) => (
-                      <div key={i} className="msm-profile-row">
-                        <div>
-                          <div className="msm-profile-name">{p.name}</div>
-                          <div className="msm-profile-res">{p.resolution}</div>
+                      {discovered.profiles.map((p, i) => (
+                        <div key={i} className="msm-profile-row">
+                          <div>
+                            <div className="msm-profile-name">{p.name}</div>
+                            <div className="msm-profile-res">{p.resolution}</div>
+                          </div>
+                          <div className="msm-profile-meta">{p.encoding}</div>
+                          <div className="msm-profile-meta">
+                            {p.fps ? `${p.fps} fps` : "—"}
+                          </div>
+                          <span className={`msm-profile-tag msm-profile-tag--${PROFILE_TAGS[i] ?? "extra"}`}>
+                            {PROFILE_TAGS[i] ?? `Stream ${i + 1}`}
+                          </span>
                         </div>
-                        <div className="msm-profile-meta">{p.encoding}</div>
-                        <div className="msm-profile-meta">
-                          {p.fps ? `${p.fps} fps` : "—"}
-                        </div>
-                        <span className={`msm-profile-tag msm-profile-tag--${PROFILE_TAGS[i] ?? "extra"}`}>
-                          {PROFILE_TAGS[i] ?? `Stream ${i + 1}`}
-                        </span>
-                      </div>
-                    ))}
+                      ))}
                     </div>
                   </div>
                 )}
@@ -640,13 +640,13 @@ setErrors({ ip: json.detail || "Camera limit exceeded" });
             )}
           </div>
 
-          {/* Footer — stays fixed at bottom */}
+          {/* Footer */}
           <div className="msm-footer">
-            <button tabIndex={5} className="msm-btn msm-btn--ghost" onClick={onClose}>
+            <button tabIndex={6} className="msm-btn msm-btn--ghost" onClick={onClose}>
               Cancel
             </button>
             <button
-              tabIndex={6}
+              tabIndex={7}
               className="msm-btn msm-btn--probe"
               onClick={mode === "onvif" ? handleProbe : handleDirectUrl}
               disabled={probe === "probing"}
@@ -654,7 +654,7 @@ setErrors({ ip: json.detail || "Camera limit exceeded" });
               {probe === "probing" ? "Probing…" : "Probe via ONVIF"}
             </button>
             <button
-              tabIndex={7}
+              tabIndex={8}
               className="msm-btn msm-btn--enroll"
               onClick={handleEnroll}
               disabled={probe !== "success"}

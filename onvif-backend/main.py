@@ -17,6 +17,8 @@ import shutil
 import urllib.parse
 from fastapi import UploadFile, File
 from fastapi.responses import StreamingResponse
+from jwt_auth import create_token, verify_token, require_admin
+from fastapi import Depends
 import tempfile
 from ome_service import register_stream
 from onvif_service import (
@@ -656,30 +658,26 @@ def auth_signup(req: SignupRequest):
 
 @app.post("/api/auth/login")
 def auth_login(req: LoginRequest):
-    if users_col is None:
-        raise HTTPException(status_code=500, detail="Database not connected")
-    if not req.email or not req.password:
-        raise HTTPException(status_code=400, detail="Email and password are required")
+
     user = users_col.find_one({"email": req.email})
+
     if not user:
         raise HTTPException(status_code=401, detail="Invalid email or password")
+
     if not pwd_context.verify(req.password, user["password"]):
         raise HTTPException(status_code=401, detail="Invalid email or password")
-    if user["role"] != req.role:
-        raise HTTPException(
-            status_code=403,
-            detail=f"This account is registered as {user['role']}. Please select the correct role."
-        )
-    print(f"[AUTH] ✅ Login: {req.email} ({req.role})")
+
+    # ✅ CREATE TOKEN
+    token = create_token(user["email"], user["role"])
+
     return {
         "success": True,
+        "token": token,
         "user": {
-            "id":    str(user["_id"]),
             "email": user["email"],
-            "role":  user["role"],
+            "role": user["role"]
         }
     }
-
 
 @app.post("/api/auth/forgot-password")
 def auth_forgot_password(req: ForgotPasswordRequest):
@@ -727,7 +725,7 @@ def health():
     return {"status": "ok"}
 
 
-@app.get("/api/cameras")
+@app.get("/api/cameras", dependencies=[Depends(verify_token)])
 def get_all_cameras():
     return devices
 @app.post("/api/recordings/decrypt-upload")
@@ -782,7 +780,7 @@ async def decrypt_uploaded_file(file: UploadFile = File(...)):
                 os.remove(dec_path)
         except Exception as cleanup_err:
             print("[CLEANUP ERROR]", cleanup_err)
-@app.get("/api/discover-devices")
+@app.get("/api/discover-devices", dependencies=[Depends(verify_token)])
 async def discover_devices():
     try:
         from discovery_service import discover_all
@@ -1591,7 +1589,7 @@ async def get_dashboard_events(limit: int = 20):
     return docs
 
 
-@app.get("/api/alerts")
+@app.get("/api/alerts", dependencies=[Depends(verify_token)])
 async def get_alerts(limit: int = 50):
     if _db is None:
         return {"alerts": []}

@@ -7,6 +7,7 @@ import ManualSearchModal from "./ManualSearchModal";
 import StreamURLModal from "./StreamURLModal";
 import DiscoveryModal from "../../components/shared/DiscoveryModal";
 import "./AddDevicesPage.css";
+
 const STREAM_API = "http://192.168.126.200:8000";
 
 function usePersistedDevices() {
@@ -60,7 +61,6 @@ function EmptyState() {
   );
 }
 
-// ── ContextMenu now accepts onStreamProfiles ─────────────────────────────────
 function ContextMenu({ x, y, onEdit, onRemove, onStreamProfiles, onClose }) {
   const menuRef = useRef(null);
 
@@ -173,7 +173,6 @@ function EditDeviceModal({ device, onClose, onSave }) {
   );
 }
 
-// ── onNavigate added to props ────────────────────────────────────────────────
 export default function AddDevicesPage({ onNavigate }) {
   const [filter, setFilter]                     = useState("");
   const [checked, setChecked]                   = useState([]);
@@ -219,28 +218,23 @@ export default function AddDevicesPage({ onNavigate }) {
     setDevices((prev) => prev.map((d) => d.id === updated.id ? updated : d));
   }, [setDevices]);
 
- const handleRemoveDevice = useCallback(async (deviceId) => {
-  const device = devices.find((d) => d.id === deviceId);
-  if (!device) return;
+  const handleRemoveDevice = useCallback(async (deviceId) => {
+    const device = devices.find((d) => d.id === deviceId);
+    if (!device) return;
 
-  try {
-    // 🔥 CALL BACKEND DELETE API (CORRECT ONE)
-    await fetch(`${STREAM_API}/api/cameras/by-ip/${device.ip}/delete`, {
-      method: "DELETE",
-    });
+    try {
+      await fetch(`${STREAM_API}/api/cameras/by-ip/${device.ip}/delete`, {
+        method: "DELETE",
+      });
+      console.log("✅ Deleted from DB:", device.ip);
+    } catch (err) {
+      console.error("❌ Failed to delete from DB:", err);
+    }
 
-    console.log("✅ Deleted from DB:", device.ip);
-  } catch (err) {
-    console.error("❌ Failed to delete from DB:", err);
-  }
+    setDevices((prev) => prev.filter((d) => d.id !== deviceId));
+    setChecked((prev) => prev.filter((id) => id !== deviceId));
+  }, [devices, setDevices]);
 
-  // ✅ Update UI
-  setDevices((prev) => prev.filter((d) => d.id !== deviceId));
-  setChecked((prev) => prev.filter((id) => id !== deviceId));
-
-}, [devices, setDevices]);
-
-  // ── NEW: Navigate to Stream Profiles for a specific camera ───────────────
   const handleStreamProfiles = useCallback((deviceId) => {
     localStorage.setItem("miradorai_selected_camera_id", String(deviceId));
     if (onNavigate) onNavigate("stream-profiles");
@@ -266,7 +260,8 @@ export default function AddDevicesPage({ onNavigate }) {
         const device = {
           id:              d.id || `device-${d.ip}-${Date.now()}`,
           type:            "entrance",
-          name:            d.name || `${d.manufacturer || ""} ${d.model || ""}`.trim() || `Camera @ ${d.ip}`,
+          // ✅ FIX 5: Use cameraName if set on discovery device, then fallbacks
+          name:            d.cameraName || d.name || `${d.manufacturer || ""} ${d.model || ""}`.trim() || `Camera @ ${d.ip}`,
           ip:              d.ip,
           mac:             d.mac           || "—",
           status:          d.ws_url ? "Online" : "Offline",
@@ -276,7 +271,6 @@ export default function AddDevicesPage({ onNavigate }) {
           ws_url:          d.ws_url        || null,
           stream_key:      d.stream_key    || null,
           stream_status:   d.ws_url ? "streaming" : (d.stream_status || "not_registered"),
-          // ── Persist stream profiles from discovery ──────────────────────
           stream_profiles: d.profiles      || d.stream_profiles || [],
           stream_count:    d.stream_count  || d.profiles?.length || 0,
           source:          "discovery",
@@ -297,41 +291,40 @@ export default function AddDevicesPage({ onNavigate }) {
   }, [setDevices]);
 
   const handleRemoveSelected = useCallback(async () => {
-  if (checked.length === 0) return;
+    if (checked.length === 0) return;
 
-  if (!window.confirm(`Are you sure you want to remove ${checked.length} device(s)?`)) return;
+    if (!window.confirm(`Are you sure you want to remove ${checked.length} device(s)?`)) return;
 
-  for (const id of checked) {
-    const device = devices.find((d) => d.id === id);
-    if (!device) continue;
+    for (const id of checked) {
+      const device = devices.find((d) => d.id === id);
+      if (!device) continue;
 
-    try {
-      // 🔥 CALL BACKEND DELETE API
-      await fetch(`${STREAM_API}/api/cameras/by-ip/${device.ip}/delete`, {
-        method: "DELETE",
-      });
-
-      console.log("✅ Deleted from DB:", device.ip);
-    } catch (err) {
-      console.error("❌ Delete failed:", device.ip);
+      try {
+        await fetch(`${STREAM_API}/api/cameras/by-ip/${device.ip}/delete`, {
+          method: "DELETE",
+        });
+        console.log("✅ Deleted from DB:", device.ip);
+      } catch (err) {
+        console.error("❌ Delete failed:", device.ip);
+      }
     }
-  }
 
-  // ✅ Update UI
-  setDevices((prev) => prev.filter((d) => !checked.includes(d.id)));
-  setChecked([]);
+    setDevices((prev) => prev.filter((d) => !checked.includes(d.id)));
+    setChecked([]);
+  }, [checked, devices, setDevices]);
 
-}, [checked, devices, setDevices]);
-
+  // ✅ FIX 4: handleEnroll uses device.cameraName as top priority for name
   const handleEnroll = async (device) => {
     setEnrolling(true);
     setEnrollMsg("Registering stream with OME…");
     setShowManualSearch(false);
 
-    const { ip, user, pass, discovered } = device;
-    const name = discovered?.model
+    const { ip, user, pass, discovered, cameraName } = device;
+
+    // Build enriched name from discovered data as fallback
+    const enrichedName = discovered?.model
       ? `${discovered.manufacturer} ${discovered.model}`
-      : `Camera @ ${ip}`;
+      : null;
 
     const probeRes = await fetch(`${STREAM_API}/api/onvif/probe`, {
       method: "POST",
@@ -345,7 +338,8 @@ export default function AddDevicesPage({ onNavigate }) {
       const updated = {
         id:              String(Date.now()),
         type:            "entrance",
-        name,
+        // ✅ FIX 4: cameraName wins, then enrichedName, then fallback
+        name:            cameraName || enrichedName || `Camera @ ${ip}`,
         ip,
         mac:             discovered?.mac           || probeData?.mac           || "—",
         status:          probeData?.ws_url ? "Online" : "Offline",
@@ -358,7 +352,6 @@ export default function AddDevicesPage({ onNavigate }) {
         ws_url:          probeData?.ws_url         || null,
         stream_key:      probeData?.stream_key     || null,
         stream_status:   probeData?.status         || "error",
-        // ── Persist stream profiles from ONVIF probe ────────────────────
         stream_profiles: probeData?.profiles       || discovered?.profiles     || [],
         stream_count:    probeData?.stream_count   || discovered?.stream_count || 0,
         source:          "onvif",
@@ -376,9 +369,14 @@ export default function AddDevicesPage({ onNavigate }) {
     setEnrollMsg("");
   };
 
-  const handleAddStreamURLs = async (urls) => {
+  // ✅ FIX 2: handleAddStreamURLs now receives { urls, cameraName } object
+  const handleAddStreamURLs = async (payload) => {
     setShowStreamURL(false);
     setEnrolling(true);
+
+    // Support both old array format and new { urls, cameraName } format
+    const urls       = Array.isArray(payload) ? payload : payload.urls;
+    const cameraName = Array.isArray(payload) ? "" : (payload.cameraName || "");
 
     for (let i = 0; i < urls.length; i++) {
       const url = urls[i];
@@ -386,6 +384,12 @@ export default function AddDevicesPage({ onNavigate }) {
 
       let ip = "—";
       try { ip = new URL(url).hostname; } catch {}
+
+      // ✅ FIX 2: Use cameraName, fall back to "Stream @ IP"
+      // For multiple URLs, append index to name so each gets a unique label
+      const streamName = cameraName
+        ? (urls.length > 1 ? `${cameraName} (${i + 1})` : cameraName)
+        : `Stream @ ${ip}`;
 
       try {
         const res  = await fetch(`${STREAM_API}/api/streams/register`, {
@@ -400,7 +404,7 @@ export default function AddDevicesPage({ onNavigate }) {
           const entry = {
             id:            String(Date.now()) + i,
             type:          "entrance",
-            name:          `Stream @ ${ip}`,
+            name:          streamName,
             ip,
             mac:           "—",
             status:        data?.ws_url ? "Online" : "Offline",
@@ -425,7 +429,7 @@ export default function AddDevicesPage({ onNavigate }) {
           const existingIndex = prev.findIndex((item) => item.ip === ip);
           const entry = {
             id: String(Date.now()) + i, type: "entrance",
-            name: `Stream @ ${ip}`, ip, mac: "—",
+            name: streamName, ip, mac: "—",
             status: "Offline", manufacturer: "Unknown", model: "Unknown",
             rtsp_url: url, ws_url: null, stream_key: null,
             stream_status: "error", source: "rtsp",
@@ -474,9 +478,10 @@ export default function AddDevicesPage({ onNavigate }) {
           />
         </div>
       </div>
-<div className="add-dev__options-bar">
-  <SearchBar value={filter} onChange={setFilter} placeholder="Filter devices..." />
-</div>
+
+      <div className="add-dev__options-bar">
+        <SearchBar value={filter} onChange={setFilter} placeholder="Filter devices..." />
+      </div>
 
       <div className="add-dev__info-pill">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="13" height="13" style={{ flexShrink: 0 }}>

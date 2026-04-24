@@ -135,9 +135,11 @@ function validateURL(url) {
 }
 
 export default function StreamURLModal({ onClose, onAdd }) {
-  const [input, setInput]   = useState("");
-  const [urls, setUrls]     = useState([]);
-  const [error, setError]   = useState("");
+  // ✅ FIX 1 STEP 1: Added cameraName state
+  const [cameraName, setCameraName] = useState("");
+  const [input, setInput]           = useState("");
+  const [urls, setUrls]             = useState([]);
+  const [error, setError]           = useState("");
 
   const handleAdd = () => {
     if (!input.trim()) { setError("Please enter a stream URL"); return; }
@@ -154,7 +156,8 @@ export default function StreamURLModal({ onClose, onAdd }) {
 
   const handleSubmit = () => {
     if (urls.length === 0) { setError("Add at least one stream URL"); return; }
-    onAdd?.(urls);
+    // ✅ FIX 1 STEP 3: Pass cameraName along with urls to parent
+    onAdd?.({ urls, cameraName });
     onClose?.();
   };
 
@@ -186,6 +189,20 @@ export default function StreamURLModal({ onClose, onAdd }) {
                 <circle cx="12" cy="12" r="10"/><path d="M12 8h.01M12 12v4"/>
               </svg>
               Enter one or more stream URLs (RTSP, RTSPS, HTTP, HTTPS). Press Enter or click Add after each URL.
+            </div>
+
+            {/* ✅ FIX 1 STEP 2: Camera Name field — above URL input */}
+            <div className="sum-field">
+              <label className="sum-label">
+                Camera Name{" "}
+                <span style={{ fontSize: "11px", fontWeight: "400", color: "#9ca3af" }}>(optional)</span>
+              </label>
+              <input
+                className="sum-input"
+                placeholder="e.g. Parking Lot Camera"
+                value={cameraName}
+                onChange={(e) => setCameraName(e.target.value)}
+              />
             </div>
 
             {/* Input + Add */}

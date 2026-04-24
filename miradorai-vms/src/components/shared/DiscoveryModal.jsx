@@ -42,8 +42,8 @@ export default function DiscoveryModal({ isOpen, onClose, onAddDevices }) {
       progressTimerRef.current = null;
     }
   };
-
   const startDiscovery = async () => {
+     const token = localStorage.getItem("miradorai_token");
     setIsScanning(true);
     setError(null);
     setDiscoveredDevices([]);
@@ -58,8 +58,11 @@ export default function DiscoveryModal({ isOpen, onClose, onAddDevices }) {
 
     let devices = [];
     try {
-      const response = await fetch(`${STREAM_API}/api/discover-devices`);
-      if (response.ok) {
+const response = await fetch(`${STREAM_API}/api/discover-devices`, {
+  headers: {
+    Authorization: "Bearer " + token
+  }
+});      if (response.ok) {
         const data = await response.json();
         devices = data.devices || [];
         console.log("[Discovery] Backend returned:", devices);
