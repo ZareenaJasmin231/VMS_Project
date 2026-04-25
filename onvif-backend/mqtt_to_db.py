@@ -23,10 +23,8 @@ mongo_client = MongoClient(MONGO_URI)
 collection   = mongo_client[MONGO_DB][MONGO_COL]
 
 
-# ✅ FIXED: Convert new topic → old structure
 def break_topic(topic: str) -> dict:
     try:
-        # Extract analytics part
         if "tns:axis/" in topic:
             topic = topic.split("tns:axis/")[-1]
             topic = f"axis:{topic}"
@@ -68,64 +66,52 @@ def on_message(client, userdata, msg):
         print(f"[SKIP] {msg.topic}")
         return
 
-    print(f"\n[RECEIVED] {msg.topic}")
+    print("\n========== NEW EVENT ==========")
+    print("TOPIC:", msg.topic)
 
     data = payload.get("message", {}).get("data", {})
+    print("DATA:", json.dumps(data, indent=2))
+
+    # ✅ Accept only valid events
+    if not data:
+        return
 
     # ✅ Convert topic
     topic_parts = break_topic(msg.topic)
 
     # ─────────────────────────────────────────
-    # 🔥 DETECT EVENT TYPE (CRITICAL FIX)
+    # 🔥 EXTRACT IP FROM TOPIC (IMPORTANT FIX)
     # ─────────────────────────────────────────
+    topic_ip = None
+    try:
+        parts = msg.topic.split("/")
+        # Example: axis/192.168.126.240/event/...
+        if len(parts) > 1:
+            topic_ip = parts[1]
+    except Exception:
+        topic_ip = None
 
+    # Convert to folder format
+    if topic_ip:
+        topic_ip = topic_ip.replace(".", "_")
+
+    print(f"[IP EXTRACTED] {topic_ip}")
+
+    # ─────────────────────────────────────────
+    # ✅ Event name + type
+    # ─────────────────────────────────────────
     scenario      = data.get("scenario")
     scenario_type = data.get("scenarioType")
 
-    # ✅ Fallback for motion / tampering
-    event_type = (
-        scenario_type
-        or topic_parts.get("topic_event")
-        or topic_parts.get("topic_analytics")
-    )
+    event_type = scenario_type or topic_parts.get("topic_event") or "Unknown"
+    event_name = scenario or scenario_type or topic_parts.get("topic_event") or "Unknown"
 
-    event_name = (
-        scenario
-        or topic_parts.get("topic_analytics")
-        or topic_parts.get("topic_event")
-    )
-
-    # Normalize
-    event_type = (event_type or "").strip()
-    event_name = (event_name or "").strip()
+    event_type = str(event_type).strip()
+    event_name = str(event_name).strip()
 
     # ─────────────────────────────────────────
-    # 🔥 ACTIVE CHECK (IMPORTANT)
+    # ✅ FINAL DOCUMENT
     # ─────────────────────────────────────────
-
-    scenario_type = data.get("scenarioType")
-    scenario      = data.get("scenario")
-    active        = data.get("active")
-
-    # ✅ Object Analytics → ONLY active = 1
-    is_object_event = (
-        scenario_type == "ObjectInArea" and active == "1"
-    )
-
-    # ✅ Occupancy → always valid
-    is_occupancy = scenario == "OccupancyCount"
-
-    # ✅ Motion / Tampering (no active field)
-    is_other_event = active is None and scenario_type is None
-
-    # 🚀 FINAL FILTER
-    if not (is_object_event or is_occupancy or is_other_event):
-        return
-
-    # ─────────────────────────────────────────
-    # 🔥 FINAL DOCUMENT
-    # ─────────────────────────────────────────
-
     document = {
         "received_at": datetime.now(IST).strftime("%Y-%m-%dT%H:%M:%S+05:30"),
 
@@ -135,21 +121,24 @@ def on_message(client, userdata, msg):
         "topic_event": topic_parts["topic_event"],
 
         "timestamp": payload.get("timestamp"),
+
+        # ✅ FIXED (NOW WILL NOT BE NULL)
+        "ip": topic_ip,
+
         "serial": payload.get("serial"),
 
-        # ✅ MAIN FIELDS (FIXED)
         "time": data.get("triggerTime"),
         "scenario": event_name,
         "type": event_type,
+
         "human": data.get("human"),
         "total": data.get("total"),
         "class": data.get("classTypes"),
         "object_id": data.get("objectId"),
 
-        # ✅ IMPORTANT
+        "active": data.get("active"),
         "status": "Active",
 
-        # ── Raw message (for debugging) ──
         "message": {
             "source": payload.get("message", {}).get("source", {}),
             "key": payload.get("message", {}).get("key", {}),
@@ -158,7 +147,7 @@ def on_message(client, userdata, msg):
     }
 
     result = collection.insert_one(document)
-    print(f"[SAVED] {result.inserted_id} | {event_type}")
+    print(f"[SAVED] {result.inserted_id} | type={event_type} | scenario={event_name}")
 
 
 # ── Run Client ─────────────────────────────────────────────────────

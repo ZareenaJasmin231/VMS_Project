@@ -18,6 +18,10 @@ import urllib.parse
 from fastapi import UploadFile, File
 from fastapi.responses import StreamingResponse
 from jwt_auth import create_token, verify_token, require_admin
+from fastapi.responses import FileResponse
+from datetime import timedelta
+from encrypt_service import decrypt_file
+import os, tempfile, subprocess
 from fastapi import Depends
 import tempfile
 from ome_service import register_stream
@@ -49,17 +53,39 @@ connected_clients = []
 
 
 async def watch_mongo_changes():
-    print("[WS] 👀 Watching MongoDB for alerts...")
+    print("[WS] 👀 Polling MongoDB for alerts...")
 
-    with watch_collection.watch() as stream:
-        for change in stream:
-            if change["operationType"] == "insert":
-                doc = change["fullDocument"]
+    last_id = None
 
-                print("[WS] 🚨 New alert from Mongo")
+    while True:
+        try:
+            query = {}
 
-                await broadcast_event(doc)
-# ------------------------------------------------------------------
+            if last_id:
+                query["_id"] = {"$gt": last_id}
+
+            docs = list(watch_collection.find(query).sort("_id", 1))
+
+            for doc in docs:
+                last_id = doc["_id"]
+
+                print("[WS] 🚨 New alert (polling)")
+
+                await broadcast_event({
+                    "ip": doc.get("ip"),
+                    "serial": doc.get("serial"),
+                    "time": doc.get("time"),
+                    "scenario": doc.get("scenario"),
+                    "type": doc.get("type"),
+                    "status": doc.get("status", "Active"),
+                    "received_at": doc.get("received_at"),
+                })
+
+        except Exception as e:
+            print("[WS ERROR]", e)
+
+        await asyncio.sleep(1) 
+         # check every 1 second# ------------------------------------------------------------------
 # App creation — MUST come before any .include_router() calls
 # ------------------------------------------------------------------
 app = FastAPI(title="MIRADOR ONVIF Backend")
@@ -393,20 +419,123 @@ async def webrtc_proxy(stream_key: str, request: Request):
     except Exception as e:
         print(f"[WHIP] ❌ Proxy error for {stream_key}: {e}")
         raise HTTPException(status_code=502, detail=str(e))
+@app.get("/api/event-playback")
+def event_playback(ip: str, time: str):
+    try:
+        print("\n========== PLAYBACK DEBUG ==========")
+        print("RAW TIME:", time)
+        print("IP:", ip)
 
+        # 🔥 FIX TIME FORMAT
+        if " " in time:
+            time = time.replace(" ", "+")
+
+        if "+" in time and len(time.split("+")[-1]) == 4:
+            time = time[:-2] + ":" + time[-2:]
+
+        print("FIXED TIME:", time)
+
+        # ✅ PARSE TIME
+        alert_time = datetime.fromisoformat(time)
+
+        # 📁 FOLDER PATH
+        folder = f"D:/REC/{ip}/{alert_time.date()}"
+        print("FOLDER:", folder)
+
+        if not os.path.exists(folder):
+            print("❌ Folder not found")
+            return {"error": "Recording folder not found"}
+
+        all_files = os.listdir(folder)
+        print("FILES IN FOLDER:", all_files)
+
+        # =========================================================
+        # 🔥 STEP 1: FIND CORRECT 5-MIN VIDEO CHUNK
+        # =========================================================
+        target_file = None
+        file_start = None
+
+        for f in sorted(all_files):
+            if f.endswith(".enc"):
+                try:
+                    file_time = datetime.strptime(f.replace(".enc", ""), "%H-%M-%S")
+                    full_time = datetime.combine(alert_time.date(), file_time.time())
+
+                    file_start_time = full_time
+                    file_end_time = full_time + timedelta(minutes=5)
+
+                    if file_start_time <= alert_time <= file_end_time:
+                        target_file = os.path.join(folder, f)
+                        file_start = file_start_time
+                        break
+
+                except Exception as e:
+                    print("❌ FILE PARSE ERROR:", f, e)
+
+        if not target_file:
+            print("❌ No matching chunk found")
+            return {"error": "No matching video chunk"}
+
+        print("🎯 SELECTED FILE:", target_file)
+
+        # =========================================================
+        # 🔐 STEP 2: DECRYPT SINGLE FILE
+        # =========================================================
+        temp_mp4 = tempfile.mktemp(suffix=".mp4")
+
+        ok = decrypt_file(target_file, temp_mp4)
+        if not ok:
+            return {"error": "Decryption failed"}
+
+        print("🔓 DECRYPTED FILE:", temp_mp4)
+
+        # =========================================================
+        # 🎬 STEP 3: CUT 20 SECONDS (10 BEFORE + 10 AFTER)
+        # =========================================================
+        start_offset = (alert_time - file_start).total_seconds() - 10
+
+        if start_offset < 0:
+            start_offset = 0
+
+        output = tempfile.mktemp(suffix=".mp4")
+
+        result = subprocess.run(
+            [
+                "ffmpeg",
+                "-ss", str(start_offset),
+                "-i", temp_mp4,
+                "-t", "20",
+                "-c", "copy",
+                output
+            ],
+            capture_output=True,
+            text=True
+        )
+
+        if result.returncode != 0:
+            print("❌ FFMPEG ERROR:", result.stderr)
+            return {"error": "FFmpeg trim failed"}
+
+        print("✅ FINAL CLIP READY:", output)
+
+        return FileResponse(output, media_type="video/mp4")
+
+    except Exception as e:
+        print("❌ PLAYBACK ERROR:", str(e))
+        return {"error": str(e)}
+    
 @app.websocket("/ws/events")
 async def websocket_events(websocket: WebSocket):
     try:
         print("🔥 WS HIT")
 
         await websocket.accept()
-
         connected_clients.append(websocket)
 
         print(f"✅ WS Connected | Total: {len(connected_clients)}")
 
         while True:
-            await websocket.receive_text()
+            await asyncio.sleep(10)   # ✅ KEEP CONNECTION ALIVE
 
     except WebSocketDisconnect:
         print("❌ WS Disconnected")
