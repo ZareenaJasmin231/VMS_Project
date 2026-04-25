@@ -20,7 +20,7 @@ from fastapi.responses import StreamingResponse
 from jwt_auth import create_token, verify_token, require_admin
 from fastapi.responses import FileResponse
 from datetime import timedelta
-from encrypt_service import decrypt_file
+# from encrypt_service import decrypt_file
 import os, tempfile, subprocess
 from fastapi import Depends
 import tempfile
@@ -419,75 +419,75 @@ async def webrtc_proxy(stream_key: str, request: Request):
     except Exception as e:
         print(f"[WHIP] ❌ Proxy error for {stream_key}: {e}")
         raise HTTPException(status_code=502, detail=str(e))
-@app.get("/api/event-playback")
-def event_playback(ip: str, time: str):
-    try:
-        print("\n========== PLAYBACK DEBUG ==========")
-        print("RAW TIME:", time)
-        print("IP:", ip)
+# @app.get("/api/event-playback")
+# def event_playback(ip: str, time: str):
+#     try:
+#         print("\n========== PLAYBACK DEBUG ==========")
+#         print("RAW TIME:", time)
+#         print("IP:", ip)
 
-        # 🔥 FIX TIME FORMAT
-        if " " in time:
-            time = time.replace(" ", "+")
+#         # 🔥 FIX TIME FORMAT
+#         if " " in time:
+#             time = time.replace(" ", "+")
 
-        if "+" in time and len(time.split("+")[-1]) == 4:
-            time = time[:-2] + ":" + time[-2:]
+#         if "+" in time and len(time.split("+")[-1]) == 4:
+#             time = time[:-2] + ":" + time[-2:]
 
-        print("FIXED TIME:", time)
+#         print("FIXED TIME:", time)
 
-        # ✅ PARSE TIME
-        alert_time = datetime.fromisoformat(time)
+#         # ✅ PARSE TIME
+#         alert_time = datetime.fromisoformat(time)
 
-        # 📁 FOLDER PATH
-        folder = f"D:/REC/{ip}/{alert_time.date()}"
-        print("FOLDER:", folder)
+#         # 📁 FOLDER PATH
+#         folder = f"D:/REC/{ip}/{alert_time.date()}"
+#         print("FOLDER:", folder)
 
-        if not os.path.exists(folder):
-            print("❌ Folder not found")
-            return {"error": "Recording folder not found"}
+#         if not os.path.exists(folder):
+#             print("❌ Folder not found")
+#             return {"error": "Recording folder not found"}
 
-        all_files = os.listdir(folder)
-        print("FILES IN FOLDER:", all_files)
+#         all_files = os.listdir(folder)
+#         print("FILES IN FOLDER:", all_files)
 
-        # =========================================================
-        # 🔥 STEP 1: FIND CORRECT 5-MIN VIDEO CHUNK
-        # =========================================================
-        target_file = None
-        file_start = None
+#         # =========================================================
+#         # 🔥 STEP 1: FIND CORRECT 5-MIN VIDEO CHUNK
+#         # =========================================================
+#         target_file = None
+#         file_start = None
 
-        for f in sorted(all_files):
-            if f.endswith(".enc"):
-                try:
-                    file_time = datetime.strptime(f.replace(".enc", ""), "%H-%M-%S")
-                    full_time = datetime.combine(alert_time.date(), file_time.time())
+#         for f in sorted(all_files):
+#             if f.endswith(".enc"):
+#                 try:
+#                     file_time = datetime.strptime(f.replace(".enc", ""), "%H-%M-%S")
+#                     full_time = datetime.combine(alert_time.date(), file_time.time())
 
-                    file_start_time = full_time
-                    file_end_time = full_time + timedelta(minutes=5)
+#                     file_start_time = full_time
+#                     file_end_time = full_time + timedelta(minutes=5)
 
-                    if file_start_time <= alert_time <= file_end_time:
-                        target_file = os.path.join(folder, f)
-                        file_start = file_start_time
-                        break
+#                     if file_start_time <= alert_time <= file_end_time:
+#                         target_file = os.path.join(folder, f)
+#                         file_start = file_start_time
+#                         break
 
-                except Exception as e:
-                    print("❌ FILE PARSE ERROR:", f, e)
+#                 except Exception as e:
+#                     print("❌ FILE PARSE ERROR:", f, e)
 
-        if not target_file:
-            print("❌ No matching chunk found")
-            return {"error": "No matching video chunk"}
+#         if not target_file:
+#             print("❌ No matching chunk found")
+#             return {"error": "No matching video chunk"}
 
-        print("🎯 SELECTED FILE:", target_file)
+#         print("🎯 SELECTED FILE:", target_file)
 
-        # =========================================================
-        # 🔐 STEP 2: DECRYPT SINGLE FILE
-        # =========================================================
-        temp_mp4 = tempfile.mktemp(suffix=".mp4")
+#         # =========================================================
+#         # 🔐 STEP 2: DECRYPT SINGLE FILE
+#         # =========================================================
+#         temp_mp4 = tempfile.mktemp(suffix=".mp4")
 
-        ok = decrypt_file(target_file, temp_mp4)
-        if not ok:
-            return {"error": "Decryption failed"}
+#         ok = decrypt_file(target_file, temp_mp4)
+#         if not ok:
+#             return {"error": "Decryption failed"}
 
-        print("🔓 DECRYPTED FILE:", temp_mp4)
+#         print("🔓 DECRYPTED FILE:", temp_mp4)
 
         # =========================================================
         # 🎬 STEP 3: CUT 20 SECONDS (10 BEFORE + 10 AFTER)
