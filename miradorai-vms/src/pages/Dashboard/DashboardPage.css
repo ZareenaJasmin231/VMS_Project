@@ -229,3 +229,151 @@
 .storage-path.critical {
   color: #ef4444;
 }
+.health-section {
+  margin-top: 20px;
+}
+
+.health-card {
+  margin-bottom: 15px;
+}
+
+.bar {
+  width: 100%;
+  height: 8px;
+  background: #222;
+  border-radius: 5px;
+  overflow: hidden;
+}
+
+.bar div {
+  height: 100%;
+  background: #4cafef;
+}
+.health-section {
+  margin-top: 20px;
+  padding: 12px;
+  border-radius: 10px;
+  background: radial-gradient(circle at center, rgba(0,255,200,0.08), transparent);
+  border: 1px solid rgba(0,255,200,0.2);
+}
+.health-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-top: 10px;
+}
+
+.health-box {
+  padding: 14px;
+  border-radius: 10px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+}
+
+.health-box p {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.health-box h2 {
+  margin: 6px 0;
+}
+
+.good { color: #22c55e; }
+.warn { color: #f59e0b; }
+.bad  { color: #ef4444; }
+.status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.status-dot.online {
+  background: #22c55e;
+  box-shadow: 0 0 6px rgba(34, 197, 94, 0.7);
+}
+
+.status-dot.offline {
+  background: #ef4444;
+  box-shadow: 0 0 6px rgba(239, 68, 68, 0.7);
+}
+
+.mini-cam-info {
+  display: flex;
+  flex-direction: column;
+}
+.icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.icon svg {
+  stroke-width: 2;
+}
+.stream-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.stream-card {
+  padding: 12px;
+  border-radius: 10px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-light);
+}
+
+.stream-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.stream-name {
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.stream-status {
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 6px;
+}
+
+.stream-status.good {
+  background: rgba(34, 197, 94, 0.1);
+  color: #22c55e;
+}
+
+.stream-status.bad {
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+}
+
+.stream-metrics {
+  display: flex;
+  justify-content: space-between;
+}
+
+.label {
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.stream-metrics h4 {
+  margin: 2px 0 0;
+}
+.status-dot.warning {
+  background: #f59e0b;
+  box-shadow: 0 0 6px rgba(245, 158, 11, 0.7);
+}
+
+.stream-status.warning {
+  background: rgba(245, 158, 11, 0.1);
+  color: #f59e0b;
+}

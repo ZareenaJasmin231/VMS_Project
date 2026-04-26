@@ -12,3 +12,4 @@ httpx
 paho-mqtt>=2.0.0         # MQTT client for metadata publishing
 python-jose[cryptography]>=3.3.0  # JWT for WebSocket auth
 PyJWT
+psutil>=5.9.0

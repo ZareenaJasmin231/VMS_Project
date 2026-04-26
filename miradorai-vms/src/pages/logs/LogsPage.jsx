@@ -36,6 +36,16 @@ export default function LogsPage() {
     fetchLogs();
   }, [activeTab]);
 
+  useEffect(() => {
+    const ws = new WebSocket("ws://192.168.126.200:8000/ws/logs");
+    ws.onmessage = (event) => {
+      const newLog = JSON.parse(event.data);
+      // 🔥 Add new log on top
+      setLogs(prev => [newLog, ...prev]);
+    };
+    return () => ws.close();
+  }, []);
+
   return (
     <div className="logs-page page-shell slide-in">
       <div className="logs-header">
