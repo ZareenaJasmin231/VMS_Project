@@ -6,6 +6,7 @@ import { CAMERA_FEATURES_CONFIG } from "../../data/navConfig";
 import "./CamerasPage.css";
 import MaskingPage from "./MaskingPage";
 import { useNavigate } from "react-router-dom";
+import useActivityLogger from "../../hooks/useActivityLogger";
 
 function loadDevices() {
   try {
@@ -34,6 +35,7 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
   const [authForm, setAuthForm]       = useState({ username: "", password: "" });
   const [activePage, setActivePage]   = useState(null);
   const navigate = useNavigate();
+  const { logAction } = useActivityLogger();
 
   const filtered = cameras.filter((c) =>
     !filter ||
@@ -66,6 +68,13 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
     setCameras(updated);
     saveDevices(updated);
     callCameraAction(cam, willBeEnabled ? "enable" : "disable");
+
+    // 🔥 Activity log
+    logAction(
+      willBeEnabled ? "Camera enabled" : "Camera disabled",
+      "camera",
+      { ip: cam.ip }
+    );
   };
 
   const openEdit = (c) => {
@@ -118,31 +127,35 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
   };
 
   const confirmRemove = async () => {
-  if (!removeModal) return;
+    if (!removeModal) return;
 
-  try {
-    const ip = encodeURIComponent(removeModal.ip);
+    try {
+      const ip = encodeURIComponent(removeModal.ip);
 
-    const res = await fetch(
-      `${API_BASE}/api/cameras/by-ip/${ip}/delete`,
-      { method: "DELETE" }
-    );
+      const res = await fetch(
+        `${API_BASE}/api/cameras/by-ip/${ip}/delete`,
+        { method: "DELETE" }
+      );
 
-    const data = await res.json();
-    console.log("✅ Deleted from DB:", data);
+      const data = await res.json();
+      console.log("✅ Deleted from DB:", data);
 
-  } catch (err) {
-    console.error("❌ Delete failed:", err);
-  }
+      // 🔥 Activity log
+      logAction("Camera deleted", "camera", { ip: removeModal.ip });
 
-  // ✅ Update UI AFTER backend success
-  const updated = cameras.filter((c) => String(c.id) !== String(removeModal.id));
-  setCameras(updated);
-  saveDevices(updated);
+    } catch (err) {
+      console.error("❌ Delete failed:", err);
+    }
 
-  setSelected(null);
-  setRemoveModal(null);
-};
+    // ✅ Update UI AFTER backend success
+    const updated = cameras.filter((c) => String(c.id) !== String(removeModal.id));
+    setCameras(updated);
+    saveDevices(updated);
+
+    setSelected(null);
+    setRemoveModal(null);
+  };
+
   const selectedCam = cameras.find((c) => String(c.id) === String(selected));
 
   /* ── If an inline page is active, render it full-screen ── */
@@ -558,15 +571,13 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
           confirmLabel="Remove"
           confirmVariant="danger"
         >
-<p className="m-confirm-text">
-  Are you sure you want to remove{" "}
-  <strong style={{ color: "var(--text-primary)" }}>
-    {removeModal.name || "this camera"}
-  </strong>
-  {" "}from MIRADORAI VMS?
-</p>
-
-
+          <p className="m-confirm-text">
+            Are you sure you want to remove{" "}
+            <strong style={{ color: "var(--text-primary)" }}>
+              {removeModal.name || "this camera"}
+            </strong>
+            {" "}from MIRADORAI VMS?
+          </p>
         </Modal>
       )}
 

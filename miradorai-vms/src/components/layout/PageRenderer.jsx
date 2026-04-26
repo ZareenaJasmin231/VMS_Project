@@ -1,40 +1,41 @@
-import AddDevicesPage          from "../../pages/devices/AddDevicesPage";
-import CamerasPage             from "../../pages/devices/CamerasPage";
-import OtherDevicesPage        from "../../pages/devices/OtherDevicesPage";
-import StreamProfilesPage      from "../../pages/devices/StreamProfilesPage";
-import ImageConfigPage         from "../../pages/devices/ImageConfigPage";
-import PTZPresetsPage          from "../../pages/devices/PTZPresetsPage";
-import ManagementPage          from "../../pages/devices/ManagementPage";
-import ExternalDataPage        from "../../pages/devices/ExternalDataPage";
-import TimeSyncPage            from "../../pages/devices/TimeSyncPage";
-import CameraFeaturesPage      from "../../pages/devices/CameraFeaturesPage";
+import AddDevicesPage from "../../pages/devices/AddDevicesPage";
+import CamerasPage from "../../pages/devices/CamerasPage";
+import OtherDevicesPage from "../../pages/devices/OtherDevicesPage";
+import StreamProfilesPage from "../../pages/devices/StreamProfilesPage";
+import ImageConfigPage from "../../pages/devices/ImageConfigPage";
+import PTZPresetsPage from "../../pages/devices/PTZPresetsPage";
+import ManagementPage from "../../pages/devices/ManagementPage";
+import ExternalDataPage from "../../pages/devices/ExternalDataPage";
+import TimeSyncPage from "../../pages/devices/TimeSyncPage";
+import CameraFeaturesPage from "../../pages/devices/CameraFeaturesPage";
 
-import StorageMgmtPage         from "../../pages/storage/StorageManagementPage";
-import StorageSelPage          from "../../pages/storage/StorageSelectionPage";
+import StorageMgmtPage from "../../pages/storage/StorageManagementPage";
+import StorageSelPage from "../../pages/storage/StorageSelectionPage";
 
-import RecordingPage           from "../../pages/recording/RecordingPage";
-import EventsPage              from "../../pages/recording/EventsPage";
-import TriggersPage            from "../../pages/recording/TriggersPage";
-import Schedules               from "../../pages/recording/Schedules";
-import RecordingMethodPage     from "../../pages/recording/Recordingmethodpage";
-import IOPortsPage             from "../../pages/recording/IOPortsPage";
-import ActionRulesPage         from "../../pages/recording/Actionrulespage";
+import RecordingPage from "../../pages/recording/RecordingPage";
+import EventsPage from "../../pages/recording/EventsPage";
+import TriggersPage from "../../pages/recording/TriggersPage";
+import Schedules from "../../pages/recording/Schedules";
+import RecordingMethodPage from "../../pages/recording/Recordingmethodpage";
+import IOPortsPage from "../../pages/recording/IOPortsPage";
+import ActionRulesPage from "../../pages/recording/Actionrulespage";
 
-import ClientSettingsPage      from "../../pages/client/ClientSettingsPage";
-import UserSettingsPage        from "../../pages/client/Usersettingspage";
-import StreamingPage           from "../../pages/client/StreamingPage";
-import AboutPage               from "../../pages/client/AboutPage";
+import ClientSettingsPage from "../../pages/client/ClientSettingsPage";
+import UserSettingsPage from "../../pages/client/Usersettingspage";
+import StreamingPage from "../../pages/client/StreamingPage";
+import AboutPage from "../../pages/client/AboutPage";
 
-import FirmwareUpgradePage     from "../../pages/connectedservices/Firmwareupgradepage";
+import FirmwareUpgradePage from "../../pages/connectedservices/Firmwareupgradepage";
 import SmartSearchSettingsPage from "../../pages/smartsearcxh/Smartsearchsettingspage";
 
-import LiveViewPage            from "../../pages/liveview/LiveViewPage";
+import LiveViewPage from "../../pages/liveview/LiveViewPage";
 
-import MediaPlayerPage         from "../../pages/admin/MediaPlayerPage";
-import BackupPage              from "../../pages/admin/BackupPage";
+import MediaPlayerPage from "../../pages/admin/MediaPlayerPage";
+import BackupPage from "../../pages/admin/BackupPage";
+import LogsPage from "../../pages/logs/LogsPage";
 
 // ✅ IMPORTANT PAGES
-import DashboardPage           from "../../pages/Dashboard/DashboardPage";
+import DashboardPage from "../../pages/Dashboard/DashboardPage";
 
 
 
@@ -48,38 +49,38 @@ const MAP = {
   // ✅ ANALYTICS (NEW)
 
   // ================= DEVICES =================
-  "add-devices":     AddDevicesPage,
-  "cameras":         CamerasPage,
-  "other-devices":   OtherDevicesPage,
+  "add-devices": AddDevicesPage,
+  "cameras": CamerasPage,
+  "other-devices": OtherDevicesPage,
   "stream-profiles": StreamProfilesPage,
-  "image-config":    ImageConfigPage,
-  "ptz-presets":     PTZPresetsPage,
-  "device-mgmt":     ManagementPage,
-  "ext-data":        ExternalDataPage,
-  "time-sync":       TimeSyncPage,
+  "image-config": ImageConfigPage,
+  "ptz-presets": PTZPresetsPage,
+  "device-mgmt": ManagementPage,
+  "ext-data": ExternalDataPage,
+  "time-sync": TimeSyncPage,
   "camera-features": CameraFeaturesPage,
 
   // ================= STORAGE =================
-  "storage-mgmt":      StorageMgmtPage,
+  "storage-mgmt": StorageMgmtPage,
   "storage-selection": StorageSelPage,
 
   // ================= RECORDING =================
-  "recording":     RecordingPage,
-  "events":        EventsPage,
-  "triggers":      TriggersPage,
-  "schedules":     Schedules,
-  "rec-method":    RecordingMethodPage,
-  "io-ports":      IOPortsPage,
-  "action-rules":  ActionRulesPage,
+  "recording": RecordingPage,
+  "events": EventsPage,
+  "triggers": TriggersPage,
+  "schedules": Schedules,
+  "rec-method": RecordingMethodPage,
+  "io-ports": IOPortsPage,
+  "action-rules": ActionRulesPage,
 
   // ================= CLIENT =================
   "client-settings": ClientSettingsPage,
-  "user-settings":   UserSettingsPage,
-  "streaming":       StreamingPage,
-  "about":           AboutPage,
+  "user-settings": UserSettingsPage,
+  "streaming": StreamingPage,
+  "about": AboutPage,
 
   // ================= SERVICES =================
-  "firmware-upgrade":     FirmwareUpgradePage,
+  "firmware-upgrade": FirmwareUpgradePage,
   "smartsearch-settings": SmartSearchSettingsPage,
 
   // ================= LIVE =================
@@ -87,7 +88,8 @@ const MAP = {
 
   // ================= ADMIN =================
   "media-player": MediaPlayerPage,
-  "backup":       BackupPage,
+  "backup": BackupPage,
+  "logs": LogsPage,
 
 };
 

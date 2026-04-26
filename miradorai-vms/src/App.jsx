@@ -7,13 +7,15 @@ import PageRenderer from "./components/layout/PageRenderer";
 import SplashScreen from "./components/layout/SplashScreen";
 import AlarmsPanel from "./components/layout/AlarmsPanel";
 import LoginPage from "./pages/auth/LoginPage";
+import useActivityLogger from "./hooks/useActivityLogger"; // ✅ FIXED
 import "./styles/global.css";
 
 function AppContent() {
   const { isAuthenticated, isLoading, userRole } = useAuth();
   const location = useLocation();
 
-  // Derive activePage from URL: "/live-view" → "live-view"
+  useActivityLogger(); // ✅ correct
+
   const activePage = location.pathname.replace("/", "") || "dashboard";
 
   const [showSplash, setShowSplash] = useState(true);

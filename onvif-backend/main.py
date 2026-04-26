@@ -41,6 +41,7 @@ from recording_api import recording_router, storage_router
 from stream_health import start_health_monitoring
 from masks_router import router as masks_router
 from backup_service import backup_router  # ← moved here, before app is created
+from logs_router import router as logs_router
 from brand_control import brand_router
 from license.license_store import load_license
 from license.license_validator import validate_license
@@ -111,6 +112,7 @@ app.include_router(masks_router)
 app.include_router(backup_router)
 app.include_router(brand_router)
 app.include_router(camera_analytics_router)
+app.include_router(logs_router)
 
 
 

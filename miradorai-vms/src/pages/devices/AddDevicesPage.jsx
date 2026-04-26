@@ -7,6 +7,7 @@ import ManualSearchModal from "./ManualSearchModal";
 import StreamURLModal from "./StreamURLModal";
 import DiscoveryModal from "../../components/shared/DiscoveryModal";
 import "./AddDevicesPage.css";
+import useActivityLogger from "../../hooks/useActivityLogger";
 
 const STREAM_API = "http://192.168.126.200:8000";
 
@@ -185,6 +186,7 @@ export default function AddDevicesPage({ onNavigate }) {
   const [devices, setDevices]                   = usePersistedDevices();
   const [ctxMenu, setCtxMenu]                   = useState(null);
   const [editDevice, setEditDevice]             = useState(null);
+  const { logAction }                           = useActivityLogger();
 
   const filtered    = devices.filter((d) =>
     (d.name || "").toLowerCase().includes(filter.toLowerCase()) ||
@@ -260,7 +262,6 @@ export default function AddDevicesPage({ onNavigate }) {
         const device = {
           id:              d.id || `device-${d.ip}-${Date.now()}`,
           type:            "entrance",
-          // ✅ FIX 5: Use cameraName if set on discovery device, then fallbacks
           name:            d.cameraName || d.name || `${d.manufacturer || ""} ${d.model || ""}`.trim() || `Camera @ ${d.ip}`,
           ip:              d.ip,
           mac:             d.mac           || "—",
@@ -284,6 +285,11 @@ export default function AddDevicesPage({ onNavigate }) {
           next.push(device);
           console.log(`[AddDevices] Added: ${d.ip} ws_url=${d.ws_url || "none"}`);
         }
+         // 🔥 ADD THIS
+  logAction("Camera added", "camera", {
+    ip: d.ip,
+    source: "discovery"
+  });
       }
 
       return next;
@@ -313,7 +319,6 @@ export default function AddDevicesPage({ onNavigate }) {
     setChecked([]);
   }, [checked, devices, setDevices]);
 
-  // ✅ FIX 4: handleEnroll uses device.cameraName as top priority for name
   const handleEnroll = async (device) => {
     setEnrolling(true);
     setEnrollMsg("Registering stream with OME…");
@@ -321,7 +326,6 @@ export default function AddDevicesPage({ onNavigate }) {
 
     const { ip, user, pass, discovered, cameraName } = device;
 
-    // Build enriched name from discovered data as fallback
     const enrichedName = discovered?.model
       ? `${discovered.manufacturer} ${discovered.model}`
       : null;
@@ -338,7 +342,6 @@ export default function AddDevicesPage({ onNavigate }) {
       const updated = {
         id:              String(Date.now()),
         type:            "entrance",
-        // ✅ FIX 4: cameraName wins, then enrichedName, then fallback
         name:            cameraName || enrichedName || `Camera @ ${ip}`,
         ip,
         mac:             discovered?.mac           || probeData?.mac           || "—",
@@ -365,16 +368,17 @@ export default function AddDevicesPage({ onNavigate }) {
       return [...prev, updated];
     });
 
+    // 🔥 Activity log — camera added via manual enroll
+    logAction("Camera added", "camera", { ip });
+
     setEnrolling(false);
     setEnrollMsg("");
   };
 
-  // ✅ FIX 2: handleAddStreamURLs now receives { urls, cameraName } object
   const handleAddStreamURLs = async (payload) => {
     setShowStreamURL(false);
     setEnrolling(true);
 
-    // Support both old array format and new { urls, cameraName } format
     const urls       = Array.isArray(payload) ? payload : payload.urls;
     const cameraName = Array.isArray(payload) ? "" : (payload.cameraName || "");
 
@@ -385,8 +389,6 @@ export default function AddDevicesPage({ onNavigate }) {
       let ip = "—";
       try { ip = new URL(url).hostname; } catch {}
 
-      // ✅ FIX 2: Use cameraName, fall back to "Stream @ IP"
-      // For multiple URLs, append index to name so each gets a unique label
       const streamName = cameraName
         ? (urls.length > 1 ? `${cameraName} (${i + 1})` : cameraName)
         : `Stream @ ${ip}`;
@@ -424,6 +426,10 @@ export default function AddDevicesPage({ onNavigate }) {
           }
           return [...prev, entry];
         });
+
+        // 🔥 Activity log — camera added via stream URL
+        logAction("Camera added", "camera", { ip, source: "stream_url" });
+
       } catch {
         setDevices((prev) => {
           const existingIndex = prev.findIndex((item) => item.ip === ip);

@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useAuth } from "../../context/AuthContext";
 import "./LoginPage.css";
+import useActivityLogger from "../../hooks/useActivityLogger";
 
 const LoginPage = () => {
   const { login, signup, forgotPassword, resetPassword, oauthLogin, accounts } = useAuth();
@@ -8,6 +9,7 @@ const LoginPage = () => {
   const [role, setRole] = useState("client");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const { logAction } = useActivityLogger();
 
   // Sign In Form
   const [signInEmail, setSignInEmail] = useState("");
@@ -41,13 +43,16 @@ const LoginPage = () => {
 
     await new Promise((resolve) => setTimeout(resolve, 500));
 
-    const result =await login(signInEmail, signInPassword, role);
+    const result = await login(signInEmail, signInPassword, role);
 
     if (!result.success) {
       setSignInError(result.error);
       setIsLoading(false);
       return;
     }
+
+    // 🔥 Activity log — user logged in
+    logAction("User logged in", "auth", { email: signInEmail });
 
     setIsLoading(false);
   };
@@ -86,6 +91,9 @@ const LoginPage = () => {
     if (selectedExisting && selectedExisting.role && selectedExisting.role !== role) {
       setRole(selectedExisting.role);
     }
+
+    // 🔥 Activity log — Google OAuth login
+    logAction("User logged in", "auth", { email: googleAccount, method: "google" });
 
     setOauthMessage(result.message || "Logged in with Google successfully");
     setIsLoading(false);
@@ -586,5 +594,3 @@ const LoginPage = () => {
 };
 
 export default LoginPage;
-
-
