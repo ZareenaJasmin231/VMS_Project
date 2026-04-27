@@ -20,20 +20,18 @@ function saveDevices(devices) {
 }
 
 const API_BASE = "http://192.168.126.200:8000";
-// Pages that render inline inside CamerasPage instead of navigating away.
-// Add more page keys here as needed (e.g. "camera-features").
 const INLINE_PAGES = ["masking"];
 
 export default function CamerasPage({ onNavigate, onCameraSelect }) {
-  const [cameras, setCameras]         = useState(loadDevices);
-  const [filter, setFilter]           = useState("");
-  const [selected, setSelected]       = useState(null);
-  const [editModal, setEditModal]     = useState(null);
-  const [removeModal, setRemoveModal] = useState(null);
-  const [editForm, setEditForm]       = useState({});
-  const [authModal, setAuthModal]     = useState(null);
-  const [authForm, setAuthForm]       = useState({ username: "", password: "" });
-  const [activePage, setActivePage]   = useState(null);
+  const [cameras, setCameras]       = useState(loadDevices);
+  const [filter, setFilter]         = useState("");
+  const [selected, setSelected]     = useState(null);
+  const [checked, setChecked]       = useState([]);
+  const [editModal, setEditModal]   = useState(null);
+  const [editForm, setEditForm]     = useState({});
+  const [authModal, setAuthModal]   = useState(null);
+  const [authForm, setAuthForm]     = useState({ username: "", password: "" });
+  const [activePage, setActivePage] = useState(null);
   const navigate = useNavigate();
   const { logAction } = useActivityLogger();
 
@@ -44,15 +42,17 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
     )
   );
 
+  const allChecked = filtered.length > 0 && filtered.every((c) => checked.includes(c.id));
+  const toggleAll  = () => setChecked(allChecked ? [] : filtered.map((c) => c.id));
+  const toggleOne  = (id) => setChecked((s) =>
+    s.includes(id) ? s.filter((x) => x !== id) : [...s, id]
+  );
+
   const callCameraAction = (cam, action) => {
-    if (!cam.ip) {
-      console.warn(`[CAMERA] No IP on camera object, cannot call action: ${action}`);
-      return;
-    }
+    if (!cam.ip) return;
     const ip     = encodeURIComponent(cam.ip);
     const url    = `${API_BASE}/api/cameras/by-ip/${ip}/${action}`;
     const method = action === "delete" ? "DELETE" : "POST";
-
     fetch(url, { method })
       .then((r) => r.json())
       .then((d) => console.log(`[CAMERA] ${action} OK for ${cam.ip}:`, d))
@@ -68,8 +68,6 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
     setCameras(updated);
     saveDevices(updated);
     callCameraAction(cam, willBeEnabled ? "enable" : "disable");
-
-    // 🔥 Activity log
     logAction(
       willBeEnabled ? "Camera enabled" : "Camera disabled",
       "camera",
@@ -126,39 +124,34 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
     setAuthModal(null);
   };
 
-  const confirmRemove = async () => {
-    if (!removeModal) return;
+  const handleRemove = async () => {
+    const idsToRemove = checked.length > 0 ? checked : selected ? [selected] : [];
+    if (idsToRemove.length === 0) return;
 
-    try {
-      const ip = encodeURIComponent(removeModal.ip);
+    const camsToRemove = cameras.filter((c) => idsToRemove.includes(c.id));
 
-      const res = await fetch(
-        `${API_BASE}/api/cameras/by-ip/${ip}/delete`,
-        { method: "DELETE" }
-      );
-
-      const data = await res.json();
-      console.log("✅ Deleted from DB:", data);
-
-      // 🔥 Activity log
-      logAction("Camera deleted", "camera", { ip: removeModal.ip });
-
-    } catch (err) {
-      console.error("❌ Delete failed:", err);
+    for (const cam of camsToRemove) {
+      try {
+        const ip  = encodeURIComponent(cam.ip);
+        const res = await fetch(`${API_BASE}/api/cameras/by-ip/${ip}/delete`, { method: "DELETE" });
+        const data = await res.json();
+        console.log("✅ Deleted from DB:", data);
+        logAction("Camera deleted", "camera", { ip: cam.ip });
+      } catch (err) {
+        console.error("❌ Delete failed:", err);
+      }
     }
 
-    // ✅ Update UI AFTER backend success
-    const updated = cameras.filter((c) => String(c.id) !== String(removeModal.id));
+    const updated = cameras.filter((c) => !idsToRemove.includes(c.id));
     setCameras(updated);
     saveDevices(updated);
-
+    setChecked([]);
     setSelected(null);
-    setRemoveModal(null);
   };
 
   const selectedCam = cameras.find((c) => String(c.id) === String(selected));
 
-  /* ── If an inline page is active, render it full-screen ── */
+  /* ── Inline masking page ── */
   if (activePage === "masking" && selectedCam) {
     return (
       <div className="page-shell">
@@ -180,6 +173,8 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
     );
   }
 
+  const removeCount = checked.length > 0 ? checked.length : selected ? 1 : 0;
+
   return (
     <div className="page-shell">
       {/* ── Header ── */}
@@ -194,7 +189,6 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
       </div>
 
       {/* ── Main layout: table + side panel ── */}
-      {/* FIX: "has-panel" class now has matching CSS rules to shrink table correctly */}
       <div className={`cameras-content-layout ${selectedCam ? "has-panel" : ""}`}>
 
         {/* ── Camera table ── */}
@@ -202,6 +196,14 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
           <table className="m-table">
             <thead>
               <tr>
+                <th style={{ width: 36 }}>
+                  <input
+                    type="checkbox"
+                    className="m-checkbox"
+                    checked={allChecked}
+                    onChange={toggleAll}
+                  />
+                </th>
                 <th style={{ width: 52 }}></th>
                 <th style={{ width: 72 }}>Active</th>
                 <th>Name</th>
@@ -216,7 +218,7 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
             <tbody>
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="m-table__empty">
+                  <td colSpan={10} className="m-table__empty">
                     {cameras.length === 0
                       ? "No cameras enrolled. Go to Add Devices to get started."
                       : "No cameras match your filter."}
@@ -225,13 +227,15 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
               ) : filtered.map((c) => {
                 const isSel     = String(selected) === String(c.id);
                 const isEnabled = c.enabled !== false;
+                const isChecked = checked.includes(c.id);
 
                 return (
                   <tr
                     key={c.id}
                     className={[
                       "m-table__row",
-                      isSel      ? "m-table__row--selected" : "",
+                      isSel      ? "m-table__row--selected"  : "",
+                      isChecked  ? "m-table__row--selected"  : "",
                       !isEnabled ? "m-table__row--disabled"  : "",
                     ].join(" ")}
                     onClick={() => {
@@ -242,6 +246,16 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
                     }}
                     onDoubleClick={() => openEdit(c)}
                   >
+                    {/* Checkbox */}
+                    <td onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        className="m-checkbox"
+                        checked={isChecked}
+                        onChange={() => toggleOne(c.id)}
+                      />
+                    </td>
+
                     {/* Thumbnail */}
                     <td>
                       <div className="cam-thumb-cell">
@@ -267,10 +281,7 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
 
                     {/* Toggle */}
                     <td onClick={(e) => e.stopPropagation()}>
-                      <label
-                        className="cam-toggle"
-                        title={isEnabled ? "Disable camera" : "Enable camera"}
-                      >
+                      <label className="cam-toggle" title={isEnabled ? "Disable camera" : "Enable camera"}>
                         <input
                           type="checkbox"
                           checked={isEnabled}
@@ -284,7 +295,6 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
 
                     <td className="m-table__primary">{c.name || "—"}</td>
 
-                    {/* IP — click to open auth dialog */}
                     <td>
                       {c.ip ? (
                         <span
@@ -311,37 +321,22 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
         {/* ── Right Side Panel ── */}
         {selectedCam && (
           <div className="card cam-side-panel">
-
-            {/* Header: icon + name + badge + toggle */}
             <div className="cam-side-panel__header">
-              <div
-                className={`cam-side-panel__icon ${
-                  selectedCam.enabled === false ? "cam-side-panel__icon--off" : ""
-                }`}
-              >
+              <div className={`cam-side-panel__icon ${selectedCam.enabled === false ? "cam-side-panel__icon--off" : ""}`}>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2">
                   <path d="M23 7l-7 5 7 5V7z"/>
                   <rect x="1" y="5" width="15" height="14" rx="2"/>
                 </svg>
               </div>
-
               <div className="cam-side-panel__info">
                 <div className="cam-side-panel__name-row">
                   <h3>{selectedCam.name || "Camera"}</h3>
-                  <span
-                    className={`cam-status-badge ${
-                      selectedCam.enabled !== false
-                        ? "cam-status-badge--active"
-                        : "cam-status-badge--disabled"
-                    }`}
-                  >
+                  <span className={`cam-status-badge ${selectedCam.enabled !== false ? "cam-status-badge--active" : "cam-status-badge--disabled"}`}>
                     <span className="cam-status-dot" />
                     {selectedCam.enabled !== false ? "Active" : "Disabled"}
                   </span>
                 </div>
-
                 <p>{selectedCam.ip || "No IP Address"}</p>
-
                 <div className="cam-side-panel__toggle-row">
                   <span className="cam-side-panel__toggle-label">
                     {selectedCam.enabled !== false ? "Camera is streaming" : "Camera is not streaming"}
@@ -360,12 +355,7 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
               </div>
             </div>
 
-            {/* Stream preview bar */}
-            <div
-              className={`cam-side-panel__stream ${
-                selectedCam.enabled === false ? "cam-side-panel__stream--off" : ""
-              }`}
-            >
+            <div className={`cam-side-panel__stream ${selectedCam.enabled === false ? "cam-side-panel__stream--off" : ""}`}>
               {selectedCam.enabled !== false ? (
                 <div className="cam-stream-live">
                   <span className="cam-stream-live-dot" />
@@ -373,10 +363,7 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
                 </div>
               ) : (
                 <div className="cam-stream-paused">
-                  <svg
-                    viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                    strokeWidth="1.2" width="24" height="24"
-                  >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" width="24" height="24">
                     <path d="M23 7l-7 5 7 5V7z"/>
                     <rect x="1" y="5" width="15" height="14" rx="2"/>
                     <line x1="2" y1="2" x2="22" y2="22" stroke="currentColor" strokeWidth="1.5"/>
@@ -387,22 +374,15 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
               )}
             </div>
 
-            {/* Feature buttons */}
-            {/* FIX: icons now render because CAMERA_FEATURES_CONFIG has icon fields */}
             <div className="cam-side-panel__features">
               {CAMERA_FEATURES_CONFIG.map((feature) => (
                 <button
                   key={feature.page}
-                  className={`cam-side-feature-btn ${
-                    selectedCam.enabled === false ? "cam-side-feature-btn--disabled" : ""
-                  }`}
+                  className={`cam-side-feature-btn ${selectedCam.enabled === false ? "cam-side-feature-btn--disabled" : ""}`}
                   disabled={selectedCam.enabled === false}
                   onClick={() => {
                     if (selectedCam.enabled === false) return;
-                    localStorage.setItem(
-                      "miradorai_selected_camera_id",
-                      String(selectedCam.id)
-                    );
+                    localStorage.setItem("miradorai_selected_camera_id", String(selectedCam.id));
                     if (INLINE_PAGES.includes(feature.page)) {
                       setActivePage(feature.page);
                     } else {
@@ -410,18 +390,9 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
                     }
                   }}
                 >
-                  {/* Icon — rendered from SVG string in config */}
-                  <span
-                    className="cam-side-feature-icon"
-                    dangerouslySetInnerHTML={{ __html: feature.icon }}
-                  />
+                  <span className="cam-side-feature-icon" dangerouslySetInnerHTML={{ __html: feature.icon }} />
                   <span className="cam-side-feature-label">{feature.label}</span>
-                  {/* Chevron arrow */}
-                  <svg
-                    className="cam-side-feature-arrow"
-                    viewBox="0 0 24 24" fill="none"
-                    stroke="currentColor" strokeWidth="2"
-                  >
+                  <svg className="cam-side-feature-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M9 18l6-6-6-6" />
                   </svg>
                 </button>
@@ -446,10 +417,10 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
             onClick={() => selectedCam && openEdit(selectedCam)}
           />
           <Button
-            label="Remove"
+            label={removeCount > 1 ? `Remove (${removeCount})` : "Remove"}
             variant="danger"
-            disabled={!selected}
-            onClick={() => selectedCam && setRemoveModal(selectedCam)}
+            disabled={removeCount === 0}
+            onClick={handleRemove}
           />
         </div>
       </div>
@@ -471,25 +442,18 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
                 <div className="ec-toggle-info">
                   <span className="ec-toggle-label">Enabled</span>
                   <span className="ec-toggle-sub">
-                    {editForm.enabled
-                      ? "Camera will stream and record"
-                      : "Camera will not stream or record"}
+                    {editForm.enabled ? "Camera will stream and record" : "Camera will not stream or record"}
                   </span>
                 </div>
                 <label className="cam-toggle cam-toggle--lg">
                   <input
                     type="checkbox"
                     checked={editForm.enabled}
-                    onChange={(e) =>
-                      setEditForm((f) => ({ ...f, enabled: e.target.checked }))
-                    }
+                    onChange={(e) => setEditForm((f) => ({ ...f, enabled: e.target.checked }))}
                   />
-                  <span className="cam-toggle-track">
-                    <span className="cam-toggle-thumb" />
-                  </span>
+                  <span className="cam-toggle-track"><span className="cam-toggle-thumb" /></span>
                 </label>
               </div>
-
               <div className="ec-field-row">
                 <label className="ec-field-label">Name:</label>
                 <input
@@ -504,9 +468,7 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
                   className="ec-textarea"
                   rows={3}
                   value={editForm.description}
-                  onChange={(e) =>
-                    setEditForm((f) => ({ ...f, description: e.target.value }))
-                  }
+                  onChange={(e) => setEditForm((f) => ({ ...f, description: e.target.value }))}
                 />
               </div>
               <div className="ec-field-row">
@@ -525,16 +487,13 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
                   onChange={(e) => setEditForm((f) => ({ ...f, port: e.target.value }))}
                 />
               </div>
-
               <div className="ec-section-title ec-section-title--spaced">Credentials</div>
               <div className="ec-field-row">
                 <label className="ec-field-label">Username:</label>
                 <input
                   className="ec-input"
                   value={editForm.username}
-                  onChange={(e) =>
-                    setEditForm((f) => ({ ...f, username: e.target.value }))
-                  }
+                  onChange={(e) => setEditForm((f) => ({ ...f, username: e.target.value }))}
                 />
               </div>
               <div className="ec-field-row">
@@ -543,9 +502,7 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
                   className="ec-input"
                   type="password"
                   value={editForm.password}
-                  onChange={(e) =>
-                    setEditForm((f) => ({ ...f, password: e.target.value }))
-                  }
+                  onChange={(e) => setEditForm((f) => ({ ...f, password: e.target.value }))}
                 />
               </div>
             </div>
@@ -553,32 +510,11 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
               <button className="ec-btn ec-btn--help">Help</button>
               <div className="ec-footer-right">
                 <button className="ec-btn ec-btn--primary" onClick={saveEdit}>OK</button>
-                <button className="ec-btn ec-btn--cancel" onClick={() => setEditModal(null)}>
-                  Cancel
-                </button>
+                <button className="ec-btn ec-btn--cancel" onClick={() => setEditModal(null)}>Cancel</button>
               </div>
             </div>
           </div>
         </div>
-      )}
-
-      {/* ── Remove Confirmation Modal ── */}
-      {removeModal && (
-        <Modal
-          title="Remove Camera"
-          onClose={() => setRemoveModal(null)}
-          onConfirm={confirmRemove}
-          confirmLabel="Remove"
-          confirmVariant="danger"
-        >
-          <p className="m-confirm-text">
-            Are you sure you want to remove{" "}
-            <strong style={{ color: "var(--text-primary)" }}>
-              {removeModal.name || "this camera"}
-            </strong>
-            {" "}from MIRADORAI VMS?
-          </p>
-        </Modal>
       )}
 
       {/* ── Authentication Required Modal ── */}
@@ -589,19 +525,12 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
               <span className="ec-title">Authentication Required</span>
               <div className="ec-titlebar-actions">
                 <button className="ec-title-btn" title="Help">?</button>
-                <button
-                  className="ec-title-btn"
-                  onClick={() => setAuthModal(null)}
-                  title="Close"
-                >
-                  ✕
-                </button>
+                <button className="ec-title-btn" onClick={() => setAuthModal(null)} title="Close">✕</button>
               </div>
             </div>
             <div className="ec-body">
               <p className="ec-auth-desc">
-                The device configuration tab of{" "}
-                <strong>'{authModal.name}'</strong> is requesting a username and password.
+                The device configuration tab of <strong>'{authModal.name}'</strong> is requesting a username and password.
               </p>
               <div className="ec-field-row">
                 <label className="ec-field-label">Username:</label>
@@ -609,9 +538,7 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
                   className="ec-input ec-input--highlight"
                   value={authForm.username}
                   autoFocus
-                  onChange={(e) =>
-                    setAuthForm((f) => ({ ...f, username: e.target.value }))
-                  }
+                  onChange={(e) => setAuthForm((f) => ({ ...f, username: e.target.value }))}
                   onKeyDown={(e) => e.key === "Enter" && confirmAuth()}
                 />
               </div>
@@ -621,9 +548,7 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
                   className="ec-input"
                   type="password"
                   value={authForm.password}
-                  onChange={(e) =>
-                    setAuthForm((f) => ({ ...f, password: e.target.value }))
-                  }
+                  onChange={(e) => setAuthForm((f) => ({ ...f, password: e.target.value }))}
                   onKeyDown={(e) => e.key === "Enter" && confirmAuth()}
                 />
               </div>
@@ -632,12 +557,7 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
               <button className="ec-btn ec-btn--help">Help</button>
               <div className="ec-footer-right">
                 <button className="ec-btn ec-btn--primary" onClick={confirmAuth}>OK</button>
-                <button
-                  className="ec-btn ec-btn--cancel"
-                  onClick={() => setAuthModal(null)}
-                >
-                  Cancel
-                </button>
+                <button className="ec-btn ec-btn--cancel" onClick={() => setAuthModal(null)}>Cancel</button>
               </div>
             </div>
           </div>

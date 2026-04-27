@@ -78,8 +78,8 @@
   align-items: center;
   justify-content: center;
 }
-.lv-layout-btn:hover       { background: var(--bg-hover); color: var(--text-primary); }
-.lv-layout-btn--active     { background: var(--teal-subtle); color: var(--teal); }
+.lv-layout-btn:hover   { background: var(--bg-hover); color: var(--text-primary); }
+.lv-layout-btn--active { background: var(--teal-subtle); color: var(--teal); }
 
 .lv-btn {
   padding: 5px 12px;
@@ -118,10 +118,13 @@
   flex: 1;
   display: grid;
   grid-template-columns: repeat(var(--cols), 1fr);
+  grid-template-rows: repeat(var(--cols), 1fr);  /* ← equal row heights */
   gap: 2px;
   background: #111;
   overflow: hidden;
   min-height: 0;
+  width: 100%;
+  height: 100%;                                   /* ← fill the grid-area */
 }
 
 /* ── 1+3 layout ──────────────────────────────────── */
@@ -129,17 +132,24 @@
   flex: 1;
   display: grid;
   grid-template-columns: 3fr 1fr;
+  grid-template-rows: 1fr;                        /* ← both columns same height */
   gap: 2px;
   background: #111;
   overflow: hidden;
   min-height: 0;
+  width: 100%;
+  height: 100%;
 }
 .lv-grid-1plus3__side {
   display: grid;
-  grid-template-rows: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr);             /* ← 3 equal side cells */
   gap: 2px;
+  min-height: 0;
 }
-.lv-cell--main { min-height: 0; }
+.lv-cell--main {
+  min-height: 0;
+  height: 100%;
+}
 
 /* ── Cell ────────────────────────────────────────── */
 .lv-cell {
@@ -148,8 +158,10 @@
   overflow: hidden;
   cursor: pointer;
   min-height: 0;
+  min-width: 0;
   display: flex;
   flex-direction: column;
+  /* Removed aspect-ratio — grid rows handle equal height */
 }
 .lv-cell--selected {
   outline: 2px solid var(--teal);
@@ -226,7 +238,7 @@
 }
 .lv-cell__close:hover { color: #fff; }
 
-/* ── Camera player ───────────────────────────────── */
+/* ── Camera fills its cell completely ───────────── */
 .lv-cam {
   width: 100%;
   height: 100%;
@@ -234,9 +246,28 @@
   display: flex;
   flex-direction: column;
 }
+
+/* Player takes all remaining space inside the cam */
 .lv-cam__player {
   flex: 1;
   min-height: 0;
+  min-width: 0;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Force video/canvas/iframe to fill the player box */
+.lv-cam__player video,
+.lv-cam__player canvas,
+.lv-cam__player iframe,
+.lv-cam__player > div,
+.lv-cam__player > * {
+  position: absolute;
+  inset: 0;
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover;
+  display: block;
 }
 
 /* ── No stream ───────────────────────────────────── */
@@ -268,7 +299,6 @@
   gap: 6px;
   color: #1a1a1a;
   font-size: 11px;
-  min-height: 80px;
 }
 
 /* ── Empty state ─────────────────────────────────── */
@@ -477,8 +507,6 @@
 }
 
 /* ── Alert Cards ─────────────────────────────────── */
-
-/* Base card */
 .lv-alert-card {
   background: #141922;
   border-radius: 10px;
@@ -488,40 +516,24 @@
   transition: all 0.15s ease;
   box-shadow: none;
 }
-
-/* Hover — subtle lift only */
 .lv-alert-card:hover {
   background: #1a1f2a;
   transform: translateY(-1px);
 }
 
-/* 🔴 Motion */
-.lv-alert-card--motion {
-  border-left: 3px solid #ff4d4f;
-}
+.lv-alert-card--motion   { border-left: 3px solid #ff4d4f; }
+.lv-alert-card--object   { border-left: 3px solid #f0a500; }
+.lv-alert-card--crossing { border-left: 3px solid #4da6ff; }
+.lv-alert-card--other    { border-left: 3px solid #4da6ff; }
 
-/* 🟡 Object */
-.lv-alert-card--object {
-  border-left: 3px solid #f0a500;
-}
-
-/* 🔵 Other */
-.lv-alert-card--other {
-  border-left: 3px solid #4da6ff;
-}
-
-/* Active = slight lift only, no glow, no colored background */
 .lv-alert-card--active {
   transform: translateY(-1px);
   box-shadow: none;
 }
-
-/* Inactive */
 .lv-alert-card--inactive {
   border-left-color: #333;
 }
 
-/* Card content rows */
 .lv-alert-card__top {
   display: flex;
   align-items: center;

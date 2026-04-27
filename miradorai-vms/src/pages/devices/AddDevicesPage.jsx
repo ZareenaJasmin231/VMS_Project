@@ -176,7 +176,6 @@ function EditDeviceModal({ device, onClose, onSave }) {
 
 export default function AddDevicesPage({ onNavigate }) {
   const [filter, setFilter]                     = useState("");
-  const [checked, setChecked]                   = useState([]);
   const [showManualSearch, setShowManualSearch] = useState(false);
   const [showStreamURL, setShowStreamURL]       = useState(false);
   const [showDiscovery, setShowDiscovery]       = useState(false);
@@ -193,12 +192,6 @@ export default function AddDevicesPage({ onNavigate }) {
     (d.ip   || "").toLowerCase().includes(filter.toLowerCase())
   );
   const onlineCount = filtered.filter((d) => d.status === "Online").length;
-  const allChecked  = filtered.length > 0 && filtered.every((d) => checked.includes(d.id));
-
-  const toggleAll = () => setChecked(allChecked ? [] : filtered.map((d) => d.id));
-  const toggleOne = (id) => setChecked((s) =>
-    s.includes(id) ? s.filter((x) => x !== id) : [...s, id]
-  );
 
   const handleRefresh = () => {
     setRefreshing(true);
@@ -234,7 +227,6 @@ export default function AddDevicesPage({ onNavigate }) {
     }
 
     setDevices((prev) => prev.filter((d) => d.id !== deviceId));
-    setChecked((prev) => prev.filter((id) => id !== deviceId));
   }, [devices, setDevices]);
 
   const handleStreamProfiles = useCallback((deviceId) => {
@@ -242,218 +234,424 @@ export default function AddDevicesPage({ onNavigate }) {
     if (onNavigate) onNavigate("stream-profiles");
   }, [onNavigate]);
 
-  const handleDiscoveredDevices = useCallback((discoveredDevices) => {
-    if (!discoveredDevices || discoveredDevices.length === 0) return;
+  // const handleDiscoveredDevices = useCallback((discoveredDevices) => {
+  //   if (!discoveredDevices || discoveredDevices.length === 0) return;
 
-    const successful = discoveredDevices.filter((d) => d.ws_url);
-    const failed     = discoveredDevices.filter((d) => !d.ws_url);
+  //   const failed = discoveredDevices.filter((d) => !d.ws_url);
+  //   if (failed.length > 0) {
+  //     console.warn(
+  //       `[AddDevices] ${failed.length} device(s) failed OME registration:`,
+  //       failed.map((d) => `${d.ip} — ${d.stream_status}`)
+  //     );
+  //   }
 
-    if (failed.length > 0) {
-      console.warn(
-        `[AddDevices] ${failed.length} device(s) failed OME registration:`,
-        failed.map((d) => `${d.ip} — ${d.stream_status}`)
-      );
-    }
+  //   setDevices((prev) => {
+  //     let next = [...prev];
 
-    setDevices((prev) => {
-      let next = [...prev];
+  //     for (const d of discoveredDevices) {
+  //       const device = {
+  //         id:              d.id || `device-${d.ip}-${Date.now()}`,
+  //         type:            "entrance",
+  //         name:            d.cameraName || d.name || `${d.manufacturer || ""} ${d.model || ""}`.trim() || `Camera @ ${d.ip}`,
+  //         ip:              d.ip,
+  //         mac:             d.mac           || "—",
+  //         status:          d.ws_url ? "Online" : "Offline",
+  //         manufacturer:    d.manufacturer  || "Unknown",
+  //         model:           d.model         || "Unknown",
+  //         rtsp_url:        d.rtsp_url      || null,
+  //         ws_url:          d.ws_url        || null,
+  //         stream_key:      d.stream_key    || null,
+  //         stream_status:   d.ws_url ? "streaming" : (d.stream_status || "not_registered"),
+  //         stream_profiles: d.profiles      || d.stream_profiles || [],
+  //         stream_count:    d.stream_count  || d.profiles?.length || 0,
+  //         source:          "discovery",
+  //       };
 
-      for (const d of discoveredDevices) {
-        const device = {
-          id:              d.id || `device-${d.ip}-${Date.now()}`,
-          type:            "entrance",
-          name:            d.cameraName || d.name || `${d.manufacturer || ""} ${d.model || ""}`.trim() || `Camera @ ${d.ip}`,
-          ip:              d.ip,
-          mac:             d.mac           || "—",
-          status:          d.ws_url ? "Online" : "Offline",
-          manufacturer:    d.manufacturer  || "Unknown",
-          model:           d.model         || "Unknown",
-          rtsp_url:        d.rtsp_url      || null,
-          ws_url:          d.ws_url        || null,
-          stream_key:      d.stream_key    || null,
-          stream_status:   d.ws_url ? "streaming" : (d.stream_status || "not_registered"),
-          stream_profiles: d.profiles      || d.stream_profiles || [],
-          stream_count:    d.stream_count  || d.profiles?.length || 0,
-          source:          "discovery",
-        };
+  //       const existingIndex = next.findIndex((item) => item.ip === d.ip);
+  //       if (existingIndex !== -1) {
+  //         next[existingIndex] = { ...next[existingIndex], ...device };
+  //       } else {
+  //         next.push(device);
+  //       }
 
-        const existingIndex = next.findIndex((item) => item.ip === d.ip);
-        if (existingIndex !== -1) {
-          next[existingIndex] = { ...next[existingIndex], ...device };
-          console.log(`[AddDevices] Updated: ${d.ip} ws_url=${d.ws_url || "none"}`);
-        } else {
-          next.push(device);
-          console.log(`[AddDevices] Added: ${d.ip} ws_url=${d.ws_url || "none"}`);
-        }
-         // 🔥 ADD THIS
-  logAction("Camera added", "camera", {
-    ip: d.ip,
-    source: "discovery"
-  });
-      }
+  //       logAction("Camera added", "camera", { ip: d.ip, source: "discovery" });
+  //     }
 
-      return next;
-    });
-  }, [setDevices]);
+  //     return next;
+  //   });
+  // }, [setDevices]);
 
-  const handleRemoveSelected = useCallback(async () => {
-    if (checked.length === 0) return;
+  // const handleEnroll = async (device) => {
+  //   setEnrolling(true);
+  //   setEnrollMsg("Registering stream with OME…");
+  //   setShowManualSearch(false);
 
-    if (!window.confirm(`Are you sure you want to remove ${checked.length} device(s)?`)) return;
+  //   const { ip, user, pass, discovered, cameraName } = device;
+  //   const enrichedName = discovered?.model
+  //     ? `${discovered.manufacturer} ${discovered.model}`
+  //     : null;
 
-    for (const id of checked) {
-      const device = devices.find((d) => d.id === id);
-      if (!device) continue;
+  //   const probeRes = await fetch(`${STREAM_API}/api/onvif/probe`, {
+  //     method: "POST",
+  //     headers: { "Content-Type": "application/json" },
+  //     body: JSON.stringify({ ip, port: 80, username: user, password: pass }),
+  //   });
+  //   const probeData = probeRes.ok ? await probeRes.json() : null;
 
-      try {
-        await fetch(`${STREAM_API}/api/cameras/by-ip/${device.ip}/delete`, {
-          method: "DELETE",
-        });
-        console.log("✅ Deleted from DB:", device.ip);
-      } catch (err) {
-        console.error("❌ Delete failed:", device.ip);
-      }
-    }
+  //   setDevices((prev) => {
+  //     const existingIndex = prev.findIndex((item) => item.ip === ip);
+  //     const updated = {
+  //       id:              String(Date.now()),
+  //       type:            "entrance",
+  //       name:            cameraName || enrichedName || `Camera @ ${ip}`,
+  //       ip,
+  //       mac:             discovered?.mac           || probeData?.mac           || "—",
+  //       status:          probeData?.ws_url ? "Online" : "Offline",
+  //       manufacturer:    discovered?.manufacturer  || probeData?.manufacturer  || "Unknown",
+  //       model:           discovered?.model         || probeData?.model         || "Unknown",
+  //       firmware:        probeData?.firmware       || discovered?.firmware     || "",
+  //       serial:          probeData?.serial         || discovered?.serial       || "",
+  //       ptz:             probeData?.ptz            || discovered?.ptz          || "No",
+  //       rtsp_url:        probeData?.rtsp_url       || probeData?.stream_uri    || null,
+  //       ws_url:          probeData?.ws_url         || null,
+  //       stream_key:      probeData?.stream_key     || null,
+  //       stream_status:   probeData?.status         || "error",
+  //       stream_profiles: probeData?.profiles       || discovered?.profiles     || [],
+  //       stream_count:    probeData?.stream_count   || discovered?.stream_count || 0,
+  //       source:          "onvif",
+  //     };
 
-    setDevices((prev) => prev.filter((d) => !checked.includes(d.id)));
-    setChecked([]);
-  }, [checked, devices, setDevices]);
+  //     if (existingIndex !== -1) {
+  //       const next = [...prev];
+  //       next[existingIndex] = { ...next[existingIndex], ...updated };
+  //       return next;
+  //     }
+  //     return [...prev, updated];
+  //   });
 
-  const handleEnroll = async (device) => {
-    setEnrolling(true);
-    setEnrollMsg("Registering stream with OME…");
-    setShowManualSearch(false);
+  //   logAction("Camera added", "camera", { ip });
+  //   setEnrolling(false);
+  //   setEnrollMsg("");
+  // };
 
-    const { ip, user, pass, discovered, cameraName } = device;
+  // ── REPLACE the entire handleEnroll function ────────────────────
 
-    const enrichedName = discovered?.model
-      ? `${discovered.manufacturer} ${discovered.model}`
-      : null;
 
-    const probeRes = await fetch(`${STREAM_API}/api/onvif/probe`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ip, port: 80, username: user, password: pass }),
-    });
-    const probeData = probeRes.ok ? await probeRes.json() : null;
+// ── REPLACE handleDiscoveredDevices ────────────────────────────
+const handleDiscoveredDevices = useCallback((discoveredDevices) => {
+  if (!discoveredDevices || discoveredDevices.length === 0) return;
 
-    setDevices((prev) => {
-      const existingIndex = prev.findIndex((item) => item.ip === ip);
-      const updated = {
-        id:              String(Date.now()),
-        type:            "entrance",
-        name:            cameraName || enrichedName || `Camera @ ${ip}`,
-        ip,
-        mac:             discovered?.mac           || probeData?.mac           || "—",
-        status:          probeData?.ws_url ? "Online" : "Offline",
-        manufacturer:    discovered?.manufacturer  || probeData?.manufacturer  || "Unknown",
-        model:           discovered?.model         || probeData?.model         || "Unknown",
-        firmware:        probeData?.firmware       || discovered?.firmware     || "",
-        serial:          probeData?.serial         || discovered?.serial       || "",
-        ptz:             probeData?.ptz            || discovered?.ptz          || "No",
-        rtsp_url:        probeData?.rtsp_url       || probeData?.stream_uri    || null,
-        ws_url:          probeData?.ws_url         || null,
-        stream_key:      probeData?.stream_key     || null,
-        stream_status:   probeData?.status         || "error",
-        stream_profiles: probeData?.profiles       || discovered?.profiles     || [],
-        stream_count:    probeData?.stream_count   || discovered?.stream_count || 0,
-        source:          "onvif",
+  const failed = discoveredDevices.filter((d) => !d.ws_url);
+  if (failed.length > 0) {
+    console.warn(
+      `[AddDevices] ${failed.length} device(s) failed OME registration:`,
+      failed.map((d) => `${d.ip} ch${d.channel ?? 0} — ${d.stream_status}`)
+    );
+  }
+
+  setDevices((prev) => {
+    let next = [...prev];
+
+    for (const d of discoveredDevices) {
+      // ✅ FIX 3: unique key = d.id which is already "device-{ip}-cam{idx}"
+      //    also fall back to stream_key or ip+channel
+      const streamKey = d.stream_key || d.stream_name ||
+        `${d.ip.replace(/\./g, "_")}_cam${d.channel ?? 0}`;
+
+      const device = {
+        id:            d.id || `device-${d.ip}-cam${d.channel ?? 0}`,
+        type:          "entrance",
+        name:          d.cameraName || d.name ||
+                       `${d.manufacturer || ""} ${d.model || ""}`.trim() ||
+                       `Camera @ ${d.ip}`,
+        ip:            d.ip,
+        channel:       d.channel ?? 0,
+        mac:           d.mac           || "—",
+        status:        d.ws_url ? "Online" : "Offline",
+        manufacturer:  d.manufacturer  || "Unknown",
+        model:         d.model         || "Unknown",
+        firmware:      d.firmware      || "",
+        rtsp_url:      d.rtsp_url      || null,
+        ws_url:        d.ws_url        || null,
+        stream_key:    streamKey,
+        stream_status: d.ws_url ? "streaming" : (d.stream_status || "not_registered"),
+        stream_profiles: d.profiles    || d.stream_profiles || [],
+        stream_count:  d.stream_count  || d.profiles?.length || 0,
+        physical_camera_count: d.physical_camera_count || 1,
+        label:         d.label         || d.profile_name || "",
+        source:        "discovery",
       };
 
+      // ✅ Match on id or stream_key — never ip alone
+      const existingIndex = next.findIndex(
+        (item) =>
+          item.id === device.id ||
+          (item.stream_key && item.stream_key === streamKey)
+      );
+
       if (existingIndex !== -1) {
-        const next = [...prev];
-        next[existingIndex] = { ...next[existingIndex], ...updated };
-        return next;
+        next[existingIndex] = { ...next[existingIndex], ...device };
+      } else {
+        next.push(device);
       }
-      return [...prev, updated];
-    });
 
-    // 🔥 Activity log — camera added via manual enroll
-    logAction("Camera added", "camera", { ip });
-
-    setEnrolling(false);
-    setEnrollMsg("");
-  };
-
-  const handleAddStreamURLs = async (payload) => {
-    setShowStreamURL(false);
-    setEnrolling(true);
-
-    const urls       = Array.isArray(payload) ? payload : payload.urls;
-    const cameraName = Array.isArray(payload) ? "" : (payload.cameraName || "");
-
-    for (let i = 0; i < urls.length; i++) {
-      const url = urls[i];
-      setEnrollMsg(`Registering stream ${i + 1} of ${urls.length}…`);
-
-      let ip = "—";
-      try { ip = new URL(url).hostname; } catch {}
-
-      const streamName = cameraName
-        ? (urls.length > 1 ? `${cameraName} (${i + 1})` : cameraName)
-        : `Stream @ ${ip}`;
-
-      try {
-        const res  = await fetch(`${STREAM_API}/api/streams/register`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ rtsp_url: url }),
-        });
-        const data = res.ok ? await res.json() : null;
-
-        setDevices((prev) => {
-          const existingIndex = prev.findIndex((item) => item.ip === ip);
-          const entry = {
-            id:            String(Date.now()) + i,
-            type:          "entrance",
-            name:          streamName,
-            ip,
-            mac:           "—",
-            status:        data?.ws_url ? "Online" : "Offline",
-            manufacturer:  "Unknown",
-            model:         "Unknown",
-            rtsp_url:      url,
-            ws_url:        data?.ws_url     || null,
-            stream_key:    data?.stream_key || null,
-            stream_status: data?.ws_url ? "streaming" : "error",
-            source:        "rtsp",
-          };
-          console.log("WS URL:", data?.ws_url);
-          if (existingIndex !== -1) {
-            const next = [...prev];
-            next[existingIndex] = { ...next[existingIndex], ...entry };
-            return next;
-          }
-          return [...prev, entry];
-        });
-
-        // 🔥 Activity log — camera added via stream URL
-        logAction("Camera added", "camera", { ip, source: "stream_url" });
-
-      } catch {
-        setDevices((prev) => {
-          const existingIndex = prev.findIndex((item) => item.ip === ip);
-          const entry = {
-            id: String(Date.now()) + i, type: "entrance",
-            name: streamName, ip, mac: "—",
-            status: "Offline", manufacturer: "Unknown", model: "Unknown",
-            rtsp_url: url, ws_url: null, stream_key: null,
-            stream_status: "error", source: "rtsp",
-          };
-          if (existingIndex !== -1) {
-            const next = [...prev];
-            next[existingIndex] = { ...next[existingIndex], ...entry };
-            return next;
-          }
-          return [...prev, entry];
-        });
-      }
+      logAction("Camera added", "camera", {
+        ip: d.ip, channel: d.channel ?? 0, source: "discovery",
+      });
     }
 
-    setEnrolling(false);
-    setEnrollMsg("");
-  };
+    return next;
+  });
+}, [setDevices]);
 
+const handleEnroll = async (device) => {
+  setEnrolling(true);
+  setEnrollMsg("Registering stream with OME…");
+  setShowManualSearch(false);
+
+  const { ip, user, pass, discovered, cameraName, channel = 0 } = device;
+  const enrichedName = discovered?.model
+    ? `${discovered.manufacturer} ${discovered.model}`
+    : null;
+
+  // ✅ FIX 1: pass channel so backend registers the RIGHT physical camera
+  const probeRes = await fetch(`${STREAM_API}/api/onvif/probe`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      ip, port: 80, username: user, password: pass,
+      channel,                          // ← was missing, always defaulted to 0
+    }),
+  });
+  const probeData = probeRes.ok ? await probeRes.json() : null;
+
+  // ✅ FIX 2: unique key is stream_key (e.g. "192_168_1_240_cam1"), NOT ip alone
+  const streamKey =
+    probeData?.stream_key ||
+    probeData?.ome_stream ||
+    `${ip.replace(/\./g, "_")}_cam${channel}`;
+
+  setDevices((prev) => {
+    // Match by stream_key first, then ip+channel fallback
+    const existingIndex = prev.findIndex(
+      (item) =>
+        (item.stream_key && item.stream_key === streamKey) ||
+        (!item.stream_key && item.ip === ip && (item.channel ?? 0) === channel)
+    );
+
+    const updated = {
+      id: existingIndex !== -1
+        ? prev[existingIndex].id
+        : `device-${ip}-cam${channel}-${Date.now()}`,
+      type:            "entrance",
+      name:            cameraName || enrichedName || `Camera @ ${ip}`,
+      ip,
+      channel,                                          // ← store channel
+      mac:             discovered?.mac          || probeData?.mac          || "—",
+      status:          probeData?.ws_url ? "Online" : "Offline",
+      manufacturer:    discovered?.manufacturer || probeData?.manufacturer || "Unknown",
+      model:           discovered?.model        || probeData?.model        || "Unknown",
+      firmware:        probeData?.firmware      || discovered?.firmware    || "",
+      serial:          probeData?.serial        || discovered?.serial      || "",
+      ptz:             probeData?.ptz           || discovered?.ptz         || "No",
+      rtsp_url:        probeData?.rtsp_url      || probeData?.stream_uri   || null,
+      ws_url:          probeData?.ws_url        || null,
+      stream_key:      streamKey,                       // ← store for future dedup
+      stream_status:   probeData?.status        || "error",
+      stream_profiles: probeData?.profiles      || discovered?.profiles    || [],
+      stream_count:    probeData?.stream_count  || discovered?.stream_count || 0,
+      physical_camera_count: probeData?.physical_camera_count || 1,
+      source:          "onvif",
+    };
+
+    if (existingIndex !== -1) {
+      const next = [...prev];
+      next[existingIndex] = { ...next[existingIndex], ...updated };
+      return next;
+    }
+    return [...prev, updated];
+  });
+
+  logAction("Camera added", "camera", { ip, channel });
+  setEnrolling(false);
+  setEnrollMsg("");
+};
+  
+  // const handleAddStreamURLs = async (payload) => {
+  //   setShowStreamURL(false);
+  //   setEnrolling(true);
+
+  //   const urls       = Array.isArray(payload) ? payload : payload.urls;
+  //   const cameraName = Array.isArray(payload) ? "" : (payload.cameraName || "");
+
+  //   for (let i = 0; i < urls.length; i++) {
+  //     const url = urls[i];
+  //     setEnrollMsg(`Registering stream ${i + 1} of ${urls.length}…`);
+
+  //     let ip = "—";
+  //     try { ip = new URL(url).hostname; } catch {}
+
+  //     const streamName = cameraName
+  //       ? (urls.length > 1 ? `${cameraName} (${i + 1})` : cameraName)
+  //       : `Stream @ ${ip}`;
+
+  //     try {
+  //       const res  = await fetch(`${STREAM_API}/api/streams/register`, {
+  //         method: "POST",
+  //         headers: { "Content-Type": "application/json" },
+  //         body: JSON.stringify({ rtsp_url: url }),
+  //       });
+  //       const data = res.ok ? await res.json() : null;
+
+  //       setDevices((prev) => {
+  //         const existingIndex = prev.findIndex((item) => item.ip === ip);
+  //         const entry = {
+  //           id:            String(Date.now()) + i,
+  //           type:          "entrance",
+  //           name:          streamName,
+  //           ip,
+  //           mac:           "—",
+  //           status:        data?.ws_url ? "Online" : "Offline",
+  //           manufacturer:  "Unknown",
+  //           model:         "Unknown",
+  //           rtsp_url:      url,
+  //           ws_url:        data?.ws_url     || null,
+  //           stream_key:    data?.stream_key || null,
+  //           stream_status: data?.ws_url ? "streaming" : "error",
+  //           source:        "rtsp",
+  //         };
+  //         if (existingIndex !== -1) {
+  //           const next = [...prev];
+  //           next[existingIndex] = { ...next[existingIndex], ...entry };
+  //           return next;
+  //         }
+  //         return [...prev, entry];
+  //       });
+
+  //       logAction("Camera added", "camera", { ip, source: "stream_url" });
+
+  //     } catch {
+  //       setDevices((prev) => {
+  //         const existingIndex = prev.findIndex((item) => item.ip === ip);
+  //         const entry = {
+  //           id: String(Date.now()) + i, type: "entrance",
+  //           name: streamName, ip, mac: "—",
+  //           status: "Offline", manufacturer: "Unknown", model: "Unknown",
+  //           rtsp_url: url, ws_url: null, stream_key: null,
+  //           stream_status: "error", source: "rtsp",
+  //         };
+  //         if (existingIndex !== -1) {
+  //           const next = [...prev];
+  //           next[existingIndex] = { ...next[existingIndex], ...entry };
+  //           return next;
+  //         }
+  //         return [...prev, entry];
+  //       });
+  //     }
+  //   }
+
+  //   setEnrolling(false);
+  //   setEnrollMsg("");
+  // };
+
+  // ── REPLACE handleAddStreamURLs ─────────────────────────────────
+const handleAddStreamURLs = async (payload) => {
+  setShowStreamURL(false);
+  setEnrolling(true);
+
+  const urls       = Array.isArray(payload) ? payload : payload.urls;
+  const cameraName = Array.isArray(payload) ? "" : (payload.cameraName || "");
+
+  for (let i = 0; i < urls.length; i++) {
+    const url = urls[i];
+    setEnrollMsg(`Registering stream ${i + 1} of ${urls.length}…`);
+
+    let ip = "—";
+    try { ip = new URL(url).hostname; } catch {}
+
+    const streamName = cameraName
+      ? (urls.length > 1 ? `${cameraName} (${i + 1})` : cameraName)
+      : `Stream @ ${ip}`;
+
+    try {
+      const res  = await fetch(`${STREAM_API}/api/streams/register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rtsp_url: url }),
+      });
+      const data = res.ok ? await res.json() : null;
+
+      // ✅ FIX 4: use ome_stream as unique key for RTSP streams
+      const streamKey = data?.ome_stream || data?.stream_key ||
+        `${ip.replace(/\./g, "_")}_rtsp${i}`;
+
+      setDevices((prev) => {
+        const existingIndex = prev.findIndex(
+          (item) =>
+            (item.stream_key && item.stream_key === streamKey) ||
+            item.rtsp_url === url
+        );
+
+        const entry = {
+          id:            existingIndex !== -1
+                           ? prev[existingIndex].id
+                           : `device-rtsp-${streamKey}-${Date.now()}`,
+          type:          "entrance",
+          name:          streamName,
+          ip,
+          channel:       0,
+          mac:           "—",
+          status:        data?.ws_url ? "Online" : "Offline",
+          manufacturer:  "Unknown",
+          model:         "Unknown",
+          rtsp_url:      url,
+          ws_url:        data?.ws_url     || null,
+          stream_key:    streamKey,
+          stream_status: data?.ws_url ? "streaming" : "error",
+          stream_profiles: [],
+          stream_count:  0,
+          physical_camera_count: 1,
+          source:        "rtsp",
+        };
+
+        if (existingIndex !== -1) {
+          const next = [...prev];
+          next[existingIndex] = { ...next[existingIndex], ...entry };
+          return next;
+        }
+        return [...prev, entry];
+      });
+
+      logAction("Camera added", "camera", { ip, source: "stream_url" });
+
+    } catch {
+      const streamKey = `${ip.replace(/\./g, "_")}_rtsp${i}`;
+      setDevices((prev) => {
+        const existingIndex = prev.findIndex((item) => item.rtsp_url === url);
+        const entry = {
+          id:            existingIndex !== -1 ? prev[existingIndex].id : `device-rtsp-${Date.now()}-${i}`,
+          type:          "entrance", name: streamName, ip, channel: 0,
+          mac:           "—", status: "Offline",
+          manufacturer:  "Unknown", model: "Unknown",
+          rtsp_url:      url, ws_url: null, stream_key: streamKey,
+          stream_status: "error", stream_profiles: [], stream_count: 0,
+          physical_camera_count: 1, source: "rtsp",
+        };
+        if (existingIndex !== -1) {
+          const next = [...prev];
+          next[existingIndex] = { ...next[existingIndex], ...entry };
+          return next;
+        }
+        return [...prev, entry];
+      });
+    }
+  }
+
+  setEnrolling(false);
+  setEnrollMsg("");
+};
+  
+  
   return (
     <div className="page-shell">
       <div className="page-header">
@@ -504,9 +702,6 @@ export default function AddDevicesPage({ onNavigate }) {
           <table className="m-table">
             <thead>
               <tr>
-                <th style={{ width: 36 }}>
-                  <input type="checkbox" className="m-checkbox" checked={allChecked} onChange={toggleAll} />
-                </th>
                 <th style={{ width: 60 }}></th>
                 {["Device Name","IP Address","MAC Address","Status","Manufacturer","Model"].map((c) => (
                   <th key={c}>{c}</th>
@@ -514,38 +709,56 @@ export default function AddDevicesPage({ onNavigate }) {
                 <th>Stream</th>
               </tr>
             </thead>
-            <tbody>
-              {filtered.map((d) => {
-                const isSel = checked.includes(d.id);
-                return (
+ {/* // ── REPLACE the table body row to show channel/profile info ──── */}
+              <tbody>
+                {filtered.map((d) => (
                   <tr
                     key={d.id}
-                    className={`m-table__row ${isSel ? "m-table__row--selected" : ""}`}
-                    onClick={() => toggleOne(d.id)}
+                    className="m-table__row"
                     onContextMenu={(e) => handleRowContextMenu(e, d.id)}
                   >
-                    <td onClick={(e) => e.stopPropagation()}>
-                      <input type="checkbox" className="m-checkbox" checked={isSel} onChange={() => toggleOne(d.id)} />
-                    </td>
                     <td><CameraThumb type={d.type} /></td>
-                    <td className="m-table__primary">{d.name}</td>
+                    <td className="m-table__primary">
+                      {d.name}
+                      {/* ✅ Show camera label for multi-sensor devices */}
+                      {d.physical_camera_count > 1 && (
+                        <span style={{
+                          marginLeft: 6, fontSize: 10, padding: "1px 5px",
+                          background: "#1a0f2e", color: "#a78bfa",
+                          border: "1px solid #3b1f6e", borderRadius: 4,
+                        }}>
+                          CAM {(d.channel ?? 0) + 1}
+                        </span>
+                      )}
+                    </td>
                     <td><code className="add-dev__ip">{d.ip}</code></td>
                     <td><code className="add-dev__ip">{d.mac}</code></td>
                     <td><StatusBadge status={d.status} /></td>
                     <td>{d.manufacturer}</td>
                     <td>{d.model}</td>
                     <td>
-                      {d.stream_status === "streaming"
-                        ? <span className="add-dev__stream add-dev__stream--live">● LIVE</span>
-                        : d.ws_url
-                          ? <span className="add-dev__stream add-dev__stream--pending">● {d.stream_status || "pending"}</span>
-                          : <span className="add-dev__stream add-dev__stream--none">— not registered</span>
-                      }
+                      <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                        {d.stream_status === "streaming"
+                          ? <span className="add-dev__stream add-dev__stream--live">● LIVE</span>
+                          : d.ws_url
+                            ? <span className="add-dev__stream add-dev__stream--pending">
+                                ● {d.stream_status || "pending"}
+                              </span>
+                            : <span className="add-dev__stream add-dev__stream--none">— not registered</span>
+                        }
+                        {/* ✅ Show profile count from any source */}
+                        {(d.stream_count > 0 || d.stream_profiles?.length > 0) && (
+                          <span style={{ fontSize: 10, color: "#4a6a99" }}>
+                            {d.stream_count || d.stream_profiles?.length} profile{
+                              (d.stream_count || d.stream_profiles?.length) !== 1 ? "s" : ""
+                            }
+                          </span>
+                        )}
+                      </div>
                     </td>
                   </tr>
-                );
-              })}
-            </tbody>
+                ))}
+              </tbody>
           </table>
         )}
       </div>
@@ -554,12 +767,6 @@ export default function AddDevicesPage({ onNavigate }) {
         <span className="add-dev__count">
           {filtered.length} device{filtered.length !== 1 ? "s" : ""} enrolled · {onlineCount} online
         </span>
-        <Button
-          label={checked.length > 0 ? `Remove ${checked.length} Device${checked.length > 1 ? "s" : ""}` : "Remove"}
-          variant="danger"
-          disabled={checked.length === 0}
-          onClick={handleRemoveSelected}
-        />
       </div>
 
       {showManualSearch && (
@@ -586,8 +793,8 @@ export default function AddDevicesPage({ onNavigate }) {
         <ContextMenu
           x={ctxMenu.x}
           y={ctxMenu.y}
-          onEdit={()            => handleEditDevice(ctxMenu.deviceId)}
-          onRemove={()          => handleRemoveDevice(ctxMenu.deviceId)}
+          onEdit={()           => handleEditDevice(ctxMenu.deviceId)}
+          onRemove={()         => handleRemoveDevice(ctxMenu.deviceId)}
           onStreamProfiles={()  => handleStreamProfiles(ctxMenu.deviceId)}
           onClose={() => setCtxMenu(null)}
         />

@@ -37,6 +37,7 @@ from onvif_service import (
 )
 import rtsp_recorder as recorder
 import encrypt_service
+import psutil
 from recording_api import recording_router, storage_router
 from stream_health import start_health_monitoring
 from masks_router import router as masks_router
@@ -51,7 +52,36 @@ from urllib.parse import urlparse, urlunparse, quote
 
 
 connected_clients = []
+import sys
+from utils.terminal_logger import log_terminal
 
+class LoggerWrapper:
+    def write(self, message):
+        msg = message.strip()
+
+        # ✅ FILTER ONLY IMPORTANT LOGS
+        if msg and (
+            "[WATCHDOG]" in msg or
+            "[ENCRYPT]" in msg or
+            "[RTSP]" in msg or
+            "ERROR" in msg or
+            "❌" in msg
+        ):
+            log_terminal(
+                "admin@gmail.com",
+                "admin",
+                "system log",
+                "backend",
+                0,
+                msg
+            )
+
+        sys.__stdout__.write(message)
+
+    def flush(self):
+        pass
+
+sys.stdout = LoggerWrapper()
 
 async def watch_mongo_changes():
     print("[WS] 👀 Polling MongoDB for alerts...")
@@ -111,8 +141,8 @@ app.include_router(storage_router)
 app.include_router(masks_router)
 app.include_router(backup_router)
 app.include_router(brand_router)
-app.include_router(camera_analytics_router)
 app.include_router(logs_router)
+app.include_router(camera_analytics_router)
 
 
 
@@ -221,6 +251,7 @@ class ProbeRequest(BaseModel):
     port:     int = 80
     username: str = ""
     password: str = ""
+ 
 
 
 class StreamRegisterRequest(BaseModel):
@@ -284,15 +315,14 @@ def save_camera_to_db(data: dict):
     if cameras_col is None:
         print("[MONGO] ❌ No connection")
         return False
-
-    # 🔐 STEP 1: Load license
+ 
     token = load_license()
     valid, license_data = validate_license(token)
-
-    # 🔐 STEP 2: Check valid
+ 
     if not valid:
         print("❌ License invalid")
         return False
+ 
     existing = cameras_col.find_one({"ip": data["ip"]})
 
     # 🔐 STEP 3: Count cameras
@@ -307,6 +337,7 @@ def save_camera_to_db(data: dict):
         return False
 
     # ✅ STEP 5: Save camera
+ 
     try:
         cameras_col.update_one(
             {"ip": data["ip"]},
@@ -318,7 +349,6 @@ def save_camera_to_db(data: dict):
     except Exception as e:
         print("❌ Save failed:", e)
         return False
-
 
 def load_devices():
     if cameras_col is not None:
@@ -421,111 +451,119 @@ async def webrtc_proxy(stream_key: str, request: Request):
     except Exception as e:
         print(f"[WHIP] ❌ Proxy error for {stream_key}: {e}")
         raise HTTPException(status_code=502, detail=str(e))
-# @app.get("/api/event-playback")
-# def event_playback(ip: str, time: str):
-#     try:
-#         print("\n========== PLAYBACK DEBUG ==========")
-#         print("RAW TIME:", time)
-#         print("IP:", ip)
+@app.get("/api/event-playback")
+def event_playback(ip: str, time: str):
+    try:
+        print("\n========== PLAYBACK ==========")
+        print("IP:", ip)
+        print("TIME:", time)
 
-#         # 🔥 FIX TIME FORMAT
-#         if " " in time:
-#             time = time.replace(" ", "+")
+        # fix time
+        if " " in time:
+            time = time.replace(" ", "+")
+        if "+" in time and len(time.split("+")[-1]) == 4:
+            time = time[:-2] + ":" + time[-2:]
 
-#         if "+" in time and len(time.split("+")[-1]) == 4:
-#             time = time[:-2] + ":" + time[-2:]
+        alert_time = datetime.fromisoformat(time)
 
-#         print("FIXED TIME:", time)
+        base = f"D:/REC/{ip}"
 
-#         # ✅ PARSE TIME
-#         alert_time = datetime.fromisoformat(time)
+        if not os.path.exists(base):
+            return {"error": "Camera folder not found"}
 
-#         # 📁 FOLDER PATH
-#         folder = f"D:/REC/{ip}/{alert_time.date()}"
-#         print("FOLDER:", folder)
+        # 🔥 find correct chunk
+        target_file = None
+        file_start = None
 
-#         if not os.path.exists(folder):
-#             print("❌ Folder not found")
-#             return {"error": "Recording folder not found"}
+        for date_folder in os.listdir(base):
+            folder = os.path.join(base, date_folder)
 
-#         all_files = os.listdir(folder)
-#         print("FILES IN FOLDER:", all_files)
+            if not os.path.isdir(folder):
+                continue
 
-#         # =========================================================
-#         # 🔥 STEP 1: FIND CORRECT 5-MIN VIDEO CHUNK
-#         # =========================================================
-#         target_file = None
-#         file_start = None
+            for f in os.listdir(folder):
+                if not f.endswith(".enc"):
+                    continue
 
-#         for f in sorted(all_files):
-#             if f.endswith(".enc"):
-#                 try:
-#                     file_time = datetime.strptime(f.replace(".enc", ""), "%H-%M-%S")
-#                     full_time = datetime.combine(alert_time.date(), file_time.time())
+                try:
+                    file_time = datetime.strptime(f.replace(".enc", ""), "%H-%M-%S")
+                    file_date = datetime.strptime(date_folder, "%Y-%m-%d").date()
 
-#                     file_start_time = full_time
-#                     file_end_time = full_time + timedelta(minutes=5)
+                    full_time = datetime.combine(file_date, file_time.time())
 
-#                     if file_start_time <= alert_time <= file_end_time:
-#                         target_file = os.path.join(folder, f)
-#                         file_start = file_start_time
-#                         break
+                    if full_time <= alert_time <= full_time + timedelta(minutes=5):
+                        target_file = os.path.join(folder, f)
+                        file_start = full_time
+                        break
+                except:
+                    continue
 
-#                 except Exception as e:
-#                     print("❌ FILE PARSE ERROR:", f, e)
+            if target_file:
+                break
 
-#         if not target_file:
-#             print("❌ No matching chunk found")
-#             return {"error": "No matching video chunk"}
+        if not target_file:
+            return {"error": "No chunk found"}
 
-#         print("🎯 SELECTED FILE:", target_file)
+        print("🎯 FILE:", target_file)
 
-#         # =========================================================
-#         # 🔐 STEP 2: DECRYPT SINGLE FILE
-#         # =========================================================
-#         temp_mp4 = tempfile.mktemp(suffix=".mp4")
+        # decrypt
+        temp_mp4 = tempfile.mktemp(suffix=".mp4")
+        encrypt_service.decrypt_file(target_file, temp_mp4)
 
-#         ok = decrypt_file(target_file, temp_mp4)
-#         if not ok:
-#             return {"error": "Decryption failed"}
-
-#         print("🔓 DECRYPTED FILE:", temp_mp4)
-
-        # =========================================================
-        # 🎬 STEP 3: CUT 20 SECONDS (10 BEFORE + 10 AFTER)
-        # =========================================================
-        start_offset = (alert_time - file_start).total_seconds() - 10
-
-        if start_offset < 0:
-            start_offset = 0
+        # cut 20 sec
+        offset = (alert_time - file_start).total_seconds() - 10
+        if offset < 0:
+            offset = 0
 
         output = tempfile.mktemp(suffix=".mp4")
 
-        result = subprocess.run(
-            [
-                "ffmpeg",
-                "-ss", str(start_offset),
-                "-i", temp_mp4,
-                "-t", "20",
-                "-c", "copy",
-                output
-            ],
-            capture_output=True,
-            text=True
-        )
-
-        if result.returncode != 0:
-            print("❌ FFMPEG ERROR:", result.stderr)
-            return {"error": "FFmpeg trim failed"}
-
-        print("✅ FINAL CLIP READY:", output)
+        subprocess.run([
+            "ffmpeg",
+            "-ss", str(offset),
+            "-i", temp_mp4,
+            "-t", "20",
+            "-c", "copy",
+            output
+        ])
 
         return FileResponse(output, media_type="video/mp4")
 
     except Exception as e:
-        print("❌ PLAYBACK ERROR:", str(e))
+        print("ERROR:", e)
         return {"error": str(e)}
-    
+async def system_health_collector():
+    while True:
+        try:
+            cpu = psutil.cpu_percent()
+            ram = psutil.virtual_memory().percent
+            disk = psutil.disk_usage('/').percent
+
+            _db["health_logs"].insert_one({
+                "type": "system",
+                "cpu": cpu,
+                "ram": ram,
+                "disk": disk,
+                "timestamp": datetime.utcnow()
+            })
+
+        except Exception as e:
+            print("[SYSTEM HEALTH ERROR]", e)
+
+        await asyncio.sleep(5)
+async def camera_health_collector():
+    while True:
+        try:
+            for cam in devices:
+                _db["health_logs"].insert_one({
+                    "type": "camera",
+                    "ip": cam.get("ip"),
+                    "status": "online" if cam.get("enabled") else "offline",
+                    "timestamp": datetime.utcnow()
+                })
+        except Exception as e:
+            print("[CAM HEALTH ERROR]", e)
+
+        await asyncio.sleep(10)            
 @app.websocket("/ws/events")
 async def websocket_events(websocket: WebSocket):
     try:
@@ -555,7 +593,27 @@ async def broadcast_event(event):
             await client.send_json(event)
         except Exception as e:
             print("[WS ERROR]", e)
+log_clients = []
 
+@app.websocket("/ws/logs")
+async def websocket_logs(websocket: WebSocket):
+    await websocket.accept()
+    log_clients.append(websocket)
+
+    print(f"📡 Logs WS Connected: {len(log_clients)}")
+
+    try:
+        while True:
+            await asyncio.sleep(10)
+    except WebSocketDisconnect:
+        log_clients.remove(websocket)
+        print("❌ Logs WS Disconnected")
+    async def broadcast_log(log):
+        for client in log_clients:
+            try:
+                await client.send_json(log)
+            except:
+                pass
 # ------------------------------------------------------------------
 # OME readiness wait
 # ------------------------------------------------------------------
@@ -682,8 +740,19 @@ async def _analytics_poll_loop(ip: str, port: int, username: str, password: str)
 # ------------------------------------------------------------------
 # Startup / Shutdown
 # ------------------------------------------------------------------
+from utils.terminal_logger import log_terminal
+
 @app.on_event("startup")
 async def startup():
+    
+    log_terminal(
+        "admin@gmail.com",
+        "admin",
+        "backend started",
+        "/app",
+        0,
+        "startup success"
+    )
     global _health_monitor_task
     print(f"[STARTUP] Starting with {len(devices)} saved devices")
     await _wait_for_ome()
@@ -717,7 +786,8 @@ async def startup():
     _health_monitor_task = asyncio.create_task(start_health_monitoring(devices, cameras_col))
     encrypt_service.start_watcher()
     recorder.start_recording_all(devices)
-
+    asyncio.create_task(system_health_collector())
+    asyncio.create_task(camera_health_collector())
     enabled_count = sum(1 for d in devices if d.get("enabled") is not False)
     print(f"[STARTUP] 🎥 Recording started for {enabled_count}/{len(devices)} enabled camera(s)")
     asyncio.create_task(watch_mongo_changes())
@@ -918,16 +988,17 @@ async def discover_devices():
         print("[DISCOVER] Starting network discovery...")
         found = await asyncio.to_thread(discover_all, 4, 150)
         print(f"[DISCOVER] Found {len(found)} device(s)")
-
+ 
         for device in found:
             rtsp_url = device.get("rtsp_url")
             ip       = device.get("ip")
+
             if not rtsp_url or not ip:
                 device["ws_url"]        = None
                 device["stream_key"]    = None
                 device["stream_status"] = "no_rtsp"
                 continue
-
+ 
             from urllib.parse import urlparse
             parsed = urlparse(rtsp_url)
             if not parsed.username:
@@ -936,7 +1007,6 @@ async def discover_devices():
                 device["stream_key"]    = None
                 device["stream_status"] = "credentials_required"
                 continue
-
             stream_name = normalize_stream_name(ip)
 
             if stream_exists_in_ome(stream_name):
@@ -947,13 +1017,14 @@ async def discover_devices():
                 status_code = ome_result.get("statusCode", 0) \
                               if isinstance(ome_result, dict) else 0
                 print(f"[DISCOVER] OME register {ip}: HTTP {status_code}")
-
+ 
             if status_code in (200, 201, 409):
                 device["ws_url"]        = f"ws://{OME_HOST_IP}:{OME_WS_PORT}/app/{stream_name}"
                 device["stream_key"]    = stream_name
                 device["stream_status"] = "streaming"
-
+ 
                 existing = next((d for d in devices if d.get("ip") == ip), None)
+
                 if not existing:
                     new_dev = {
                         "ome_stream":     stream_name,
@@ -963,7 +1034,6 @@ async def discover_devices():
                         "enabled":        True,
                     }
                     saved = save_camera_to_db(new_dev)
-
                     if saved:
                         devices.append(new_dev)
                         save_devices(devices)
@@ -972,14 +1042,14 @@ async def discover_devices():
                 device["ws_url"]        = None
                 device["stream_key"]    = None
                 device["stream_status"] = "error"
-
+ 
         return {"devices": found}
-
+ 
     except Exception as e:
         print(f"[DISCOVER] ❌ Discovery error: {e}")
         return {"devices": [], "error": str(e)}
-
-
+ 
+ 
 # ------------------------------------------------------------------
 # Camera enable / disable / delete
 # ------------------------------------------------------------------
@@ -1069,19 +1139,19 @@ async def onvif_probe(req: ProbeRequest):
     print(f"[ONVIF] Probing {req.ip}:{req.port} ...")
     token = load_license()
     valid, data = validate_license(token)
-
+ 
     if not valid:
         raise HTTPException(status_code=400, detail="Invalid License")
-
+ 
     if cameras_col is not None:
         current_count = cameras_col.count_documents({"enabled": True})
-
         if current_count >= data["max_cameras"]:
             raise HTTPException(status_code=400, detail="Camera limit exceeded")
+ 
     result = await asyncio.to_thread(
         probe_camera, req.ip, req.port, req.username, req.password
     )
-
+ 
     if result["success"]:
         print(f"[ONVIF] ✅ {result['manufacturer']} {result['model']} "
               f"— {result.get('stream_count', '?')} stream(s)")
@@ -1090,43 +1160,42 @@ async def onvif_probe(req: ProbeRequest):
         rtsp = re.sub(r"[&?]proto=Onvif", "", rtsp)
 
         rtsp = result["stream_uri"]
+ 
         rtsp = re.sub(r"[&?]proto=Onvif", "", rtsp)
+ 
 
         parsed = urllib.parse.urlparse(rtsp)
-
         if req.username and not parsed.username:
             safe_user = urllib.parse.quote(req.username, safe="")
             safe_pass = urllib.parse.quote(req.password, safe="")
-
             netloc = f"{safe_user}:{safe_pass}@{parsed.hostname}"
             if parsed.port:
                 netloc += f":{parsed.port}"
-
             rtsp = urllib.parse.urlunparse((
                 parsed.scheme,
                 netloc,
                 parsed.path,
                 parsed.params,
                 parsed.query,
-                parsed.fragment
-            ))
-
-        if "transport=" not in rtsp:
-            if "?" in rtsp:
-                rtsp += "&transport=tcp"
-            else:
-                rtsp += "?transport=tcp"
+                parsed.fragment            ))
+ 
+            if "transport=" not in rtsp:
+                if "?" in rtsp:
+                    rtsp += "&transport=tcp"
+                else:
+                    rtsp += "?transport=tcp"
 
         print("FINAL RTSP:", rtsp)
         # changes ends
         stream_name = normalize_stream_name(req.ip)
         existing    = next((d for d in devices if d.get("ome_stream") == stream_name), None)
 
+ 
         if not existing or not stream_exists_in_ome(stream_name):
             print(f"[ONVIF] Registering stream in OME: {stream_name}")
             ome_response = register_stream(stream_name, rtsp)
             print(f"[ONVIF] OME response: {ome_response}")
-
+ 
             if not existing:
                 new_device = {
                     "ome_stream":     stream_name,
@@ -1147,7 +1216,7 @@ async def onvif_probe(req: ProbeRequest):
                 existing["username"]       = req.username
                 existing["password"]       = req.password
                 save_devices(devices)
-
+ 
             save_camera_to_db({
                 "ip":              req.ip,
                 "ome_stream":      stream_name,
@@ -1165,25 +1234,26 @@ async def onvif_probe(req: ProbeRequest):
                 "stream_count":    result.get("stream_count", 0),
                 "stream_profiles": result.get("profiles", []),
                 "api_profile":     result.get("api_profile"),
+                
             })
-
             recorder.start_camera(stream_name, rtsp, new_device if not existing else existing)
-            print(f"[ONVIF] 🎥 Recording started for {stream_name}")
 
+            print(f"[ONVIF] 🎥 Recording started for {stream_name}")
+ 
         else:
             print(f"[ONVIF] Stream {stream_name} already live in OME, skipping.")
             ome_response = {"message": "Already registered", "statusCode": 200}
-
+ 
         result["ome_stream"]   = stream_name
         result["ome_response"] = ome_response
         result["ws_url"]       = f"ws://{OME_HOST_IP}:{OME_WS_PORT}/app/{stream_name}"
         result["stream_key"]   = stream_name
         result["status"]       = "streaming"
         result["rtsp_url"]     = rtsp
-
+ 
     else:
         print(f"[ONVIF] ❌ {result['error']}")
-
+ 
     return result
 
 
@@ -1194,18 +1264,18 @@ async def onvif_probe(req: ProbeRequest):
 async def register_rtsp_stream(req: StreamRegisterRequest):
     token = load_license()
     valid, data = validate_license(token)
-
+ 
     if not valid:
         return {"success": False, "error": "Invalid License"}
-
+ 
     if cameras_col is not None:
         current_count = cameras_col.count_documents({"enabled": True})
-
         if current_count >= data["max_cameras"]:
             return {"success": False, "error": "Camera limit exceeded"}
+ 
     rtsp = req.rtsp_url.strip()
     print(f"[RTSP] Registering stream: {rtsp}")
-
+ 
     if req.ip:
         host        = req.ip
         stream_name = normalize_stream_name(host)
@@ -1223,7 +1293,7 @@ async def register_rtsp_stream(req: StreamRegisterRequest):
         (d for d in devices if d.get("ome_stream") == stream_name or d.get("ip") == host),
         None
     )
-
+ 
     if existing and stream_exists_in_ome(stream_name):
         print(f"[RTSP] Stream {stream_name} already live in OME, skipping.")
         existing["rtsp_url"] = rtsp
@@ -1236,14 +1306,14 @@ async def register_rtsp_stream(req: StreamRegisterRequest):
             "status":     "streaming",
             "rtsp_url":   rtsp,
         }
-
+ 
     try:
         ome_response = register_stream(stream_name, rtsp)
         print(f"[RTSP] OME response: {ome_response}")
     except Exception as e:
         print(f"[RTSP] ❌ OME registration failed: {e}")
         return {"success": False, "error": str(e)}
-
+ 
     status_code = ome_response.get("statusCode", 0) if isinstance(ome_response, dict) else 0
     if status_code not in (200, 201):
         return {
@@ -1251,7 +1321,7 @@ async def register_rtsp_stream(req: StreamRegisterRequest):
             "error":   ome_response.get("message", "OME registration failed"),
             "ws_url":  None,
         }
-
+ 
     if not existing:
         new_device = {
             "ome_stream":     stream_name,
@@ -1272,7 +1342,7 @@ async def register_rtsp_stream(req: StreamRegisterRequest):
         existing["password"]       = req.password
         new_device = existing
     save_devices(devices)
-
+ 
     save_camera_to_db({
         "ip":             host,
         "ome_stream":     stream_name,
@@ -1290,11 +1360,12 @@ async def register_rtsp_stream(req: StreamRegisterRequest):
         "enabled":        True,
         "source":         "rtsp",
     })
-
+ 
+ 
     _watchdog_failures[stream_name] = 0
     recorder.start_camera(stream_name, rtsp, new_device)
     print(f"[RTSP] 🎥 Recording started for {stream_name}")
-
+ 
     return {
         "success":    True,
         "ome_stream": stream_name,
@@ -1303,6 +1374,7 @@ async def register_rtsp_stream(req: StreamRegisterRequest):
         "status":     "streaming",
         "rtsp_url":   rtsp,
     }
+    
 
 
 # ------------------------------------------------------------------
@@ -1688,22 +1760,64 @@ async def onvif_ptz_move(req: PTZMoveRequest):
 @app.get("/api/dashboard/summary")
 async def get_dashboard_summary():
     if cameras_col is None or analytics_col is None:
-        return {"total_cameras": 0, "active_streams": 0, "alarms_today": 0}
+        return {}
 
-    total_cameras  = cameras_col.count_documents({})
+    total_cameras = cameras_col.count_documents({})
+
     active_streams = cameras_col.count_documents({
-        "enabled": {"$ne": False},
-        "stream_status.connected": True
+        "enabled": {"$ne": False}
     })
-    today_start  = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
-    alarms_today = analytics_col.count_documents({"received_at": {"$gte": today_start}})
+
+    today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+
+    alarms_today = analytics_col.count_documents({
+        "received_at": {"$gte": today_start}
+    })
+
+    latest_health = _db["health_logs"].find_one(
+        {"type": "system"},
+        sort=[("timestamp", -1)]
+    )
+
+    cpu = latest_health.get("cpu", 0) if latest_health else 0
+    ram = latest_health.get("ram", 0) if latest_health else 0
+    disk = latest_health.get("disk", 0) if latest_health else 0
+
+    # 🔥 ADD ALERT LOGIC
+    alerts = []
+
+    if cpu > 85:
+        alerts.append("High CPU Usage")
+
+    if ram > 85:
+        alerts.append("High RAM Usage")
+
+    if disk > 90:
+        alerts.append("Disk Almost Full")
+
+    # 🔥 SYSTEM STATUS
+    status = "Healthy"
+    if cpu > 85 or ram > 85 or disk > 90:
+        status = "Critical"
+    elif cpu > 60 or ram > 60 or disk > 75:
+        status = "Warning"
 
     return {
-        "total_cameras":  total_cameras,
+        "total_cameras": total_cameras,
         "active_streams": active_streams,
-        "alarms_today":   alarms_today,
-    }
+        "alarms_today": alarms_today,
 
+        "cpu": cpu,
+        "ram": ram,
+        "disk": disk,
+
+        "alerts": alerts,
+        "status": status
+    }
+@app.get("/api/camera-health")
+def get_camera_health():
+    docs = list(_db["camera_health"].find({}, {"_id": 0}))
+    return docs
 
 @app.get("/api/dashboard/events")
 async def get_dashboard_events(limit: int = 20):
