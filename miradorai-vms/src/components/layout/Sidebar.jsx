@@ -61,6 +61,7 @@ export default function Sidebar({ userRole }) {
           onChange={(e) => setSearch(e.target.value)}
         />
       </div>
+      
 
       {/* Nav */}
       <nav className="sidebar__nav" role="navigation" aria-label="Application menu">

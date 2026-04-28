@@ -36,6 +36,8 @@ import LogsPage from "../../pages/logs/LogsPage";
 
 // ✅ IMPORTANT PAGES
 import DashboardPage from "../../pages/Dashboard/DashboardPage";
+import MapViewPage from "../../pages/mapview/MapViewPage";
+
 
 
 
@@ -90,6 +92,8 @@ const MAP = {
   "media-player": MediaPlayerPage,
   "backup": BackupPage,
   "logs": LogsPage,
+  "map-view": MapViewPage,
+
 
 };
 

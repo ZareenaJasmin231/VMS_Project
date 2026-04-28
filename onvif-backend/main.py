@@ -25,6 +25,8 @@ import os, tempfile, subprocess
 from fastapi import Depends
 import tempfile
 from ome_service import register_stream
+from maps_router import router as maps_router
+
 from onvif_service import (
     probe_camera,
     set_imaging_setting,
@@ -143,6 +145,8 @@ app.include_router(backup_router)
 app.include_router(brand_router)
 app.include_router(logs_router)
 app.include_router(camera_analytics_router)
+app.include_router(maps_router)
+
 
 
 
@@ -1816,9 +1820,29 @@ async def get_dashboard_summary():
     }
 @app.get("/api/camera-health")
 def get_camera_health():
-    docs = list(_db["camera_health"].find({}, {"_id": 0}))
-    return docs
+    # 1. Get valid camera IPs from DB
+    cameras = list(cameras_col.find({}, {"_id": 0, "ip": 1}))
+    valid_ips = [c["ip"].replace(".", "_") for c in cameras]
 
+    # 2. Get latest health records only
+    docs = list(_db["camera_health"].find({}, {"_id": 0}))
+
+    filtered = []
+
+    for d in docs:
+        stream = d.get("stream", "")
+
+        # 3. Keep only streams matching DB cameras
+        if any(ip in stream for ip in valid_ips):
+            # 4. OPTIONAL: only main stream (avoid duplicates)
+            if "cam0" in stream:   # 🔥 IMPORTANT FILTER
+                filtered.append(d)
+
+    return filtered
+@app.get("/api/action-rules")
+def get_action_rules():
+    rules = list(_db["action_rules"].find({}, {"_id": 0}))
+    return {"rules": rules}
 @app.get("/api/dashboard/events")
 async def get_dashboard_events(limit: int = 20):
     if analytics_col is None:
