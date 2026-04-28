@@ -63,15 +63,14 @@ export default function MediaPlayerPage() {
   const [expandedHours, setExpandedHours]       = useState(new Set());
 
   const [showExportModal, setShowExportModal]   = useState(false);
-  const [exportMode, setExportMode]             = useState(null);
   const [exportStartDate, setExportStartDate]   = useState(
     new Date().toISOString().split("T")[0]
   );
   const [exportEndDate, setExportEndDate]       = useState(
     new Date().toISOString().split("T")[0]
   );
-  const [exportStartTime, setExportStartTime]   = useState(0);
-  const [exportEndTime, setExportEndTime]       = useState(23);
+  const [exportStartTime, setExportStartTime]   = useState("00:00");
+  const [exportEndTime, setExportEndTime]       = useState("23:59");
   const [exporting, setExporting]               = useState(false);
   const [snapshotFlash, setSnapshotFlash]       = useState(false);
   const [isVideoLoading, setIsVideoLoading]     = useState(false);
@@ -434,54 +433,49 @@ export default function MediaPlayerPage() {
     }
   };
 
-  // ── Export current recording ───────────────────────────────────
-  const handleExportCurrent = async () => {
+  // ── Download current video segment ────────────────────────────
+  const handleDownloadVideo = async () => {
     if (!playingFile) return;
-    setExporting(true);
-    try {
-      const directUrl = `${STREAM_API}/api/recordings/download`
-        + `?camera_id=${encodeURIComponent(playingFile.camera_id)}`
-        + `&date=${encodeURIComponent(playingFile.date)}`
-        + `&start_time=${encodeURIComponent(playingFile.start_time)}`;
-      const filename = `${playingFile.camera_id}_${playingFile.date}_${playingFile.start_time}.mp4`;
 
-      let fileHandle = null;
+    const filename = `${playingFile.camera_id}_${playingFile.date}_${playingFile.start_time}.mp4`;
+    const url = `${STREAM_API}/api/recordings/download`
+      + `?camera_id=${encodeURIComponent(playingFile.camera_id)}`
+      + `&date=${encodeURIComponent(playingFile.date)}`
+      + `&start_time=${encodeURIComponent(playingFile.start_time)}`;
+
+    try {
       if (window.showSaveFilePicker) {
         try {
-          fileHandle = await window.showSaveFilePicker({
+          const handle = await window.showSaveFilePicker({
             suggestedName: filename,
             types: [{ description: "MP4 Video", accept: { "video/mp4": [".mp4"] } }],
           });
-        } catch (err) {
-          if (err.name === "AbortError") { setExporting(false); return; }
-          fileHandle = null;
+          
+          const response = await fetch(url);
+          if (!response.ok) throw new Error("Download failed");
+          const blob = await response.blob();
+          
+          const writable = await handle.createWritable();
+          await writable.write(blob);
+          await writable.close();
+          return;
+        } catch (innerErr) {
+          if (innerErr.name === "AbortError") return;
+          console.warn("showSaveFilePicker failed, falling back:", innerErr);
         }
       }
 
-      const response = await fetch(directUrl);
-      if (!response.ok) throw new Error(`Server error: ${response.status}`);
-      const blob = await response.blob();
+      // Fallback
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
 
-      if (fileHandle) {
-        const writable = await fileHandle.createWritable();
-        await writable.write(blob);
-        await writable.close();
-      } else {
-        const url = URL.createObjectURL(blob);
-        const a   = document.createElement("a");
-        a.href     = url;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        setTimeout(() => URL.revokeObjectURL(url), 5000);
-      }
-      setShowExportModal(false);
-      setExportMode(null);
-    } catch (error) {
-      if (error.name !== "AbortError") alert("❌ Export failed: " + error.message);
-    } finally {
-      setExporting(false);
+    } catch (err) {
+      console.error("Download error:", err);
+      alert("Failed to download video: " + err.message);
     }
   };
 
@@ -493,8 +487,8 @@ export default function MediaPlayerPage() {
       camera_id:  selectedCam.stream_key,
       start_date: exportStartDate,
       end_date:   exportEndDate,
-      start_hour: exportStartTime,
-      end_hour:   exportEndTime,
+      start_time: exportStartTime,
+      end_time:   exportEndTime,
     };
     const directUrl = `${STREAM_API}/api/recordings/export-zip`;
     const filename  = `recordings_${exportStartDate}_to_${exportEndDate}.zip`;
@@ -517,7 +511,6 @@ export default function MediaPlayerPage() {
           await writable.write(blob);
           await writable.close();
           setShowExportModal(false);
-          setExportMode(null);
           return;
         } catch (innerError) {
           if (innerError.name === "AbortError") { setExporting(false); return; }
@@ -540,7 +533,6 @@ export default function MediaPlayerPage() {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
       setShowExportModal(false);
-      setExportMode(null);
     } catch (error) {
       if (error.name !== "AbortError") alert("Failed to export: " + error.message);
     } finally {
@@ -591,7 +583,7 @@ export default function MediaPlayerPage() {
                 <rect x="2" y="3" width="20" height="14" rx="2"/>
                 <path d="M8 21h8M12 17v4"/>
               </svg>
-              Media Browser
+              Playback
             </div>
 
             {/* ── Custom Camera Dropdown ── */}
@@ -661,8 +653,8 @@ export default function MediaPlayerPage() {
               />
             </div>
 
-            {/* ── Browse .enc File ── */}
-            <div className="mp-browse-section">
+            {/* ── Button Row: Browse + Export ── */}
+            <div className="mp-button-row">
               <input
                 ref={browseInputRef}
                 type="file"
@@ -671,14 +663,27 @@ export default function MediaPlayerPage() {
                 style={{ display: "none" }}
                 onChange={handleBrowseFile}
               />
-              <label htmlFor="mp-browse-input" className="mp-browse-btn">
+              <label htmlFor="mp-browse-input" className="mp-action-btn mp-browse-btn">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" width="13" height="13">
                   <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
                   <polyline points="17 8 12 3 7 8"/>
                   <line x1="12" y1="3" x2="12" y2="15"/>
                 </svg>
-                Open .enc File
+                Open .enc
               </label>
+
+              <button
+                className="mp-action-btn mp-export-btn-side"
+                onClick={() => setShowExportModal(true)}
+                title="Export recordings by date range"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" width="13" height="13">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                  <polyline points="7 10 12 15 17 10"/>
+                  <line x1="12" y1="15" x2="12" y2="3"/>
+                </svg>
+                Export
+              </button>
             </div>
 
             <div className="mp-file-list">
@@ -881,9 +886,10 @@ export default function MediaPlayerPage() {
                 </button>
 
                 <button
-                  className="mp-ctrl-btn"
-                  onClick={() => setShowExportModal(true)}
-                  title="Export recording"
+                  className="mp-ctrl-btn mp-download-btn"
+                  onClick={handleDownloadVideo}
+                  disabled={!playingFile}
+                  title="Download current video segment"
                 >
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" width="17" height="17">
                     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
@@ -907,23 +913,22 @@ export default function MediaPlayerPage() {
         </>
       )}
 
-      {/* ── Export Modal ── */}
+      {/* ── Export Modal (Date Range Only) ── */}
       {showExportModal && (
         <div
           className="mp-export-modal-overlay"
           onClick={(e) => {
             if (e.target === e.currentTarget && !exporting) {
               setShowExportModal(false);
-              setExportMode(null);
             }
           }}
         >
           <div className="mp-export-modal">
             <div className="mp-export-header">
-              <span className="mp-export-title">Export Recording</span>
+              <span className="mp-export-title">Export Recordings (Date Range)</span>
               <button
                 className="mp-export-close"
-                onClick={() => { if (!exporting) { setShowExportModal(false); setExportMode(null); } }}
+                onClick={() => { if (!exporting) setShowExportModal(false); }}
                 disabled={exporting}
               >
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16">
@@ -933,126 +938,50 @@ export default function MediaPlayerPage() {
             </div>
 
             <div className="mp-export-body">
-              {!exportMode ? (
-                <>
-                  <p className="mp-export-intro">Choose what to export:</p>
-
-                  <button
-                    className="mp-export-option"
-                    onClick={() => setExportMode("current")}
-                    disabled={!playingFile || exporting}
-                  >
-                    <div className="mp-export-option-icon">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" width="20" height="20">
-                        <rect x="2" y="3" width="20" height="14" rx="2"/>
-                        <path d="M8 21h8M12 17v4"/>
-                      </svg>
-                    </div>
-                    <div className="mp-export-option-content">
-                      <div className="mp-export-option-title">Export Current Recording</div>
-                      <div className="mp-export-option-desc">
-                        {playingFile
-                          ? `${playingFile.camera_id} · ${playingFile.date} · ${playingFile.start_time}`
-                          : "No recording selected"}
-                      </div>
-                    </div>
-                  </button>
-
-                  <button
-                    className="mp-export-option"
-                    onClick={() => setExportMode("range")}
-                    disabled={!selectedCam || exporting}
-                  >
-                    <div className="mp-export-option-icon">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" width="20" height="20">
-                        <rect x="3" y="4" width="18" height="18" rx="2"/>
-                        <path d="M16 2v4M8 2v4M3 10h18"/>
-                      </svg>
-                    </div>
-                    <div className="mp-export-option-content">
-                      <div className="mp-export-option-title">Export Date Range (ZIP)</div>
-                      <div className="mp-export-option-desc">Download multiple recordings as a zip archive</div>
-                    </div>
-                  </button>
-                </>
-              ) : exportMode === "current" ? (
-                <>
-                  <span className="mp-export-label">Recording Details</span>
-                  <div className="mp-export-info">
-                    {[
-                      ["Camera",     playingFile?.camera_id],
-                      ["Date",       playingFile?.date],
-                      ["Start Time", playingFile?.start_time],
-                      ["Format",     "MP4 (H.264)"],
-                    ].map(([label, value]) => (
-                      <div key={label} className="mp-export-info-row">
-                        <span className="mp-export-info-label">{label}</span>
-                        <span className="mp-export-info-value">{value}</span>
-                      </div>
-                    ))}
-                  </div>
-                  <p className="mp-export-note">
-                    The recording will be decrypted and saved as an MP4 file.
-                  </p>
-                </>
-              ) : (
-                <>
-                  <span className="mp-export-label">Date Range</span>
-                  <div className="mp-export-range-section">
-                    <div className="mp-export-range-group">
-                      <label className="mp-export-date-label">Start Date</label>
-                      <input type="date" className="mp-export-date-input" value={exportStartDate}
-                        onChange={(e) => setExportStartDate(e.target.value)} disabled={exporting}/>
-                    </div>
-                    <div className="mp-export-range-group">
-                      <label className="mp-export-date-label">End Date</label>
-                      <input type="date" className="mp-export-date-input" value={exportEndDate}
-                        onChange={(e) => setExportEndDate(e.target.value)} disabled={exporting}/>
-                    </div>
-                    <div className="mp-export-range-group">
-                      <label className="mp-export-date-label">Start Hour</label>
-                      <select className="mp-export-select" value={exportStartTime}
-                        onChange={(e) => setExportStartTime(Number(e.target.value))} disabled={exporting}>
-                        {Array.from({length:24},(_,i)=>i).map(h=>(
-                          <option key={h} value={h}>{String(h).padStart(2,"0")}:00</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="mp-export-range-group">
-                      <label className="mp-export-date-label">End Hour</label>
-                      <select className="mp-export-select" value={exportEndTime}
-                        onChange={(e) => setExportEndTime(Number(e.target.value))} disabled={exporting}>
-                        {Array.from({length:24},(_,i)=>i).map(h=>(
-                          <option key={h} value={h}>{String(h).padStart(2,"0")}:59</option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-                  <p className="mp-export-note">
-                    All recordings in this range will be decrypted and bundled into a ZIP archive.
-                  </p>
-                </>
-              )}
+              <span className="mp-export-label">Date Range</span>
+              <div className="mp-export-range-section">
+                <div className="mp-export-range-group">
+                  <label className="mp-export-date-label">Start Date</label>
+                  <input type="date" className="mp-export-date-input" value={exportStartDate}
+                    onChange={(e) => setExportStartDate(e.target.value)} disabled={exporting}/>
+                </div>
+                <div className="mp-export-range-group">
+                  <label className="mp-export-date-label">End Date</label>
+                  <input type="date" className="mp-export-date-input" value={exportEndDate}
+                    onChange={(e) => setExportEndDate(e.target.value)} disabled={exporting}/>
+                </div>
+                <div className="mp-export-range-group">
+                  <label className="mp-export-date-label">Start Time</label>
+                  <input type="time" className="mp-export-time-input" value={exportStartTime}
+                    onChange={(e) => setExportStartTime(e.target.value)} disabled={exporting}/>
+                </div>
+                <div className="mp-export-range-group">
+                  <label className="mp-export-date-label">End Time</label>
+                  <input type="time" className="mp-export-time-input" value={exportEndTime}
+                    onChange={(e) => setExportEndTime(e.target.value)} disabled={exporting}/>
+                </div>
+              </div>
+              <p className="mp-export-note">
+                All recordings in this date and hour range will be decrypted and bundled into a ZIP archive.
+              </p>
             </div>
 
-            {exportMode && (
-              <div className="mp-export-footer">
-                <button
-                  className="mp-export-btn mp-export-cancel"
-                  onClick={() => setExportMode(null)}
-                  disabled={exporting}
-                >
-                  ← Back
-                </button>
-                <button
-                  className="mp-export-btn mp-export-action"
-                  onClick={exportMode === "current" ? handleExportCurrent : handleExportRange}
-                  disabled={exporting}
-                >
-                  {exporting ? "Exporting…" : exportMode === "current" ? "Download MP4" : "Download ZIP"}
-                </button>
-              </div>
-            )}
+            <div className="mp-export-footer">
+              <button
+                className="mp-export-btn mp-export-cancel"
+                onClick={() => setShowExportModal(false)}
+                disabled={exporting}
+              >
+                Cancel
+              </button>
+              <button
+                className="mp-export-btn mp-export-action"
+                onClick={handleExportRange}
+                disabled={exporting || !selectedCam}
+              >
+                {exporting ? "Exporting…" : "Download ZIP"}
+              </button>
+            </div>
           </div>
         </div>
       )}

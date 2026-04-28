@@ -257,8 +257,8 @@ class ExportZipRequest(BaseModel):
     camera_id:  str
     start_date: str
     end_date:   str
-    start_hour: int = 0
-    end_hour:   int = 23
+    start_time: str = "00:00"
+    end_time:   str = "23:59"
 
 class StorageApplyRequest(BaseModel):
     location:       str | None = None
@@ -553,13 +553,18 @@ def export_zip(request: ExportZipRequest, background_tasks: BackgroundTasks):
     if start > end:
         raise HTTPException(status_code=400, detail="start_date must be <= end_date")
 
-    def extract_hour_from_timestamp(start_time: str) -> int:
-        if not start_time: return -1
-        match = re.match(r'^(\d{2})', str(start_time).replace('_', '-').replace(':', '-'))
-        if match:
-            try: return int(match.group(1))
-            except: pass
-        return -1
+    def normalize_time(t_str: str) -> str:
+        """Convert HH-MM-SS or HH:MM:SS to HH:MM for comparison."""
+        if not t_str: return "00:00"
+        # Replace separators with colons
+        clean = t_str.replace('_', ':').replace('-', ':')
+        parts = clean.split(':')
+        if len(parts) >= 2:
+            return f"{parts[0].zfill(2)}:{parts[1].zfill(2)}"
+        return "00:00"
+
+    req_start = request.start_time if ":" in request.start_time else f"{str(request.start_time).zfill(2)}:00"
+    req_end   = request.end_time if ":" in request.end_time else f"{str(request.end_time).zfill(2)}:59"
 
     current_date = start
     all_docs     = []
@@ -567,8 +572,8 @@ def export_zip(request: ExportZipRequest, background_tasks: BackgroundTasks):
         date_str = current_date.strftime("%Y-%m-%d")
         docs     = list(_collection.find({"camera_id": request.camera_id, "date": date_str}))
         for doc in docs:
-            hour = extract_hour_from_timestamp(doc.get("start_time", ""))
-            if request.start_hour <= hour <= request.end_hour:
+            doc_time = normalize_time(doc.get("start_time", ""))
+            if req_start <= doc_time <= req_end:
                 all_docs.append(doc)
         current_date += timedelta(days=1)
 
