@@ -21,12 +21,12 @@ function extractHour(file) {
 
 function fmt(s) {
   if (!s || isNaN(s)) return "00:00";
-  const h   = Math.floor(s / 3600);
-  const m   = Math.floor((s % 3600) / 60);
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
   const sec = Math.floor(s % 60);
   return h > 0
-    ? `${h}:${String(m).padStart(2,"0")}:${String(sec).padStart(2,"0")}`
-    : `${String(m).padStart(2,"0")}:${String(sec).padStart(2,"0")}`;
+    ? `${h}:${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`
+    : `${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
 }
 
 function loadDevices() {
@@ -37,53 +37,60 @@ function loadDevices() {
 export default function MediaPlayerPage() {
   const { user } = useAuth();
 
-  const [cameras]                               = useState(loadDevices);
+  const [cameras] = useState(loadDevices);
   const [recordingCameras, setRecordingCameras] = useState([]);
-  const [selectedCam, setSelectedCam]           = useState(null);
-  
-  const configCameraId = selectedCam ? 
-    (cameras.find(c => c.ip === selectedCam.stream_key || String(c.id) === String(selectedCam.stream_key) || c.name === selectedCam.stream_key)?.id || selectedCam.stream_key) 
+  const [selectedCam, setSelectedCam] = useState(null);
+
+  const configCameraId = selectedCam ?
+    (cameras.find(c => c.ip === selectedCam.stream_key || String(c.id) === String(selectedCam.stream_key) || c.name === selectedCam.stream_key)?.id || selectedCam.stream_key)
     : null;
   const { cssFilter, cssTransform } = useImageConfig(configCameraId);
 
-  const [camDropdownOpen, setCamDropdownOpen]   = useState(false);
-  const [files, setFiles]                       = useState([]);
-  const [loadingFiles, setLoadingFiles]         = useState(false);
-  const [playingFile, setPlayingFile]           = useState(null);
-  const [playing, setPlaying]                   = useState(false);
-  const [currentTime, setCurrentTime]           = useState(0);
-  const [duration, setDuration]                 = useState(0);
-  const [volume, setVolume]                     = useState(0.8);
-  const [speed, setSpeed]                       = useState(1);
-  const [selectedDate, setSelectedDate]         = useState(
+  const [camDropdownOpen, setCamDropdownOpen] = useState(false);
+  const [files, setFiles] = useState([]);
+  const [loadingFiles, setLoadingFiles] = useState(false);
+  const [playingFile, setPlayingFile] = useState(null);
+  const [playing, setPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [volume, setVolume] = useState(0.8);
+  const [speed, setSpeed] = useState(1);
+  const [selectedDate, setSelectedDate] = useState(
     new Date().toISOString().split("T")[0]
   );
-  const [startTime, setStartTime]               = useState(0);
-  const [endTime, setEndTime]                   = useState(23);
-  const [expandedHours, setExpandedHours]       = useState(new Set());
+  const [startTime, setStartTime] = useState(0);
+  const [endTime, setEndTime] = useState(23);
+  const [expandedHours, setExpandedHours] = useState(new Set());
 
-  const [showExportModal, setShowExportModal]   = useState(false);
-  const [exportStartDate, setExportStartDate]   = useState(
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [exportStartDate, setExportStartDate] = useState(
     new Date().toISOString().split("T")[0]
   );
-  const [exportEndDate, setExportEndDate]       = useState(
+  const [exportEndDate, setExportEndDate] = useState(
     new Date().toISOString().split("T")[0]
   );
-  const [exportStartTime, setExportStartTime]   = useState("00:00");
-  const [exportEndTime, setExportEndTime]       = useState("23:59");
-  const [exporting, setExporting]               = useState(false);
-  const [snapshotFlash, setSnapshotFlash]       = useState(false);
-  const [isVideoLoading, setIsVideoLoading]     = useState(false);
+  const [exportStartTime, setExportStartTime] = useState("00:00");
+  const [exportEndTime, setExportEndTime] = useState("23:59");
+  const [exporting, setExporting] = useState(false);
+  const [snapshotFlash, setSnapshotFlash] = useState(false);
+  const [isVideoLoading, setIsVideoLoading] = useState(false);
+  const [toast, setToast] = useState(null); // { msg, type: 'success'|'error' }
 
   // Ref to track blob URL created from uploaded .enc so we can revoke it later
   const uploadedBlobUrl = useRef(null);
 
-  const videoRef       = useRef(null);
-  const playerWrap     = useRef(null);
-  const progressRef    = useRef(null);
-  const isDragging     = useRef(false);
+  const videoRef = useRef(null);
+  const playerWrap = useRef(null);
+  const progressRef = useRef(null);
+  const isDragging = useRef(false);
   const camDropdownRef = useRef(null);
   const browseInputRef = useRef(null);
+
+  // ── Toast helper ───────────────────────────────────────────────
+  const showToast = (msg, type = "success") => {
+    setToast({ msg, type });
+    setTimeout(() => setToast(null), 3000);
+  };
 
   // ── Close camera dropdown on outside click ─────────────────────
   useEffect(() => {
@@ -124,17 +131,17 @@ export default function MediaPlayerPage() {
         );
         if (!cancelled && res.ok) {
           const data = await res.json();
-          const raw  = Array.isArray(data) ? data : (data.files || []);
+          const raw = Array.isArray(data) ? data : (data.files || []);
           setFiles(raw.map((rec) => ({
-            name:       rec.start_time || rec.name || "",
-            camera_id:  rec.camera_id,
-            date:       rec.date,
+            name: rec.start_time || rec.name || "",
+            camera_id: rec.camera_id,
+            date: rec.date,
             start_time: rec.start_time,
-            size:       rec.file_size || "—",
+            size: rec.file_size || "—",
           })));
         }
       } catch { if (!cancelled) setFiles([]); }
-      finally  { if (!cancelled) setLoadingFiles(false); }
+      finally { if (!cancelled) setLoadingFiles(false); }
     })();
     return () => { cancelled = true; };
   }, [selectedCam, selectedDate]);
@@ -143,28 +150,28 @@ export default function MediaPlayerPage() {
   useEffect(() => {
     const v = videoRef.current;
     if (!v) return;
-    const onTime  = () => setCurrentTime(v.currentTime);
-    const onMeta  = () => setDuration(v.duration);
-    const onPlay  = () => setPlaying(true);
+    const onTime = () => setCurrentTime(v.currentTime);
+    const onMeta = () => setDuration(v.duration);
+    const onPlay = () => setPlaying(true);
     const onPause = () => setPlaying(false);
     const onEnded = () => setPlaying(false);
     const onLoadStart = () => setIsVideoLoading(true);
     const onCanPlay = () => setIsVideoLoading(false);
-    v.addEventListener("timeupdate",     onTime);
+    v.addEventListener("timeupdate", onTime);
     v.addEventListener("loadedmetadata", onMeta);
-    v.addEventListener("play",           onPlay);
-    v.addEventListener("pause",          onPause);
-    v.addEventListener("ended",          onEnded);
-    v.addEventListener("loadstart",      onLoadStart);
-    v.addEventListener("canplay",        onCanPlay);
+    v.addEventListener("play", onPlay);
+    v.addEventListener("pause", onPause);
+    v.addEventListener("ended", onEnded);
+    v.addEventListener("loadstart", onLoadStart);
+    v.addEventListener("canplay", onCanPlay);
     return () => {
-      v.removeEventListener("timeupdate",     onTime);
+      v.removeEventListener("timeupdate", onTime);
       v.removeEventListener("loadedmetadata", onMeta);
-      v.removeEventListener("play",           onPlay);
-      v.removeEventListener("pause",          onPause);
-      v.removeEventListener("ended",          onEnded);
-      v.removeEventListener("loadstart",      onLoadStart);
-      v.removeEventListener("canplay",        onCanPlay);
+      v.removeEventListener("play", onPlay);
+      v.removeEventListener("pause", onPause);
+      v.removeEventListener("ended", onEnded);
+      v.removeEventListener("loadstart", onLoadStart);
+      v.removeEventListener("canplay", onCanPlay);
     };
   }, [playingFile]);
 
@@ -173,7 +180,7 @@ export default function MediaPlayerPage() {
     const handleMove = (e) => {
       if (!isDragging.current || !progressRef.current || !duration) return;
       const rect = progressRef.current.getBoundingClientRect();
-      const pct  = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+      const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
       if (videoRef.current) {
         videoRef.current.currentTime = pct * duration;
         setCurrentTime(pct * duration);
@@ -181,10 +188,10 @@ export default function MediaPlayerPage() {
     };
     const handleUp = () => { isDragging.current = false; };
     window.addEventListener("mousemove", handleMove);
-    window.addEventListener("mouseup",   handleUp);
+    window.addEventListener("mouseup", handleUp);
     return () => {
       window.removeEventListener("mousemove", handleMove);
-      window.removeEventListener("mouseup",   handleUp);
+      window.removeEventListener("mouseup", handleUp);
     };
   }, [duration]);
 
@@ -194,12 +201,12 @@ export default function MediaPlayerPage() {
       if (!videoRef.current) return;
       if (e.target.tagName === "INPUT" || e.target.tagName === "SELECT") return;
       switch (e.key) {
-        case " ":          e.preventDefault(); togglePlay();       break;
-        case "ArrowLeft":  e.preventDefault(); skip(-5);           break;
-        case "ArrowRight": e.preventDefault(); skip(5);            break;
-        case "j": case "J":                    skip(-10);          break;
-        case "l": case "L":                    skip(10);           break;
-        case "f": case "F":                    toggleFullscreen(); break;
+        case " ": e.preventDefault(); togglePlay(); break;
+        case "ArrowLeft": e.preventDefault(); skip(-5); break;
+        case "ArrowRight": e.preventDefault(); skip(5); break;
+        case "j": case "J": skip(-10); break;
+        case "l": case "L": skip(10); break;
+        case "f": case "F": toggleFullscreen(); break;
         case "m": case "M":
           if (videoRef.current) videoRef.current.muted = !videoRef.current.muted;
           break;
@@ -209,8 +216,8 @@ export default function MediaPlayerPage() {
     return () => window.removeEventListener("keydown", handleKey);
   }, [playing, currentTime, duration]);
 
-  useEffect(() => { if (videoRef.current) videoRef.current.volume      = volume; }, [volume]);
-  useEffect(() => { if (videoRef.current) videoRef.current.playbackRate = speed;  }, [speed]);
+  useEffect(() => { if (videoRef.current) videoRef.current.volume = volume; }, [volume]);
+  useEffect(() => { if (videoRef.current) videoRef.current.playbackRate = speed; }, [speed]);
 
   // ── Revoke blob URL on unmount to avoid memory leaks ──────────
   useEffect(() => {
@@ -245,7 +252,7 @@ export default function MediaPlayerPage() {
         + `&start_time=${encodeURIComponent(file.start_time)}`
         + `&_cb=${cb}`;
       v.load();
-      v.play().catch(() => {});
+      v.play().catch(() => { });
     }, 50);
   };
 
@@ -285,8 +292,8 @@ export default function MediaPlayerPage() {
       uploadedBlobUrl.current = videoURL;
 
       setPlayingFile({
-        camera_id:  "Uploaded File",
-        date:       "—",
+        camera_id: "Uploaded File",
+        date: "—",
         start_time: file.name,
       });
       setPlaying(false);
@@ -300,7 +307,7 @@ export default function MediaPlayerPage() {
         v.removeAttribute("crossorigin");
         v.src = videoURL;
         v.load();
-        v.play().catch(() => {});
+        v.play().catch(() => { });
       }, 50);
 
     } catch (err) {
@@ -331,7 +338,7 @@ export default function MediaPlayerPage() {
   const seek = (e) => {
     if (!videoRef.current || !duration) return;
     const rect = e.currentTarget.getBoundingClientRect();
-    const pct  = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
     videoRef.current.currentTime = pct * duration;
     setCurrentTime(pct * duration);
   };
@@ -366,15 +373,15 @@ export default function MediaPlayerPage() {
     const wasPaused = video.paused;
     if (!wasPaused) video.pause();
 
-    const canvas  = document.createElement("canvas");
-    canvas.width  = video.videoWidth  || 1280;
+    const canvas = document.createElement("canvas");
+    canvas.width = video.videoWidth || 1280;
     canvas.height = video.videoHeight || 720;
-    const ctx     = canvas.getContext("2d");
+    const ctx = canvas.getContext("2d");
 
     try {
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
       const timestamp = fmt(currentTime).replace(/:/g, "-");
-      const filename  = `snapshot_${playingFile.camera_id}_${playingFile.date}_${timestamp}.png`;
+      const filename = `snapshot_${playingFile.camera_id}_${playingFile.date}_${timestamp}.png`;
 
       setSnapshotFlash(true);
       setTimeout(() => setSnapshotFlash(false), 300);
@@ -407,26 +414,21 @@ export default function MediaPlayerPage() {
       }
 
       const url = URL.createObjectURL(blob);
-      const a   = document.createElement("a");
-      a.href     = url;
+      const a = document.createElement("a");
+      a.href = url;
       a.download = filename;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       setTimeout(() => URL.revokeObjectURL(url), 3000);
 
+      showToast("Snapshot saved successfully! ✓");
     } catch (err) {
       console.error("Snapshot error:", err);
       if (err.name === "SecurityError") {
-        alert(
-          "Snapshot failed: SecurityError (tainted canvas).\n\n" +
-          "Make sure the backend sends:\n" +
-          "  Access-Control-Allow-Origin: *\n" +
-          "  Cache-Control: no-store\n" +
-          "and the video element has crossOrigin='anonymous'."
-        );
+        showToast("Snapshot failed: canvas security error (CORS). Check backend headers.", "error");
       } else {
-        alert("Snapshot failed: " + err.message);
+        showToast("Snapshot failed: " + err.message, "error");
       }
     } finally {
       if (!wasPaused) video.play();
@@ -444,38 +446,54 @@ export default function MediaPlayerPage() {
       + `&start_time=${encodeURIComponent(playingFile.start_time)}`;
 
     try {
+      // showSaveFilePicker MUST be called synchronously inside the click handler
+      // (before any await), otherwise the browser blocks it as outside a user gesture.
       if (window.showSaveFilePicker) {
+        let handle;
         try {
-          const handle = await window.showSaveFilePicker({
+          handle = await window.showSaveFilePicker({
             suggestedName: filename,
             types: [{ description: "MP4 Video", accept: { "video/mp4": [".mp4"] } }],
           });
-          
+        } catch (pickerErr) {
+          if (pickerErr.name === "AbortError") return; // User cancelled
+          // showSaveFilePicker not allowed — fall through to blob download
+          handle = null;
+        }
+
+        if (handle) {
+          // Now fetch the blob and write to the chosen location
           const response = await fetch(url);
-          if (!response.ok) throw new Error("Download failed");
+          if (!response.ok) throw new Error(`Server returned ${response.status}: ${response.statusText}`);
           const blob = await response.blob();
-          
+          if (blob.size === 0) throw new Error("Received empty file from server.");
           const writable = await handle.createWritable();
           await writable.write(blob);
           await writable.close();
+          showToast("Video saved successfully! ✓");
           return;
-        } catch (innerErr) {
-          if (innerErr.name === "AbortError") return;
-          console.warn("showSaveFilePicker failed, falling back:", innerErr);
         }
       }
 
-      // Fallback
+      // Fallback: fetch as blob → blob URL anchor download
+      const response = await fetch(url);
+      if (!response.ok) throw new Error(`Server returned ${response.status}: ${response.statusText}`);
+      const blob = await response.blob();
+      if (blob.size === 0) throw new Error("Received empty file from server.");
+
+      const blobUrl = URL.createObjectURL(blob);
       const a = document.createElement("a");
-      a.href = url;
+      a.href = blobUrl;
       a.download = filename;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 5000);
+      showToast("Video download started! ✓");
 
     } catch (err) {
       console.error("Download error:", err);
-      alert("Failed to download video: " + err.message);
+      showToast("Failed to download video: " + err.message, "error");
     }
   };
 
@@ -483,15 +501,15 @@ export default function MediaPlayerPage() {
   const handleExportRange = async () => {
     if (!selectedCam) return;
     setExporting(true);
-    const payload  = {
-      camera_id:  selectedCam.stream_key,
+    const payload = {
+      camera_id: selectedCam.stream_key,
       start_date: exportStartDate,
-      end_date:   exportEndDate,
+      end_date: exportEndDate,
       start_time: exportStartTime,
-      end_time:   exportEndTime,
+      end_time: exportEndTime,
     };
     const directUrl = `${STREAM_API}/api/recordings/export-zip`;
-    const filename  = `recordings_${exportStartDate}_to_${exportEndDate}.zip`;
+    const filename = `recordings_${exportStartDate}_to_${exportEndDate}.zip`;
 
     try {
       if (window.showSaveFilePicker) {
@@ -501,12 +519,12 @@ export default function MediaPlayerPage() {
             types: [{ description: "ZIP Archive", accept: { "application/zip": [".zip"] } }],
           });
           const response = await fetch(directUrl, {
-            method:  "POST",
+            method: "POST",
             headers: { "Content-Type": "application/json" },
-            body:    JSON.stringify(payload),
+            body: JSON.stringify(payload),
           });
           if (!response.ok) throw new Error("Failed to create zip");
-          const blob     = await response.blob();
+          const blob = await response.blob();
           const writable = await handle.createWritable();
           await writable.write(blob);
           await writable.close();
@@ -518,23 +536,24 @@ export default function MediaPlayerPage() {
       }
 
       const response = await fetch(directUrl, {
-        method:  "POST",
+        method: "POST",
         headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify(payload),
+        body: JSON.stringify(payload),
       });
       if (!response.ok) throw new Error("Failed to create zip");
       const blob = await response.blob();
-      const url  = URL.createObjectURL(blob);
-      const a    = document.createElement("a");
-      a.href     = url;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
       a.download = filename;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
       setShowExportModal(false);
+      showToast("Export ZIP saved successfully! ✓");
     } catch (error) {
-      if (error.name !== "AbortError") alert("Failed to export: " + error.message);
+      if (error.name !== "AbortError") showToast("Failed to export: " + error.message, "error");
     } finally {
       setExporting(false);
     }
@@ -558,19 +577,35 @@ export default function MediaPlayerPage() {
     if (!match) return "";
     const [_, hh, mm, ss] = match;
     const d = new Date(selectedDate);
-    d.setHours(parseInt(hh,10), parseInt(mm,10), parseInt(ss,10), 0);
+    d.setHours(parseInt(hh, 10), parseInt(mm, 10), parseInt(ss, 10), 0);
     d.setSeconds(d.getSeconds() + Math.floor(secondsOffset));
-    return d.toLocaleTimeString([], { hour12: false, hour:"2-digit", minute:"2-digit", second:"2-digit" });
+    return d.toLocaleTimeString([], { hour12: false, hour: "2-digit", minute: "2-digit", second: "2-digit" });
   };
 
   // ── Render ─────────────────────────────────────────────────────
   return (
     <div className="mp-shell">
+      {/* ── Toast Notification ── */}
+      {toast && (
+        <div className={`mp-toast mp-toast-${toast.type}`}>
+          {toast.type === "success" ? (
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="16" height="16">
+              <path d="M20 6L9 17l-5-5" />
+            </svg>
+          ) : (
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="16" height="16">
+              <path d="M18 6 6 18M6 6l12 12" />
+            </svg>
+          )}
+          <span>{toast.msg}</span>
+        </div>
+      )}
+
       {user?.role !== "admin" ? (
         <div className="mp-access-denied">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" width="48" height="48">
-            <rect x="3" y="11" width="18" height="11" rx="2"/>
-            <path d="M7 11V7a5 5 0 0110 0v4"/>
+            <rect x="3" y="11" width="18" height="11" rx="2" />
+            <path d="M7 11V7a5 5 0 0110 0v4" />
           </svg>
           <p>Admin access required</p>
         </div>
@@ -580,8 +615,8 @@ export default function MediaPlayerPage() {
           <div className="mp-left">
             <div className="mp-left-header">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" width="14" height="14">
-                <rect x="2" y="3" width="20" height="14" rx="2"/>
-                <path d="M8 21h8M12 17v4"/>
+                <rect x="2" y="3" width="20" height="14" rx="2" />
+                <path d="M8 21h8M12 17v4" />
               </svg>
               Playback
             </div>
@@ -665,11 +700,11 @@ export default function MediaPlayerPage() {
               />
               <label htmlFor="mp-browse-input" className="mp-action-btn mp-browse-btn">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" width="13" height="13">
-                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                  <polyline points="17 8 12 3 7 8"/>
-                  <line x1="12" y1="3" x2="12" y2="15"/>
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                  <polyline points="17 8 12 3 7 8" />
+                  <line x1="12" y1="3" x2="12" y2="15" />
                 </svg>
-                Open .enc
+                Play
               </label>
 
               <button
@@ -678,9 +713,9 @@ export default function MediaPlayerPage() {
                 title="Export recordings by date range"
               >
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" width="13" height="13">
-                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                  <polyline points="7 10 12 15 17 10"/>
-                  <line x1="12" y1="15" x2="12" y2="3"/>
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                  <polyline points="7 10 12 15 17 10" />
+                  <line x1="12" y1="15" x2="12" y2="3" />
                 </svg>
                 Export
               </button>
@@ -713,7 +748,7 @@ export default function MediaPlayerPage() {
                       >
                         <div className="mp-file-icon">
                           <svg viewBox="0 0 24 24" fill="currentColor" width="10" height="10">
-                            <path d="M8 5v14l11-7z"/>
+                            <path d="M8 5v14l11-7z" />
                           </svg>
                         </div>
                         <div>
@@ -743,10 +778,10 @@ export default function MediaPlayerPage() {
               {!playingFile ? (
                 <div className="mp-player-empty">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" width="56" height="56">
-                    <rect x="2" y="3" width="20" height="14" rx="2"/>
-                    <path d="M8 21h8M12 17v4"/>
-                    <circle cx="12" cy="10" r="3"/>
-                    <path d="M10.5 10l3 1.5-3 1.5z" fill="currentColor"/>
+                    <rect x="2" y="3" width="20" height="14" rx="2" />
+                    <path d="M8 21h8M12 17v4" />
+                    <circle cx="12" cy="10" r="3" />
+                    <path d="M10.5 10l3 1.5-3 1.5z" fill="currentColor" />
                   </svg>
                   <p>Select a recording from the browser to begin playback</p>
                 </div>
@@ -805,13 +840,13 @@ export default function MediaPlayerPage() {
               <div className="mp-ctrl-row">
                 <button className="mp-ctrl-btn" onClick={playPrev} disabled={!playingFile} title="Previous (←)">
                   <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
-                    <path d="M6 6h2v12H6zm3.5 6 8.5 6V6z"/>
+                    <path d="M6 6h2v12H6zm3.5 6 8.5 6V6z" />
                   </svg>
                 </button>
 
                 <button className="mp-ctrl-btn" onClick={() => skip(-10)} disabled={!playingFile} title="Back 10s (J)">
                   <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
-                    <path d="M12 5V2L8 6l4 4V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/>
+                    <path d="M12 5V2L8 6l4 4V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z" />
                     <text x="9" y="15" fontSize="5" fill="currentColor">10</text>
                   </svg>
                 </button>
@@ -824,32 +859,32 @@ export default function MediaPlayerPage() {
                 >
                   {playing ? (
                     <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18">
-                      <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>
+                      <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
                     </svg>
                   ) : (
                     <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18">
-                      <path d="M8 5v14l11-7z"/>
+                      <path d="M8 5v14l11-7z" />
                     </svg>
                   )}
                 </button>
 
                 <button className="mp-ctrl-btn" onClick={() => skip(10)} disabled={!playingFile} title="Forward 10s (L)">
                   <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
-                    <path d="M12 5V2l4 4-4 4V7c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6h2c0 4.42-3.58 8-8 8s-8-3.58-8-8 3.58-8 8-8z"/>
+                    <path d="M12 5V2l4 4-4 4V7c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6h2c0 4.42-3.58 8-8 8s-8-3.58-8-8 3.58-8 8-8z" />
                     <text x="9" y="15" fontSize="5" fill="currentColor">10</text>
                   </svg>
                 </button>
 
                 <button className="mp-ctrl-btn" onClick={playNext} disabled={!playingFile} title="Next (→)">
                   <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
-                    <path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/>
+                    <path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z" />
                   </svg>
                 </button>
 
                 <div className="mp-ctrl-spacer" />
 
-                <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14" style={{color:"var(--text-muted)",flexShrink:0}}>
-                  <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/>
+                <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14" style={{ color: "var(--text-muted)", flexShrink: 0 }}>
+                  <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z" />
                 </svg>
                 <input
                   type="range"
@@ -880,8 +915,8 @@ export default function MediaPlayerPage() {
                   title="Snapshot current frame"
                 >
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" width="17" height="17">
-                    <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
-                    <circle cx="12" cy="13" r="4"/>
+                    <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                    <circle cx="12" cy="13" r="4" />
                   </svg>
                 </button>
 
@@ -892,9 +927,9 @@ export default function MediaPlayerPage() {
                   title="Download current video segment"
                 >
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" width="17" height="17">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                    <polyline points="7 10 12 15 17 10"/>
-                    <line x1="12" y1="15" x2="12" y2="3"/>
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                    <polyline points="7 10 12 15 17 10" />
+                    <line x1="12" y1="15" x2="12" y2="3" />
                   </svg>
                 </button>
 
@@ -904,7 +939,7 @@ export default function MediaPlayerPage() {
                   title="Fullscreen (F)"
                 >
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" width="17" height="17">
-                    <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
+                    <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3" />
                   </svg>
                 </button>
               </div>
@@ -925,40 +960,56 @@ export default function MediaPlayerPage() {
         >
           <div className="mp-export-modal">
             <div className="mp-export-header">
-              <span className="mp-export-title">Export Recordings (Date Range)</span>
+              <span className="mp-export-title">Export Recordings — {selectedCam?.stream_key || "Camera"}</span>
               <button
                 className="mp-export-close"
                 onClick={() => { if (!exporting) setShowExportModal(false); }}
                 disabled={exporting}
               >
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16">
-                  <path d="M18 6 6 18M6 6l12 12"/>
+                  <path d="M18 6 6 18M6 6l12 12" />
                 </svg>
               </button>
             </div>
 
             <div className="mp-export-body">
-              <span className="mp-export-label">Date Range</span>
               <div className="mp-export-range-section">
                 <div className="mp-export-range-group">
                   <label className="mp-export-date-label">Start Date</label>
                   <input type="date" className="mp-export-date-input" value={exportStartDate}
-                    onChange={(e) => setExportStartDate(e.target.value)} disabled={exporting}/>
+                    onChange={(e) => setExportStartDate(e.target.value)} disabled={exporting} />
                 </div>
                 <div className="mp-export-range-group">
                   <label className="mp-export-date-label">End Date</label>
                   <input type="date" className="mp-export-date-input" value={exportEndDate}
-                    onChange={(e) => setExportEndDate(e.target.value)} disabled={exporting}/>
+                    onChange={(e) => setExportEndDate(e.target.value)} disabled={exporting} />
                 </div>
                 <div className="mp-export-range-group">
                   <label className="mp-export-date-label">Start Time</label>
-                  <input type="time" className="mp-export-time-input" value={exportStartTime}
-                    onChange={(e) => setExportStartTime(e.target.value)} disabled={exporting}/>
+                  <select className="mp-export-select" value={exportStartTime}
+                    onChange={(e) => setExportStartTime(e.target.value)} disabled={exporting}>
+                    {Array.from({ length: 48 }, (_, i) => {
+                      const h = Math.floor(i / 2);
+                      const m = i % 2 === 0 ? "00" : "30";
+                      return `${String(h).padStart(2, "0")}:${m}`;
+                    }).map(t => (
+                      <option key={t} value={t}>{t}</option>
+                    ))}
+                  </select>
                 </div>
                 <div className="mp-export-range-group">
                   <label className="mp-export-date-label">End Time</label>
-                  <input type="time" className="mp-export-time-input" value={exportEndTime}
-                    onChange={(e) => setExportEndTime(e.target.value)} disabled={exporting}/>
+                  <select className="mp-export-select" value={exportEndTime}
+                    onChange={(e) => setExportEndTime(e.target.value)} disabled={exporting}>
+                    {Array.from({ length: 48 }, (_, i) => {
+                      const h = Math.floor(i / 2);
+                      const m = i % 2 === 0 ? "00" : "30";
+                      return `${String(h).padStart(2, "0")}:${m}`;
+                    }).map(t => (
+                      <option key={t} value={t}>{t}</option>
+                    ))}
+                    <option value="23:59">23:59</option>
+                  </select>
                 </div>
               </div>
               <p className="mp-export-note">

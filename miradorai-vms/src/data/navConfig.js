@@ -104,7 +104,7 @@ const CORE_NAV = [
 const ADMIN_ONLY_NAV = [
   // ✅ MEDIA PLAYER
   {
-    section: "Media Player",
+    section: "Playback",
     page: "media-player",
     icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
       <path d="M23 7l-7 5 7 5V7z"/>
@@ -262,7 +262,7 @@ export const PAGE_TITLES = {
   about: "About",
 
   // Admin pages
-  "media-player": "Media Player",
+  "media-player": "Playback",
   backup: "Backup",
   logs: "System Logs",
 
