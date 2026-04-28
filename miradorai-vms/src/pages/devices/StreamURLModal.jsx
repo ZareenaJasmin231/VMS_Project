@@ -134,7 +134,13 @@ function validateURL(url) {
   return /^(rtsp|rtsps|http|https):\/\/.+/.test(url.trim());
 }
 
-export default function StreamURLModal({ onClose, onAdd }) {
+export default function StreamURLModal({
+  onClose,
+  onAdd,
+  groups,
+  selectedGroupId,
+  setSelectedGroupId
+}){
   // ✅ FIX 1 STEP 1: Added cameraName state
   const [cameraName, setCameraName] = useState("");
   const [input, setInput]           = useState("");
@@ -157,7 +163,7 @@ export default function StreamURLModal({ onClose, onAdd }) {
   const handleSubmit = () => {
     if (urls.length === 0) { setError("Add at least one stream URL"); return; }
     // ✅ FIX 1 STEP 3: Pass cameraName along with urls to parent
-    onAdd?.({ urls, cameraName });
+    onAdd?.({ urls, cameraName, group_id: selectedGroupId });
     onClose?.();
   };
 
@@ -195,6 +201,19 @@ export default function StreamURLModal({ onClose, onAdd }) {
             <div className="sum-field">
               <label className="sum-label">
                 Camera Name{" "}
+                <div className="sum-field">
+  <label className="sum-label">Group</label>
+  <select
+    className="sum-input"
+    value={selectedGroupId}
+    onChange={(e) => setSelectedGroupId(e.target.value)}
+  >
+    <option value="default">Default</option>
+    {groups.map((g) => (
+      <option key={g.id} value={g.id}>{g.name}</option>
+    ))}
+  </select>
+</div>
                 <span style={{ fontSize: "11px", fontWeight: "400", color: "#9ca3af" }}>(optional)</span>
               </label>
               <input

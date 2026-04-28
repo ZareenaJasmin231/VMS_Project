@@ -240,7 +240,13 @@ function validateIP(ip) {
   );
 }
 
-export default function ManualSearchModal({ onClose, onEnroll }) {
+export default function ManualSearchModal({
+  onClose,
+  onEnroll,
+  groups,
+  selectedGroupId,
+  setSelectedGroupId
+}) {
   // ✅ FIX 3 STEP 1: Added cameraName state
   const [cameraName, setCameraName]             = useState("");
   const [ip, setIp]                             = useState("");
@@ -312,7 +318,8 @@ export default function ManualSearchModal({ onClose, onEnroll }) {
           ip,
           port: port ? Number(port) : null,
           username: user,
-          password: pass
+          password: pass,
+          group_id: selectedGroupId
         }),
         signal:  controller.signal,
       });
@@ -405,6 +412,7 @@ export default function ManualSearchModal({ onClose, onEnroll }) {
       onEnroll?.({
         cameraName,
         ip,
+         group_id: selectedGroupId,
         port:            enrollPort,
         user,
         pass,
@@ -419,6 +427,7 @@ export default function ManualSearchModal({ onClose, onEnroll }) {
       onEnroll?.({
         cameraName,
         rtspUrl,
+         group_id: selectedGroupId, 
         label:           urlLabel,
         discovered,
         stream_profiles: discovered?.profiles     || [],
@@ -460,6 +469,21 @@ export default function ManualSearchModal({ onClose, onEnroll }) {
             <div className="msm-field">
               <label className="msm-label">
                 Camera Name{" "}
+                <div className="msm-field">
+  <label className="msm-label">Group</label>
+  <select
+    className="msm-input"
+    value={selectedGroupId}
+    onChange={(e) => setSelectedGroupId(e.target.value)}
+  >
+    <option value="default">Default</option>
+    {groups?.map((g) => (
+      <option key={g.id} value={g.id}>
+        {g.name}
+      </option>
+    ))}
+  </select>
+</div>
                 <span style={{ fontSize: "11px", fontWeight: "400", color: "#9ca3af" }}>(optional)</span>
               </label>
               <input

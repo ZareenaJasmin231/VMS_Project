@@ -255,6 +255,7 @@ class ProbeRequest(BaseModel):
     port:     int = 80
     username: str = ""
     password: str = ""
+    group_id: str = "default"
  
 
 
@@ -268,6 +269,7 @@ class StreamRegisterRequest(BaseModel):
     model:        str = "Unknown"
     mac:          str = "—"
     device_name:  str = ""
+    group_id: str = "default"
 
 
 class StreamAssignRequest(BaseModel):
@@ -282,6 +284,7 @@ class StreamAssignRequest(BaseModel):
     recording_rtsp:    str
     live_profile:      str = ""
     recording_profile: str = ""
+    group_id: str = "default"
 
 
 class SignupRequest(BaseModel):
@@ -319,7 +322,8 @@ def save_camera_to_db(data: dict):
     if cameras_col is None:
         print("[MONGO] ❌ No connection")
         return False
- 
+    if "group_id" not in data:
+        data["group_id"] = "default"
     token = load_license()
     valid, license_data = validate_license(token)
  
@@ -370,6 +374,7 @@ def load_devices():
                     "password":       d.get("password", ""),
                     "enabled":        d.get("enabled", True),
                         "active_live_profile": d.get("active_live_profile", ""),
+                        "group_id": d.get("group_id", "default"),
     "active_rec_profile":  d.get("active_rec_profile", ""),
     "recording_profile":   d.get("recording_profile", ""),
                 } for d in docs if d.get("ome_stream") and d.get("rtsp_url")])
@@ -1238,6 +1243,8 @@ async def onvif_probe(req: ProbeRequest):
                 "stream_count":    result.get("stream_count", 0),
                 "stream_profiles": result.get("profiles", []),
                 "api_profile":     result.get("api_profile"),
+                "group_id": req.__dict__.get("group_id", "default"),
+                "group_id": req.group_id,
                 
             })
             recorder.start_camera(stream_name, rtsp, new_device if not existing else existing)
@@ -1363,6 +1370,8 @@ async def register_rtsp_stream(req: StreamRegisterRequest):
         "status":         "streaming",
         "enabled":        True,
         "source":         "rtsp",
+        "group_id": req.__dict__.get("group_id", "default"),
+        "group_id": req.group_id,
     })
  
  
@@ -1472,8 +1481,9 @@ async def assign_streams(req: StreamAssignRequest):
     "active_live_profile":  req.live_profile,
     "active_rec_profile":   req.recording_profile,
     "recording_profile":    req.recording_profile,
-
+    "group_id": req.__dict__.get("group_id", "default"),
     "updated_at":           datetime.utcnow(),
+    "group_id": req.group_id,
 })
 
     # ── 4. Restart recorder with new recording RTSP ───────────────────
@@ -1663,13 +1673,21 @@ async def get_analytics_events(ip: str, limit: int = 50):
 @app.post("/api/devices/")
 async def add_device(device: dict):
     print("DEVICE REGISTERED:", device)
+
+    # ✅ ADD DEFAULT GROUP
+    if "group_id" not in device:
+        device["group_id"] = "default"
+
     existing = next(
         (d for d in devices if d.get("ip_address") == device.get("ip_address")), None
     )
+
     if existing:
         devices.remove(existing)
+
     devices.append(device)
     save_devices(devices)
+
     return {"success": True, "device": device}
 
 

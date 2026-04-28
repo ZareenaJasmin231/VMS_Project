@@ -4,7 +4,14 @@ import "./DiscoveryModal.css";
 const STREAM_API = "http://192.168.126.200:8000";
 
 
-export default function DiscoveryModal({ isOpen, onClose, onAddDevices }) {
+export default function DiscoveryModal({
+  isOpen,
+  onClose,
+  onAddDevices,
+  groups,
+  selectedGroupId,
+  setSelectedGroupId
+}) {
   const [discoveredDevices, setDiscoveredDevices] = useState([]);
   const [selectedDevices, setSelectedDevices] = useState(new Set());
   const [isScanning, setIsScanning] = useState(false);
@@ -152,6 +159,8 @@ const response = await fetch(`${STREAM_API}/api/discover-devices`, {
       ip: device.ip,
       username: creds.username || "",
       password: creds.password || "",
+      group_id: selectedGroupId,
+      device_name: creds.cameraName || ""
     };
 
     const devicePort = device.port;
@@ -237,8 +246,12 @@ if (!res.ok) {
     return {
       id: `device-${device.ip}-${Date.now()}`,
       type: "entrance",
-      name: enrichedName || `Camera @ ${device.ip}`,
-      ip: device.ip,
+name:
+  creds.cameraName ||
+  enrichedName ||
+  `Camera @ ${device.ip}`,      ip: device.ip,
+      group_id: selectedGroupId,
+      
      mac: data?.mac || device.mac || "—",
       status: ws_url ? "Online" : "Offline",
       manufacturer: enrichedManufacturer,
@@ -497,6 +510,34 @@ onAddDevices(results.filter(Boolean));
             </div>
 
             <div className="dm-cred-body">
+              <div className="dm-cred-fields">
+  <input
+    className="dm-cred-input"
+    placeholder="Camera Name (optional)"
+    value={deviceCreds[device.id]?.cameraName || ""}
+    onChange={(e) =>
+      updateCred(device.id, "cameraName", e.target.value)
+    }
+  />
+</div>
+              <div className="dm-cred-row">
+  <div className="dm-cred-cam">
+    <div className="dm-cred-cam-name">Select Group</div>
+  </div>
+
+  <div className="dm-cred-fields">
+    <select
+      className="dm-cred-input"
+      value={selectedGroupId}
+      onChange={(e) => setSelectedGroupId(e.target.value)}
+    >
+      <option value="default">Default</option>
+      {groups.map(g => (
+        <option key={g.id} value={g.id}>{g.name}</option>
+      ))}
+    </select>
+  </div>
+</div>
               <p className="dm-cred-hint">
                 Enter ONVIF credentials for each camera. Leave blank if no authentication is required.
               </p>
