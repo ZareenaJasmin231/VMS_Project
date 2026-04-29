@@ -1,0 +1,289 @@
+/* ── Virtual Map View — thumbnail pinned to camera dot ────────────── */
+
+/* The canvas wrap must be position:relative for absolute children */
+.mv-canvas-wrap {
+  position: relative;
+  overflow: hidden;
+}
+
+/* ── Thumbnail card ────────────────────────────────────────────────── */
+.vt-thumb {
+  position:       absolute;
+  border-radius:  8px;
+  overflow:       hidden;
+  cursor:         pointer;
+  transition:     box-shadow 0.18s, transform 0.18s;
+  z-index:        20;
+  display:        flex;
+  flex-direction: column;
+  background:     #0d1117;
+  border:         1.5px solid #ffffff18;
+  box-shadow:     0 4px 24px #00000066;
+  pointer-events: all;
+}
+.vt-thumb:hover {
+  box-shadow: 0 6px 32px #00000099;
+  transform:  translateY(-2px);
+  z-index:    25;
+}
+.vt-thumb--online  { border-color: #1D9E7588; }
+.vt-thumb--offline { border-color: #44444488; opacity: 0.82; }
+
+/* Connector line from thumbnail bottom to camera dot */
+.vt-thumb__connector {
+  position:         absolute;
+  bottom:           -28px;
+  left:             50%;
+  transform:        translateX(-50%);
+  width:            2px;
+  height:           28px;
+  background:       linear-gradient(to bottom, #1D9E7599, transparent);
+  pointer-events:   none;
+}
+.vt-thumb--offline .vt-thumb__connector {
+  background: linear-gradient(to bottom, #66666699, transparent);
+}
+
+/* Feed area */
+.vt-thumb__feed {
+  flex:       1;
+  overflow:   hidden;
+  background: #000;
+  min-height: 0;
+}
+.vt-thumb__feed video,
+.vt-thumb__feed canvas,
+.vt-thumb__feed > * {
+  width:      100% !important;
+  height:     100% !important;
+  object-fit: cover;
+}
+
+/* Offline placeholder */
+.vt-thumb__offline {
+  flex:            1;
+  display:         flex;
+  flex-direction:  column;
+  align-items:     center;
+  justify-content: center;
+  gap:             4px;
+  color:           #666;
+  font-size:       11px;
+  background:      #0a0a0a;
+}
+
+/* Bottom bar with name + status */
+.vt-thumb__bar {
+  display:         flex;
+  align-items:     center;
+  gap:             5px;
+  padding:         3px 6px;
+  background:      #0d1117cc;
+  backdrop-filter: blur(4px);
+  flex-shrink:     0;
+}
+.vt-thumb__dot {
+  width:         7px;
+  height:        7px;
+  border-radius: 50%;
+  flex-shrink:   0;
+}
+.vt-thumb__dot--online  { background: #1D9E75; box-shadow: 0 0 4px #1D9E75; }
+.vt-thumb__dot--offline { background: #555; }
+
+.vt-thumb__name {
+  flex:          1;
+  font-size:     10px;
+  font-weight:   600;
+  color:         #d0d6e0;
+  white-space:   nowrap;
+  overflow:      hidden;
+  text-overflow: ellipsis;
+}
+.vt-thumb__num {
+  font-size:  10px;
+  color:      #666;
+  flex-shrink: 0;
+}
+.vt-thumb__expand {
+  background:  none;
+  border:      none;
+  color:       #888;
+  cursor:      pointer;
+  font-size:   12px;
+  padding:     0 2px;
+  flex-shrink: 0;
+  line-height: 1;
+  transition:  color 0.15s;
+}
+.vt-thumb__expand:hover { color: #d0d6e0; }
+
+/* ── Virtual Map View toolbar button style ─────────────────────────── */
+.mv-tbtn--virtual {
+  background:   #1D9E7522 !important;
+  border-color: #1D9E75   !important;
+  color:        #1D9E75   !important;
+  box-shadow:   0 0 8px #1D9E7533;
+}
+
+/* ── Expanded full-feed overlay ────────────────────────────────────── */
+.vt-expanded-overlay {
+  position:         fixed;
+  inset:            0;
+  background:       #00000088;
+  backdrop-filter:  blur(6px);
+  z-index:          200;
+  display:          flex;
+  align-items:      center;
+  justify-content:  center;
+  animation:        vt-fade-in 0.18s ease;
+}
+@keyframes vt-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.vt-expanded-modal {
+  width:         min(860px, 94vw);
+  max-height:    88vh;
+  background:    #0d1117;
+  border:        1px solid #ffffff18;
+  border-radius: 14px;
+  box-shadow:    0 24px 80px #000000cc;
+  display:       flex;
+  flex-direction: column;
+  overflow:      hidden;
+  animation:     vt-slide-up 0.2s ease;
+}
+@keyframes vt-slide-up {
+  from { transform: translateY(16px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+
+/* Header */
+.vt-expanded-header {
+  display:      flex;
+  align-items:  center;
+  justify-content: space-between;
+  padding:      14px 18px 10px;
+  border-bottom: 1px solid #ffffff12;
+  flex-shrink:  0;
+}
+.vt-expanded-meta {
+  display:     flex;
+  align-items: center;
+  gap:         10px;
+}
+.vt-expanded-name {
+  font-size:   15px;
+  font-weight: 700;
+  color:       #e8edf5;
+}
+.vt-expanded-ip {
+  font-size:   12px;
+  color:       #666;
+  font-family: monospace;
+}
+.vt-expanded-fov {
+  font-size:      11px;
+  color:          #1D9E75;
+  background:     #1D9E7518;
+  border:         1px solid #1D9E7533;
+  border-radius:  4px;
+  padding:        2px 7px;
+}
+.vt-expanded-close {
+  background:    none;
+  border:        none;
+  color:         #666;
+  font-size:     18px;
+  cursor:        pointer;
+  padding:       4px 8px;
+  border-radius: 6px;
+  transition:    all 0.15s;
+}
+.vt-expanded-close:hover { color: #fff; background: #ffffff12; }
+
+/* Tabs */
+.vt-expanded-tabs {
+  display:      flex;
+  padding:      0 18px;
+  gap:          4px;
+  border-bottom: 1px solid #ffffff10;
+  flex-shrink:  0;
+}
+.vt-expanded-tab {
+  background:   none;
+  border:       none;
+  color:        #666;
+  font-size:    12px;
+  cursor:       pointer;
+  padding:      10px 14px 8px;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  transition:   all 0.15s;
+}
+.vt-expanded-tab:hover         { color: #aaa; }
+.vt-expanded-tab.active        { color: #1D9E75; border-bottom-color: #1D9E75; }
+
+/* Body */
+.vt-expanded-body {
+  flex:     1;
+  overflow: hidden;
+  display:  flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.vt-expanded-body video,
+.vt-expanded-body canvas,
+.vt-expanded-body > * {
+  flex: 1;
+  min-height: 0;
+}
+
+/* Offline state inside expanded */
+.vt-expanded-offline {
+  flex:            1;
+  display:         flex;
+  flex-direction:  column;
+  align-items:     center;
+  justify-content: center;
+  gap:             12px;
+  color:           #555;
+  background:      #080808;
+}
+.vt-expanded-offline p    { font-size: 15px; color: #666; margin: 0; }
+.vt-expanded-offline span { font-size: 12px; font-family: monospace; }
+
+/* Alerts list */
+.vt-alerts { flex: 1; overflow-y: auto; padding: 12px 18px; display: flex; flex-direction: column; gap: 6px; }
+.vt-alerts-loading,
+.vt-alerts-empty  { color: #555; font-size: 13px; text-align: center; padding: 32px; }
+.vt-alert-item {
+  display:       flex;
+  align-items:   center;
+  justify-content: space-between;
+  padding:       8px 12px;
+  background:    #ffffff06;
+  border-radius: 6px;
+  border:        1px solid #ffffff0a;
+}
+.vt-alert-type         { font-size: 12px; color: #d0d6e0; font-weight: 500; }
+.vt-alert-type--motion { color: #f5a623; }
+.vt-alert-time         { font-size: 11px; color: #555; font-family: monospace; }
+
+/* Info tab */
+.vt-info { flex: 1; overflow-y: auto; padding: 16px 18px; display: flex; flex-direction: column; gap: 2px; }
+.vt-info-row {
+  display:       flex;
+  justify-content: space-between;
+  align-items:   center;
+  padding:       9px 0;
+  border-bottom: 1px solid #ffffff08;
+  font-size:     13px;
+}
+.vt-info-row span  { color: #666; }
+.vt-info-row strong { color: #d0d6e0; font-weight: 500; }
+.vt-info-online  { color: #1D9E75 !important; }
+.vt-info-offline { color: #666    !important; }
+.vt-info-url     { font-family: monospace; font-size: 11px; word-break: break-all; }

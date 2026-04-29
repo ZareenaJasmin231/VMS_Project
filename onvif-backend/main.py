@@ -311,7 +311,10 @@ class StoragePathRequest(BaseModel):
 # ------------------------------------------------------------------
 # Helpers
 # ------------------------------------------------------------------
-def normalize_stream_name(ip: str) -> str:
+def normalize_stream_name(ip: str, manufacturer: str = None) -> str:
+    if manufacturer and manufacturer != "Unknown":
+        brand_clean = re.sub(r'[^\w\-]', '_', manufacturer)
+        return f"{brand_clean}_{ip}"
     return ip.strip().replace(".", "_")
 
 
@@ -369,9 +372,11 @@ def load_devices():
                     "username":       d.get("username", ""),
                     "password":       d.get("password", ""),
                     "enabled":        d.get("enabled", True),
-                        "active_live_profile": d.get("active_live_profile", ""),
-    "active_rec_profile":  d.get("active_rec_profile", ""),
-    "recording_profile":   d.get("recording_profile", ""),
+                    "manufacturer":   d.get("manufacturer", "Unknown"),
+                    "model":          d.get("model", "Unknown"),
+                    "active_live_profile": d.get("active_live_profile", ""),
+                    "active_rec_profile":  d.get("active_rec_profile", ""),
+                    "recording_profile":   d.get("recording_profile", ""),
                 } for d in docs if d.get("ome_stream") and d.get("rtsp_url")])
                 return docs
         except Exception as e:
@@ -469,66 +474,73 @@ def event_playback(ip: str, time: str):
             time = time[:-2] + ":" + time[-2:]
 
         alert_time = datetime.fromisoformat(time)
+        alert_date = alert_time.strftime("%Y-%m-%d")
+        alert_hms  = alert_time.strftime("%H-%M-%S")
 
-        base = f"D:/REC/{ip}"
+        # 🔥 Find chunk in MongoDB instead of walking folders
+        doc = _db["recordings"].find_one({
+            "camera_id": normalize_stream_name(ip),
+            "date": alert_date,
+            "start_time": {"$lte": alert_hms}
+        }, sort=[("start_time", -1)])
 
-        if not os.path.exists(base):
-            return {"error": "Camera folder not found"}
+        if not doc:
+            # Fallback to literal IP if normalize failed
+            doc = _db["recordings"].find_one({
+                "camera_id": ip,
+                "date": alert_date,
+                "start_time": {"$lte": alert_hms}
+            }, sort=[("start_time", -1)])
 
-        # 🔥 find correct chunk
-        target_file = None
-        file_start = None
+        if not doc:
+            return {"error": "No recording chunk found in database for this time"}
 
-        for date_folder in os.listdir(base):
-            folder = os.path.join(base, date_folder)
+        target_file = doc.get("file_path")
+        if not target_file or not os.path.exists(target_file):
+            return {"error": f"Encrypted file missing: {target_file}"}
 
-            if not os.path.isdir(folder):
-                continue
-
-            for f in os.listdir(folder):
-                if not f.endswith(".enc"):
-                    continue
-
-                try:
-                    file_time = datetime.strptime(f.replace(".enc", ""), "%H-%M-%S")
-                    file_date = datetime.strptime(date_folder, "%Y-%m-%d").date()
-
-                    full_time = datetime.combine(file_date, file_time.time())
-
-                    if full_time <= alert_time <= full_time + timedelta(minutes=5):
-                        target_file = os.path.join(folder, f)
-                        file_start = full_time
-                        break
-                except:
-                    continue
-
-            if target_file:
-                break
-
-        if not target_file:
-            return {"error": "No chunk found"}
+        # Parse start time from start_time string (HH-MM-SS)
+        try:
+            h, m, s = map(int, doc["start_time"].replace("-", ":").split(":"))
+            file_start = datetime.combine(alert_time.date(), datetime.min.time().replace(hour=h, minute=m, second=s))
+        except:
+            file_start = alert_time # Fallback
 
         print("🎯 FILE:", target_file)
 
-        # decrypt
-        temp_mp4 = tempfile.mktemp(suffix=".mp4")
-        encrypt_service.decrypt_file(target_file, temp_mp4)
-
-        # cut 20 sec
+        # ⚡ OPTIMIZED: Pipe decrypted stream directly into ffmpeg
+        # This avoids writing the whole 500MB decrypted file to disk
         offset = (alert_time - file_start).total_seconds() - 10
-        if offset < 0:
-            offset = 0
+        if offset < 0: offset = 0
 
         output = tempfile.mktemp(suffix=".mp4")
-
-        subprocess.run([
-            "ffmpeg",
+        
+        # ffmpeg -i pipe:0 ...
+        ffmpeg_cmd = [
+            "ffmpeg", "-y",
+            "-i", "pipe:0",
             "-ss", str(offset),
-            "-i", temp_mp4,
             "-t", "20",
             "-c", "copy",
+            "-movflags", "+faststart",
             output
-        ])
+        ]
+
+        proc = subprocess.Popen(ffmpeg_cmd, stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+        
+        try:
+            for chunk in encrypt_service.decrypt_file_stream(target_file):
+                proc.stdin.write(chunk)
+            proc.stdin.close()
+            proc.wait(timeout=30)
+        except Exception as e:
+            if proc.poll() is None: proc.kill()
+            raise e
+
+        if not os.path.exists(output) or os.path.getsize(output) < 1000:
+            stderr = proc.stderr.read().decode()
+            print(f"FFMPEG ERROR: {stderr}")
+            return {"error": "Failed to extract video clip"}
 
         return FileResponse(output, media_type="video/mp4")
 
@@ -1298,13 +1310,13 @@ async def register_rtsp_stream(req: StreamRegisterRequest):
  
     if req.ip:
         host        = req.ip
-        stream_name = normalize_stream_name(host)
+        stream_name = normalize_stream_name(host, req.manufacturer)
     else:
         try:
             from urllib.parse import urlparse
             parsed      = urlparse(rtsp)
             host        = parsed.hostname or "unknown"
-            stream_name = normalize_stream_name(host)
+            stream_name = normalize_stream_name(host, req.manufacturer)
         except Exception:
             host        = "unknown"
             stream_name = re.sub(r"[^a-zA-Z0-9]", "_", rtsp)[:32]
@@ -1405,7 +1417,7 @@ async def assign_streams(req: StreamAssignRequest):
     import time
 
     host        = req.ip.strip()
-    stream_name = normalize_stream_name(host)
+    stream_name = normalize_stream_name(host, req.manufacturer)
 
     print(f"[ASSIGN] {host}: live={req.live_profile!r}  rec={req.recording_profile!r}")
     print(f"[ASSIGN] live_rtsp={req.live_rtsp!r}")

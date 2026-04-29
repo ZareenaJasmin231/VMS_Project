@@ -1,0 +1,287 @@
+import React, { useEffect, useRef, useState, useCallback } from "react";
+import "./VirtualMapView.css";
+import WebRTCPlayer from "../../components/shared/WebRTCPlayer";
+
+/**
+ * VirtualMapView
+ * ─────────────────────────────────────────────────────────────────
+ * The "Digital Twin" layer.
+ * Renders LIVE FEED THUMBNAILS as HTML elements pinned to each
+ * camera's map position — positioned with absolute CSS over the canvas.
+ *
+ * Logic:
+ *   Each marker has (x, y) in IMAGE coordinates.
+ *   We convert to screen coordinates using:
+ *     screenX = x * scale + offsetX
+ *     screenY = y * scale + offsetY
+ *   Then position a thumbnail div absolutely at that point.
+ *
+ * Props:
+ *   markers       []     – current floor markers
+ *   cameras       []     – normalized camera list
+ *   scaleRef      ref    – current canvas scale
+ *   offsetRef     ref    – current canvas offset {x,y}
+ *   wrapRef       ref    – canvas wrapper div (for bounds)
+ *   expandedCamId string – which cam is currently expanded (null = none)
+ *   onExpand      fn(id) – called when a thumbnail is clicked
+ *   onClose       fn()   – called to close expanded view
+ *   visible       bool   – show/hide whole layer
+ */
+export default function VirtualMapView({
+  markers,
+  cameras,
+  scaleRef,
+  offsetRef,
+  wrapRef,
+  expandedCamId,
+  onExpand,
+  onClose,
+  visible,
+}) {
+  const [, forceUpdate] = useState(0);
+  const rafRef = useRef(null);
+
+  // Re-position thumbnails whenever map pans/zooms
+  // Parent calls this via the ref returned below
+  const reposition = useCallback(() => {
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    rafRef.current = requestAnimationFrame(() => forceUpdate(n => n + 1));
+  }, []);
+
+  // Expose reposition so MapViewPage can call it on pan/zoom
+  useEffect(() => {
+    if (wrapRef?.current) {
+      wrapRef.current.__vtReposition = reposition;
+    }
+  }, [wrapRef, reposition]);
+
+  if (!visible || !markers.length) return null;
+
+  const wrap = wrapRef?.current;
+  if (!wrap) return null;
+
+  const scale  = scaleRef.current;
+  const offset = offsetRef.current;
+
+  return (
+    <>
+      {markers.map((m, i) => {
+        const cam = cameras.find(c => c.id === m.camId);
+        if (!cam) return null;
+
+        // Convert image coords → screen coords inside the wrap div
+        const sx = m.x * scale + offset.x;
+        const sy = m.y * scale + offset.y;
+
+        // Clamp so thumbnails don't disappear off the edges
+        const wW = wrap.clientWidth;
+        const wH = wrap.clientHeight;
+        if (sx < -20 || sx > wW + 20 || sy < -20 || sy > wH + 20) return null;
+
+        const isExpanded = expandedCamId === cam.id;
+        const isOnline   = cam.status === "online";
+
+        return (
+          <CamThumbnail
+            key={cam.id}
+            cam={cam}
+            marker={m}
+            index={i}
+            sx={sx}
+            sy={sy}
+            isExpanded={isExpanded}
+            isOnline={isOnline}
+            onExpand={() => onExpand(cam.id)}
+            onClose={onClose}
+          />
+        );
+      })}
+
+      {/* Expanded full-feed overlay */}
+      {expandedCamId && (() => {
+        const m   = markers.find(mk => mk.camId === expandedCamId);
+        const cam = cameras.find(c  => c.id   === expandedCamId);
+        if (!m || !cam) return null;
+        return (
+          <ExpandedFeed
+            cam={cam}
+            marker={m}
+            onClose={onClose}
+          />
+        );
+      })()}
+    </>
+  );
+}
+
+// ── Single camera thumbnail pinned to map position ────────────────
+function CamThumbnail({ cam, marker, index, sx, sy, isExpanded, isOnline, onExpand, onClose }) {
+  const THUMB_W = 160;
+  const THUMB_H = 90;
+
+  // Position thumbnail so its bottom-centre aligns with the camera dot
+  const left = sx - THUMB_W / 2;
+  const top  = sy - THUMB_H - 28; // 28px above the dot
+
+  return (
+    <div
+      className={`vt-thumb ${isOnline ? "vt-thumb--online" : "vt-thumb--offline"} ${isExpanded ? "vt-thumb--expanded" : ""}`}
+      style={{ left, top, width: THUMB_W, height: THUMB_H }}
+      onClick={e => { e.stopPropagation(); isExpanded ? onClose() : onExpand(); }}
+      title={`${cam.name} — click to expand`}
+    >
+      {/* Connector line from thumbnail down to camera dot */}
+      <div className="vt-thumb__connector" />
+
+      {/* Live feed or offline placeholder */}
+      {isOnline ? (
+        <div className="vt-thumb__feed">
+          <WebRTCPlayer
+            key={cam.id}
+            serverUrl={cam.ws_url}
+            cameraId={cam.id}
+            muted
+            autoPlay
+          />
+        </div>
+      ) : (
+        <div className="vt-thumb__offline">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" width="22" height="22">
+            <path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>
+            <line x1="1" y1="1" x2="23" y2="23" stroke="#ff4444" strokeWidth="2"/>
+          </svg>
+          <span>Offline</span>
+        </div>
+      )}
+
+      {/* Header bar */}
+      <div className="vt-thumb__bar">
+        <span className={`vt-thumb__dot ${isOnline ? "vt-thumb__dot--online" : "vt-thumb__dot--offline"}`} />
+        <span className="vt-thumb__name">{cam.name}</span>
+        <span className="vt-thumb__num">#{index + 1}</span>
+        <button
+          className="vt-thumb__expand"
+          onClick={e => { e.stopPropagation(); isExpanded ? onClose() : onExpand(); }}
+          title="Expand"
+        >
+          {isExpanded ? "✕" : "⛶"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── Full expanded feed overlay ────────────────────────────────────
+function ExpandedFeed({ cam, marker, onClose }) {
+  const [tab, setTab]       = useState("stream");
+  const [alerts, setAlerts] = useState([]);
+  const [loadingA, setLA]   = useState(false);
+
+  useEffect(() => {
+    if (tab !== "alerts") return;
+    setLA(true);
+    const API = "http://192.168.126.200:8000";
+    const token = localStorage.getItem("miradorai_token") || localStorage.getItem("token") || "";
+    fetch(`${API}/api/alerts?camera_ip=${cam.ip}&limit=50`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => setAlerts(d?.alerts || []))
+      .catch(() => {})
+      .finally(() => setLA(false));
+  }, [tab, cam.ip]);
+
+  return (
+    <div className="vt-expanded-overlay" onClick={onClose}>
+      <div className="vt-expanded-modal" onClick={e => e.stopPropagation()}>
+
+        {/* Header */}
+        <div className="vt-expanded-header">
+          <div className="vt-expanded-meta">
+            <span className={`vt-thumb__dot ${cam.status === "online" ? "vt-thumb__dot--online" : "vt-thumb__dot--offline"}`} style={{ width: 10, height: 10 }} />
+            <span className="vt-expanded-name">{cam.name}</span>
+            <span className="vt-expanded-ip">{cam.ip}</span>
+            <span className="vt-expanded-fov">FOV {marker.fovAngle || 60}° · {Math.round(marker.direction || 0)}°</span>
+          </div>
+          <button className="vt-expanded-close" onClick={onClose}>✕</button>
+        </div>
+
+        {/* Tabs */}
+        <div className="vt-expanded-tabs">
+          <button className={`vt-expanded-tab ${tab === "stream" ? "active" : ""}`} onClick={() => setTab("stream")}>
+            📹 Live Feed
+          </button>
+          <button className={`vt-expanded-tab ${tab === "alerts" ? "active" : ""}`} onClick={() => setTab("alerts")}>
+            🔔 Alerts
+          </button>
+          <button className={`vt-expanded-tab ${tab === "info" ? "active" : ""}`} onClick={() => setTab("info")}>
+            ℹ Info
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="vt-expanded-body">
+          {tab === "stream" && (
+            <>
+              {cam.status === "online" ? (
+                <WebRTCPlayer
+                  key={cam.id + "_expanded"}
+                  serverUrl={cam.ws_url}
+                  cameraId={cam.id}
+                  autoPlay
+                />
+              ) : (
+                <div className="vt-expanded-offline">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" width="48" height="48">
+                    <path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/>
+                    <line x1="1" y1="1" x2="23" y2="23" stroke="#ff4444" strokeWidth="2"/>
+                  </svg>
+                  <p>Camera is offline</p>
+                  <span>{cam.ip}</span>
+                </div>
+              )}
+            </>
+          )}
+
+          {tab === "alerts" && (
+            <div className="vt-alerts">
+              {loadingA ? (
+                <div className="vt-alerts-loading">Loading alerts…</div>
+              ) : alerts.length === 0 ? (
+                <div className="vt-alerts-empty">No recent alerts for this camera</div>
+              ) : (
+                alerts.map((a, i) => (
+                  <div key={i} className="vt-alert-item">
+                    <span className={`vt-alert-type vt-alert-type--${(a.type || a.scenario || "").toLowerCase().includes("motion") ? "motion" : "other"}`}>
+                      {a.scenario || a.type || "Event"}
+                    </span>
+                    <span className="vt-alert-time">
+                      {a.time ? new Date(a.time).toLocaleString()
+                        : a.received_at ? new Date(a.received_at).toLocaleString() : "—"}
+                    </span>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+
+          {tab === "info" && (
+            <div className="vt-info">
+              <div className="vt-info-row"><span>Camera Name</span><strong>{cam.name}</strong></div>
+              <div className="vt-info-row"><span>IP Address</span><strong>{cam.ip}</strong></div>
+              <div className="vt-info-row"><span>Status</span>
+                <strong className={cam.status === "online" ? "vt-info-online" : "vt-info-offline"}>
+                  {cam.status === "online" ? "● Online" : "○ Offline"}
+                </strong>
+              </div>
+              <div className="vt-info-row"><span>FOV Angle</span><strong>{marker.fovAngle || 60}°</strong></div>
+              <div className="vt-info-row"><span>Direction</span><strong>{Math.round(marker.direction || 0)}°</strong></div>
+              <div className="vt-info-row"><span>Map Position</span><strong>x:{Math.round(marker.x)}, y:{Math.round(marker.y)}</strong></div>
+              <div className="vt-info-row"><span>Stream URL</span><strong className="vt-info-url">{cam.ws_url || "—"}</strong></div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}

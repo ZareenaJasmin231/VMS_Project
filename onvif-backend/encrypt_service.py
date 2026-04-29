@@ -241,6 +241,26 @@ def decrypt_file(input_path: str, output_path: str) -> bool:
         print(f"[DECRYPT] ❌ Decryption failed {input_path}: {e}")
         return False
 
+def decrypt_file_stream(input_path: str):
+    """Generator that decrypts a file in chunks for streaming."""
+    if not os.path.exists(input_path):
+        return
+    with open(input_path, "rb") as f:
+        iv = f.read(16)
+        if not iv or len(iv) < 16:
+            return
+        cipher = Cipher(algorithms.AES(MASTER_KEY), modes.CBC(iv), backend=default_backend())
+        dec = cipher.decryptor()
+        while True:
+            chunk = f.read(128 * 1024)
+            if not chunk:
+                break
+            yield dec.update(chunk)
+        try:
+            yield dec.finalize()
+        except:
+            pass
+
 
 def _scan_and_encrypt():
     # ── Always use the recorder's current live path ──

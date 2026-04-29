@@ -89,15 +89,7 @@ const CORE_NAV = [
     ],
   },
 
-  // ✅ ABOUT
-  {
-    section: "About",
-    page: "about",
-    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-      <circle cx="12" cy="12" r="10"/>
-      <path d="M12 16v-4M12 8h.01"/>
-    </svg>`,
-  },
+
 ];
 
 // ================= ADMIN ONLY NAVIGATION =================
@@ -147,6 +139,17 @@ const ADMIN_ONLY_NAV = [
       <line x1="16" y1="6" x2="16" y2="22"/>
     </svg>`,
   },
+
+    // ✅ ABOUT
+  {
+    section: "About",
+    page: "about",
+    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+      <circle cx="12" cy="12" r="10"/>
+      <path d="M12 16v-4M12 8h.01"/>
+    </svg>`,
+  },
+
 ];
 
 

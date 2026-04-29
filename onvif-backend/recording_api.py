@@ -270,6 +270,34 @@ def _decrypt(file_path: str) -> io.BytesIO:
     except Exception as e:
         raise RuntimeError(f"Failed to decrypt {file_path}: {e}") from e
 
+def decrypt_stream(file_path: str):
+    """
+    Generator that decrypts an .enc file in chunks.
+    Allows browsers to start playing immediately as data arrives.
+    """
+    if not os.path.exists(file_path):
+        return
+
+    key = _load_key()
+    with open(file_path, "rb") as f:
+        iv = f.read(16)
+        if not iv or len(iv) < 16:
+            return
+        
+        cipher = Cipher(algorithms.AES(key), modes.CBC(iv), backend=default_backend())
+        dec = cipher.decryptor()
+        
+        while True:
+            chunk = f.read(128 * 1024) # 128KB chunks
+            if not chunk:
+                break
+            yield dec.update(chunk)
+        
+        try:
+            yield dec.finalize()
+        except:
+            pass
+
 def _decrypt_bytes(encrypted_bytes: bytes) -> io.BytesIO:
     """Decrypt raw encrypted bytes (from an uploaded file) and return BytesIO."""
     try:
@@ -516,26 +544,20 @@ def play_recording(
         raise HTTPException(status_code=404, detail=f"Encrypted file missing: {enc_path}")
 
     try:
-        stream = _decrypt(enc_path)
-        data   = stream.getvalue()
+        file_size = os.path.getsize(enc_path) - 16
+        return StreamingResponse(
+            decrypt_stream(enc_path),
+            media_type="video/mp4",
+            headers={
+                "Content-Length": str(file_size),
+                "Accept-Ranges":  "bytes",
+                "Cache-Control":  "no-store",
+                **_CORS_HEADERS,
+            }
+        )
     except Exception as e:
         print(f"[PLAY] ❌ {enc_path}: {e}")
         raise HTTPException(status_code=500, detail=f"Decryption failed: {e}")
-
-    if not data:
-        raise HTTPException(status_code=500, detail="Decryption produced empty output — key mismatch?")
-
-    return Response(
-        content=data,
-        media_type="video/mp4",
-        headers={
-            "Content-Length": str(len(data)),
-            "Content-Type":   "video/mp4",
-            "Accept-Ranges":  "bytes",
-            "Cache-Control":  "no-store",
-            **_CORS_HEADERS,
-        }
-    )
 
 @recording_router.get("/download")
 def download_recording(

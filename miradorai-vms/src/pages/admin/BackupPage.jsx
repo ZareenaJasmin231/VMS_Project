@@ -815,7 +815,7 @@ export default function BackupPage() {
         </div>
       </SectionCard>
 
-      {/* Activity logs */}
+      {/* Activity logs
       <div className="backup-section-card">
         <div className="card-header">
           <FaHistory style={{ color: '#94a3b8' }} /><h2>Activity logs</h2>
@@ -830,7 +830,7 @@ export default function BackupPage() {
           ))}
           {!logs.length && <div className="empty-msg" style={{ margin: 20 }}>No activity yet.</div>}
         </div>
-      </div>
+      </div> */}
 
       {/* Toast notification */}
       {notification && (
