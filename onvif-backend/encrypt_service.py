@@ -3,6 +3,7 @@ encrypt_service.py — fixed MongoDB connection + synced recording path
 """
 
 import os
+import io
 import time
 import secrets
 import json
@@ -18,7 +19,7 @@ from pymongo import MongoClient
 import rtsp_recorder as recorder   # get_recordings_dir() gives the live path
 
 MONGO_URI      = os.environ.get("MONGO_URI", "mongodb://localhost:27017/")
-KEY_FILE       = os.environ.get("VIDEO_KEY_FILE", os.path.join(os.path.dirname(__file__), "..", "devices_data", "video.key"))
+KEY_FILE       = os.environ.get("VIDEO_KEY_FILE", "/app/data/video.key")  # Must match recording_api.py
 POLL_INTERVAL  = 5
 
 # ------------------------------------------------------------------
@@ -39,14 +40,51 @@ except Exception as e:
 # ------------------------------------------------------------------
 # AES-256 key
 # ------------------------------------------------------------------
+
+# Old default path used before this fix — kept here ONLY for one-time migration.
+# If a key exists there but not at KEY_FILE, we copy it so existing recordings
+# remain decryptable after upgrading.
+_OLD_KEY_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "devices_data", "video.key")
+
+def _migrate_key_if_needed():
+    """
+    One-time migration: if the key only exists at the old path, copy it to
+    KEY_FILE so recording_api.py (which always uses KEY_FILE) can decrypt
+    recordings that were encrypted with the old key.
+    """
+    if os.path.exists(KEY_FILE):
+        return  # Already at the canonical location — nothing to do
+    old_path = os.path.normpath(_OLD_KEY_FILE)
+    if os.path.exists(old_path):
+        print(f"[ENCRYPT] 🔑 Migrating key from old path: {old_path} → {KEY_FILE}")
+        try:
+            os.makedirs(os.path.dirname(os.path.abspath(KEY_FILE)), exist_ok=True)
+            import shutil
+            shutil.copy2(old_path, KEY_FILE)
+            print(f"[ENCRYPT] ✅ Key migrated successfully — recordings remain decryptable")
+        except Exception as e:
+            print(f"[ENCRYPT] ⚠ Key migration failed: {e}")
+
+_migrate_key_if_needed()
+
 def load_video_key() -> bytes:
+    """
+    Load the AES-256 key from KEY_FILE (canonical path, shared with recording_api.py).
+    IMPORTANT: read raw bytes WITHOUT .strip() — binary keys are exactly 32 bytes and
+    .strip() silently removes trailing 0x0a/0x0d bytes, producing a different key than
+    the one used to encrypt, causing AES to output garbage that looks valid but VLC rejects.
+    """
     if os.path.exists(KEY_FILE):
         with open(KEY_FILE, "rb") as f:
-            key = f.read().strip()
-        return key[:32].ljust(32, b'\0')
+            key = f.read()   # ← NO .strip() — binary key must be read verbatim
+        if len(key) < 1:
+            raise RuntimeError(f"[ENCRYPT] video.key at {KEY_FILE} is empty!")
+        padded = key[:32].ljust(32, b'\0')
+        print(f"[ENCRYPT] 🔑 Loaded key from {KEY_FILE} ({len(key)} bytes raw, using first 32)")
+        return padded
     print("[ENCRYPT] video.key not found — generating new AES-256 key")
     key = secrets.token_bytes(32)
-    os.makedirs(os.path.dirname(KEY_FILE), exist_ok=True)
+    os.makedirs(os.path.dirname(os.path.abspath(KEY_FILE)), exist_ok=True)
     with open(KEY_FILE, "wb") as f:
         f.write(key)
     print(f"[ENCRYPT] Key saved to {KEY_FILE}")
@@ -161,6 +199,47 @@ def encrypt_file(input_path: str) -> bool:
 
 _seen_files = set()
 _stop_event = threading.Event()
+
+
+# ------------------------------------------------------------------
+# Decrypt helpers (used by main.py /api/recordings/decrypt-upload)
+# ------------------------------------------------------------------
+def decrypt_bytes_to_io(raw_bytes: bytes) -> io.BytesIO:
+    """
+    Decrypt AES-256-CBC encrypted bytes and return a BytesIO of the MP4 payload.
+    IMPORTANT: MASTER_KEY is loaded once at module start WITHOUT .strip() so it
+    matches exactly what recording_api._load_key() reads from the same key file.
+    """
+    if not raw_bytes or len(raw_bytes) <= 16:
+        raise ValueError("Encrypted payload must be larger than 16 bytes")
+    iv         = raw_bytes[:16]
+    ciphertext = raw_bytes[16:]
+    cipher     = Cipher(algorithms.AES(MASTER_KEY), modes.CBC(iv), backend=default_backend())
+    decryptor  = cipher.decryptor()
+    padded_data = decryptor.update(ciphertext) + decryptor.finalize()
+    unpadder    = padding.PKCS7(128).unpadder()
+    data        = unpadder.update(padded_data) + unpadder.finalize()
+    # Validate the output is a real MP4 (catches wrong-key silent corruption)
+    if len(data) < 12 or data[4:8] not in (b'ftyp', b'moov', b'mdat', b'free', b'skip', b'wide'):
+        raise ValueError(
+            f"Decrypted output is not a valid MP4 (bytes[4:8]={data[4:8]!r}). "
+            "Key mismatch between encrypt_service and recording_api?"
+        )
+    return io.BytesIO(data)
+
+def decrypt_file(input_path: str, output_path: str) -> bool:
+    """Decrypt a .enc file to an MP4 file on disk. Returns True on success."""
+    try:
+        with open(input_path, "rb") as f:
+            encrypted_data = f.read()
+        dec_stream = decrypt_bytes_to_io(encrypted_data)
+        with open(output_path, "wb") as f:
+            f.write(dec_stream.getbuffer())
+        print(f"[DECRYPT] ✅ Decrypted: {output_path}")
+        return True
+    except Exception as e:
+        print(f"[DECRYPT] ❌ Decryption failed {input_path}: {e}")
+        return False
 
 
 def _scan_and_encrypt():

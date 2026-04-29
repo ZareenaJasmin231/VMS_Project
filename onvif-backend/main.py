@@ -255,7 +255,6 @@ class ProbeRequest(BaseModel):
     port:     int = 80
     username: str = ""
     password: str = ""
-    group_id: str = "default"
  
 
 
@@ -269,7 +268,6 @@ class StreamRegisterRequest(BaseModel):
     model:        str = "Unknown"
     mac:          str = "—"
     device_name:  str = ""
-    group_id: str = "default"
 
 
 class StreamAssignRequest(BaseModel):
@@ -284,7 +282,6 @@ class StreamAssignRequest(BaseModel):
     recording_rtsp:    str
     live_profile:      str = ""
     recording_profile: str = ""
-    group_id: str = "default"
 
 
 class SignupRequest(BaseModel):
@@ -322,8 +319,7 @@ def save_camera_to_db(data: dict):
     if cameras_col is None:
         print("[MONGO] ❌ No connection")
         return False
-    if "group_id" not in data:
-        data["group_id"] = "default"
+ 
     token = load_license()
     valid, license_data = validate_license(token)
  
@@ -374,7 +370,6 @@ def load_devices():
                     "password":       d.get("password", ""),
                     "enabled":        d.get("enabled", True),
                         "active_live_profile": d.get("active_live_profile", ""),
-                        "group_id": d.get("group_id", "default"),
     "active_rec_profile":  d.get("active_rec_profile", ""),
     "recording_profile":   d.get("recording_profile", ""),
                 } for d in docs if d.get("ome_stream") and d.get("rtsp_url")])
@@ -946,43 +941,59 @@ async def decrypt_uploaded_file(file: UploadFile = File(...)):
     try:
         print(f"[UPLOAD] Received file: {file.filename}")
 
-        # ✅ Validate extension
+        # Validate extension
         if not file.filename.endswith(".enc"):
             raise HTTPException(status_code=400, detail="Only .enc files allowed")
 
-        # ✅ Save temp encrypted file
+        # Save temp encrypted file
         with tempfile.NamedTemporaryFile(delete=False, suffix=".enc") as temp_enc:
             temp_enc.write(await file.read())
             enc_path = temp_enc.name
 
-        # ✅ Output path
+        # Output path
         dec_path = enc_path.replace(".enc", ".mp4")
 
         print(f"[DECRYPT] Input: {enc_path}")
         print(f"[DECRYPT] Output: {dec_path}")
 
-        # 🔥 Decrypt
-        encrypt_service.decrypt_file(enc_path, dec_path)
+        # Decrypt — now returns True/False and raises on bad key
+        success = encrypt_service.decrypt_file(enc_path, dec_path)
+        if not success:
+            raise HTTPException(status_code=500, detail="Decryption utility failed. Check backend logs.")
 
-        # ✅ Read file fully (important for frontend)
+        if not os.path.exists(dec_path):
+            raise HTTPException(status_code=500, detail="Decrypted file not created.")
+
+        # Read fully before cleanup
         with open(dec_path, "rb") as f:
             data = f.read()
+
+        if not data:
+            raise HTTPException(status_code=500, detail="Decryption produced empty output — key mismatch?")
+
+        safe_filename = file.filename.replace('.enc', '.mp4')
 
         return Response(
             content=data,
             media_type="video/mp4",
             headers={
-                "Content-Disposition": f"inline; filename={file.filename.replace('.enc','.mp4')}",
-                "Cache-Control": "no-store"
+                # Explicit Content-Type so browsers/VLC know this is MP4
+                "Content-Type":        "video/mp4",
+                "Content-Length":      str(len(data)),
+                "Content-Disposition": f"inline; filename=\"{safe_filename}\"",
+                "Accept-Ranges":       "bytes",
+                "Cache-Control":       "no-store",
             }
         )
 
+    except HTTPException:
+        raise
     except Exception as e:
-        print(f"[DECRYPT ERROR] {e}")
-        raise HTTPException(status_code=500, detail="Decryption failed")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Decryption failed: {str(e)}")
 
     finally:
-        # ✅ Cleanup temp files
         try:
             if enc_path and os.path.exists(enc_path):
                 os.remove(enc_path)
@@ -1243,8 +1254,6 @@ async def onvif_probe(req: ProbeRequest):
                 "stream_count":    result.get("stream_count", 0),
                 "stream_profiles": result.get("profiles", []),
                 "api_profile":     result.get("api_profile"),
-                "group_id": req.__dict__.get("group_id", "default"),
-                "group_id": req.group_id,
                 
             })
             recorder.start_camera(stream_name, rtsp, new_device if not existing else existing)
@@ -1370,8 +1379,6 @@ async def register_rtsp_stream(req: StreamRegisterRequest):
         "status":         "streaming",
         "enabled":        True,
         "source":         "rtsp",
-        "group_id": req.__dict__.get("group_id", "default"),
-        "group_id": req.group_id,
     })
  
  
@@ -1481,9 +1488,8 @@ async def assign_streams(req: StreamAssignRequest):
     "active_live_profile":  req.live_profile,
     "active_rec_profile":   req.recording_profile,
     "recording_profile":    req.recording_profile,
-    "group_id": req.__dict__.get("group_id", "default"),
+
     "updated_at":           datetime.utcnow(),
-    "group_id": req.group_id,
 })
 
     # ── 4. Restart recorder with new recording RTSP ───────────────────
@@ -1673,21 +1679,13 @@ async def get_analytics_events(ip: str, limit: int = 50):
 @app.post("/api/devices/")
 async def add_device(device: dict):
     print("DEVICE REGISTERED:", device)
-
-    # ✅ ADD DEFAULT GROUP
-    if "group_id" not in device:
-        device["group_id"] = "default"
-
     existing = next(
         (d for d in devices if d.get("ip_address") == device.get("ip_address")), None
     )
-
     if existing:
         devices.remove(existing)
-
     devices.append(device)
     save_devices(devices)
-
     return {"success": True, "device": device}
 
 

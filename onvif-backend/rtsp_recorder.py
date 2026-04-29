@@ -20,11 +20,6 @@ import signal
 from datetime import datetime
 import mask_service
 
-# ✅ STEP 1 — Added imports
-import re
-from pymongo import MongoClient
-from datetime import datetime
-
 from onvif_service import get_camera_system_time
 
 # ── Default recordings directory (can be overridden at runtime) ──
@@ -34,12 +29,6 @@ _recordings_dir_override: str | None = None   # set by set_recordings_dir()
 
 CHUNK_SECONDS = int(os.environ.get("CHUNK_SECONDS", "300"))
 FFMPEG_BIN    = os.environ.get("FFMPEG_BIN", "ffmpeg")
-
-# ✅ STEP 2 — Mongo connection for camera health
-MONGO_URI = os.environ.get("MONGO_URI", "mongodb://mongo:27017/")
-mongo_client = MongoClient(MONGO_URI)
-health_db = mongo_client["mirador-vms"]
-camera_health_col = health_db["camera_health"]
 
 _recorders:  dict[str, threading.Thread] = {}
 _stop_flags: dict[str, threading.Event]  = {}
@@ -72,23 +61,6 @@ def set_recordings_dir(path: str):
         print(f"[RECORDER] 📁 Recording path updated to: {path}")
     except Exception as e:
         print(f"[RECORDER] ⚠ Could not create recording directory '{path}': {e}")
-
-
-# ✅ STEP 3 — FFmpeg output parser
-def parse_ffmpeg_line(line):
-    fps = None
-    bitrate = None
-
-    fps_match     = re.search(r"fps=\s*(\d+)", line)
-    bitrate_match = re.search(r"bitrate=\s*([\d\.kmg]+)", line)
-
-    if fps_match:
-        fps = int(fps_match.group(1))
-
-    if bitrate_match:
-        bitrate = bitrate_match.group(1)
-
-    return fps, bitrate
 
 
 def _record_loop(
@@ -139,12 +111,10 @@ def _record_loop(
                     print(f"[RECORDER] 🎭 Mask filter cleared for {stream_name}")
             current_vf = fresh_vf
 
-        # ✅ STEP 4 — Use "-loglevel info" + "-stats" instead of "-loglevel error"
         if current_vf:
             cmd = [
                 FFMPEG_BIN,
-                "-loglevel",       "info",
-                "-stats",
+                "-loglevel",       "error",
                 "-rtsp_transport", "tcp",
                 "-i",              rtsp_url,
                 "-t",              str(CHUNK_SECONDS),
@@ -160,14 +130,11 @@ def _record_loop(
         else:
             cmd = [
                 FFMPEG_BIN,
-                "-loglevel",       "info",
-                "-stats",
+                "-loglevel",       "error",
                 "-rtsp_transport", "tcp",
                 "-i",              rtsp_url,
                 "-t",              str(CHUNK_SECONDS),
-                "-c:v",            "libx264",
-                "-preset",         "ultrafast",
-                "-crf",            "23",
+                "-c:v",            "copy",
                 "-an",
                 "-movflags",       "+faststart",
                 "-y",
@@ -175,55 +142,26 @@ def _record_loop(
             ]
 
         try:
-            # ✅ STEP 5 — Capture stdout+stderr merged for live parsing
             proc = subprocess.Popen(
                 cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                bufsize=1
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.PIPE,
             )
 
-            # ✅ STEP 6 — Live parsing loop: parse FPS/bitrate and write to Mongo
-            for line in proc.stdout:
-                fps, bitrate = parse_ffmpeg_line(line)
-
-                if fps or bitrate:
-                    camera_health_col.update_one(
-                        {"stream": stream_name},
-                        {
-                            "$set": {
-                                "fps":        fps,
-                                "bitrate":    bitrate,
-                                "status":     "healthy",
-                                "updated_at": datetime.utcnow()
-                            }
-                        },
-                        upsert=True
-                    )
-
-                # 🔥 Error detection
-                if "error" in line.lower() or "failed" in line.lower():
-                    camera_health_col.update_one(
-                        {"stream": stream_name},
-                        {
-                            "$set": {
-                                "status":     "error",
-                                "last_error": line.strip(),
-                                "updated_at": datetime.utcnow()
-                            }
-                        },
-                        upsert=True
-                    )
-
+            while proc.poll() is None:
                 if stop_event.is_set():
-                    proc.terminate()
+                    proc.send_signal(signal.SIGTERM)
+                    try:
+                        proc.wait(timeout=5)
+                    except subprocess.TimeoutExpired:
+                        proc.kill()
                     break
+                time.sleep(1)
 
-            proc.wait()
             returncode = proc.returncode or 0
             if returncode not in (0, -15):
-                print(f"[RECORDER] ⚠ ffmpeg exited {returncode} for {stream_name}")
+                stderr_out = proc.stderr.read().decode(errors="replace").strip()
+                print(f"[RECORDER] ⚠ ffmpeg exited {returncode} for {stream_name}: {stderr_out[-200:]}")
                 time.sleep(5)
             else:
                 print(f"[RECORDER] ✅ Chunk saved: {out_file}")
@@ -315,10 +253,7 @@ def stop_all():
 if __name__ == "__main__":
     import json
 
-    DEVICES_FILE = os.environ.get(
-        "DEVICES_FILE",
-        os.path.join(os.path.dirname(__file__), "..", "devices_data", "devices.json")
-    )
+    DEVICES_FILE = os.environ.get("DEVICES_FILE", "/app/data/devices.json")
 
     try:
         with open(DEVICES_FILE) as f:

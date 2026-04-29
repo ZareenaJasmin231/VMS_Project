@@ -30,7 +30,7 @@ import tempfile
 import zipfile
 from datetime import datetime, timedelta
 from fastapi import APIRouter, HTTPException, Query, UploadFile, File, BackgroundTasks
-from fastapi.responses import StreamingResponse, FileResponse
+from fastapi.responses import StreamingResponse, FileResponse, Response
 from pydantic import BaseModel
 from pymongo import MongoClient
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
@@ -44,6 +44,16 @@ import rtsp_recorder as recorder
 # ------------------------------------------------------------------
 MONGO_URI = os.environ.get("MONGO_URI", "mongodb://mongo:27017/")
 KEY_FILE  = os.environ.get("VIDEO_KEY_FILE", "/app/data/video.key")
+
+# ── Startup sanity check: warn loudly if the key file is missing ──────────────
+# Both this module and encrypt_service.py MUST use the same KEY_FILE path.
+# They both default to /app/data/video.key, controlled by VIDEO_KEY_FILE env var.
+if not os.path.exists(KEY_FILE):
+    print(f"[DECRYPT] ⚠⚠⚠  WARNING: video.key NOT FOUND at '{KEY_FILE}'")
+    print(f"[DECRYPT]          Set VIDEO_KEY_FILE env var to the correct path,")
+    print(f"[DECRYPT]          or ensure it matches the path used by encrypt_service.py")
+else:
+    print(f"[DECRYPT] ✅ video.key found at '{KEY_FILE}'")
 
 # Path to a small JSON file that persists the user-chosen recording directory.
 # Stored alongside devices.json so it survives container restarts.
@@ -188,32 +198,80 @@ _apply_persisted_path_on_startup()
 # ------------------------------------------------------------------
 # AES key + decrypt helpers
 # ------------------------------------------------------------------
+
+# MP4 magic bytes used to validate decryption produced a real video file.
+# ftyp box: bytes 4-7 == b'ftyp'  OR  starts with moov/mdat/free box type.
+_MP4_SIGNATURES = (
+    b'ftypisom', b'ftypmp42', b'ftypMSNV', b'ftypM4V ', b'ftypM4A ',
+    b'ftypf4v ', b'ftypf4p ', b'ftypavc1', b'ftypFACE', b'ftypdash',
+    b'ftypiso2', b'ftypiso5', b'ftypiso6', b'ftypmp41', b'ftyp',
+)
+
+def _validate_mp4(data: bytes, label: str = "") -> None:
+    """
+    Raise ValueError if `data` does not look like an MP4 file.
+    Checks the standard 'ftyp' box at bytes 4–8, which every valid
+    MP4/MOV produced by ffmpeg will have.
+    """
+    if len(data) < 12:
+        raise ValueError(f"[DECRYPT]{label} Output too small ({len(data)} bytes) — decryption key mismatch?")
+    # The ftyp box is: [4-byte size][4-byte 'ftyp'][4-byte brand]
+    # size is big-endian and usually 0x00000018 (24) or similar
+    box_type = data[4:8]
+    if box_type not in (b'ftyp', b'moov', b'mdat', b'free', b'skip', b'wide'):
+        raise ValueError(
+            f"[DECRYPT]{label} Output is not a valid MP4 "
+            f"(bytes[4:8]={box_type!r}). Wrong decryption key?"
+        )
+
 def _load_key() -> bytes:
+    """
+    Load the AES-256 key from KEY_FILE.
+    This MUST use the same file path as encrypt_service.py → load_video_key().
+    Both default to /app/data/video.key — controlled by VIDEO_KEY_FILE env var.
+    NO .strip() — binary keys are read verbatim; stripping corrupts keys whose
+    last byte happens to be 0x0a/0x0d, producing a silent AES key mismatch.
+    """
     if not os.path.exists(KEY_FILE):
-        raise RuntimeError(f"video.key not found at {KEY_FILE}.")
+        raise RuntimeError(
+            f"video.key not found at {KEY_FILE}. "
+            "Set VIDEO_KEY_FILE env var to match encrypt_service.py, "
+            "or ensure /app/data/video.key exists."
+        )
     with open(KEY_FILE, "rb") as f:
-        key = f.read().strip()
-    return key[:32].ljust(32, b'\0')
+        key = f.read()          # ← NO .strip()
+    if len(key) < 1:
+        raise RuntimeError(f"video.key at {KEY_FILE} is empty!")
+    result = key[:32].ljust(32, b'\0')
+    print(f"[DECRYPT] 🔑 Using key from {KEY_FILE} ({len(key)} bytes raw)")
+    return result
 
 def decrypt_bytes(raw: bytes) -> io.BytesIO:
+    """Decrypt AES-256-CBC encrypted bytes and return a BytesIO of the plaintext."""
     if not raw or len(raw) <= 16:
         raise ValueError("Encrypted payload must be larger than 16 bytes")
-    key = _load_key()
-    iv = raw[:16]
+    key        = _load_key()
+    iv         = raw[:16]
     ciphertext = raw[16:]
-    cipher = Cipher(algorithms.AES(key), modes.CBC(iv), backend=default_backend())
-    dec = cipher.decryptor()
-    padded = dec.update(ciphertext) + dec.finalize()
-    unpadder = padding.PKCS7(128).unpadder()
-    data = unpadder.update(padded) + unpadder.finalize()
+    cipher     = Cipher(algorithms.AES(key), modes.CBC(iv), backend=default_backend())
+    dec        = cipher.decryptor()
+    padded     = dec.update(ciphertext) + dec.finalize()
+    unpadder   = padding.PKCS7(128).unpadder()
+    data       = unpadder.update(padded) + unpadder.finalize()
+    _validate_mp4(data)   # ← catch wrong-key silently-corrupt output early
     return io.BytesIO(data)
 
 def _decrypt(file_path: str) -> io.BytesIO:
+    """Decrypt a .enc file on disk and return BytesIO of the MP4 payload."""
     with open(file_path, "rb") as f:
         raw = f.read()
-    return decrypt_bytes(raw)
+    try:
+        return decrypt_bytes(raw)
+    except Exception as e:
+        raise RuntimeError(f"Failed to decrypt {file_path}: {e}") from e
 
 def _decrypt_bytes(encrypted_bytes: bytes) -> io.BytesIO:
+    """Decrypt raw encrypted bytes (from an uploaded file) and return BytesIO."""
     try:
         key = _load_key()
     except Exception as e:
@@ -224,16 +282,20 @@ def _decrypt_bytes(encrypted_bytes: bytes) -> io.BytesIO:
         raise HTTPException(status_code=400, detail="Invalid encrypted file (too small).")
 
     try:
-        iv       = encrypted_bytes[:16]
-        cipher   = Cipher(algorithms.AES(key), modes.CBC(iv), backend=default_backend())
-        dec      = cipher.decryptor()
-        padded   = dec.update(encrypted_bytes[16:]) + dec.finalize()
-        unpadder = padding.PKCS7(128).unpadder()
-        data     = unpadder.update(padded) + unpadder.finalize()
+        iv         = encrypted_bytes[:16]
+        ciphertext = encrypted_bytes[16:]
+        cipher     = Cipher(algorithms.AES(key), modes.CBC(iv), backend=default_backend())
+        dec        = cipher.decryptor()
+        padded     = dec.update(ciphertext) + dec.finalize()
+        unpadder   = padding.PKCS7(128).unpadder()
+        data       = unpadder.update(padded) + unpadder.finalize()
+        _validate_mp4(data)   # ← catch wrong-key silently-corrupt output early
         return io.BytesIO(data)
+    except HTTPException:
+        raise
     except Exception as e:
         print(f"[DECRYPT] Decryption failed: {e}")
-        raise HTTPException(status_code=400, detail="Decryption failed. Check if your video.key matches.")
+        raise HTTPException(status_code=400, detail=f"Decryption failed: {e}. Check if video.key matches.")
 
 # ------------------------------------------------------------------
 # Shared CORS headers
@@ -457,14 +519,20 @@ def play_recording(
         stream = _decrypt(enc_path)
         data   = stream.getvalue()
     except Exception as e:
+        print(f"[PLAY] ❌ {enc_path}: {e}")
         raise HTTPException(status_code=500, detail=f"Decryption failed: {e}")
 
-    return StreamingResponse(
-        io.BytesIO(data),
+    if not data:
+        raise HTTPException(status_code=500, detail="Decryption produced empty output — key mismatch?")
+
+    return Response(
+        content=data,
         media_type="video/mp4",
         headers={
             "Content-Length": str(len(data)),
+            "Content-Type":   "video/mp4",
             "Accept-Ranges":  "bytes",
+            "Cache-Control":  "no-store",
             **_CORS_HEADERS,
         }
     )
@@ -491,17 +559,28 @@ def download_recording(
         stream = _decrypt(enc_path)
         data   = stream.getvalue()
     except Exception as e:
+        print(f"[DOWNLOAD] ❌ {enc_path}: {e}")
         raise HTTPException(status_code=500, detail=f"Decryption failed: {e}")
 
-    filename = f"{camera_id}_{date}_{start_time}.mp4"
+    if not data:
+        raise HTTPException(status_code=500, detail="Decryption produced empty output — key mismatch?")
 
-    return StreamingResponse(
-        io.BytesIO(data),
+    # Sanitize filename: replace colons/slashes that break VLC on Windows
+    safe_time = start_time.replace(":", "-").replace("/", "-")
+    safe_date = date.replace("/", "-")
+    safe_cam  = re.sub(r'[^\w\-.]', '_', camera_id)
+    filename  = f"{safe_cam}_{safe_date}_{safe_time}.mp4"
+
+    return Response(
+        content=data,
         media_type="video/mp4",
         headers={
-            "Content-Disposition": f"attachment; filename={filename}",
+            # Simple quoted filename is most compatible for downloads
+            "Content-Disposition": f"attachment; filename=\"{filename}\"",
             "Content-Length":      str(len(data)),
+            "Content-Type":        "video/mp4",
             "Accept-Ranges":       "bytes",
+            "Cache-Control":       "no-store",
             **_CORS_HEADERS,
         }
     )
@@ -556,7 +635,6 @@ def export_zip(request: ExportZipRequest, background_tasks: BackgroundTasks):
     def normalize_time(t_str: str) -> str:
         """Convert HH-MM-SS or HH:MM:SS to HH:MM for comparison."""
         if not t_str: return "00:00"
-        # Replace separators with colons
         clean = t_str.replace('_', ':').replace('-', ':')
         parts = clean.split(':')
         if len(parts) >= 2:
@@ -564,7 +642,7 @@ def export_zip(request: ExportZipRequest, background_tasks: BackgroundTasks):
         return "00:00"
 
     req_start = request.start_time if ":" in request.start_time else f"{str(request.start_time).zfill(2)}:00"
-    req_end   = request.end_time if ":" in request.end_time else f"{str(request.end_time).zfill(2)}:59"
+    req_end   = request.end_time   if ":" in request.end_time   else f"{str(request.end_time).zfill(2)}:59"
 
     current_date = start
     all_docs     = []
@@ -584,34 +662,62 @@ def export_zip(request: ExportZipRequest, background_tasks: BackgroundTasks):
     zip_path = temp_zip.name
     temp_zip.close()
 
+    decrypt_errors = []
     try:
         file_count = 0
-        with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zf:
+        # ZIP_STORED (no compression) — MP4/H.264 is already compressed.
+        # ZIP_DEFLATED wastes CPU and can corrupt the moov atom alignment
+        # that some players rely on, causing VLC to reject the file.
+        with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_STORED) as zf:
             for doc in all_docs:
                 enc_path = (doc.get("file_path", "") or "").replace("\\", "/")
-                if not enc_path or not os.path.exists(enc_path): continue
+                if not enc_path or not os.path.exists(enc_path):
+                    decrypt_errors.append(f"File missing: {enc_path}")
+                    continue
 
                 try:
                     decrypted_data = _decrypt(enc_path).getvalue()
-                    if not decrypted_data or len(decrypted_data) < 32: continue
-                    out_name = f"{doc.get('camera_id')}_{doc.get('date')}_{doc.get('start_time')}.mp4"
-                    zf.writestr(out_name, decrypted_data)
-                    file_count += 1
-                except: continue
+                except Exception as dec_err:
+                    decrypt_errors.append(f"Decrypt failed for {enc_path}: {dec_err}")
+                    print(f"[EXPORT-ZIP] ❌ {enc_path}: {dec_err}")
+                    continue
+
+                if not decrypted_data or len(decrypted_data) < 32:
+                    decrypt_errors.append(f"Empty output for {enc_path}")
+                    continue
+
+                # Sanitize filename components so VLC/Windows can open them
+                safe_cam  = re.sub(r'[^\w\-.]', '_', doc.get('camera_id', 'cam'))
+                safe_date = (doc.get('date', '') or '').replace('/', '-')
+                safe_time = (doc.get('start_time', '') or '').replace(':', '-').replace('/', '-')
+                out_name  = f"{safe_cam}_{safe_date}_{safe_time}.mp4"
+
+                zf.writestr(out_name, decrypted_data)
+                file_count += 1
+                print(f"[EXPORT-ZIP] ✅ Added {out_name} ({len(decrypted_data):,} bytes)")
 
         if file_count == 0:
             if os.path.exists(zip_path): os.unlink(zip_path)
-            raise HTTPException(status_code=404, detail="No recordings could be decrypted.")
+            detail = "No recordings could be decrypted."
+            if decrypt_errors:
+                detail += " Errors: " + "; ".join(decrypt_errors[:3])
+            raise HTTPException(status_code=404, detail=detail)
+
+        if decrypt_errors:
+            print(f"[EXPORT-ZIP] ⚠ {len(decrypt_errors)} file(s) skipped: {decrypt_errors}")
 
         background_tasks.add_task(os.unlink, zip_path)
         return FileResponse(
             path=zip_path,
             media_type="application/zip",
             headers={
-                "Content-Disposition": f"attachment; filename=recordings_{request.start_date}.zip",
+                "Content-Disposition": f"attachment; filename=\"recordings_{request.start_date}_to_{request.end_date}.zip\"",
+                "Cache-Control":       "no-store",
                 **_CORS_HEADERS,
             }
         )
+    except HTTPException:
+        raise
     except Exception as e:
         if os.path.exists(zip_path): os.unlink(zip_path)
         raise HTTPException(status_code=500, detail=f"Failed to create zip: {e}")
