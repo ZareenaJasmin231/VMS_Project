@@ -377,6 +377,7 @@ def load_devices():
                     "active_live_profile": d.get("active_live_profile", ""),
                     "active_rec_profile":  d.get("active_rec_profile", ""),
                     "recording_profile":   d.get("recording_profile", ""),
+                    "assigned_schedule_id": d.get("assigned_schedule_id", "Always"),
                 } for d in docs if d.get("ome_stream") and d.get("rtsp_url")])
                 return docs
         except Exception as e:
@@ -942,9 +943,9 @@ def health():
     return {"status": "ok"}
 
 
-@app.get("/api/cameras", dependencies=[Depends(verify_token)])
+@app.get("/api/cameras")
 def get_all_cameras():
-    return devices
+    return load_devices()
 @app.post("/api/recordings/decrypt-upload")
 async def decrypt_uploaded_file(file: UploadFile = File(...)):
     enc_path = None

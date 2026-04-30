@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import Button from "../../components/shared/Button";
 import "./Schedules.css";
 
@@ -6,6 +6,30 @@ const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"
 const TOTAL_SLOTS = 24 * 12; // 5-min intervals
 const HOUR_LABELS = ["00:00", "03:00", "06:00", "09:00", "12:00", "15:00", "18:00", "21:00", "00:00"];
 const HOUR_LABEL_POSITIONS = [0, 3, 6, 9, 12, 15, 18, 21, 24];
+
+const API_HOST = window.location.hostname;
+const BACKEND = `http://${API_HOST}:8000`;
+
+function slotToTime(slot) {
+  const h = Math.floor(slot / 12);
+  const m = (slot % 12) * 5;
+  return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`;
+}
+
+function getRanges(mask) {
+  const ranges = [];
+  let start = null;
+  if (!mask) return "Always Off";
+  for (let i = 0; i < mask.length; i++) {
+    if (mask[i] && start === null) start = i;
+    if (!mask[i] && start !== null) {
+      ranges.push(`${slotToTime(start)} - ${slotToTime(i)}`);
+      start = null;
+    }
+  }
+  if (start !== null) ranges.push(`${slotToTime(start)} - 24:00`);
+  return ranges.length ? ranges.join(", ") : "Always Off";
+}
 
 function makeEmptyWeek() {
   return Object.fromEntries(DAYS.map((d) => [d, new Array(TOTAL_SLOTS).fill(false)]));
@@ -39,12 +63,27 @@ function WeekGrid({ week, onChange }) {
     [week, onChange]
   );
 
-  const handleMouseDown  = (day, slot) => { dragging.current = true; dragValue.current = !week[day][slot]; toggle(day, slot, dragValue.current); };
-  const handleMouseEnter = (day, slot) => { if (dragging.current) toggle(day, slot, dragValue.current); };
+  const [hoverInfo, setHoverInfo] = useState(null);
+
+  const handleMouseDown  = (day, slot) => { 
+    dragging.current = true; 
+    dragValue.current = !week[day][slot]; 
+    toggle(day, slot, dragValue.current); 
+  };
+  const handleMouseEnter = (day, slot) => { 
+    setHoverInfo({ day, slot });
+    if (dragging.current) toggle(day, slot, dragValue.current); 
+  };
   const handleMouseUp    = () => { dragging.current = false; };
+  const handleMouseLeave = () => { setHoverInfo(null); dragging.current = false; };
 
   return (
-    <div className="week-grid" onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp}>
+    <div className="week-grid" onMouseUp={handleMouseUp} onMouseLeave={handleMouseLeave}>
+      {hoverInfo && (
+        <div className="wg-tooltip">
+          {hoverInfo.day}: {slotToTime(hoverInfo.slot)}
+        </div>
+      )}
       {/* Hour label row */}
       <div className="wg-label-row">
         <div className="wg-day-label" />
@@ -59,24 +98,29 @@ function WeekGrid({ week, onChange }) {
 
       {/* Day rows */}
       {DAYS.map((day) => (
-        <div className="wg-row" key={day}>
-          <div className="wg-day-label">{day}</div>
-          <div className="wg-track">
-            {week[day].map((on, s) => (
-              <div
-                key={s}
-                className={`wg-slot${on ? " on" : ""}`}
-                onMouseDown={() => handleMouseDown(day, s)}
-                onMouseEnter={() => handleMouseEnter(day, s)}
-              />
-            ))}
-            {Array.from({ length: 25 }, (_, h) => (
-              <div
-                key={h}
-                className={`wg-tick${h % 3 === 0 ? " major" : ""}`}
-                style={{ left: `${(h / 24) * 100}%` }}
-              />
-            ))}
+        <div className="wg-row-wrap" key={day}>
+          <div className="wg-row">
+            <div className="wg-day-label">{day}</div>
+            <div className="wg-track">
+              {week[day].map((on, s) => (
+                <div
+                  key={s}
+                  className={`wg-slot${on ? " on" : ""}`}
+                  onMouseDown={() => handleMouseDown(day, s)}
+                  onMouseEnter={() => handleMouseEnter(day, s)}
+                />
+              ))}
+              {Array.from({ length: 25 }, (_, h) => (
+                <div
+                  key={h}
+                  className={`wg-tick${h % 3 === 0 ? " major" : ""}`}
+                  style={{ left: `${(h / 24) * 100}%` }}
+                />
+              ))}
+            </div>
+          </div>
+          <div className="wg-range-summary">
+            <strong>{day} Ranges:</strong> {getRanges(week[day])}
           </div>
         </div>
       ))}
@@ -141,25 +185,42 @@ function ExceptionCalendar({ exceptions, onChange }) {
 
 // ── Main Page ────────────────────────────────────────────────────
 export default function Schedules() {
-  const [schedules,      setSchedules]      = useState(INITIAL_SCHEDULES);
+  const [schedules,      setSchedules]      = useState([]);
   const [selectedId,     setSelectedId]     = useState(null);
   const [filter,         setFilter]         = useState("");
   const [showExceptions, setShowExceptions] = useState(false);
-  const nextId = useRef(10);
+  const [loading,        setLoading]        = useState(false);
+
+  useEffect(() => {
+    fetchSchedules();
+  }, []);
+
+  const fetchSchedules = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`${BACKEND}/api/storage/schedules`);
+      const data = await res.json();
+      setSchedules(data);
+    } catch (err) { console.error(err); }
+    finally { setLoading(false); }
+  };
 
   const selected = schedules.find((s) => s.id === selectedId) || null;
   const filtered = schedules.filter((s) => s.name.toLowerCase().includes(filter.toLowerCase()));
 
   const addNew = () => {
-    const s = { id: nextId.current++, name: "New schedule", week: makeEmptyWeek(), exceptions: [] };
+    const s = { id: Date.now(), name: "New schedule", week: makeEmptyWeek(), exceptions: [] };
     setSchedules((prev) => [...prev, s]);
     setSelectedId(s.id);
   };
 
-  const remove = () => {
+  const remove = async () => {
     if (!selectedId) return;
-    setSchedules((prev) => prev.filter((s) => s.id !== selectedId));
-    setSelectedId(null);
+    try {
+      await fetch(`${BACKEND}/api/storage/schedules/${selectedId}`, { method: "DELETE" });
+      setSchedules((prev) => prev.filter((s) => s.id !== selectedId));
+      setSelectedId(null);
+    } catch (err) { console.error(err); }
   };
 
   const updateSelected = (patch) =>
@@ -273,7 +334,37 @@ export default function Schedules() {
 
           {/* Apply */}
           <div className="sch-apply-row">
-            <Button label="Apply" variant="primary" onClick={() => alert(`Saved: ${selected.name}`)} />
+            <Button
+              label={loading ? "Saving..." : "Apply"}
+              variant="primary"
+              disabled={loading}
+              onClick={async () => {
+                setLoading(true);
+                try {
+                  const readableRanges = {};
+                  DAYS.forEach(d => {
+                    readableRanges[d] = getRanges(selected.week[d]);
+                  });
+
+                  // Ensure we send the full object without mutating the technical week data
+                  const payload = {
+                    id:         selected.id,
+                    name:       selected.name,
+                    week:       selected.week,
+                    exceptions: selected.exceptions,
+                    ranges:     readableRanges
+                  };
+
+                  await fetch(`${BACKEND}/api/storage/schedules`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(payload),
+                  });
+                  alert(`Saved: ${selected.name}`);
+                } catch (err) { console.error(err); }
+                finally { setLoading(false); }
+              }}
+            />
           </div>
         </div>
       )}

@@ -73,6 +73,8 @@ _client     = MongoClient(MONGO_URI)
 _db         = _client["mirador-vms"]
 _collection = _db["recordings"]
 storage_collection = _db["storage_settings"]
+locations_collection = _db["storage_locations"]
+schedules_collection = _db["schedules"]
 
 # ------------------------------------------------------------------
 # Windows → container path sanitization
@@ -356,6 +358,22 @@ class StorageApplyRequest(BaseModel):
     allocated:      int | None = None
     recording_path: str | None = None
 
+class StorageLocation(BaseModel):
+    display_path:   str
+    container_path: str
+    allocated:      int = 100
+
+class Schedule(BaseModel):
+    id:         str | int
+    name:       str
+    week:       dict[str, list[bool]]
+    ranges:     dict[str, str] = {} # Human-readable strings for Compass
+    exceptions: list[str] = [] # ISO dates
+
+class AssignScheduleRequest(BaseModel):
+    camera_id:   str
+    schedule_id: str | int | None
+
 def _doc_to_dict(doc: dict) -> dict:
     doc.pop("_id", None)
     if "created_at" in doc and hasattr(doc["created_at"], "isoformat"):
@@ -386,17 +404,65 @@ def get_storage_management():
     # Show the Windows-friendly display path in the UI
     display_path = _container_to_display_path(rec_dir)
 
-    return [{
-        "location":      display_path,
-        "container_path": rec_dir,
-        "type":          "Local Disk",
-        "total":         total_gb,
-        "used":          used_gb,
-        "free":          free_gb,
-        "allocated":     round(total_gb * 0.9),
-        "status":        "Recording" if recorder._recorders else "OK",
-        "server":        "MIRADOR",
-    }]
+    # Return all persisted locations
+    all_locs = list(locations_collection.find())
+    if not all_locs:
+        # Fallback to current if none persisted
+        return [{
+            "location":      display_path,
+            "container_path": rec_dir,
+            "type":          "Local Disk",
+            "total":         total_gb,
+            "used":          used_gb,
+            "free":          free_gb,
+            "allocated":     round(total_gb * 0.9),
+            "status":        "Recording" if recorder._recorders else "OK",
+            "server":        "MIRADOR",
+        }]
+
+    results = []
+    for loc in all_locs:
+        c_path = loc["container_path"]
+        try:
+            u    = shutil.disk_usage(c_path if os.path.exists(c_path) else "/")
+            t_gb = round(u.total / (1024 ** 3), 1)
+            u_gb = round(u.used  / (1024 ** 3), 1)
+            f_gb = round(u.free  / (1024 ** 3), 1)
+        except:
+            t_gb, u_gb, f_gb = 0, 0, 0
+        
+        results.append({
+            "location":       loc["display_path"],
+            "container_path": c_path,
+            "type":           "Local Disk",
+            "total":          t_gb,
+            "used":           u_gb,
+            "free":           f_gb,
+            "allocated":      loc.get("allocated", 100),
+            "status":         "Recording" if c_path == rec_dir else "OK",
+            "server":         "MIRADOR",
+        })
+    return results
+
+@storage_router.post("/locations")
+def add_storage_location(loc: StorageLocation):
+    sanitized = _sanitize_path(loc.container_path)
+    locations_collection.update_one(
+        {"container_path": sanitized},
+        {"$set": {
+            "display_path": loc.display_path,
+            "container_path": sanitized,
+            "allocated": loc.allocated,
+            "updated_at": datetime.utcnow()
+        }},
+        upsert=True
+    )
+    return {"message": "Location added"}
+
+@storage_router.delete("/locations")
+def remove_storage_location(container_path: str = Query(...)):
+    locations_collection.delete_one({"container_path": container_path})
+    return {"message": "Location removed"}
 
 
 def _container_to_display_path(container_path: str) -> str:
@@ -441,9 +507,23 @@ def apply_storage_settings(req: StorageApplyRequest):
     # ✅ Optional (keep your existing file backup)
     _save_recording_path(sanitized)
 
+    # ✅ Ensure it is in locations_collection
+    display_path = _container_to_display_path(sanitized)
+    locations_collection.update_one(
+        {"container_path": sanitized},
+        {"$set": {
+            "display_path": display_path,
+            "container_path": sanitized,
+            "allocated": req.allocated or 100,
+            "updated_at": datetime.utcnow()
+        }},
+        upsert=True
+    )
+
     return {
         "message": "Recording path updated successfully",
-        "recording_path": sanitized
+        "recording_path": sanitized,
+        "display_path": display_path
     }
 
 
@@ -488,6 +568,65 @@ def collect_nonindexed():
 
 
 # ==================================================================
+# SCHEDULE ROUTES
+# ==================================================================
+
+@storage_router.get("/schedules")
+def list_schedules():
+    docs = list(schedules_collection.find())
+    for d in docs:
+        d["id"] = str(d.get("id", d["_id"]))
+        d.pop("_id", None)
+    return docs
+
+@storage_router.post("/schedules")
+def save_schedule(sch: Schedule):
+    data = sch.dict()
+    # Force ID to string for consistency in DB
+    sch_id = str(data["id"])
+    data["id"] = sch_id 
+    
+    schedules_collection.update_one(
+        {"id": sch_id},
+        {"$set": data},
+        upsert=True
+    )
+    return {"message": "Schedule saved", "id": sch_id}
+
+@storage_router.delete("/schedules/{sch_id}")
+def delete_schedule(sch_id: str):
+    # Try to delete by both string and numeric ID for legacy support
+    try:
+        numeric_id = int(sch_id)
+        schedules_collection.delete_many({"id": {"$in": [str(sch_id), numeric_id]}})
+    except (ValueError, TypeError):
+        schedules_collection.delete_one({"id": str(sch_id)})
+    
+    # Also, find any cameras assigned to this schedule and reset them to 'always'
+    _db["cameras"].update_many(
+        {"assigned_schedule_id": sch_id},
+        {"$set": {"assigned_schedule_id": "always"}}
+    )
+    # Re-sync with recorder
+    for cam in _db["cameras"].find({"assigned_schedule_id": "always"}):
+        recorder.update_camera_data(cam["ome_stream"], {"assigned_schedule_id": "always"})
+
+    return {"message": "Schedule deleted and assignments reset"}
+
+@recording_router.post("/assign-schedule")
+def assign_schedule(req: AssignScheduleRequest):
+    # Update camera in 'cameras' collection
+    _db["cameras"].update_one(
+        {"ome_stream": req.camera_id},
+        {"$set": {"assigned_schedule_id": req.schedule_id}}
+    )
+    # Also update in recorder if active
+    recorder.update_camera_data(req.camera_id, {"assigned_schedule_id": req.schedule_id})
+    
+    return {"message": "Schedule assigned to camera"}
+
+
+# ==================================================================
 # RECORDING GET ROUTES
 # ==================================================================
 
@@ -507,7 +646,38 @@ def list_recordings(
 
 @recording_router.get("/cameras")
 def list_recording_cameras():
-    return _collection.distinct("camera_id")
+    """
+    Return the names of folders (camera IDs) found inside all configured storage locations.
+    """
+    locs = list(locations_collection.find())
+    camera_ids = set()
+
+    # Always include the current recording dir as a scan source
+    scan_paths = [l["container_path"] for l in locs]
+    rec_dir = recorder.get_recordings_dir()
+    if rec_dir not in scan_paths:
+        scan_paths.append(rec_dir)
+
+    for path in scan_paths:
+        if not os.path.exists(path):
+            continue
+        try:
+            # List all directories in this storage location
+            for entry in os.listdir(path):
+                full_entry = os.path.join(path, entry)
+                if os.path.isdir(full_entry):
+                    # We assume every subfolder in the storage root is a camera_id folder
+                    camera_ids.add(entry)
+        except Exception as e:
+            print(f"[BACKEND] Error scanning storage path {path}: {e}")
+
+    # Sort and return
+    result = sorted(list(camera_ids))
+    if not result:
+        # Fallback to database distinct camera_ids if no folders found on disk
+        return _collection.distinct("camera_id")
+    
+    return result
 
 @recording_router.get("/status")
 def recorder_status():
@@ -607,12 +777,26 @@ def download_recording(
         }
     )
 
-@recording_router.get("/{camera_id}")
-def list_camera_recordings(camera_id: str, date: str = Query(None)):
-    query = {"camera_id": camera_id}
+@recording_router.get("/{camera_id_or_path}")
+def list_camera_recordings(camera_id_or_path: str, date: str = Query(None)):
+    # Try as camera_id first
+    query = {"camera_id": camera_id_or_path}
     if date:
         query["date"] = date
     docs = list(_collection.find(query).sort("created_at", -1))
+    
+    if not docs:
+        # Try as a storage path (the dropdown might have sent the display path)
+        # We need to find recordings whose file_path starts with the container_path
+        # of the storage location matching this display path.
+        loc = locations_collection.find_one({"display_path": camera_id_or_path})
+        if loc:
+            c_path = loc["container_path"]
+            query = {"file_path": {"$regex": f"^{re.escape(c_path)}"}}
+            if date:
+                query["date"] = date
+            docs = list(_collection.find(query).sort("created_at", -1))
+
     return [_doc_to_dict(d) for d in docs]
 
 # ==================================================================

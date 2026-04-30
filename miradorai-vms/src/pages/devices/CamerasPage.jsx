@@ -15,6 +15,13 @@ function loadDevices() {
   } catch { return []; }
 }
 
+function loadGroups() {
+  try {
+    const saved = localStorage.getItem("miradorai_groups");
+    return saved ? JSON.parse(saved) : [];
+  } catch { return []; }
+}
+
 function saveDevices(devices) {
   try { localStorage.setItem("miradorai_devices", JSON.stringify(devices)); } catch {}
 }
@@ -23,30 +30,106 @@ const API_BASE = "http://192.168.126.200:8000";
 const INLINE_PAGES = ["masking"];
 
 export default function CamerasPage({ onNavigate, onCameraSelect }) {
-  const [cameras, setCameras]       = useState(loadDevices);
-  const [filter, setFilter]         = useState("");
-  const [selected, setSelected]     = useState(null);
-  const [checked, setChecked]       = useState([]);
-  const [editModal, setEditModal]   = useState(null);
-  const [editForm, setEditForm]     = useState({});
-  const [authModal, setAuthModal]   = useState(null);
-  const [authForm, setAuthForm]     = useState({ username: "", password: "" });
-  const [activePage, setActivePage] = useState(null);
+  const [cameras, setCameras]           = useState(loadDevices);
+  const [groups]                        = useState(loadGroups);
+  const [filter, setFilter]             = useState("");
+  const [selected, setSelected]         = useState(null);
+  const [checked, setChecked]           = useState([]);
+  const [editModal, setEditModal]       = useState(null);
+  const [editForm, setEditForm]         = useState({});
+  const [authModal, setAuthModal]       = useState(null);
+  const [authForm, setAuthForm]         = useState({ username: "", password: "" });
+  const [activePage, setActivePage]     = useState(null);
+  const [selectedGroup, setSelectedGroup] = useState(null);
+  const [groupChecked, setGroupChecked] = useState([]);
+  const [showMoveModal, setShowMoveModal] = useState(false);
   const navigate = useNavigate();
   const { logAction } = useActivityLogger();
 
-  const filtered = cameras.filter((c) =>
+  // ── Build grouped data ──
+  const groupedData = Object.values(
+    cameras.reduce((acc, cam) => {
+      const gid = cam.group_id || "default";
+      if (!acc[gid]) {
+        acc[gid] = {
+          group_id: gid,
+          name: gid === "default"
+            ? "Default"
+            : (groups.find(g => g.id === gid)?.name || gid),
+          cameras: [],
+        };
+      }
+      acc[gid].cameras.push(cam);
+      return acc;
+    }, {})
+  );
+
+  // Filter groups by search
+  const filteredGroups = groupedData.filter((group) =>
     !filter ||
-    [c.name, c.ip, c.mac, c.model, c.manufacturer, c.channel, c.server].some(
-      (v) => v && String(v).toLowerCase().includes(filter.toLowerCase())
+    group.name.toLowerCase().includes(filter.toLowerCase()) ||
+    group.cameras.some((c) =>
+      [c.name, c.ip, c.mac, c.model, c.manufacturer].some(
+        (v) => v && String(v).toLowerCase().includes(filter.toLowerCase())
+      )
     )
   );
 
-  const allChecked = filtered.length > 0 && filtered.every((c) => checked.includes(c.id));
-  const toggleAll  = () => setChecked(allChecked ? [] : filtered.map((c) => c.id));
-  const toggleOne  = (id) => setChecked((s) =>
-    s.includes(id) ? s.filter((x) => x !== id) : [...s, id]
+  const allChecked = filteredGroups.length > 0 && filteredGroups.every((g) => checked.includes(g.group_id));
+  const toggleAll  = () => setChecked(allChecked ? [] : filteredGroups.map((g) => g.group_id));
+  const toggleGroup = (gid) => setChecked((s) =>
+    s.includes(gid) ? s.filter((x) => x !== gid) : [...s, gid]
   );
+
+  const toggleGroupEnabled = (groupId) => {
+    const groupCams = cameras.filter(c => (c.group_id || "default") === groupId);
+    const allEnabled = groupCams.every(c => c.enabled !== false);
+    const updated = cameras.map(c =>
+      (c.group_id || "default") === groupId
+        ? { ...c, enabled: !allEnabled }
+        : c
+    );
+    setCameras(updated);
+    saveDevices(updated);
+  };
+
+  const openGroupPanel = (group) => {
+    setSelectedGroup(group);
+    setGroupChecked([]);
+  };
+
+  const toggleGroupCam = (camId) => {
+    setGroupChecked((s) =>
+      s.includes(camId) ? s.filter((x) => x !== camId) : [...s, camId]
+    );
+  };
+
+  const handleDeleteGroupCams = () => {
+    const updated = cameras.filter(c => !groupChecked.includes(c.id));
+    setCameras(updated);
+    saveDevices(updated);
+    setGroupChecked([]);
+    if (selectedGroup) {
+      const updatedGroup = {
+        ...selectedGroup,
+        cameras: selectedGroup.cameras.filter(c => !groupChecked.includes(c.id)),
+      };
+      setSelectedGroup(updatedGroup.cameras.length > 0 ? updatedGroup : null);
+    }
+  };
+
+  const handleMoveToGroup = (targetGroupId) => {
+    const updated = cameras.map(c =>
+      groupChecked.includes(c.id)
+        ? { ...c, group_id: targetGroupId }
+        : c
+    );
+    setCameras(updated);
+    saveDevices(updated);
+    setShowMoveModal(false);
+    setGroupChecked([]);
+    setSelectedGroup(null);
+  };
 
   const callCameraAction = (cam, action) => {
     if (!cam.ip) return;
@@ -67,6 +150,17 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
     );
     setCameras(updated);
     saveDevices(updated);
+
+    // Also update selectedGroup state so panel reflects change immediately
+    if (selectedGroup) {
+      setSelectedGroup((sg) => ({
+        ...sg,
+        cameras: sg.cameras.map((c) =>
+          String(c.id) === String(cam.id) ? { ...c, enabled: willBeEnabled } : c
+        ),
+      }));
+    }
+
     callCameraAction(cam, willBeEnabled ? "enable" : "disable");
     logAction(
       willBeEnabled ? "Camera enabled" : "Camera disabled",
@@ -124,12 +218,13 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
     setAuthModal(null);
   };
 
-  const handleRemove = async () => {
-    const idsToRemove = checked.length > 0 ? checked : selected ? [selected] : [];
-    if (idsToRemove.length === 0) return;
+  const handleRemoveGroups = async () => {
+    if (checked.length === 0) return;
+    const camIdsToRemove = cameras
+      .filter(c => checked.includes(c.group_id || "default"))
+      .map(c => c.id);
 
-    const camsToRemove = cameras.filter((c) => idsToRemove.includes(c.id));
-
+    const camsToRemove = cameras.filter(c => camIdsToRemove.includes(c.id));
     for (const cam of camsToRemove) {
       try {
         const ip  = encodeURIComponent(cam.ip);
@@ -142,14 +237,20 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
       }
     }
 
-    const updated = cameras.filter((c) => !idsToRemove.includes(c.id));
+    const updated = cameras.filter(c => !camIdsToRemove.includes(c.id));
     setCameras(updated);
     saveDevices(updated);
     setChecked([]);
-    setSelected(null);
+    setSelectedGroup(null);
   };
 
-  const selectedCam = cameras.find((c) => String(c.id) === String(selected));
+  // All unique groups for Move To modal
+  const allGroupOptions = [
+    { id: "default", name: "Default" },
+    ...groups.map(g => ({ id: g.id, name: g.name })),
+  ];
+
+  const selectedCam = null;
 
   /* ── Inline masking page ── */
   if (activePage === "masking" && selectedCam) {
@@ -173,25 +274,23 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
     );
   }
 
-  const removeCount = checked.length > 0 ? checked.length : selected ? 1 : 0;
-
   return (
     <div className="page-shell">
       {/* ── Header ── */}
       <div className="page-header">
         <div>
-          <h1 className="page-title"><span>Camera</span> Registry</h1>
+          <h1 className="page-title"><span>Manage</span> Camera Groups</h1>
           <p className="page-desc">
-            Change the names, addresses, and ports of cameras. You can also disable or remove the cameras from the server.
+            Manage camera groups. View, move, or remove cameras within each group.
           </p>
         </div>
         <SearchBar value={filter} onChange={setFilter} placeholder="Type to filter" />
       </div>
 
       {/* ── Main layout: table + side panel ── */}
-      <div className={`cameras-content-layout ${selectedCam ? "has-panel" : ""}`}>
+      <div className={`cameras-content-layout ${selectedGroup ? "has-panel" : ""}`}>
 
-        {/* ── Camera table ── */}
+        {/* ── Group table ── */}
         <div className="card cam-table-wrap">
           <table className="m-table">
             <thead>
@@ -204,47 +303,35 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
                     onChange={toggleAll}
                   />
                 </th>
-                <th style={{ width: 52 }}></th>
                 <th style={{ width: 72 }}>Active</th>
-                <th>Name</th>
-                <th>Address</th>
-                <th>MAC Address</th>
-                <th>Manufacturer</th>
-                <th>Model</th>
-                <th>Channel</th>
-                <th>Server</th>
+                <th>Group Name</th>
+                <th style={{ width: 160 }}>Total Cameras</th>
+                <th style={{ width: 160 }}></th>
               </tr>
             </thead>
             <tbody>
-              {filtered.length === 0 ? (
+              {filteredGroups.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="m-table__empty">
+                  <td colSpan={5} className="m-table__empty">
                     {cameras.length === 0
                       ? "No cameras enrolled. Go to Add Devices to get started."
-                      : "No cameras match your filter."}
+                      : "No groups match your filter."}
                   </td>
                 </tr>
-              ) : filtered.map((c) => {
-                const isSel     = String(selected) === String(c.id);
-                const isEnabled = c.enabled !== false;
-                const isChecked = checked.includes(c.id);
+              ) : filteredGroups.map((group) => {
+                const total       = group.cameras.length;
+                const activeCount = group.cameras.filter(c => c.enabled !== false).length;
+                const isChecked   = checked.includes(group.group_id);
+                const isSel       = selectedGroup?.group_id === group.group_id;
 
                 return (
                   <tr
-                    key={c.id}
+                    key={group.group_id}
                     className={[
                       "m-table__row",
-                      isSel      ? "m-table__row--selected"  : "",
-                      isChecked  ? "m-table__row--selected"  : "",
-                      !isEnabled ? "m-table__row--disabled"  : "",
+                      isSel     ? "m-table__row--selected" : "",
+                      isChecked ? "m-table__row--selected" : "",
                     ].join(" ")}
-                    onClick={() => {
-                      setSelected(isSel ? null : String(c.id));
-                      setActivePage(null);
-                      if (!isSel && onCameraSelect) onCameraSelect(c);
-                      else if (isSel && onCameraSelect) onCameraSelect(null);
-                    }}
-                    onDoubleClick={() => openEdit(c)}
                   >
                     {/* Checkbox */}
                     <td onClick={(e) => e.stopPropagation()}>
@@ -252,40 +339,17 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
                         type="checkbox"
                         className="m-checkbox"
                         checked={isChecked}
-                        onChange={() => toggleOne(c.id)}
+                        onChange={() => toggleGroup(group.group_id)}
                       />
                     </td>
 
-                    {/* Thumbnail */}
-                    <td>
-                      <div className="cam-thumb-cell">
-                        {c.snapshot ? (
-                          <img src={c.snapshot} alt={c.name} className="cam-thumb-img" />
-                        ) : (
-                          <div className={`cam-thumb-placeholder ${!isEnabled ? "cam-thumb-placeholder--off" : ""}`}>
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2">
-                              <path d="M23 7l-7 5 7 5V7z"/>
-                              <rect x="1" y="5" width="15" height="14" rx="2"/>
-                            </svg>
-                            {!isEnabled && (
-                              <div className="cam-thumb-off-overlay">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                  <line x1="3" y1="3" x2="21" y2="21"/>
-                                </svg>
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    </td>
-
-                    {/* Toggle */}
+                    {/* Active toggle (affects all cameras in group) */}
                     <td onClick={(e) => e.stopPropagation()}>
-                      <label className="cam-toggle" title={isEnabled ? "Disable camera" : "Enable camera"}>
+                      <label className="cam-toggle" title={activeCount > 0 ? "Disable all" : "Enable all"}>
                         <input
                           type="checkbox"
-                          checked={isEnabled}
-                          onChange={(e) => toggleEnabled(c, e)}
+                          checked={activeCount > 0}
+                          onChange={() => toggleGroupEnabled(group.group_id)}
                         />
                         <span className="cam-toggle-track">
                           <span className="cam-toggle-thumb" />
@@ -293,24 +357,31 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
                       </label>
                     </td>
 
-                    <td className="m-table__primary">{c.name || "—"}</td>
+                    {/* Group Name */}
+                    <td className="m-table__primary">{group.name}</td>
 
+                    {/* ── UPDATED: Total Cameras cell ── */}
                     <td>
-                      {c.ip ? (
-                        <span
-                          className={`cam-ip-link ${!isEnabled ? "cam-ip-link--disabled" : ""}`}
-                          onClick={(e) => isEnabled && openAuth(e, c)}
-                        >
-                          {c.ip}
-                        </span>
-                      ) : "—"}
+                      <div className="group-count">
+                        <span className="group-total">{total} Cameras</span>
+                        <div className="group-status">
+                          <span className="group-active">{activeCount} Active</span>
+                          <span className="group-divider">•</span>
+                          <span className="group-disabled">{total - activeCount} Disabled</span>
+                        </div>
+                      </div>
                     </td>
 
-                    <td className="cam-mono">{c.mac          || "—"}</td>
-                    <td>{c.manufacturer || "—"}</td>
-                    <td>{c.model        || "—"}</td>
-                    <td>{c.channel      || "—"}</td>
-                    <td>{c.server       || "MIRADORAI"}</td>
+                    {/* View All button */}
+                    <td>
+                      <button
+                        className="ec-btn ec-btn--primary"
+                        style={{ fontSize: "0.75rem", padding: "4px 10px" }}
+                        onClick={() => openGroupPanel(group)}
+                      >
+                        Camera Groups
+                      </button>
+                    </td>
                   </tr>
                 );
               })}
@@ -318,85 +389,93 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
           </table>
         </div>
 
-        {/* ── Right Side Panel ── */}
-        {selectedCam && (
+        {/* ── Right Side Panel (Group) ── */}
+        {selectedGroup && (
           <div className="card cam-side-panel">
+
+            {/* ── UPDATED: Panel header ── */}
             <div className="cam-side-panel__header">
-              <div className={`cam-side-panel__icon ${selectedCam.enabled === false ? "cam-side-panel__icon--off" : ""}`}>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2">
-                  <path d="M23 7l-7 5 7 5V7z"/>
-                  <rect x="1" y="5" width="15" height="14" rx="2"/>
-                </svg>
-              </div>
               <div className="cam-side-panel__info">
                 <div className="cam-side-panel__name-row">
-                  <h3>{selectedCam.name || "Camera"}</h3>
-                  <span className={`cam-status-badge ${selectedCam.enabled !== false ? "cam-status-badge--active" : "cam-status-badge--disabled"}`}>
-                    <span className="cam-status-dot" />
-                    {selectedCam.enabled !== false ? "Active" : "Disabled"}
-                  </span>
-                </div>
-                <p>{selectedCam.ip || "No IP Address"}</p>
-                <div className="cam-side-panel__toggle-row">
-                  <span className="cam-side-panel__toggle-label">
-                    {selectedCam.enabled !== false ? "Camera is streaming" : "Camera is not streaming"}
-                  </span>
-                  <label className="cam-toggle">
-                    <input
-                      type="checkbox"
-                      checked={selectedCam.enabled !== false}
-                      onChange={(e) => toggleEnabled(selectedCam, e)}
-                    />
-                    <span className="cam-toggle-track">
-                      <span className="cam-toggle-thumb" />
-                    </span>
-                  </label>
+                  <div className="group-panel-header">
+                    <h3>{selectedGroup.name}</h3>
+                    <div className="group-panel-meta">
+                      <span>{selectedGroup.cameras.length} Camera{selectedGroup.cameras.length !== 1 ? "s" : ""}</span>
+                      <span className="dot">•</span>
+                      <span className="active-count">
+                        {selectedGroup.cameras.filter(c => c.enabled !== false).length} Active
+                      </span>
+                    </div>
+                  </div>
+                  <button
+                    className="ec-btn ec-btn--cancel"
+                    style={{ fontSize: "0.7rem", padding: "2px 8px", alignSelf: "flex-start" }}
+                    onClick={() => setSelectedGroup(null)}
+                  >
+                    ✕
+                  </button>
                 </div>
               </div>
             </div>
 
-            <div className={`cam-side-panel__stream ${selectedCam.enabled === false ? "cam-side-panel__stream--off" : ""}`}>
-              {selectedCam.enabled !== false ? (
-                <div className="cam-stream-live">
-                  <span className="cam-stream-live-dot" />
-                  <span>Live</span>
-                </div>
-              ) : (
-                <div className="cam-stream-paused">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" width="24" height="24">
-                    <path d="M23 7l-7 5 7 5V7z"/>
-                    <rect x="1" y="5" width="15" height="14" rx="2"/>
-                    <line x1="2" y1="2" x2="22" y2="22" stroke="currentColor" strokeWidth="1.5"/>
-                  </svg>
-                  <span>Stream paused</span>
-                  <span className="cam-stream-paused-sub">Enable camera to resume</span>
-                </div>
-              )}
+            {/* ── UPDATED: Camera list with per-camera toggle ── */}
+            <div className="group-cam-list">
+              {selectedGroup.cameras.length === 0 ? (
+                <div className="m-table__empty" style={{ padding: "1rem" }}>No cameras in this group.</div>
+              ) : selectedGroup.cameras.map((cam) => {
+                const isEnabled    = cam.enabled !== false;
+                const isCamChecked = groupChecked.includes(cam.id);
+                return (
+                  <div
+                    key={cam.id}
+                    className={`group-cam-row ${isCamChecked ? "group-cam-row--checked" : ""}`}
+                  >
+                    {/* Checkbox */}
+                    <input
+                      type="checkbox"
+                      className="m-checkbox"
+                      checked={isCamChecked}
+                      onChange={() => toggleGroupCam(cam.id)}
+                    />
+
+                    {/* Camera Info */}
+                    <div className="group-cam-info">
+                      <div className="group-cam-name">{cam.name || "Unnamed Camera"}</div>
+                      <div className="group-cam-ip">{cam.ip || "No IP"}</div>
+                    </div>
+
+                    {/* Per-camera enable/disable toggle */}
+                    <label className="cam-toggle" title={isEnabled ? "Disable camera" : "Enable camera"}>
+                      <input
+                        type="checkbox"
+                        checked={isEnabled}
+                        onChange={(e) => toggleEnabled(cam, e)}
+                      />
+                      <span className="cam-toggle-track">
+                        <span className="cam-toggle-thumb" />
+                      </span>
+                    </label>
+                  </div>
+                );
+              })}
             </div>
 
-            <div className="cam-side-panel__features">
-              {CAMERA_FEATURES_CONFIG.map((feature) => (
-                <button
-                  key={feature.page}
-                  className={`cam-side-feature-btn ${selectedCam.enabled === false ? "cam-side-feature-btn--disabled" : ""}`}
-                  disabled={selectedCam.enabled === false}
-                  onClick={() => {
-                    if (selectedCam.enabled === false) return;
-                    localStorage.setItem("miradorai_selected_camera_id", String(selectedCam.id));
-                    if (INLINE_PAGES.includes(feature.page)) {
-                      setActivePage(feature.page);
-                    } else {
-                      navigate(`/${feature.page}`);
-                    }
-                  }}
-                >
-                  <span className="cam-side-feature-icon" dangerouslySetInnerHTML={{ __html: feature.icon }} />
-                  <span className="cam-side-feature-label">{feature.label}</span>
-                  <svg className="cam-side-feature-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M9 18l6-6-6-6" />
-                  </svg>
-                </button>
-              ))}
+            {/* Footer actions */}
+            <div className="group-footer">
+              <button
+                className="ec-btn ec-btn--cancel"
+                disabled={groupChecked.length === 0}
+                onClick={handleDeleteGroupCams}
+              >
+                Delete
+              </button>
+              <button
+                className="ec-btn ec-btn--primary"
+                disabled={groupChecked.length === 0}
+                onClick={() => setShowMoveModal(true)}
+              >
+                Move To
+              </button>
             </div>
           </div>
         )}
@@ -405,25 +484,61 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
       {/* ── Footer ── */}
       <div className="page-footer">
         <span className="cameras-count">
-          {filtered.length} camera{filtered.length !== 1 ? "s" : ""}
+          {groupedData.length} group{groupedData.length !== 1 ? "s" : ""}
           <span className="cameras-count-active">
-            {" "}· {cameras.filter(c => c.enabled !== false).length} active
+            {" "}· {cameras.length} total cameras · {cameras.filter(c => c.enabled !== false).length} active
           </span>
         </span>
         <div className="page-footer-right">
           <Button
-            label="Edit"
-            disabled={!selected}
-            onClick={() => selectedCam && openEdit(selectedCam)}
-          />
-          <Button
-            label={removeCount > 1 ? `Remove (${removeCount})` : "Remove"}
+            label={checked.length > 1 ? `Remove Groups (${checked.length})` : "Remove Group"}
             variant="danger"
-            disabled={removeCount === 0}
-            onClick={handleRemove}
+            disabled={checked.length === 0}
+            onClick={handleRemoveGroups}
           />
         </div>
       </div>
+
+      {/* ── Move To Modal ── */}
+      {showMoveModal && (
+        <div className="ec-overlay" onClick={() => setShowMoveModal(false)}>
+          <div className="ec-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="ec-titlebar">
+              <span className="ec-title">Move Cameras To Group</span>
+              <div className="ec-titlebar-actions">
+                <button className="ec-title-btn" onClick={() => setShowMoveModal(false)} title="Close">✕</button>
+              </div>
+            </div>
+            <div className="ec-body">
+              <p className="ec-auth-desc">
+                Select a group to move <strong>{groupChecked.length} camera{groupChecked.length !== 1 ? "s" : ""}</strong> to:
+              </p>
+              <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginTop: "12px" }}>
+                {allGroupOptions
+                  .filter(g => g.id !== selectedGroup?.group_id)
+                  .map((g) => (
+                    <button
+                      key={g.id}
+                      className="ec-btn ec-btn--primary"
+                      style={{ textAlign: "left", justifyContent: "flex-start" }}
+                      onClick={() => handleMoveToGroup(g.id)}
+                    >
+                      {g.name}
+                    </button>
+                  ))}
+                {allGroupOptions.filter(g => g.id !== selectedGroup?.group_id).length === 0 && (
+                  <p style={{ opacity: 0.6, fontSize: "0.85rem" }}>No other groups available.</p>
+                )}
+              </div>
+            </div>
+            <div className="ec-footer">
+              <div className="ec-footer-right">
+                <button className="ec-btn ec-btn--cancel" onClick={() => setShowMoveModal(false)}>Cancel</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Edit Camera Modal ── */}
       {editModal && (

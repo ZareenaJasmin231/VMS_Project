@@ -192,7 +192,7 @@ function NoCameraState() {
       </svg>
       <p className="sp-no-camera-title">No camera selected</p>
       <p className="sp-no-camera-sub">
-        Go to <strong>Camera Registry</strong>, select a camera,
+        Go to <strong>Manage Camera Groups</strong>, select a camera,
         then click <strong>Stream Profiles</strong>.
       </p>
     </div>
@@ -428,7 +428,7 @@ export default function StreamProfilesPage() {
           <p className="page-desc">
             {camera
               ? `ONVIF stream profiles for ${[camera.manufacturer, camera.model].filter(Boolean).join(" ") || camera.ip} · ${camera.ip}`
-              : "Select a camera from Camera Registry to view its stream profiles."}
+              : "Select a camera from Manage Camera Groups to view its stream profiles."}
           </p>
         </div>
       </div>

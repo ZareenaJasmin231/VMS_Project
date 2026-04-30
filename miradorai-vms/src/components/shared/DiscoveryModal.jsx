@@ -49,8 +49,9 @@ export default function DiscoveryModal({
       progressTimerRef.current = null;
     }
   };
+
   const startDiscovery = async () => {
-     const token = localStorage.getItem("miradorai_token");
+    const token = localStorage.getItem("miradorai_token");
     setIsScanning(true);
     setError(null);
     setDiscoveredDevices([]);
@@ -65,11 +66,12 @@ export default function DiscoveryModal({
 
     let devices = [];
     try {
-const response = await fetch(`${STREAM_API}/api/discover-devices`, {
-  headers: {
-    Authorization: "Bearer " + token
-  }
-});      if (response.ok) {
+      const response = await fetch(`${STREAM_API}/api/discover-devices`, {
+        headers: {
+          Authorization: "Bearer " + token
+        }
+      });
+      if (response.ok) {
         const data = await response.json();
         devices = data.devices || [];
         console.log("[Discovery] Backend returned:", devices);
@@ -114,7 +116,7 @@ const response = await fetch(`${STREAM_API}/api/discover-devices`, {
     discoveredDevices
       .filter((d) => selectedDevices.has(d.id))
       .forEach((d) => {
-        init[d.id] = deviceCreds[d.id] || { username: "", password: "" };
+        init[d.id] = deviceCreds[d.id] || { username: "", password: "", cameraName: "" };
       });
     setDeviceCreds(init);
     setShowCredModal(true);
@@ -150,128 +152,128 @@ const response = await fetch(`${STREAM_API}/api/discover-devices`, {
     toAdd.forEach((d) => { initStatus[d.id] = { status: "pending" }; });
     setRegStatus(initStatus);
 
- const results = await Promise.all(
-  toAdd.map(async (device) => {
+    const results = await Promise.all(
+      toAdd.map(async (device) => {
 
-    const creds = deviceCreds[device.id] || {};   // ✅ MOVE HERE FIRST
+        const creds = deviceCreds[device.id] || {};
 
-    const probePayload = {
-      ip: device.ip,
-      username: creds.username || "",
-      password: creds.password || "",
-      group_id: selectedGroupId,
-      device_name: creds.cameraName || ""
-    };
+        const probePayload = {
+          ip: device.ip,
+          username: creds.username || "",
+          password: creds.password || "",
+          group_id: selectedGroupId,
+          device_name: creds.cameraName || ""
+        };
 
-    const devicePort = device.port;
-    if (devicePort && !isNaN(devicePort) && Number(devicePort) > 0) {
-      probePayload.port = Number(devicePort);
-    }
-
-    setRegStatus((prev) => ({
-      ...prev,
-      [device.id]: { status: "registering" }
-    }));
-
-    let ws_url = null;
-    let stream_key = null;
-    let stream_status = "error";
-    let rtsp_url = null;
-
-    let enrichedName = null;
-    let enrichedManufacturer = device.manufacturer || "Unknown";
-    let enrichedModel = device.model || "Unknown";
-    let enrichedFirmware = null;
-    let enrichedSerial = null;
-
-    let streamProfiles = [];
-    let streamCount = 0;
-
-    let data = null;  // ✅ hoist outside try block
-    try {
-      const res = await fetch(`${STREAM_API}/api/onvif/probe`, {
-        method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify(probePayload),
-      });
-
-const data = await res.json();
-
-// 🔴 ADD THIS BLOCK HERE
-if (!res.ok) {
-  alert(` ${device.ip} → ${data.detail || "Camera limit exceeded"}`);
-
-  setRegStatus((prev) => ({
-    ...prev,
-    [device.id]: { status: "error", error: data.detail }
-  }));
-
-  return null; // stop this device
-}
-      if (data?.success && data?.ws_url) {
-        ws_url = data.ws_url;
-        stream_key = data.stream_key || data.ome_stream || null;
-        stream_status = data.status || "streaming";
-        rtsp_url = data.rtsp_url || data.stream_uri || null;
-
-        enrichedManufacturer = data.manufacturer || enrichedManufacturer;
-        enrichedModel = data.model || enrichedModel;
-        enrichedFirmware = data.firmware || null;
-        enrichedSerial = data.serial || null;
-
-        enrichedName = `${enrichedManufacturer} ${enrichedModel}`.trim();
-
-        streamProfiles = data.profiles || [];
-        streamCount = data.stream_count ?? streamProfiles.length;
+        const devicePort = device.port;
+        if (devicePort && !isNaN(devicePort) && Number(devicePort) > 0) {
+          probePayload.port = Number(devicePort);
+        }
 
         setRegStatus((prev) => ({
           ...prev,
-          [device.id]: { status: "success", ws_url }
+          [device.id]: { status: "registering" }
         }));
-      } else {
-        const errMsg = data?.error || `HTTP ${res.status}`;
-        setRegStatus((prev) => ({
-          ...prev,
-          [device.id]: { status: "error", error: errMsg }
-        }));
-      }
 
-    } catch (err) {
-      setRegStatus((prev) => ({
-        ...prev,
-        [device.id]: { status: "error", error: err.message }
-      }));
-    }
+        let ws_url = null;
+        let stream_key = null;
+        let stream_status = "error";
+        let rtsp_url = null;
 
-    return {
-      id: `device-${device.ip}-${Date.now()}`,
-      type: "entrance",
-name:
-  creds.cameraName ||
-  enrichedName ||
-  `Camera @ ${device.ip}`,      ip: device.ip,
-      group_id: selectedGroupId,
-      
-     mac: data?.mac || device.mac || "—",
-      status: ws_url ? "Online" : "Offline",
-      manufacturer: enrichedManufacturer,
-      model: enrichedModel,
-      firmware: enrichedFirmware,
-      serial: enrichedSerial,
-      rtsp_url,
-      ws_url,
-      stream_key,
-      stream_status,
-      source: "discovery",
-      stream_profiles: streamProfiles,
-      stream_count: streamCount,
-    };
-  })
-);
+        let enrichedName = null;
+        let enrichedManufacturer = device.manufacturer || "Unknown";
+        let enrichedModel = device.model || "Unknown";
+        let enrichedFirmware = null;
+        let enrichedSerial = null;
+
+        let streamProfiles = [];
+        let streamCount = 0;
+
+        let data = null;
+        try {
+          const res = await fetch(`${STREAM_API}/api/onvif/probe`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(probePayload),
+          });
+
+          data = await res.json();
+
+          if (!res.ok) {
+            alert(` ${device.ip} → ${data.detail || "Camera limit exceeded"}`);
+
+            setRegStatus((prev) => ({
+              ...prev,
+              [device.id]: { status: "error", error: data.detail }
+            }));
+
+            return null;
+          }
+
+          if (data?.success && data?.ws_url) {
+            ws_url = data.ws_url;
+            stream_key = data.stream_key || data.ome_stream || null;
+            stream_status = data.status || "streaming";
+            rtsp_url = data.rtsp_url || data.stream_uri || null;
+
+            enrichedManufacturer = data.manufacturer || enrichedManufacturer;
+            enrichedModel = data.model || enrichedModel;
+            enrichedFirmware = data.firmware || null;
+            enrichedSerial = data.serial || null;
+
+            enrichedName = `${enrichedManufacturer} ${enrichedModel}`.trim();
+
+            streamProfiles = data.profiles || [];
+            streamCount = data.stream_count ?? streamProfiles.length;
+
+            setRegStatus((prev) => ({
+              ...prev,
+              [device.id]: { status: "success", ws_url }
+            }));
+          } else {
+            const errMsg = data?.error || `HTTP ${res.status}`;
+            setRegStatus((prev) => ({
+              ...prev,
+              [device.id]: { status: "error", error: errMsg }
+            }));
+          }
+
+        } catch (err) {
+          setRegStatus((prev) => ({
+            ...prev,
+            [device.id]: { status: "error", error: err.message }
+          }));
+        }
+
+        return {
+          id: `device-${device.ip}-${Date.now()}`,
+          type: "entrance",
+          name:
+            creds.cameraName ||
+            enrichedName ||
+            `Camera @ ${device.ip}`,
+          ip: device.ip,
+          group_id: selectedGroupId,
+          mac: data?.mac || device.mac || "—",
+          status: ws_url ? "Online" : "Offline",
+          manufacturer: enrichedManufacturer,
+          model: enrichedModel,
+          firmware: enrichedFirmware,
+          serial: enrichedSerial,
+          rtsp_url,
+          ws_url,
+          stream_key,
+          stream_status,
+          source: "discovery",
+          stream_profiles: streamProfiles,
+          stream_count: streamCount,
+        };
+      })
+    );
 
     await new Promise((r) => setTimeout(r, 600));
     setIsRegistering(false);
-onAddDevices(results.filter(Boolean));
+    onAddDevices(results.filter(Boolean));
     onClose();
   };
 
@@ -510,41 +512,34 @@ onAddDevices(results.filter(Boolean));
             </div>
 
             <div className="dm-cred-body">
-              <div className="dm-cred-fields">
-  <input
-    className="dm-cred-input"
-    placeholder="Camera Name (optional)"
-    value={deviceCreds[device.id]?.cameraName || ""}
-    onChange={(e) =>
-      updateCred(device.id, "cameraName", e.target.value)
-    }
-  />
-</div>
-              <div className="dm-cred-row">
-  <div className="dm-cred-cam">
-    <div className="dm-cred-cam-name">Select Group</div>
-  </div>
 
-  <div className="dm-cred-fields">
-    <select
-      className="dm-cred-input"
-      value={selectedGroupId}
-      onChange={(e) => setSelectedGroupId(e.target.value)}
-    >
-      <option value="default">Default</option>
-      {groups.map(g => (
-        <option key={g.id} value={g.id}>{g.name}</option>
-      ))}
-    </select>
-  </div>
-</div>
+              {/* Group selector — applies to all cameras */}
+              <div className="dm-cred-row">
+                <div className="dm-cred-cam">
+                  <div className="dm-cred-cam-name">Select Group</div>
+                </div>
+                <div className="dm-cred-fields">
+                  <select
+                    className="dm-cred-input"
+                    value={selectedGroupId}
+                    onChange={(e) => setSelectedGroupId(e.target.value)}
+                  >
+                    <option value="default">Default</option>
+                    {groups.map(g => (
+                      <option key={g.id} value={g.id}>{g.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
               <p className="dm-cred-hint">
                 Enter ONVIF credentials for each camera. Leave blank if no authentication is required.
               </p>
+
               <div className="dm-cred-list">
                 {selectedList.map((device, index) => {
                   const isLast  = index === selectedList.length - 1;
-                  const baseTab = index * 2 + 1;
+                  const baseTab = index * 3 + 1;
                   return (
                     <div key={device.id} className="dm-cred-row">
                       <div className="dm-cred-cam">
@@ -559,21 +554,34 @@ onAddDevices(results.filter(Boolean));
                           <div className="dm-cred-cam-ip">{device.ip}</div>
                         </div>
                       </div>
+
                       <div className="dm-cred-fields">
+
+                        {/* ✅ Camera Name — per device, inside the map */}
+                        <input
+                          className="dm-cred-input"
+                          placeholder="Camera Name (optional)"
+                          tabIndex={baseTab}
+                          value={deviceCreds[device.id]?.cameraName || ""}
+                          onChange={(e) => updateCred(device.id, "cameraName", e.target.value)}
+                          autoComplete="off"
+                        />
+
                         <input
                           className="dm-cred-input"
                           placeholder="Username"
-                          tabIndex={baseTab}
+                          tabIndex={baseTab + 1}
                           value={deviceCreds[device.id]?.username || ""}
                           onChange={(e) => updateCred(device.id, "username", e.target.value)}
                           autoComplete="off"
                         />
+
                         <div className="dm-password-wrapper">
                           <input
                             className="dm-cred-input dm-password-input"
                             placeholder="Password"
                             type={showPasswords[device.id] ? "text" : "password"}
-                            tabIndex={baseTab + 1}
+                            tabIndex={baseTab + 2}
                             value={deviceCreds[device.id]?.password || ""}
                             onChange={(e) => updateCred(device.id, "password", e.target.value)}
                             onKeyDown={(e) => handleCredKeyDown(e, device.id, isLast)}
@@ -598,6 +606,7 @@ onAddDevices(results.filter(Boolean));
                             )}
                           </button>
                         </div>
+
                       </div>
                     </div>
                   );
@@ -609,14 +618,14 @@ onAddDevices(results.filter(Boolean));
               <button
                 className="dm-btn dm-btn--cancel"
                 onClick={() => setShowCredModal(false)}
-                tabIndex={selectedList.length * 2 + 1}
+                tabIndex={selectedList.length * 3 + 1}
               >
                 Back
               </button>
               <button
                 className="dm-btn dm-btn--primary"
                 onClick={handleEnroll}
-                tabIndex={selectedList.length * 2 + 2}
+                tabIndex={selectedList.length * 3 + 2}
               >
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="13" height="13">
                   <polyline points="20 6 9 17 4 12"/>

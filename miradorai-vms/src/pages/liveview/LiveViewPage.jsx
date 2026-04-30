@@ -481,7 +481,7 @@ export default function LiveViewPage() {
               </svg>
               <p>All cameras are disabled.</p>
               <p className="lv-empty__sub">
-                Enable cameras in <strong>Camera Registry</strong> to view streams.
+                Enable cameras in <strong>Manage Camera Groups</strong> to view streams.
               </p>
             </div>
 

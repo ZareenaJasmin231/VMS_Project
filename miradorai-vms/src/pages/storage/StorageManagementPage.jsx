@@ -151,33 +151,42 @@ export default function StorageManagementPage() {
     setAllocated(newVal);
   };
 
-  const handleRemove = () => {
+  const handleRemove = async () => {
     if (sel === null) return;
     if (!window.confirm(`Remove storage location "${sel.display || sel.location}"?`)) return;
-    setRows((prev) => prev.filter((_, i) => i !== selected));
-    setSelected(null);
+    
+    try {
+      await fetch(`${BACKEND}/api/storage/locations?container_path=${encodeURIComponent(sel.container_path)}`, {
+        method: "DELETE"
+      });
+      fetchStorage();
+      setSelected(null);
+    } catch (err) {
+      console.error("Failed to remove storage location:", err);
+    }
   };
 
-  const handleAdd = () => {
+  const handleAdd = async () => {
     if (!newPath.trim()) return;
     const containerPath = toContainerPath(newPath.trim());
     const display       = toDisplayPath(containerPath);
-    const newRow = {
-      location:       display,
-      container_path: containerPath,
-      display:        display,
-      type:           "Local Disk",
-      total:          0,
-      used:           0,
-      free:           0,
-      allocated:      100,
-      status:         "OK",
-      server:         "MIRADOR",
-    };
-    setRows((prev) => [...prev, newRow]);
-    setSelected(rows.length);
-    setAddModal(false);
-    setNewPath("");
+    
+    try {
+      await fetch(`${BACKEND}/api/storage/locations`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          display_path: display,
+          container_path: containerPath,
+          allocated: 100
+        })
+      });
+      fetchStorage();
+      setAddModal(false);
+      setNewPath("");
+    } catch (err) {
+      console.error("Failed to add storage location:", err);
+    }
   };
 
   // ── Apply: convert display path → container path, send to backend ─────────

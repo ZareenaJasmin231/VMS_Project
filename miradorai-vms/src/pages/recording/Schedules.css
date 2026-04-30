@@ -241,6 +241,41 @@
 /* ── Week Grid ───────────────────────────────────────────────── */
 .week-grid {
   user-select: none;
+  position: relative;
+}
+
+.wg-tooltip {
+  position: absolute;
+  top: -30px;
+  right: 0;
+  background: var(--bg-elevated);
+  border: 1px solid var(--blue);
+  color: var(--blue);
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  z-index: 100;
+  pointer-events: none;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+}
+
+.wg-row-wrap {
+  margin-bottom: 8px;
+  border-bottom: 1px solid rgba(255,255,255,0.03);
+  padding-bottom: 4px;
+}
+
+.wg-range-summary {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-left: 80px;
+  margin-top: 2px;
+}
+
+.wg-range-summary strong {
+  color: var(--text-secondary);
+  font-weight: 500;
 }
 
 .wg-label-row {

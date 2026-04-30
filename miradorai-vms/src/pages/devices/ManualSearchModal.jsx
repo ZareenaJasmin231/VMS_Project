@@ -516,7 +516,6 @@ export default function ManualSearchModal({
               <div className="msm-field msm-field--port">
                 <label className="msm-label">
                   Port{" "}
-                  <span style={{ fontSize: "11px", fontWeight: "400", color: "#9ca3af" }}>(optional)</span>
                 </label>
                 <input
                   tabIndex={3}

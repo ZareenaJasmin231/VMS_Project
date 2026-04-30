@@ -18,7 +18,8 @@
 /* ── Layout: when side panel is visible ──────────────────── */
 /* FIX: was missing — caused table to NOT shrink when panel opened */
 .cameras-content-layout.has-panel .cam-table-wrap {
-  flex: 0 0 calc(100% - 320px); /* 🔥 shrink based on panel width */
+  flex: 1;
+  max-width: calc(100% - 360px);
 }
 .cameras-content-layout:not(.has-panel) .cam-table-wrap {
   flex: 1 1 100%; /* 🔥 full width */
@@ -59,7 +60,7 @@
 
 /* ── IP link ─────────────────────────────────────────────── */
 .cam-ip-link {
-  color: #4d9fff;
+  color: #1D9E75;
   font-family: "Consolas", "JetBrains Mono", monospace;
   font-size: 12px;
   cursor: pointer;
@@ -67,7 +68,18 @@
   text-underline-offset: 2px;
 }
 .cam-ip-link:hover { color: #74b5ff; }
+.cam-ip-link:hover {
+  color: #22c55e;
+}
+.m-table {
+  width: 100%;
+  table-layout: fixed;
+}
 
+.m-table th:nth-child(1) { width: 40px; }
+.m-table th:nth-child(2) { width: 80px; }
+.m-table th:nth-child(4) { width: 180px; }
+.m-table th:nth-child(5) { width: 160px; }
 /* ── Monospace cell ──────────────────────────────────────── */
 .cam-mono {
   font-family: "Consolas", "JetBrains Mono", monospace;
@@ -256,22 +268,19 @@ z
   transition: background 0.12s;
 }
 .ec-btn:hover { background: #d0d0d0; }
-.ec-btn--primary {
-  background: #0078d4;
-  border-color: #005fa3;
-  color: #fff;
-  font-weight: 600;
-}
-.ec-btn--primary:hover { background: #006cbf; }
-.ec-btn--cancel {
-  background: #e0e0e0;
-  color: #1a1a1a;
-}
 .ec-btn--help {
   background: #e0e0e0;
   color: #1a1a1a;
 }
+.ec-btn--primary {
+  background: #1D9E75;
+  border-color: #158a64;
+  color: #fff;
+}
 
+.ec-btn--primary:hover {
+  background: #158a64;
+}
 /* Auth dialog description text */
 .ec-auth-desc {
   font-size: 13px;
@@ -283,7 +292,10 @@ z
 /* ── Side Panel ──────────────────────────────────────────── */
 /* FIX: bumped from 280px → 300px, added min-width to prevent crush */
 .cam-side-panel {
-  width: 320px;
+  width: 360px;
+  min-width: 360px;
+  border-left: 1px solid rgba(255,255,255,0.06);
+  background: linear-gradient(180deg, #0b1220 0%, #0a0f1a 100%);
   min-width: 320px;
   flex-shrink: 0;
   display: flex;
@@ -477,7 +489,10 @@ z
 .m-table__row--disabled td {
   opacity: 0.45;
 }
-
+.m-table__row--selected {
+  background: rgba(29, 158, 117, 0.12);
+  border-left: 3px solid #1D9E75;
+}
 .m-table__row--disabled:hover {
   background: var(--color-background-secondary) !important;
 }
@@ -683,4 +698,172 @@ z
 .m-table {
   width: 100%;
   table-layout: auto; /* 🔥 dynamic column sizing */
+}
+/* Group camera list in side panel */
+.group-cam-list {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 0;
+}
+
+.group-cam-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 6px;
+  transition: background 0.15s;
+    margin: 2px 6px;
+
+}
+.group-panel-header {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cam-side-panel__name-row {
+  align-items: flex-start;
+  justify-content: space-between;
+}
+.group-cam-row:hover {
+  background: var(--surface-hover, rgba(255,255,255,0.05));
+}
+
+.group-cam-row--checked {
+  background: var(--surface-selected, rgba(99,102,241,0.12));
+}
+
+.group-cam-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.group-cam-name {
+  font-size: 0.85rem;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+}
+
+.cam-ip {
+  font-size: 0.75rem;
+  opacity: 0.55;
+  font-family: monospace;
+}
+
+.group-footer {
+  display: flex;
+  gap: 8px;
+  padding: 12px 0 0;
+  border-top: 1px solid var(--border, rgba(255,255,255,0.08));
+  margin-top: 8px;
+}
+
+.cam-count-badge {
+  font-size: 0.8rem;
+  opacity: 0.75;
+}
+
+.cam-count-active {
+  color: var(--accent, #6366f1);
+}
+/* ─────────────────────────────────────────
+   ADD THESE BLOCKS TO YOUR CamerasPage.css
+   ───────────────────────────────────────── */
+
+/* ── 1. Group count cell ── */
+.group-count {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.group-total {
+  font-size: 13px;
+  color: #c9d4e8;
+  font-weight: 500;
+}
+
+.group-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+}
+
+.group-active {
+  color: #22c55e;
+  font-weight: 500;
+}
+
+.group-disabled {
+  color: #ef4444;
+  font-weight: 500;
+}
+
+.group-divider {
+  color: #64748b;
+}
+
+/* ── 2. Right panel header ── */
+.group-panel-header h3 {
+  color: #22c55e;
+  font-size: 16px;
+  margin: 0 0 4px 0;
+}
+
+.group-panel-meta {
+  font-size: 12px;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.group-panel-meta .active-count {
+  color: #22c55e;
+}
+
+/* ── 3. Camera rows in right panel ── */
+.group-cam-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 1px solid #1e293b;
+  transition: background 0.15s;
+}
+
+.group-cam-row:last-child {
+  border-bottom: none;
+}
+
+.group-cam-row--checked {
+  background: rgba(34, 197, 94, 0.06);
+}
+
+.group-cam-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.group-cam-name {
+  font-size: 13px;
+  color: #c9d4e8;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.group-cam-ip {
+  font-size: 11px;
+  color: #64748b;
 }

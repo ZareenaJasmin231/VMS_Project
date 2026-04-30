@@ -18,6 +18,7 @@ import threading
 import time
 import signal
 from datetime import datetime
+from pymongo import MongoClient
 import mask_service
 
 from onvif_service import get_camera_system_time
@@ -33,6 +34,79 @@ FFMPEG_BIN    = os.environ.get("FFMPEG_BIN", "ffmpeg")
 _recorders:  dict[str, threading.Thread] = {}
 _stop_flags: dict[str, threading.Event]  = {}
 _vf_filters: dict[str, str]              = {}
+_camera_data: dict[str, dict]             = {}
+
+# ── MongoDB for schedules ──────────────────────────────────────────
+MONGO_URI    = os.environ.get("MONGO_URI", "mongodb://mongo:27017/")
+_mongo       = MongoClient(MONGO_URI)
+_db          = _mongo["mirador-vms"]
+_schedules   = _db["schedules"]
+
+def is_schedule_on(schedule_id: str | int | None, now: datetime) -> bool:
+    """
+    Check if the current time is 'on' according to the assigned schedule.
+    If no schedule is assigned, it defaults to 'Always ON'.
+    """
+    if not schedule_id or str(schedule_id).lower() == "always":
+        return True
+    
+    # Try to find by ID (handling both string and numeric versions for legacy data)
+    try:
+        numeric_id = int(schedule_id)
+        sch = _schedules.find_one({"id": {"$in": [str(schedule_id), numeric_id]}})
+    except (ValueError, TypeError):
+        sch = _schedules.find_one({"id": str(schedule_id)})
+    
+    if not sch:
+        return True # Default to ON if schedule not found
+    
+    # 1. Check Exceptions (date-based override)
+    date_iso = now.date().isoformat() # "YYYY-MM-DD"
+    exceptions = sch.get("exceptions", [])
+    # Check if any exception starts with our date string
+    for exc in exceptions:
+        if str(exc).startswith(date_iso):
+            return False # Exceptions are 'Off' days
+    
+    # 2. Check Exact Time Ranges (if available)
+    day_name = now.strftime("%A")
+    ranges_data = sch.get("ranges", {})
+    day_ranges = ranges_data.get(day_name)
+    if day_ranges and day_ranges != "Always Off":
+        # Example format: "07:20 - 07:45, 14:00 - 15:00"
+        current_time_str = now.strftime("%H:%M")
+        for r in day_ranges.split(", "):
+            try:
+                start_str, end_str = r.split(" - ")
+                if start_str <= current_time_str < end_str:
+                    return True
+            except: continue
+        return False # Within a day with ranges, but not in any active range
+
+    # 3. Fallback to Week Schedule (5-min bitmask)
+    week_data = sch.get("week", {})
+    day_mask = week_data.get(day_name)
+    
+    if not day_mask or not isinstance(day_mask, list):
+        return True # Default to ON if data missing
+    
+    # Calculate current 5-min slot index (0 to 287)
+    minute_of_day = now.hour * 60 + now.minute
+    slot_index = minute_of_day // 5
+    
+    if 0 <= slot_index < len(day_mask):
+        status = day_mask[slot_index]
+        return status
+    
+    return True
+
+
+def update_camera_data(stream_name: str, new_data: dict):
+    """Update metadata for an active camera (e.g. its assigned schedule)."""
+    if stream_name not in _camera_data:
+        _camera_data[stream_name] = {}
+    _camera_data[stream_name].update(new_data)
+    print(f"[RECORDER] 🔄 Metadata updated for {stream_name}: {new_data}")
 
 
 def get_recordings_dir() -> str:
@@ -87,7 +161,18 @@ def _record_loop(
             else:
                 print(f"[RECORDER] ℹ Using camera time for {stream_name}: {camera_time.isoformat()}")
 
-        now       = camera_time if camera_time is not None else datetime.now()
+        now = camera_time if camera_time is not None else datetime.now()
+
+        # ── Check Schedule ──────────────────────────────────────────
+        # If schedule is OFF, wait and poll.
+        # Re-fetch metadata from our central store so updates apply immediately
+        meta = _camera_data.get(stream_name, camera_data or {})
+        schedule_id = meta.get("assigned_schedule_id")
+        if not is_schedule_on(schedule_id, now):
+            print(f"[RECORDER] 💤 Schedule OFF for {stream_name} — sleeping 30s")
+            stop_event.wait(30)
+            continue
+
         date_str  = now.strftime("%Y-%m-%d")
         time_str  = now.strftime("%H-%M-%S")
         timestamp = f"{date_str}_{time_str}"
@@ -174,6 +259,14 @@ def _record_loop(
             time.sleep(5)
 
     print(f"[RECORDER] ⏹ Stopped recorder for {stream_name}")
+    _camera_data.pop(stream_name, None)
+
+
+def update_camera_data(stream_name: str, patch: dict):
+    """Update metadata for an active camera without restarting it."""
+    if stream_name in _camera_data:
+        _camera_data[stream_name].update(patch)
+        print(f"[RECORDER] 📝 Updated metadata for {stream_name}: {patch}")
 
 
 def start_camera(
@@ -205,6 +298,7 @@ def start_camera(
         name=f"recorder-{stream_name}",
     )
     _recorders[stream_name] = t
+    _camera_data[stream_name] = camera_data or {}
     t.start()
     print(f"[RECORDER] 🎥 Started: {stream_name} → {get_recordings_dir()}")
 

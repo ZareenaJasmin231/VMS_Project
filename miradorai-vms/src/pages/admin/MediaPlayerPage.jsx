@@ -3,7 +3,7 @@ import { useAuth } from "../../context/AuthContext";
 import { useImageConfig } from "../../hooks/useImageConfig";
 import "./MediaPlayerPage.css";
 
-const STREAM_API = "http://192.168.126.200:8000";
+const STREAM_API = "http://localhost:8000";
 
 function extractHour(file) {
   const raw = file.start_time || file.name || "";
@@ -112,7 +112,7 @@ export default function MediaPlayerPage() {
           const ids = await res.json();
           setRecordingCameras(ids);
           if (ids.length > 0)
-            setSelectedCam((prev) => prev ?? { stream_key: ids[0], name: ids[0] });
+            setSelectedCam({ stream_key: ids[0], name: ids[0] });
         }
       } catch (e) { console.error("Failed to fetch recording cameras:", e); }
     })();

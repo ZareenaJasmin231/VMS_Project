@@ -1,11 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Button from "../../components/shared/Button";
 import Toggle from "../../components/shared/Toggle";
 import "./RecordingMethodPage.css";
 
-const STREAM_API = "http://192.168.126.200:8000";
-
-const SCHEDULES = ["Always", "Office Hours", "Weekends", "New schedule"];
+const API_HOST = window.location.hostname;
+const STREAM_API = `http://${API_HOST}:8000`;
+const BACKEND = `http://${API_HOST}:8000`;
 
 const DEFAULT_CONTINUOUS = {
   enabled: true,
@@ -69,7 +69,7 @@ function Spinner({ value, onChange, min = 0, max = 9999, disabled }) {
 }
 
 // ── Schedule row ──────────────────────────────────────────────
-function ScheduleRow({ value, onChange, disabled }) {
+function ScheduleRow({ value, onChange, disabled, schedules }) {
   return (
     <div className="rm-schedule-row">
       <select
@@ -78,8 +78,8 @@ function ScheduleRow({ value, onChange, disabled }) {
         onChange={(e) => onChange(e.target.value)}
         disabled={disabled}
       >
-        {SCHEDULES.map((s) => (
-          <option key={s}>{s}</option>
+        {schedules.map((s) => (
+          <option key={s.id} value={s.id}>{s.name}</option>
         ))}
       </select>
       <Button label="Edit..." variant="outline" disabled={disabled} onClick={() => {}} />
@@ -148,6 +148,7 @@ function ContinuousPanel({ data, onChange }) {
       <ScheduleRow
         value={data.schedule}
         onChange={(v) => set("schedule", v)}
+        schedules={data.availableSchedules || ["Always"]}
       />
 
       {/* Advanced */}
@@ -188,33 +189,58 @@ export default function RecordingMethodPage() {
   const [filter,      setFilter]      = useState("");
   const [selectedId,  setSelectedId]  = useState(null);
   const [devices,     setDevices]     = useState([]);
-  const [loading,     setLoading]     = useState(true);
+  const [loading,     setLoading]     = useState(false);
   const [recSettings, setRecSettings] = useState({});
+  const [schedules,   setSchedules]   = useState([]);
 
   useEffect(() => {
-    fetchDevices();
+    const init = async () => {
+      const schs = await fetchSchedules();
+      await fetchDevices(schs);
+    };
+    init();
   }, []);
 
-  const fetchDevices = async () => {
+  const fetchSchedules = async () => {
+    try {
+      const res = await fetch(`${BACKEND}/api/storage/schedules`);
+      const data = await res.json();
+      // Store full schedule objects for ID/Name lookup
+      setSchedules(data);
+      return data;
+    } catch (err) {
+      console.error(err);
+      return [];
+    }
+  };
+
+  const fetchDevices = async (currentSchedules = []) => {
     setLoading(true);
     try {
-      const res  = await fetch(`${STREAM_API}/api/cameras/`);
+      const res  = await fetch(`${STREAM_API}/api/cameras`);
       const data = await res.json();
       setDevices(data);
 
       const initialSettings = {};
       data.forEach((cam) => {
         const profiles         = cam.stream_profiles || [];
-const activeRecProfile =
-  cam.active_rec_profile ||
-  cam.recording_profile ||   
-  profiles[0]?.token ||
-  "";        initialSettings[cam.ome_stream] = {
+        const activeRecProfile =
+          cam.active_rec_profile ||
+          cam.recording_profile ||   
+          profiles[0]?.token ||
+          "";
+        
+        initialSettings[cam.ome_stream] = {
           continuous: {
             ...DEFAULT_CONTINUOUS,
             enabled:           true,
             profile:           activeRecProfile,
             availableProfiles: profiles,
+            schedule:          cam.assigned_schedule_id || "Always",
+            availableSchedules: [
+              { id: "Always", name: "Always" },
+              ...currentSchedules.map(s => ({ id: s.id, name: s.name }))
+            ]
           },
         };
       });
@@ -287,6 +313,21 @@ recording_profile: selectedProfile.token,
           setRecSettings((prev) => ({ ...prev, [selectedId]: prevSettings }));
         }
       }
+    }
+
+    // ── Schedule Change → call /api/recordings/assign-schedule ──
+    if (data.schedule !== prevSettings[section].schedule) {
+      try {
+        await fetch(`${BACKEND}/api/recordings/assign-schedule`, {
+          method:  "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            camera_id:   selectedId,
+            schedule_id: data.schedule,
+          }),
+        });
+        console.log(`[SCHEDULE] ✅ Schedule updated to ${data.schedule}`);
+      } catch (err) { console.error("[SCHEDULE] ❌ Network error:", err); }
     }
   };
 
