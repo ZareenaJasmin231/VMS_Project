@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 
 const css = `
   @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@600;700;800&display=swap');
@@ -79,6 +79,33 @@ const css = `
   .sum-input.error { border-color: #dc2626; box-shadow: 0 0 0 3px rgba(220,38,38,.15); }
   .sum-error-msg { font-size: 11px; color: #f87171; }
 
+  .sum-custom-select { position: relative; width: 100%; }
+  .sum-select-btn {
+    background: #080c12; border: 1px solid #1e2a3a; border-radius: 8px;
+    color: #c9d4e8; font-family: 'DM Mono', monospace; font-size: 13px;
+    padding: 10px 13px; outline: none; width: 100%; text-align: left;
+    display: flex; justify-content: space-between; align-items: center;
+    cursor: pointer; transition: border-color .15s, box-shadow .15s;
+  }
+  .sum-select-btn:focus { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,.18); }
+  .sum-dropdown-menu {
+    position: absolute; top: calc(100% + 4px); left: 0; right: 0;
+    background: #0d1117; border: 1px solid #1e2a3a; border-radius: 8px;
+    box-shadow: 0 12px 32px rgba(0,0,0,0.6); z-index: 999;
+    padding: 6px; list-style: none; margin: 0;
+    max-height: 200px; overflow-y: auto;
+  }
+  .sum-dropdown-menu::-webkit-scrollbar { width: 6px; }
+  .sum-dropdown-menu::-webkit-scrollbar-track { background: transparent; }
+  .sum-dropdown-menu::-webkit-scrollbar-thumb { background: #1e2a3a; border-radius: 3px; }
+  .sum-dropdown-menu::-webkit-scrollbar-thumb:hover { background: #2e3d55; }
+  .sum-dropdown-item {
+    padding: 8px 12px; color: #8b99b3; font-size: 13px; cursor: pointer;
+    border-radius: 4px; display: flex; align-items: center; transition: all .15s;
+  }
+  .sum-dropdown-item:hover { background: #1e2a3a; color: #c9d4e8; }
+  .sum-dropdown-item.active { background: #1a253a; color: #3b82f6; font-weight: 500; }
+
   /* URL list */
   .sum-url-list { display: flex; flex-direction: column; gap: 8px; }
   .sum-url-item {
@@ -141,11 +168,22 @@ export default function StreamURLModal({
   selectedGroupId,
   setSelectedGroupId
 }){
-  // ✅ FIX 1 STEP 1: Added cameraName state
   const [cameraName, setCameraName] = useState("");
   const [input, setInput]           = useState("");
   const [urls, setUrls]             = useState([]);
   const [error, setError]           = useState("");
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const dropdownRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        setDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const handleAdd = () => {
     if (!input.trim()) { setError("Please enter a stream URL"); return; }
@@ -197,24 +235,10 @@ export default function StreamURLModal({
               Enter one or more stream URLs (RTSP, RTSPS, HTTP, HTTPS). Press Enter or click Add after each URL.
             </div>
 
-            {/* ✅ FIX 1 STEP 2: Camera Name field — above URL input */}
+            {/* Camera Name */}
             <div className="sum-field">
               <label className="sum-label">
-                Camera Name{" "}
-                <div className="sum-field">
-  <label className="sum-label">Group</label>
-  <select
-    className="sum-input"
-    value={selectedGroupId}
-    onChange={(e) => setSelectedGroupId(e.target.value)}
-  >
-    <option value="default">Default</option>
-    {groups.map((g) => (
-      <option key={g.id} value={g.id}>{g.name}</option>
-    ))}
-  </select>
-</div>
-                <span style={{ fontSize: "11px", fontWeight: "400", color: "#9ca3af" }}>(optional)</span>
+                CAMERA NAME <span style={{ textTransform: "none", opacity: 0.7 }}>(OPTIONAL)</span>
               </label>
               <input
                 className="sum-input"
@@ -222,6 +246,42 @@ export default function StreamURLModal({
                 value={cameraName}
                 onChange={(e) => setCameraName(e.target.value)}
               />
+            </div>
+
+            {/* Group */}
+            <div className="sum-field">
+              <label className="sum-label">SELECT GROUP</label>
+              <div className="sum-custom-select" ref={dropdownRef}>
+                <button
+                  type="button"
+                  className="sum-select-btn"
+                  onClick={() => setDropdownOpen(!dropdownOpen)}
+                >
+                  <span>{selectedGroupId === "default" ? "Default" : groups?.find(g => g.id === selectedGroupId)?.name || "Default"}</span>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6b7a99" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: dropdownOpen ? "rotate(180deg)" : "rotate(0)", transition: "transform .2s" }}>
+                    <path d="M6 9l6 6 6-6"/>
+                  </svg>
+                </button>
+                {dropdownOpen && (
+                  <ul className="sum-dropdown-menu">
+                    <li
+                      className={`sum-dropdown-item ${selectedGroupId === "default" ? "active" : ""}`}
+                      onClick={() => { setSelectedGroupId("default"); setDropdownOpen(false); }}
+                    >
+                      Default
+                    </li>
+                    {groups?.map((g) => (
+                      <li
+                        key={g.id}
+                        className={`sum-dropdown-item ${selectedGroupId === g.id ? "active" : ""}`}
+                        onClick={() => { setSelectedGroupId(g.id); setDropdownOpen(false); }}
+                      >
+                        {g.name}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
             </div>
 
             {/* Input + Add */}

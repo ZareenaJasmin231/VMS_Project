@@ -24,8 +24,20 @@ export default function DiscoveryModal({
   const [showPasswords, setShowPasswords] = useState({});
   const [isRegistering, setIsRegistering] = useState(false);
   const [regStatus, setRegStatus] = useState({});
+  const [openDropdownId, setOpenDropdownId] = useState(null);
 
   const progressTimerRef = useRef(null);
+  const dropdownRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        setOpenDropdownId(null);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const startProgressTicker = () => {
     let current = 0;
@@ -116,7 +128,7 @@ export default function DiscoveryModal({
     discoveredDevices
       .filter((d) => selectedDevices.has(d.id))
       .forEach((d) => {
-        init[d.id] = deviceCreds[d.id] || { username: "", password: "", cameraName: "" };
+        init[d.id] = deviceCreds[d.id] || { username: "", password: "", cameraName: "", groupId: "default" };
       });
     setDeviceCreds(init);
     setShowCredModal(true);
@@ -161,7 +173,7 @@ export default function DiscoveryModal({
           ip: device.ip,
           username: creds.username || "",
           password: creds.password || "",
-          group_id: selectedGroupId,
+          group_id: creds.groupId || "default",
           device_name: creds.cameraName || ""
         };
 
@@ -253,7 +265,7 @@ export default function DiscoveryModal({
             enrichedName ||
             `Camera @ ${device.ip}`,
           ip: device.ip,
-          group_id: selectedGroupId,
+          group_id: creds.groupId || "default",
           mac: data?.mac || device.mac || "—",
           status: ws_url ? "Online" : "Offline",
           manufacturer: enrichedManufacturer,
@@ -513,25 +525,6 @@ export default function DiscoveryModal({
 
             <div className="dm-cred-body">
 
-              {/* Group selector — applies to all cameras */}
-              <div className="dm-cred-row">
-                <div className="dm-cred-cam">
-                  <div className="dm-cred-cam-name">Select Group</div>
-                </div>
-                <div className="dm-cred-fields">
-                  <select
-                    className="dm-cred-input"
-                    value={selectedGroupId}
-                    onChange={(e) => setSelectedGroupId(e.target.value)}
-                  >
-                    <option value="default">Default</option>
-                    {groups.map(g => (
-                      <option key={g.id} value={g.id}>{g.name}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
               <p className="dm-cred-hint">
                 Enter ONVIF credentials for each camera. Leave blank if no authentication is required.
               </p>
@@ -557,7 +550,6 @@ export default function DiscoveryModal({
 
                       <div className="dm-cred-fields">
 
-                        {/* ✅ Camera Name — per device, inside the map */}
                         <input
                           className="dm-cred-input"
                           placeholder="Camera Name (optional)"
@@ -566,6 +558,46 @@ export default function DiscoveryModal({
                           onChange={(e) => updateCred(device.id, "cameraName", e.target.value)}
                           autoComplete="off"
                         />
+
+                        <div className="dm-custom-select" style={{ flex: 1, minWidth: 0 }} ref={openDropdownId === device.id ? dropdownRef : null}>
+                          <button
+                            type="button"
+                            className="dm-select-btn"
+                            style={{ height: "30px", padding: "0 10px" }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setOpenDropdownId(openDropdownId === device.id ? null : device.id);
+                            }}
+                          >
+                            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                              {(!deviceCreds[device.id]?.groupId || deviceCreds[device.id]?.groupId === "default") 
+                                ? "Default" 
+                                : groups?.find(g => g.id === deviceCreds[device.id]?.groupId)?.name || "Default"}
+                            </span>
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: openDropdownId === device.id ? "rotate(180deg)" : "rotate(0)", transition: "transform .2s", color: "var(--text-muted)", flexShrink: 0, marginLeft: "6px" }}>
+                              <path d="M6 9l6 6 6-6"/>
+                            </svg>
+                          </button>
+                          {openDropdownId === device.id && (
+                            <ul className="dm-dropdown-menu">
+                              <li
+                                className={`dm-dropdown-item ${(!deviceCreds[device.id]?.groupId || deviceCreds[device.id]?.groupId === "default") ? "active" : ""}`}
+                                onClick={() => { updateCred(device.id, "groupId", "default"); setOpenDropdownId(null); }}
+                              >
+                                Default
+                              </li>
+                              {groups?.map((g) => (
+                                <li
+                                  key={g.id}
+                                  className={`dm-dropdown-item ${deviceCreds[device.id]?.groupId === g.id ? "active" : ""}`}
+                                  onClick={() => { updateCred(device.id, "groupId", g.id); setOpenDropdownId(null); }}
+                                >
+                                  {g.name}
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
 
                         <input
                           className="dm-cred-input"

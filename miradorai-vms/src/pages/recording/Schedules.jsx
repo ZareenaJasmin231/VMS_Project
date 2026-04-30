@@ -31,6 +31,15 @@ function getRanges(mask) {
   return ranges.length ? ranges.join(", ") : "Always Off";
 }
 
+function findContiguousRange(mask, slot) {
+  if (!mask || !mask[slot]) return null;
+  let start = slot;
+  while (start > 0 && mask[start - 1]) start--;
+  let end = slot;
+  while (end < mask.length - 1 && mask[end + 1]) end++;
+  return `${slotToTime(start)} - ${slotToTime(end + 1 === 288 ? 288 : end + 1)}`;
+}
+
 function makeEmptyWeek() {
   return Object.fromEntries(DAYS.map((d) => [d, new Array(TOTAL_SLOTS).fill(false)]));
 }
@@ -81,7 +90,7 @@ function WeekGrid({ week, onChange }) {
     <div className="week-grid" onMouseUp={handleMouseUp} onMouseLeave={handleMouseLeave}>
       {hoverInfo && (
         <div className="wg-tooltip">
-          {hoverInfo.day}: {slotToTime(hoverInfo.slot)}
+          {hoverInfo.day}: {findContiguousRange(week[hoverInfo.day], hoverInfo.slot) || slotToTime(hoverInfo.slot)}
         </div>
       )}
       {/* Hour label row */}
@@ -360,7 +369,17 @@ export default function Schedules() {
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify(payload),
                   });
-                  alert(`Saved: ${selected.name}`);
+
+                  const rangeSummary = Object.entries(readableRanges)
+                    .filter(([day, range]) => range !== "Always Off")
+                    .map(([day, range]) => `${day}: ${range}`)
+                    .join("\n");
+
+                  alert(
+                    `Schedule saved successfully!\n\n` +
+                    `Name: ${selected.name}\n\n` +
+                    `Marked Ranges:\n${rangeSummary || "No ranges marked"}`
+                  );
                 } catch (err) { console.error(err); }
                 finally { setLoading(false); }
               }}

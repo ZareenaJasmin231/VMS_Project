@@ -312,9 +312,7 @@ class StoragePathRequest(BaseModel):
 # Helpers
 # ------------------------------------------------------------------
 def normalize_stream_name(ip: str, manufacturer: str = None) -> str:
-    if manufacturer and manufacturer != "Unknown":
-        brand_clean = re.sub(r'[^\w\-]', '_', manufacturer)
-        return f"{brand_clean}_{ip}"
+    # Always return the IP-based name for consistent folder organization
     return ip.strip().replace(".", "_")
 
 
@@ -362,9 +360,25 @@ def load_devices():
         try:
             docs = list(cameras_col.find({}, {"_id": 0}))
             if docs:
-                print(f"[STARTUP] Loaded {len(docs)} cameras from MongoDB")
-                save_devices([{
-                    "ome_stream":     d.get("ome_stream"),
+                # Deduplicate by IP: only keep one record per IP to avoid multiple recording folders
+                # We prioritize enabled cameras and then the ones with more data
+                unique_cams = {}
+                for d in docs:
+                    ip = d.get("ip")
+                    if not ip: continue
+                    
+                    if ip not in unique_cams:
+                        unique_cams[ip] = d
+                    else:
+                        # If we find a duplicate, prefer the one that is 'enabled'
+                        if d.get("enabled") and not unique_cams[ip].get("enabled"):
+                            unique_cams[ip] = d
+                
+                deduped = list(unique_cams.values())
+                print(f"[STARTUP] Loaded {len(docs)} cameras ({len(deduped)} unique IPs) from MongoDB")
+                
+                final_list = [{
+                    "ome_stream":     d.get("ome_stream") or normalize_stream_name(d.get("ip")),
                     "rtsp_url":       d.get("rtsp_url"),
                     "recording_rtsp": d.get("recording_rtsp", d.get("rtsp_url")),
                     "ip":             d.get("ip"),
@@ -378,8 +392,10 @@ def load_devices():
                     "active_rec_profile":  d.get("active_rec_profile", ""),
                     "recording_profile":   d.get("recording_profile", ""),
                     "assigned_schedule_id": d.get("assigned_schedule_id", "Always"),
-                } for d in docs if d.get("ome_stream") and d.get("rtsp_url")])
-                return docs
+                } for d in deduped if d.get("ip") and d.get("rtsp_url")]
+                
+                save_devices(final_list)
+                return final_list
         except Exception as e:
             print(f"[STARTUP] MongoDB load failed: {e} — falling back to devices.json")
 
@@ -462,92 +478,209 @@ async def webrtc_proxy(stream_key: str, request: Request):
         print(f"[WHIP] ❌ Proxy error for {stream_key}: {e}")
         raise HTTPException(status_code=502, detail=str(e))
 @app.get("/api/event-playback")
+@app.get("/api/event-playback")
 def event_playback(ip: str, time: str):
+    import re, tempfile, subprocess, os
+    from datetime import datetime
+    from fastapi.responses import StreamingResponse, Response
+
     try:
         print("\n========== PLAYBACK ==========")
         print("IP:", ip)
         print("TIME:", time)
 
-        # fix time
+        # ── 1. Normalise the ISO timestamp that arrives from the frontend ──────
+        # The frontend may send "2024-01-15T16:20:54+0530" or with a space instead of +
         if " " in time:
             time = time.replace(" ", "+")
-        if "+" in time and len(time.split("+")[-1]) == 4:
-            time = time[:-2] + ":" + time[-2:]
+        # Fix malformed timezone: "+0530" → "+05:30"
+        time = re.sub(r"([+-])(\d{2})(\d{2})$", r"\1\2:\3", time)
 
-        alert_time = datetime.fromisoformat(time)
-        alert_date = alert_time.strftime("%Y-%m-%d")
-        alert_hms  = alert_time.strftime("%H-%M-%S")
-
-        # 🔥 Find chunk in MongoDB instead of walking folders
-        doc = _db["recordings"].find_one({
-            "camera_id": normalize_stream_name(ip),
-            "date": alert_date,
-            "start_time": {"$lte": alert_hms}
-        }, sort=[("start_time", -1)])
-
-        if not doc:
-            # Fallback to literal IP if normalize failed
-            doc = _db["recordings"].find_one({
-                "camera_id": ip,
-                "date": alert_date,
-                "start_time": {"$lte": alert_hms}
-            }, sort=[("start_time", -1)])
-
-        if not doc:
-            return {"error": "No recording chunk found in database for this time"}
-
-        target_file = doc.get("file_path")
-        if not target_file or not os.path.exists(target_file):
-            return {"error": f"Encrypted file missing: {target_file}"}
-
-        # Parse start time from start_time string (HH-MM-SS)
         try:
-            h, m, s = map(int, doc["start_time"].replace("-", ":").split(":"))
-            file_start = datetime.combine(alert_time.date(), datetime.min.time().replace(hour=h, minute=m, second=s))
-        except:
-            file_start = alert_time # Fallback
+            alert_time = datetime.fromisoformat(time)
+        except ValueError:
+            # Last-resort: strip timezone entirely and parse as local naive
+            time_clean = re.sub(r"[+-]\d{2}:\d{2}$", "", time).strip()
+            alert_time = datetime.fromisoformat(time_clean)
 
-        print("🎯 FILE:", target_file)
+        alert_date = alert_time.strftime("%Y-%m-%d")
+        alert_hms  = alert_time.strftime("%H-%M-%S")   # matches DB start_time format
 
-        # ⚡ OPTIMIZED: Pipe decrypted stream directly into ffmpeg
-        # This avoids writing the whole 500MB decrypted file to disk
-        offset = (alert_time - file_start).total_seconds() - 10
-        if offset < 0: offset = 0
+        print(f"Parsed alert time: {alert_time}  date={alert_date}  hms={alert_hms}")
 
-        output = tempfile.mktemp(suffix=".mp4")
-        
-        # ffmpeg -i pipe:0 ...
+        # ── 2. Find the recording chunk that contains (or just precedes) the alert ─
+        #       We look for the chunk whose start_time <= alert HH-MM-SS.
+        #       Try both the normalised stream name (dots→underscores) and the raw IP.
+        stream_name = ip.replace(".", "_")  # matches how cameras are stored
+
+        doc = _db["recordings"].find_one(
+            {"camera_id": stream_name, "date": alert_date, "start_time": {"$lte": alert_hms}},
+            sort=[("start_time", -1)],
+        )
+        if not doc:
+            # Try with the raw IP in case the camera_id was stored differently
+            doc = _db["recordings"].find_one(
+                {"camera_id": ip, "date": alert_date, "start_time": {"$lte": alert_hms}},
+                sort=[("start_time", -1)],
+            )
+        if not doc:
+            print(f"[PLAYBACK] No chunk found for camera={stream_name} date={alert_date} before {alert_hms}")
+            return Response(
+                content=b'{"error":"No recording chunk found for this alert time"}',
+                status_code=404,
+                media_type="application/json",
+                headers={"Access-Control-Allow-Origin": "*"},
+            )
+
+        enc_path = doc.get("file_path", "")
+        if not enc_path or not os.path.exists(enc_path):
+            return Response(
+                content=b'{"error":"Encrypted file missing on disk"}',
+                status_code=404,
+                media_type="application/json",
+                headers={"Access-Control-Allow-Origin": "*"},
+            )
+
+        # ── 3. Calculate the seek offset so the clip is alert ± 10 s ────────────
+        #       chunk_start is parsed from the DB start_time field (HH-MM-SS).
+        try:
+            h, m, s = map(int, doc["start_time"].split("-"))
+            # Build a timezone-naive datetime on the same calendar date as the alert
+            chunk_start = alert_time.replace(hour=h, minute=m, second=s, microsecond=0)
+            # Remove tzinfo from alert_time for arithmetic (both are now naive / same tz)
+            if alert_time.tzinfo is not None:
+                from datetime import timezone
+                alert_naive = alert_time.astimezone(timezone.utc).replace(tzinfo=None)
+                chunk_start = chunk_start.replace(tzinfo=None)
+            else:
+                alert_naive = alert_time
+
+            elapsed = (alert_naive - chunk_start).total_seconds()
+        except Exception as parse_err:
+            print(f"[PLAYBACK] Could not parse chunk start_time '{doc['start_time']}': {parse_err}")
+            elapsed = 0.0
+
+        # Clip: 10 s before the alert → 10 s after  (20 s total)
+        BEFORE = 10   # seconds before alert to include
+        AFTER  = 10   # seconds after  alert to include
+        offset   = max(0.0, elapsed - BEFORE)
+        duration = BEFORE + AFTER   # 20 s
+
+        print(f"[PLAYBACK] chunk={doc['start_time']}  elapsed={elapsed:.1f}s  "
+              f"offset={offset:.1f}s  duration={duration}s  file={enc_path}")
+
+        # ── 4. Decrypt the entire .enc file into memory ──────────────────────────
+        #       We use encrypt_service which already has MASTER_KEY loaded.
+        try:
+            decrypted_bytes = b""
+            for chunk in encrypt_service.decrypt_file_stream(enc_path):
+                decrypted_bytes += chunk
+        except Exception as dec_err:
+            print(f"[PLAYBACK] Decryption failed: {dec_err}")
+            return Response(
+                content=b'{"error":"Decryption failed"}',
+                status_code=500,
+                media_type="application/json",
+                headers={"Access-Control-Allow-Origin": "*"},
+            )
+
+        if not decrypted_bytes or len(decrypted_bytes) < 1000:
+            return Response(
+                content=b'{"error":"Decrypted file is empty or corrupt"}',
+                status_code=500,
+                media_type="application/json",
+                headers={"Access-Control-Allow-Origin": "*"},
+            )
+
+        # ── 5. Pipe decrypted MP4 into ffmpeg, extract the ±10 s clip ───────────
+        #       Use communicate() — never stream-write to stdin while also reading
+        #       stdout/stderr; that causes a deadlock with large files.
+        output_path = tempfile.mktemp(suffix=".mp4")
         ffmpeg_cmd = [
             "ffmpeg", "-y",
-            "-i", "pipe:0",
-            "-ss", str(offset),
-            "-t", "20",
-            "-c", "copy",
+            "-i", "pipe:0",          # read MP4 from stdin
+            "-ss", str(offset),      # seek to (alert - 10 s)
+            "-t",  str(duration),    # extract 20 s
+            "-c:v", "libx264",       # re-encode so browsers can play it
+            "-preset", "ultrafast",
+            "-crf", "23",
+            "-an",                   # drop audio (recordings are -an anyway)
             "-movflags", "+faststart",
-            output
+            output_path,
         ]
 
-        proc = subprocess.Popen(ffmpeg_cmd, stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
-        
+        proc = subprocess.Popen(
+            ffmpeg_cmd,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+        )
+
         try:
-            for chunk in encrypt_service.decrypt_file_stream(target_file):
-                proc.stdin.write(chunk)
-            proc.stdin.close()
-            proc.wait(timeout=30)
-        except Exception as e:
-            if proc.poll() is None: proc.kill()
-            raise e
+            _, stderr_data = proc.communicate(input=decrypted_bytes, timeout=60)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.communicate()
+            return Response(
+                content=b'{"error":"ffmpeg timed out"}',
+                status_code=500,
+                media_type="application/json",
+                headers={"Access-Control-Allow-Origin": "*"},
+            )
 
-        if not os.path.exists(output) or os.path.getsize(output) < 1000:
-            stderr = proc.stderr.read().decode()
-            print(f"FFMPEG ERROR: {stderr}")
-            return {"error": "Failed to extract video clip"}
+        if proc.returncode != 0:
+            err_text = stderr_data.decode(errors="replace")[-300:]
+            print(f"[PLAYBACK] ffmpeg error (rc={proc.returncode}): {err_text}")
+            # Don't abort — check if the output was still created (partial clip)
 
-        return FileResponse(output, media_type="video/mp4")
+        if not os.path.exists(output_path) or os.path.getsize(output_path) < 500:
+            err_text = stderr_data.decode(errors="replace")[-300:] if stderr_data else "unknown"
+            print(f"[PLAYBACK] ffmpeg produced no usable output: {err_text}")
+            return Response(
+                content=b'{"error":"Failed to extract video clip - ffmpeg produced no output"}',
+                status_code=500,
+                media_type="application/json",
+                headers={"Access-Control-Allow-Origin": "*"},
+            )
+
+        # ── 6. Read the clip and return it as a streaming MP4 response ──────────
+        with open(output_path, "rb") as f:
+            clip_data = f.read()
+
+        try:
+            os.remove(output_path)
+        except Exception:
+            pass
+
+        print(f"[PLAYBACK] ✅ Returning clip ({len(clip_data):,} bytes)")
+
+        import io
+        return StreamingResponse(
+            io.BytesIO(clip_data),
+            media_type="video/mp4",
+            headers={
+                "Content-Length":      str(len(clip_data)),
+                "Content-Type":        "video/mp4",
+                "Accept-Ranges":       "bytes",
+                "Cache-Control":       "no-store",
+                "Access-Control-Allow-Origin":   "*",
+                "Access-Control-Allow-Methods":  "GET, OPTIONS",
+                "Access-Control-Allow-Headers":  "*",
+                "Access-Control-Expose-Headers": "Content-Length, Content-Type",
+            },
+        )
 
     except Exception as e:
-        print("ERROR:", e)
-        return {"error": str(e)}
+        import traceback
+        traceback.print_exc()
+        print(f"[PLAYBACK] ❌ Unexpected error: {e}")
+        return Response(
+            content=f'{{"error":"{str(e)}"}}'.encode(),
+            status_code=500,
+            media_type="application/json",
+            headers={"Access-Control-Allow-Origin": "*"},
+        )
+
 async def system_health_collector():
     while True:
         try:
@@ -761,7 +894,23 @@ from utils.terminal_logger import log_terminal
 
 @app.on_event("startup")
 async def startup():
-    
+    # ── Standardize DB naming convention ──────────────────────────
+    if cameras_col is not None:
+        try:
+            all_cams = list(cameras_col.find({}))
+            for cam in all_cams:
+                ip = cam.get("ip")
+                if not ip: continue
+                new_name = ip.replace(".", "_")
+                if cam.get("ome_stream") != new_name:
+                    print(f"[MIGRATION] 🚚 Renaming stream: {cam.get('ome_stream')} -> {new_name}")
+                    cameras_col.update_one({"_id": cam["_id"]}, {"$set": {"ome_stream": new_name}})
+            # Reload devices after migration
+            global devices
+            devices = load_devices()
+        except Exception as e:
+            print(f"[MIGRATION] ⚠ DB naming cleanup failed: {e}")
+
     log_terminal(
         "admin@gmail.com",
         "admin",
@@ -1897,7 +2046,9 @@ async def get_alerts(limit: int = 50):
 
         docs = list(
             mqtt_col.find({}, {"_id": 0})
-            .sort("received_at", -1)
+            # .sort("received_at", -1)
+            .sort("_id", -1)   # 🔥 FIX
+
             .limit(limit)
         )
 
@@ -1926,6 +2077,24 @@ async def get_alerts(limit: int = 50):
     except Exception as e:
         print(f"[ALERTS] ❌ {e}")
         return {"alerts": []}
+# @app.get("/api/alerts")
+# def get_alerts(limit: int = 50):
+#     try:
+#         alerts = list(
+#             watch_collection
+#             .find({})
+#             .sort("_id", -1)   # ✅ newest first (VERY IMPORTANT)
+#             .limit(limit)
+#         )
+
+#         # convert ObjectId → string
+#         for a in alerts:
+#             a["_id"] = str(a["_id"])
+
+#         return {"alerts": alerts}
+
+#     except Exception as e:
+#         return {"alerts": [], "error": str(e)}
 
 
 @app.get("/api/license")

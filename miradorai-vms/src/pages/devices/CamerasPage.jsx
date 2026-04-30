@@ -26,12 +26,16 @@ function saveDevices(devices) {
   try { localStorage.setItem("miradorai_devices", JSON.stringify(devices)); } catch {}
 }
 
+function saveGroups(groupsData) {
+  try { localStorage.setItem("miradorai_groups", JSON.stringify(groupsData)); } catch {}
+}
+
 const API_BASE = "http://192.168.126.200:8000";
 const INLINE_PAGES = ["masking"];
 
 export default function CamerasPage({ onNavigate, onCameraSelect }) {
   const [cameras, setCameras]           = useState(loadDevices);
-  const [groups]                        = useState(loadGroups);
+  const [groups, setGroups]             = useState(loadGroups);
   const [filter, setFilter]             = useState("");
   const [selected, setSelected]         = useState(null);
   const [checked, setChecked]           = useState([]);
@@ -43,8 +47,24 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
   const [selectedGroup, setSelectedGroup] = useState(null);
   const [groupChecked, setGroupChecked] = useState([]);
   const [showMoveModal, setShowMoveModal] = useState(false);
+  const [confirmAction, setConfirmAction] = useState(null);
+  const [editingGroupId, setEditingGroupId] = useState(null);
+  const [editingGroupName, setEditingGroupName] = useState("");
   const navigate = useNavigate();
   const { logAction } = useActivityLogger();
+
+  const handleSaveGroupName = (groupId) => {
+    if (!editingGroupName.trim()) {
+      setEditingGroupId(null);
+      return;
+    }
+    const updatedGroups = groups.map(g => 
+      g.id === groupId ? { ...g, name: editingGroupName.trim() } : g
+    );
+    setGroups(updatedGroups);
+    saveGroups(updatedGroups);
+    setEditingGroupId(null);
+  };
 
   // ── Build grouped data ──
   const groupedData = Object.values(
@@ -240,6 +260,12 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
     const updated = cameras.filter(c => !camIdsToRemove.includes(c.id));
     setCameras(updated);
     saveDevices(updated);
+
+    // Remove the selected groups from the groups state and localStorage
+    const updatedGroups = groups.filter(g => !checked.includes(g.id));
+    setGroups(updatedGroups);
+    saveGroups(updatedGroups);
+
     setChecked([]);
     setSelectedGroup(null);
   };
@@ -305,8 +331,10 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
                 </th>
                 <th style={{ width: 72 }}>Active</th>
                 <th>Group Name</th>
-                <th style={{ width: 160 }}>Total Cameras</th>
-                <th style={{ width: 160 }}></th>
+                <th>Total Cameras</th>
+                <th>Active</th>
+                <th>Disabled</th>
+                <th style={{ width: 140 }}></th>
               </tr>
             </thead>
             <tbody>
@@ -358,18 +386,68 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
                     </td>
 
                     {/* Group Name */}
-                    <td className="m-table__primary">{group.name}</td>
-
-                    {/* ── UPDATED: Total Cameras cell ── */}
-                    <td>
-                      <div className="group-count">
-                        <span className="group-total">{total} Cameras</span>
-                        <div className="group-status">
-                          <span className="group-active">{activeCount} Active</span>
-                          <span className="group-divider">•</span>
-                          <span className="group-disabled">{total - activeCount} Disabled</span>
+                    <td className="m-table__primary">
+                      {editingGroupId === group.group_id ? (
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px" }} onClick={(e) => e.stopPropagation()}>
+                          <input
+                            className="ec-input"
+                            style={{ height: "26px", padding: "0 6px" }}
+                            value={editingGroupName}
+                            onChange={(e) => setEditingGroupName(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") handleSaveGroupName(group.group_id);
+                              if (e.key === "Escape") setEditingGroupId(null);
+                            }}
+                            autoFocus
+                          />
+                          <button
+                            className="ec-btn ec-btn--primary"
+                            style={{ padding: "0 8px", height: "26px", fontSize: "11px" }}
+                            onClick={() => handleSaveGroupName(group.group_id)}
+                          >
+                            Save
+                          </button>
+                          <button
+                            className="ec-btn ec-btn--cancel"
+                            style={{ padding: "0 8px", height: "26px", fontSize: "11px" }}
+                            onClick={() => setEditingGroupId(null)}
+                          >
+                            Cancel
+                          </button>
                         </div>
-                      </div>
+                      ) : (
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                          {group.name}
+                          {group.group_id !== "default" && (
+                            <button
+                              title="Edit Group Name"
+                              style={{
+                                background: "none", border: "none", color: "var(--text-secondary)", cursor: "pointer", display: "flex", alignItems: "center"
+                              }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setEditingGroupId(group.group_id);
+                                setEditingGroupName(group.name);
+                              }}
+                            >
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </td>
+
+                    {/* Total Cameras */}
+                    <td>
+                      <span className="group-total">{total}</span>
+                    </td>
+                    {/* Active */}
+                    <td>
+                      <span className="group-active">{activeCount}</span>
+                    </td>
+                    {/* Disabled */}
+                    <td>
+                      <span className="group-disabled">{total - activeCount}</span>
                     </td>
 
                     {/* View All button */}
@@ -408,8 +486,7 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
                     </div>
                   </div>
                   <button
-                    className="ec-btn ec-btn--cancel"
-                    style={{ fontSize: "0.7rem", padding: "2px 8px", alignSelf: "flex-start" }}
+                    className="close-btn"
                     onClick={() => setSelectedGroup(null)}
                   >
                     ✕
@@ -463,9 +540,16 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
             {/* Footer actions */}
             <div className="group-footer">
               <button
-                className="ec-btn ec-btn--cancel"
+                className="ec-btn ec-btn--danger"
                 disabled={groupChecked.length === 0}
-                onClick={handleDeleteGroupCams}
+                onClick={() => setConfirmAction({
+                  title: "Delete Cameras",
+                  message: `Are you sure you want to delete the ${groupChecked.length} selected camera(s)?`,
+                  onConfirm: () => {
+                    handleDeleteGroupCams();
+                    setConfirmAction(null);
+                  }
+                })}
               >
                 Delete
               </button>
@@ -494,7 +578,14 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
             label={checked.length > 1 ? `Remove Groups (${checked.length})` : "Remove Group"}
             variant="danger"
             disabled={checked.length === 0}
-            onClick={handleRemoveGroups}
+            onClick={() => setConfirmAction({
+              title: "Remove Groups",
+              message: `Are you sure you want to remove the ${checked.length} selected group(s)? All cameras within them will also be deleted.`,
+              onConfirm: () => {
+                handleRemoveGroups();
+                setConfirmAction(null);
+              }
+            })}
           />
         </div>
       </div>
@@ -673,6 +764,31 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
               <div className="ec-footer-right">
                 <button className="ec-btn ec-btn--primary" onClick={confirmAuth}>OK</button>
                 <button className="ec-btn ec-btn--cancel" onClick={() => setAuthModal(null)}>Cancel</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Confirmation Modal ── */}
+      {confirmAction && (
+        <div className="ec-overlay" onClick={() => setConfirmAction(null)}>
+          <div className="ec-modal" onClick={(e) => e.stopPropagation()} style={{ width: 340 }}>
+            <div className="ec-titlebar">
+              <span className="ec-title">{confirmAction.title}</span>
+              <div className="ec-titlebar-actions">
+                <button className="ec-title-btn" onClick={() => setConfirmAction(null)} title="Close">✕</button>
+              </div>
+            </div>
+            <div className="ec-body">
+              <p className="ec-auth-desc" style={{ marginBottom: 0 }}>
+                {confirmAction.message}
+              </p>
+            </div>
+            <div className="ec-footer">
+              <div className="ec-footer-right" style={{ width: "100%", justifyContent: "flex-end" }}>
+                <button className="ec-btn ec-btn--cancel" onClick={() => setConfirmAction(null)}>Cancel</button>
+                <button className="ec-btn ec-btn--danger" onClick={confirmAction.onConfirm}>Confirm</button>
               </div>
             </div>
           </div>

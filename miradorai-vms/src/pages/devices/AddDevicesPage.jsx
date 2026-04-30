@@ -146,6 +146,19 @@ function EditDeviceModal({ device, groups, onClose, onSave }) {
     group_id:     device.group_id     || "default",
   });
 
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const dropdownRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        setDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
   const set = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }));
 
   return (
@@ -175,12 +188,38 @@ function EditDeviceModal({ device, groups, onClose, onSave }) {
           ))}
           <div className="modal-field">
             <label className="modal-label">Group</label>
-            <select className="modal-input" value={form.group_id} onChange={set("group_id")}>
-              <option value="default">Default</option>
-              {groups.map((g) => (
-                <option key={g.id} value={g.id}>{g.name}</option>
-              ))}
-            </select>
+            <div className="adp-custom-select" ref={dropdownRef} style={{ width: "100%" }}>
+              <button
+                type="button"
+                className="modal-input"
+                style={{ cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center" }}
+                onClick={() => setDropdownOpen(!dropdownOpen)}
+              >
+                <span>{form.group_id === "default" ? "Default" : groups.find(g => g.id === form.group_id)?.name || "Default"}</span>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: dropdownOpen ? "rotate(180deg)" : "rotate(0)", transition: "transform .2s", marginLeft: "8px", color: "var(--text-muted)" }}>
+                  <path d="M6 9l6 6 6-6"/>
+                </svg>
+              </button>
+              {dropdownOpen && (
+                <ul className="adp-dropdown-menu">
+                  <li
+                    className={`adp-dropdown-item ${form.group_id === "default" ? "active" : ""}`}
+                    onClick={() => { setForm(f => ({ ...f, group_id: "default" })); setDropdownOpen(false); }}
+                  >
+                    Default
+                  </li>
+                  {groups.map(g => (
+                    <li
+                      key={g.id}
+                      className={`adp-dropdown-item ${form.group_id === g.id ? "active" : ""}`}
+                      onClick={() => { setForm(f => ({ ...f, group_id: g.id })); setDropdownOpen(false); }}
+                    >
+                      {g.name}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
           </div>
         </div>
         <div className="modal-footer">
@@ -201,6 +240,21 @@ export default function AddDevicesPage({ onNavigate }) {
   const [showManualSearch, setShowManualSearch] = useState(false);
   const [showStreamURL, setShowStreamURL]       = useState(false);
   const [showDiscovery, setShowDiscovery]       = useState(false);
+  const [isDeletingGroup, setIsDeletingGroup]   = useState(false);
+  const [confirmAction, setConfirmAction]       = useState(null);
+
+  const [filterDropdownOpen, setFilterDropdownOpen] = useState(false);
+  const filterDropdownRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (filterDropdownRef.current && !filterDropdownRef.current.contains(e.target)) {
+        setFilterDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
   const [enrolling, setEnrolling]               = useState(false);
   const [enrollMsg, setEnrollMsg]               = useState("");
   const [refreshing, setRefreshing]             = useState(false);
@@ -580,17 +634,45 @@ const handleCreateGroupSubmit = (name) => {
 <div className="add-dev__options-bar">
   <SearchBar value={filter} onChange={setFilter} placeholder="Filter devices..." />
 
-  <select
-    className="group-filter"
-    value={activeGroup}
-    onChange={(e) => setActiveGroup(e.target.value)}
-  >
-    <option value="all">All Cameras</option>
-    <option value="default">Default</option>
-    {groups.map(g => (
-      <option key={g.id} value={g.id}>{g.name}</option>
-    ))}
-  </select>
+  <div className="adp-custom-select" ref={filterDropdownRef}>
+    <button
+      type="button"
+      className="adp-select-btn"
+      onClick={() => setFilterDropdownOpen(!filterDropdownOpen)}
+    >
+      <span>
+        {activeGroup === "all" ? "All Cameras" : activeGroup === "default" ? "Default" : groups.find(g => g.id === activeGroup)?.name || "All Cameras"}
+      </span>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: filterDropdownOpen ? "rotate(180deg)" : "rotate(0)", transition: "transform .2s", marginLeft: "8px", color: "var(--text-muted)" }}>
+        <path d="M6 9l6 6 6-6"/>
+      </svg>
+    </button>
+    {filterDropdownOpen && (
+      <ul className="adp-dropdown-menu">
+        <li
+          className={`adp-dropdown-item ${activeGroup === "all" ? "active" : ""}`}
+          onClick={() => { setActiveGroup("all"); setFilterDropdownOpen(false); }}
+        >
+          All Cameras
+        </li>
+        <li
+          className={`adp-dropdown-item ${activeGroup === "default" ? "active" : ""}`}
+          onClick={() => { setActiveGroup("default"); setFilterDropdownOpen(false); }}
+        >
+          Default
+        </li>
+        {groups.map(g => (
+          <li
+            key={g.id}
+            className={`adp-dropdown-item ${activeGroup === g.id ? "active" : ""}`}
+            onClick={() => { setActiveGroup(g.id); setFilterDropdownOpen(false); }}
+          >
+            {g.name}
+          </li>
+        ))}
+      </ul>
+    )}
+  </div>
 </div>
         <div className="add-dev__info-pill">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="13" height="13" style={{ flexShrink: 0 }}>

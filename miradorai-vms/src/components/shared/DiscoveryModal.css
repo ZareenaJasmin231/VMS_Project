@@ -407,7 +407,7 @@
   background: var(--bg-surface, #111318);
   border: 1px solid var(--border-light, #1e2230);
   border-radius: 14px;
-  width: 560px;
+  width: 960px;
   max-width: calc(100vw - 32px);
   height: min(600px, calc(100vh - 64px));
   display: flex;
@@ -512,10 +512,39 @@
   border-color: var(--teal, #10b981);
   background: rgba(16,185,129,0.04);
 }
+
+.dm-custom-select { position: relative; width: 100%; }
+.dm-select-btn {
+  background: var(--bg-elevated, #0d1018); border: 1px solid var(--border-light, #1e2230); border-radius: 6px;
+  color: var(--text-primary, #e2e4ea); font-size: 12px;
+  padding: 7px 10px; outline: none; width: 100%; text-align: left;
+  display: flex; justify-content: space-between; align-items: center;
+  cursor: pointer; transition: border-color .15s, background .15s;
+}
+.dm-select-btn:focus { border-color: var(--teal, #10b981); background: rgba(16,185,129,0.04); }
+.dm-dropdown-menu {
+  position: absolute; top: calc(100% + 4px); left: 0; right: 0;
+  background: var(--bg-surface, #111318); border: 1px solid var(--border-light, #1e2230); border-radius: 8px;
+  box-shadow: 0 12px 32px rgba(0,0,0,0.6); z-index: 999;
+  padding: 6px; list-style: none; margin: 0;
+  max-height: 200px; overflow-y: auto;
+}
+.dm-dropdown-menu::-webkit-scrollbar { width: 6px; }
+.dm-dropdown-menu::-webkit-scrollbar-track { background: transparent; }
+.dm-dropdown-menu::-webkit-scrollbar-thumb { background: #1e2230; border-radius: 3px; }
+.dm-dropdown-menu::-webkit-scrollbar-thumb:hover { background: #2e3548; }
+.dm-dropdown-item {
+  padding: 8px 12px; color: var(--text-muted, #4a5060); font-size: 12px; cursor: pointer;
+  border-radius: 4px; display: flex; align-items: center; transition: all .15s;
+}
+.dm-dropdown-item:hover { background: rgba(255,255,255,0.03); color: var(--text-primary, #e2e4ea); }
+.dm-dropdown-item.active { background: rgba(16,185,129,0.08); color: var(--teal, #10b981); font-weight: 500; }
 .dm-password-wrapper {
   position: relative;
   display: flex;
   align-items: center;
+  flex: 1;
+  min-width: 0;
 }
 
 .dm-password-input {
