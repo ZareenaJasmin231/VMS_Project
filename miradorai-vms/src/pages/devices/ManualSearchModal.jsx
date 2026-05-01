@@ -228,6 +228,33 @@ const css = `
   .msm-btn--enroll:hover:not(:disabled) { background: #2563eb; }
   .msm-btn:disabled { opacity: .35; cursor: not-allowed; }
 
+  /* Channel picker */
+  .msm-channels { display: flex; flex-direction: column; gap: 6px; }
+  .msm-channel-header {
+    font-size: 10px; letter-spacing: .12em; text-transform: uppercase;
+    color: #4a5568; margin-bottom: 2px;
+  }
+  .msm-channel-row {
+    display: flex; align-items: center; justify-content: space-between;
+    background: #080c12; border: 1px solid #1e2a3a;
+    border-radius: 8px; padding: 10px 14px;
+    cursor: pointer; transition: all .15s;
+  }
+  .msm-channel-row:hover { border-color: #2563eb; background: #0b1322; }
+  .msm-channel-row.selected { border-color: #2563eb; background: #0f1f3d; }
+  .msm-channel-left { display: flex; align-items: center; gap: 10px; }
+  .msm-channel-dot { width: 8px; height: 8px; border-radius: 50%; background: #22c55e; flex-shrink: 0; }
+  .msm-channel-name { color: #c9d4e8; font-size: 13px; font-weight: 500; }
+  .msm-channel-sub { color: #4a5568; font-size: 10px; margin-top: 2px; }
+  .msm-channel-check {
+    width: 18px; height: 18px; border-radius: 50%;
+    border: 2px solid #2563eb; display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .msm-channel-check.filled { background: #2563eb; }
+  .msm-channel-check svg { display: none; }
+  .msm-channel-check.filled svg { display: block; }
+
   .msm-error-msg { font-size: 11px; color: #f87171; margin-top: -8px; }
 `;
 
@@ -345,6 +372,7 @@ export default function ManualSearchModal({
     setErrors({});
     setProbe("probing");
     setDiscovered(null);
+    setSelectedChannel(null);
 
     try {
       const controller = new AbortController();
@@ -374,6 +402,7 @@ export default function ManualSearchModal({
       if (json.success) {
         setProbe("success");
         setDetectedPort(json.port || port);
+        const allProfiles = json.all_profiles || json.profiles || [];
         setDiscovered({
           manufacturer: json.manufacturer,
           model: json.model,
@@ -381,6 +410,7 @@ export default function ManualSearchModal({
           serial: json.serial,
           ptz: json.ptz ? "Yes" : "No",
           profiles: json.profiles || [],
+          all_profiles: allProfiles,
           stream_count: json.stream_count ?? (json.profiles?.length || 0),
           ws_url: json.ws_url || null,
           rtsp_url: json.rtsp_url || null,
@@ -444,10 +474,31 @@ export default function ManualSearchModal({
     }
   };
 
+  const [selectedChannel, setSelectedChannel] = useState(null);
+
+  // Group all_profiles by source (camera channel)
+  const channelList = (() => {
+    if (!discovered?.all_profiles?.length) return [];
+    const map = {};
+    for (const p of discovered.all_profiles) {
+      // ✅ Safety check: skip profiles that are clearly empty/inactive
+      const isPlaceholder = !p.resolution || p.resolution === "0x0" || !p.rtsp_url;
+      if (isPlaceholder) continue;
+
+      const src = p.source ?? 1;
+      if (!map[src]) map[src] = { source: src, label: `Cam ${src}`, profiles: [] };
+      map[src].profiles.push(p);
+    }
+    return Object.values(map).sort((a, b) => a.source - b.source);
+  })();
+
   const handleEnroll = () => {
+    // Use selectedChannel's profiles if available, else fall back to discovered.profiles
+    const activeProfiles = selectedChannel?.profiles || discovered?.profiles || [];
+    const activeRtsp = activeProfiles[0]?.rtsp_url || discovered?.rtsp_url || null;
+
     if (mode === "onvif") {
       const enrollPort = detectedPort || port || "80";
-      // ✅ FIX 3 STEP 3: Pass cameraName in onEnroll payload
       onEnroll?.({
         cameraName,
         ip,
@@ -456,11 +507,12 @@ export default function ManualSearchModal({
         user,
         pass,
         discovered,
-        stream_profiles: discovered?.profiles || [],
-        stream_count: discovered?.stream_count ?? 0,
+        stream_profiles: activeProfiles,
+        stream_count: activeProfiles.length,
         ws_url: discovered?.ws_url || null,
-        rtsp_url: discovered?.rtsp_url || null,
+        rtsp_url: activeRtsp,
         stream_key: discovered?.stream_key || null,
+        channel: selectedChannel?.source ?? null,
       });
     } else {
       onEnroll?.({
@@ -469,8 +521,8 @@ export default function ManualSearchModal({
         group_id: selectedGroupId,
         label: urlLabel,
         discovered,
-        stream_profiles: discovered?.profiles || [],
-        stream_count: discovered?.stream_count ?? 0,
+        stream_profiles: activeProfiles,
+        stream_count: activeProfiles.length,
         ws_url: discovered?.ws_url || null,
         rtsp_url: discovered?.rtsp_url || rtspUrl,
         stream_key: discovered?.stream_key || null,
@@ -715,7 +767,34 @@ export default function ManualSearchModal({
                   </div>
                 )}
 
-                {discovered.profiles?.length > 0 && (
+                {/* Camera Channel Picker — only shown on multi-channel devices */}
+                {channelList.length > 1 && (
+                  <div className="msm-channels">
+                    <div className="msm-channel-header">Select Camera to Add</div>
+                    {channelList.map((ch) => (
+                      <div
+                        key={ch.source}
+                        className={`msm-channel-row ${selectedChannel?.source === ch.source ? "selected" : ""}`}
+                        onClick={() => setSelectedChannel(ch)}
+                      >
+                        <div className="msm-channel-left">
+                          <div className="msm-channel-dot" />
+                          <div>
+                            <div className="msm-channel-name">{ch.label}</div>
+                            <div className="msm-channel-sub">{ch.profiles.length} stream{ch.profiles.length !== 1 ? "s" : ""} · {ch.profiles[0]?.resolution || "Unknown"}</div>
+                          </div>
+                        </div>
+                        <div className={`msm-channel-check ${selectedChannel?.source === ch.source ? "filled" : ""}`}>
+                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3">
+                            <polyline points="20 6 9 17 4 12" />
+                          </svg>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {(channelList.length <= 1) && discovered.profiles?.length > 0 && (
                   <div className="msm-routing-hint">
                     {getRoutingHint(discovered.profiles)}
                   </div>
@@ -741,9 +820,9 @@ export default function ManualSearchModal({
               tabIndex={8}
               className="msm-btn msm-btn--enroll"
               onClick={handleEnroll}
-              disabled={probe !== "success"}
+              disabled={probe !== "success" || (channelList.length > 1 && !selectedChannel)}
             >
-              Enroll Camera
+              {channelList.length > 1 && !selectedChannel ? "Select a Camera" : "Enroll Camera"}
             </button>
           </div>
 

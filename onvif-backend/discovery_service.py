@@ -21,8 +21,7 @@ import threading
 
 # ── Non-camera model/manufacturer keywords ────────────────────────────────────
 _NON_CAMERA_KEYWORDS = [
-    "nvr", "dvr", "recorder", "server", "nas",
-    "display", "decoder", "workstation", "desktop",
+    "nas", "display", "decoder", "workstation", "desktop",
     "laptop", "switch", "router", "gateway", "hub",
     "printer", "access point", "ap ", "firewall",
 ]
@@ -275,13 +274,7 @@ def probe_onvif_device(ip: str, port: int = 80, username: str = "", password: st
         if result.get("success"):
 
             # ── GATE 3: Model/manufacturer keyword check ──────────
-            model        = (result.get("model")        or "").lower()
-            manufacturer = (result.get("manufacturer") or "").lower()
-            for kw in _NON_CAMERA_KEYWORDS:
-                if kw in model or kw in manufacturer:
-                    print(f"[DISCOVERY] ✗ {ip} — model says non-camera: "
-                          f"'{result.get('manufacturer')} {result.get('model')}'")
-                    return None
+            # (Keywords check removed to allow NVRs/Encoders with valid streams)
 
             # ── GATE 4: Valid RTSP URLs in profiles ───────────────
             profiles = result.get("profiles", [])

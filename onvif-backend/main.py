@@ -8,6 +8,7 @@ from passlib.context import CryptContext
 from camera_analytics_router import camera_analytics_router
 import asyncio
 import json
+import hashlib
 import os
 import re
 import subprocess
@@ -255,6 +256,7 @@ class ProbeRequest(BaseModel):
     port:     int = 80
     username: str = ""
     password: str = ""
+    channel:  int = 0
  
 
 
@@ -311,9 +313,15 @@ class StoragePathRequest(BaseModel):
 # ------------------------------------------------------------------
 # Helpers
 # ------------------------------------------------------------------
-def normalize_stream_name(ip: str, manufacturer: str = None) -> str:
+def normalize_stream_name(ip: str, suffix: str = None) -> str:
     # Always return the IP-based name for consistent folder organization
-    return ip.strip().replace(".", "_")
+    base = ip.strip().replace(".", "_")
+    if suffix:
+        # Sanitize suffix (allow only alphanumeric)
+        clean_suffix = re.sub(r'[^a-zA-Z0-9]', '', suffix)
+        if clean_suffix:
+            return f"{base}_{clean_suffix}"
+    return base
 
 
 def save_camera_to_db(data: dict):
@@ -328,7 +336,7 @@ def save_camera_to_db(data: dict):
         print("❌ License invalid")
         return False
  
-    existing = cameras_col.find_one({"ip": data["ip"]})
+    existing = cameras_col.find_one({"ome_stream": data["ome_stream"]})
 
     # 🔐 STEP 3: Count cameras
     current_count = cameras_col.count_documents({"enabled": True})
@@ -345,7 +353,7 @@ def save_camera_to_db(data: dict):
  
     try:
         cameras_col.update_one(
-            {"ip": data["ip"]},
+            {"ome_stream": data["ome_stream"]},
             {"$set": data},
             upsert=True
         )
@@ -364,15 +372,15 @@ def load_devices():
                 # We prioritize enabled cameras and then the ones with more data
                 unique_cams = {}
                 for d in docs:
-                    ip = d.get("ip")
-                    if not ip: continue
+                    stream_id = d.get("ome_stream") or normalize_stream_name(d.get("ip", "unknown"))
+                    if not stream_id: continue
                     
-                    if ip not in unique_cams:
-                        unique_cams[ip] = d
+                    if stream_id not in unique_cams:
+                        unique_cams[stream_id] = d
                     else:
                         # If we find a duplicate, prefer the one that is 'enabled'
-                        if d.get("enabled") and not unique_cams[ip].get("enabled"):
-                            unique_cams[ip] = d
+                        if d.get("enabled") and not unique_cams[stream_id].get("enabled"):
+                            unique_cams[stream_id] = d
                 
                 deduped = list(unique_cams.values())
                 print(f"[STARTUP] Loaded {len(docs)} cameras ({len(deduped)} unique IPs) from MongoDB")
@@ -758,12 +766,13 @@ async def websocket_logs(websocket: WebSocket):
     except WebSocketDisconnect:
         log_clients.remove(websocket)
         print("❌ Logs WS Disconnected")
-    async def broadcast_log(log):
-        for client in log_clients:
-            try:
-                await client.send_json(log)
-            except:
-                pass
+
+async def broadcast_log(log):
+    for client in log_clients:
+        try:
+            await client.send_json(log)
+        except:
+            pass
 # ------------------------------------------------------------------
 # OME readiness wait
 # ------------------------------------------------------------------
@@ -901,10 +910,14 @@ async def startup():
             for cam in all_cams:
                 ip = cam.get("ip")
                 if not ip: continue
-                new_name = ip.replace(".", "_")
-                if cam.get("ome_stream") != new_name:
-                    print(f"[MIGRATION] 🚚 Renaming stream: {cam.get('ome_stream')} -> {new_name}")
-                    cameras_col.update_one({"_id": cam["_id"]}, {"$set": {"ome_stream": new_name}})
+                base_name = ip.replace(".", "_")
+                current   = cam.get("ome_stream", "")
+                # Only rename if the stream has NO hash suffix (old format).
+                # Multi-channel streams have a suffix like 192_168_126_240_e1c95c — leave them alone.
+                if current and current != base_name and not current.startswith(base_name + "_"):
+                    print(f"[MIGRATION] 🚚 Renaming stream: {current} -> {base_name}")
+                    cameras_col.update_one({"_id": cam["_id"]}, {"$set": {"ome_stream": base_name}})
+                # If it already HAS a unique suffix, don't touch it
             # Reload devices after migration
             global devices
             devices = load_devices()
@@ -1331,28 +1344,33 @@ async def onvif_probe(req: ProbeRequest):
             raise HTTPException(status_code=400, detail="Camera limit exceeded")
  
     result = await asyncio.to_thread(
-        probe_camera, req.ip, req.port, req.username, req.password
+        probe_camera, req.ip, req.port, req.username, req.password, req.channel
     )
+
  
     if result["success"]:
         print(f"[ONVIF] ✅ {result['manufacturer']} {result['model']} "
               f"— {result.get('stream_count', '?')} stream(s)")
-        # changes starts
-        rtsp = result["stream_uri"]
+        # Use the first profile's rtsp_url (reflects the selected channel from the UI)
+        # Fallback to stream_uri for backward compatibility
+        profiles_list = result.get("profiles") or result.get("all_profiles") or []
+        if profiles_list and profiles_list[0].get("rtsp_url"):
+            rtsp = profiles_list[0]["rtsp_url"]
+        else:
+            rtsp = result.get("stream_uri", "")
         rtsp = re.sub(r"[&?]proto=Onvif", "", rtsp)
-
-        rtsp = result["stream_uri"]
- 
-        rtsp = re.sub(r"[&?]proto=Onvif", "", rtsp)
- 
 
         parsed = urllib.parse.urlparse(rtsp)
         if req.username and not parsed.username:
-            safe_user = urllib.parse.quote(req.username, safe="")
-            safe_pass = urllib.parse.quote(req.password, safe="")
-            netloc = f"{safe_user}:{safe_pass}@{parsed.hostname}"
-            if parsed.port:
-                netloc += f":{parsed.port}"
+            user_clean = req.username.strip()
+            pass_clean = req.password.strip()
+            host = parsed.hostname
+            port = parsed.port
+            if port:
+                netloc = f"{user_clean}:{pass_clean}@{host}:{port}"
+            else:
+                netloc = f"{user_clean}:{pass_clean}@{host}"
+            
             rtsp = urllib.parse.urlunparse((
                 parsed.scheme,
                 netloc,
@@ -1369,7 +1387,11 @@ async def onvif_probe(req: ProbeRequest):
 
         print("FINAL RTSP:", rtsp)
         # changes ends
-        stream_name = normalize_stream_name(req.ip)
+        # Generate a unique stream name based on IP and a hash of the RTSP URL
+        # Use channel-based suffix for stable, unique stream names on multi-channel devices
+        suffix = f"cam{req.channel}" if req.channel > 0 else hashlib.md5(rtsp.encode()).hexdigest()[:6]
+        stream_name = normalize_stream_name(req.ip, suffix)
+        
         existing    = next((d for d in devices if d.get("ome_stream") == stream_name), None)
 
  
@@ -1458,21 +1480,24 @@ async def register_rtsp_stream(req: StreamRegisterRequest):
     rtsp = req.rtsp_url.strip()
     print(f"[RTSP] Registering stream: {rtsp}")
  
+    import hashlib
+    rtsp_hash = hashlib.md5(rtsp.encode()).hexdigest()[:6]
+
     if req.ip:
         host        = req.ip
-        stream_name = normalize_stream_name(host, req.manufacturer)
+        stream_name = normalize_stream_name(host, rtsp_hash)
     else:
         try:
             from urllib.parse import urlparse
             parsed      = urlparse(rtsp)
             host        = parsed.hostname or "unknown"
-            stream_name = normalize_stream_name(host, req.manufacturer)
+            stream_name = normalize_stream_name(host, rtsp_hash)
         except Exception:
             host        = "unknown"
-            stream_name = re.sub(r"[^a-zA-Z0-9]", "_", rtsp)[:32]
+            stream_name = normalize_stream_name("unknown", rtsp_hash)
 
     existing = next(
-        (d for d in devices if d.get("ome_stream") == stream_name or d.get("ip") == host),
+        (d for d in devices if d.get("ome_stream") == stream_name),
         None
     )
  
@@ -1567,7 +1592,12 @@ async def assign_streams(req: StreamAssignRequest):
     import time
 
     host        = req.ip.strip()
-    stream_name = normalize_stream_name(host, req.manufacturer)
+    # For assignment, we need to find which camera we are talking about.
+    # We'll use the IP and look for the one with matching profiles if possible, 
+    # but the safest way is to look for the one that has the live_rtsp or recording_rtsp.
+    # However, since we don't have the ID, we'll try to find by IP and manufacturer for now
+    # or just use the first match for this IP.
+    stream_name = normalize_stream_name(host) 
 
     print(f"[ASSIGN] {host}: live={req.live_profile!r}  rec={req.recording_profile!r}")
     print(f"[ASSIGN] live_rtsp={req.live_rtsp!r}")
@@ -1575,8 +1605,8 @@ async def assign_streams(req: StreamAssignRequest):
 
     # ── 1. Update OME only if live RTSP actually changed ──────────────
     existing = next(
-        (d for d in devices if d.get("ome_stream") == stream_name or d.get("ip") == host),
-        None
+        (d for d in devices if d.get("ip") == host and (d.get("rtsp_url") == req.live_rtsp or d.get("recording_rtsp") == req.recording_rtsp)),
+        next((d for d in devices if d.get("ip") == host), None)
     )
     current_live_rtsp = existing.get("rtsp_url") if existing else None
     live_rtsp_changed = current_live_rtsp != req.live_rtsp
@@ -1841,8 +1871,14 @@ async def get_analytics_events(ip: str, limit: int = 50):
 @app.post("/api/devices/")
 async def add_device(device: dict):
     print("DEVICE REGISTERED:", device)
+    # Use ome_stream or IP as the unique key
+    stream_id = device.get("ome_stream") or device.get("ip_address")
+    if not stream_id:
+        return {"success": False, "error": "Missing identifier"}
+
     existing = next(
-        (d for d in devices if d.get("ip_address") == device.get("ip_address")), None
+        (d for d in devices if (d.get("ome_stream") or d.get("ip_address")) == stream_id), 
+        None
     )
     if existing:
         devices.remove(existing)
@@ -1914,14 +1950,23 @@ def update_storage_selection(payload: dict):
     ip = payload.get("ip")
     if not ip:
         return {"error": "ip required"}
-    cameras_col.update_one(
-        {"ip": ip},
-        {"$set": {
+    # Update by ome_stream if provided, fallback to IP (warning: IP update affects all channels)
+    stream_id = payload.get("ome_stream")
+    if stream_id:
+        cameras_col.update_one({"ome_stream": stream_id}, {"$set": {
             "retention_days": payload.get("retention_days", 70),
             "failover":       payload.get("failover", False),
             "store_to":       payload.get("store_to", recorder.get_recordings_dir()),
-        }}
-    )
+        }})
+    else:
+        cameras_col.update_many(
+            {"ip": ip},
+            {"$set": {
+                "retention_days": payload.get("retention_days", 70),
+                "failover":       payload.get("failover", False),
+                "store_to":       payload.get("store_to", recorder.get_recordings_dir()),
+            }}
+        )
     return {"success": True}
 
 

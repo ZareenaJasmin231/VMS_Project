@@ -140,8 +140,7 @@ def _parse_onvif_timezone(tz_obj):
 
 
 _NON_CAMERA_KEYWORDS = [
-    "nvr", "dvr", "recorder", "server", "nas",
-    "display", "decoder", "workstation", "desktop", "laptop"
+    "nas", "display", "decoder", "workstation", "desktop", "laptop"
 ]
 
 
@@ -679,7 +678,7 @@ def _classify_event(topic: str) -> str:
 # MAIN PROBE FUNCTION
 # ─────────────────────────────────────────────────────────────────
 
-def probe_camera(ip: str, port: int, username: str, password: str) -> dict:
+def probe_camera(ip: str, port: int, username: str, password: str, channel: int = None) -> dict:
     try:
         cam = _make_cam(ip, port, username, password)
 
@@ -693,13 +692,7 @@ def probe_camera(ip: str, port: int, username: str, password: str) -> dict:
 
         model_str        = (getattr(info, 'Model',        '') or '').lower()
         manufacturer_str = (getattr(info, 'Manufacturer', '') or '').lower()
-        for kw in _NON_CAMERA_KEYWORDS:
-            if kw in model_str or kw in manufacturer_str:
-                print(f"[ONVIF] ✗ {ip} — non-camera: '{info.Manufacturer} {info.Model}'")
-                return {
-                    "success": False,
-                    "error":   f"Device appears to be a non-camera ({info.Manufacturer} {info.Model})",
-                }
+        # (Keywords check removed to allow NVRs/Encoders with valid streams)
 
         media_service = cam.create_media_service()
         try:
@@ -712,12 +705,57 @@ def probe_camera(ip: str, port: int, username: str, password: str) -> dict:
             if not video_sources:
                 return {"success": False, "error": "No video sources found"}
             print(f"[ONVIF] ✓ {ip} has {len(video_sources)} video source(s)")
+            
+            # Build set of ACTIVE source tokens (inactive slots have 0x0 or no resolution)
+            active_source_tokens = set()
+            
+            # Optional: check imaging status for better detection of disconnected sensors (Axis/Bosch)
+            imaging_service = None
+            try: imaging_service = cam.create_imaging_service()
+            except: pass
+
+            for src in video_sources:
+                is_active = False
+                try:
+                    w = getattr(src.Resolution, 'Width', 0) or 0
+                    h = getattr(src.Resolution, 'Height', 0) or 0
+                    if w > 0 and h > 0:
+                        is_active = True
+                        # Extra check: some modular units report resolution but imaging fails if sensor missing
+                        if imaging_service:
+                            try:
+                                imaging_service.GetImagingSettings({'VideoSourceToken': src.token})
+                            except Exception as e:
+                                err = str(e).lower()
+                                if any(x in err for x in ["no such device", "device not found", "invalid token"]):
+                                    is_active = False
+                                    print(f"[ONVIF]   ⬜ Source {src.token}: imaging failed, assuming empty slot")
+                    
+                    if is_active:
+                        active_source_tokens.add(src.token)
+                        print(f"[ONVIF]   ✅ Source {src.token}: {w}x{h} (active)")
+                    else:
+                        print(f"[ONVIF]   ⬜ Source {src.token}: no signal/imaging failed (empty slot)")
+                except Exception:
+                    print(f"[ONVIF]   ⚠ Could not read resolution for source {src.token}")
         except Exception as vs_err:
             print(f"[ONVIF] ⚠ GetVideoSources failed ({vs_err}), continuing")
+            active_source_tokens = None  # None means don't filter
 
         profiles     = media_service.GetProfiles()
         stream_uri   = "Unavailable"
         profile_list = []
+
+        # -- Auto-shift logic for hard-coded UIs --
+        # Check how many channels are already in the DB for this IP
+        enrolled_count = 0
+        try:
+            from main import cameras_col
+            if cameras_col is not None:
+                enrolled_count = cameras_col.count_documents({"ip": ip})
+                print(f"[ONVIF] 💡 {ip} has {enrolled_count} channels already enrolled. Shifting results...")
+        except Exception as e:
+            print(f"[ONVIF] ⚠ Could not check enrollment count: {e}")
 
         if profiles:
             for idx, p in enumerate(profiles):
@@ -745,17 +783,37 @@ def probe_camera(ip: str, port: int, username: str, password: str) -> dict:
                         try:    bitrate = int(vec.RateControl.BitrateLimit)
                         except: pass
 
-                    label = ["MAIN", "SUB", "EXTRA"][idx] if idx < 3 else f"STREAM {idx+1}"
+                    # Better labeling for multi-channel units (NVRs/Modular cams)
+                    source_token = getattr(p.VideoSourceConfiguration, 'SourceToken', 'unknown') if p.VideoSourceConfiguration else 'unknown'
+                    source_idx = 0
+                    try:
+                        for s_idx, src in enumerate(video_sources):
+                            if src.token == source_token:
+                                source_idx = s_idx + 1
+                                break
+                    except: pass
+
+                    label = f"Cam {source_idx} - {p.Name}" if source_idx > 0 else p.Name
+
+                    # Skip profiles from inactive camera slots (empty slots on Axis modular units)
+                    # Also skip if the encoder itself reports 0x0 resolution (common placeholder)
+                    is_inactive = active_source_tokens is not None and source_token not in active_source_tokens
+                    if is_inactive or res == "0x0":
+                        reason = "source is inactive" if is_inactive else "0x0 resolution"
+                        print(f"[ONVIF]   ⏭ Skipping {p.Name} — {reason}")
+                        continue
 
                     profile_list.append({
-                        "name":       p.Name,
-                        "token":      p.token,
-                        "label":      label,
-                        "resolution": res,
-                        "encoding":   enc,
-                        "fps":        fps,
-                        "bitrate":    bitrate,
-                        "rtsp_url":   uri,
+                        "name":         label,
+                        "token":        p.token,
+                        "label":        label,
+                        "source":       source_idx,
+                        "source_token": source_token,
+                        "resolution":   res,
+                        "encoding":     enc,
+                        "fps":          fps,
+                        "bitrate":      bitrate,
+                        "rtsp_url":     uri,
                     })
                 except Exception as e:
                     profile_list.append({
@@ -763,10 +821,26 @@ def probe_camera(ip: str, port: int, username: str, password: str) -> dict:
                         "label": f"STREAM {idx+1}", "error": str(e),
                     })
 
+        # Sort profiles: Move the "next" channel to the top
+        # (e.g. if 1 cam is enrolled, Cam 2 profiles go to the top)
+        # Priority source (for multi-channel devices)
+        # If channel is provided from UI, use it. Otherwise find the next available.
+        target_source = channel if channel is not None else (enrolled_count + 1)
+        
+        def profile_priority(p):
+            src = p.get("source", 1)
+            if src == target_source: return 0  # Highest priority
+            if src > target_source:  return src
+            return 100 + src # Put already enrolled ones at the bottom
+
+        valid_profiles = sorted(profile_list, key=profile_priority)
+        
+        # Only keep valid ones for the final response
         valid_profiles = [
-            p for p in profile_list
+            p for p in valid_profiles
             if p.get("rtsp_url") and "rtsp://" in p.get("rtsp_url", "")
         ]
+
         if not valid_profiles:
             return {"success": False, "error": "No valid RTSP stream URLs found"}
 
@@ -808,36 +882,24 @@ def probe_camera(ip: str, port: int, username: str, password: str) -> dict:
         }
 
         print(f"[ONVIF] ✅ Full probe complete for {ip} "
-              f"({info.Manufacturer} {info.Model}) — "
-              f"PTZ={ptz_info.get('supported')}, "
-              f"Imaging={imaging.get('supported')}, "
-              f"Events={events.get('supported')}, "
-              f"Audio={audio.get('input_supported')}, "
-              f"IO={top_caps.get('io')}, "
-              f"Analytics={analytics.get('supported')}")
-        api_profile = detect_camera_api(
-            ip=ip,
-            manufacturer=info.Manufacturer,
-            model=info.Model,
-            username=username,
-            password=password,
-        )
+              f"({info.Manufacturer} {info.Model}) — Cam {enrolled_count + 1}")
 
         return {
             "success":      True,
+            "ip":           ip,
+            "port":         port,
             "manufacturer": info.Manufacturer,
-            "model":        info.Model,
+            "model":        f"{info.Model} (Cam {enrolled_count + 1})",
             "firmware":     info.FirmwareVersion,
             "serial":       info.SerialNumber,
             "hardware":     info.HardwareId,
             "mac":          mac,
             "stream_uri":   stream_uri,
-            "profiles":     profile_list,
-            "stream_count": len(profile_list),
             "ptz":          "Yes" if ptz_info.get("supported") else "No",
-            "capabilities": capabilities,
-             "api_profile":  api_profile,
-            
+            "stream_count": len(valid_profiles),
+            "profiles":     valid_profiles[:3],
+            "all_profiles": valid_profiles,
+            "capabilities": capabilities
         }
 
     except Exception as e:
