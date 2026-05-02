@@ -134,7 +134,7 @@ app.add_middleware(
 # ------------------------------------------------------------------
 # Features router (defined here so routes below can use it)
 # ------------------------------------------------------------------
-features_router = APIRouter(prefix="/api/camera", tags=["camera-features"])
+features_router = APIRouter(prefix="/api/camera", tags=["camera-features"], dependencies=[Depends(verify_token)])
 
 # ------------------------------------------------------------------
 # Register all routers — app exists at this point
@@ -485,7 +485,7 @@ async def webrtc_proxy(stream_key: str, request: Request):
     except Exception as e:
         print(f"[WHIP] ❌ Proxy error for {stream_key}: {e}")
         raise HTTPException(status_code=502, detail=str(e))
-@app.get("/api/event-playback")
+@app.get("/api/event-playback", dependencies=[Depends(verify_token)])
 @app.get("/api/event-playback")
 def event_playback(ip: str, time: str):
     import re, tempfile, subprocess, os
@@ -773,6 +773,127 @@ async def broadcast_log(log):
             await client.send_json(log)
         except:
             pass
+
+# ------------------------------------------------------------------
+# WebSocket: Dashboard (replaces 10s polling)
+# ------------------------------------------------------------------
+dashboard_clients = []
+
+@app.websocket("/ws/dashboard")
+async def websocket_dashboard(websocket: WebSocket):
+    await websocket.accept()
+    dashboard_clients.append(websocket)
+    print(f"📊 Dashboard WS Connected: {len(dashboard_clients)}")
+
+    try:
+        while True:
+            try:
+                # Build dashboard payload
+                summary_data = {}
+                camera_health_data = []
+
+                if cameras_col is not None and analytics_col is not None:
+                    total_cameras = cameras_col.count_documents({})
+                    active_streams = cameras_col.count_documents({"enabled": {"$ne": False}})
+                    today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+                    alarms_today = analytics_col.count_documents({"received_at": {"$gte": today_start}})
+
+                    latest_health = _db["health_logs"].find_one(
+                        {"type": "system"}, sort=[("timestamp", -1)]
+                    )
+                    cpu = latest_health.get("cpu", 0) if latest_health else 0
+                    ram = latest_health.get("ram", 0) if latest_health else 0
+                    disk = latest_health.get("disk", 0) if latest_health else 0
+
+                    alerts = []
+                    if cpu > 85: alerts.append("High CPU Usage")
+                    if ram > 85: alerts.append("High RAM Usage")
+                    if disk > 90: alerts.append("Disk Almost Full")
+
+                    status = "Healthy"
+                    if cpu > 85 or ram > 85 or disk > 90: status = "Critical"
+                    elif cpu > 60 or ram > 60 or disk > 75: status = "Warning"
+
+                    summary_data = {
+                        "total_cameras": total_cameras,
+                        "active_streams": active_streams,
+                        "alarms_today": alarms_today,
+                        "cpu": cpu, "ram": ram, "disk": disk,
+                        "alerts": alerts, "status": status
+                    }
+
+                    # Camera health from camera_health collection
+                    try:
+                        raw_health = list(_db["camera_health"].find({}, {"_id": 0}))
+                        valid_cameras = list(cameras_col.find({}, {"_id": 0, "ip": 1}))
+                        valid_ips = [c["ip"].replace(".", "_") for c in valid_cameras]
+                        camera_health_data = [
+                            d for d in raw_health
+                            if any(ip in d.get("stream", "") for ip in valid_ips)
+                            and "cam0" in d.get("stream", "")
+                        ]
+                    except Exception:
+                        camera_health_data = []
+
+                await websocket.send_json({
+                    "type": "dashboard_update",
+                    "summary": summary_data,
+                    "camera_health": camera_health_data
+                })
+
+            except Exception as e:
+                print(f"[WS Dashboard] Data build error: {e}")
+
+            await asyncio.sleep(5)
+
+    except WebSocketDisconnect:
+        pass
+    except Exception as e:
+        print(f"[WS Dashboard] Error: {e}")
+    finally:
+        if websocket in dashboard_clients:
+            dashboard_clients.remove(websocket)
+        print(f"📊 Dashboard WS Disconnected: {len(dashboard_clients)} remaining")
+
+# ------------------------------------------------------------------
+# WebSocket: Backup Status (replaces 3s polling)
+# ------------------------------------------------------------------
+backup_ws_clients = []
+
+@app.websocket("/ws/backup-status")
+async def websocket_backup_status(websocket: WebSocket):
+    await websocket.accept()
+    backup_ws_clients.append(websocket)
+    print(f"💾 Backup WS Connected: {len(backup_ws_clients)}")
+
+    try:
+        while True:
+            try:
+                from backup_service import backup_state, get_storage_usage, get_local_path, is_network_available, auto_watcher_active, NETWORK_BASE_DIR
+                state = dict(backup_state)
+                state["storage_usage"] = get_storage_usage()
+                state["local_path"] = str(get_local_path())
+                state["network_path"] = str(NETWORK_BASE_DIR)
+                state["network_available"] = is_network_available()
+                state["auto_active"] = auto_watcher_active
+
+                await websocket.send_json({
+                    "type": "backup_status",
+                    **state
+                })
+            except Exception as e:
+                print(f"[WS Backup] Error: {e}")
+
+            await asyncio.sleep(2)
+
+    except WebSocketDisconnect:
+        pass
+    except Exception as e:
+        print(f"[WS Backup] Error: {e}")
+    finally:
+        if websocket in backup_ws_clients:
+            backup_ws_clients.remove(websocket)
+        print(f"💾 Backup WS Disconnected: {len(backup_ws_clients)} remaining")
 # ------------------------------------------------------------------
 # OME readiness wait
 # ------------------------------------------------------------------
@@ -983,7 +1104,7 @@ async def shutdown():
 # ------------------------------------------------------------------
 # Debug
 # ------------------------------------------------------------------
-@app.get("/api/debug/mongo")
+@app.get("/api/debug/mongo", dependencies=[Depends(verify_token)])
 def debug_mongo():
     try:
         _mongo.server_info()
@@ -1105,10 +1226,10 @@ def health():
     return {"status": "ok"}
 
 
-@app.get("/api/cameras")
+@app.get("/api/cameras", dependencies=[Depends(verify_token)])
 def get_all_cameras():
     return load_devices()
-@app.post("/api/recordings/decrypt-upload")
+@app.post("/api/recordings/decrypt-upload", dependencies=[Depends(verify_token)])
 async def decrypt_uploaded_file(file: UploadFile = File(...)):
     enc_path = None
     dec_path = None
@@ -1248,7 +1369,7 @@ async def discover_devices():
 # ------------------------------------------------------------------
 # Camera enable / disable / delete
 # ------------------------------------------------------------------
-@app.post("/api/cameras/by-ip/{ip}/enable")
+@app.post("/api/cameras/by-ip/{ip}/enable", dependencies=[Depends(verify_token)])
 async def enable_camera_by_ip(ip: str):
     global devices
     matched = get_devices_by_ip(ip)
@@ -1275,7 +1396,7 @@ async def enable_camera_by_ip(ip: str):
     return {"success": True, "ip": ip, "streams_started": started}
 
 
-@app.post("/api/cameras/by-ip/{ip}/disable")
+@app.post("/api/cameras/by-ip/{ip}/disable", dependencies=[Depends(verify_token)])
 async def disable_camera_by_ip(ip: str):
     global devices
     matched = get_devices_by_ip(ip)
@@ -1296,7 +1417,7 @@ async def disable_camera_by_ip(ip: str):
     return {"success": True, "ip": ip, "streams_stopped": stopped}
 
 
-@app.delete("/api/cameras/by-ip/{ip}/delete")
+@app.delete("/api/cameras/by-ip/{ip}/delete", dependencies=[Depends(verify_token)])
 async def delete_camera_by_ip(ip: str):
     global devices
     matched = get_devices_by_ip(ip)
@@ -1329,7 +1450,7 @@ async def delete_camera_by_ip(ip: str):
 # ------------------------------------------------------------------
 # ONVIF probe
 # ------------------------------------------------------------------
-@app.post("/api/onvif/probe")
+@app.post("/api/onvif/probe", dependencies=[Depends(verify_token)])
 async def onvif_probe(req: ProbeRequest):
     print(f"[ONVIF] Probing {req.ip}:{req.port} ...")
     token = load_license()
@@ -1464,7 +1585,7 @@ async def onvif_probe(req: ProbeRequest):
 # ------------------------------------------------------------------
 # RTSP stream register
 # ------------------------------------------------------------------
-@app.post("/api/streams/register")
+@app.post("/api/streams/register", dependencies=[Depends(verify_token)])
 async def register_rtsp_stream(req: StreamRegisterRequest):
     token = load_license()
     valid, data = validate_license(token)
@@ -1587,7 +1708,7 @@ async def register_rtsp_stream(req: StreamRegisterRequest):
 # ------------------------------------------------------------------
 # Assign independent Live + Recording streams
 # ------------------------------------------------------------------
-@app.post("/api/streams/assign")
+@app.post("/api/streams/assign", dependencies=[Depends(verify_token)])
 async def assign_streams(req: StreamAssignRequest):
     import time
 
@@ -1711,7 +1832,7 @@ async def assign_streams(req: StreamAssignRequest):
 # ------------------------------------------------------------------
 # Camera lookup by IP
 # ------------------------------------------------------------------
-@app.get("/api/cameras/by-ip/{ip}")
+@app.get("/api/cameras/by-ip/{ip}", dependencies=[Depends(verify_token)])
 async def get_camera_by_ip(ip: str):
     if cameras_col is not None:
         doc = cameras_col.find_one({"ip": ip}, {"_id": 0})
@@ -1868,7 +1989,7 @@ async def get_analytics_events(ip: str, limit: int = 50):
 # ------------------------------------------------------------------
 # Device / storage endpoints
 # ------------------------------------------------------------------
-@app.post("/api/devices/")
+@app.post("/api/devices/", dependencies=[Depends(verify_token)])
 async def add_device(device: dict):
     print("DEVICE REGISTERED:", device)
     # Use ome_stream or IP as the unique key
@@ -1887,7 +2008,7 @@ async def add_device(device: dict):
     return {"success": True, "device": device}
 
 
-@app.get("/api/devices")
+@app.get("/api/devices", dependencies=[Depends(verify_token)])
 async def get_devices():
     devs = await _db.devices.find({}).to_list(None)
     result = []
@@ -1898,7 +2019,7 @@ async def get_devices():
     return result
 
 
-@app.get("/api/cameras/")
+@app.get("/api/cameras/", dependencies=[Depends(verify_token)])
 async def get_cameras_from_db():
     if cameras_col is None:
         return []
@@ -1906,7 +2027,7 @@ async def get_cameras_from_db():
     return docs
 
 
-@app.get("/api/storage/selection")
+@app.get("/api/storage/selection", dependencies=[Depends(verify_token)])
 def storage_selection():
     if cameras_col is None:
         return []
@@ -1943,7 +2064,7 @@ def storage_selection():
     return result
 
 
-@app.post("/api/storage/selection")
+@app.post("/api/storage/selection", dependencies=[Depends(verify_token)])
 def update_storage_selection(payload: dict):
     if cameras_col is None:
         return {"error": "MongoDB not connected"}
@@ -1970,7 +2091,7 @@ def update_storage_selection(payload: dict):
     return {"success": True}
 
 
-@app.post("/api/onvif/ptz/move")
+@app.post("/api/onvif/ptz/move", dependencies=[Depends(verify_token)])
 async def onvif_ptz_move(req: PTZMoveRequest):
     print(f"[PTZ] Moving {req.ip} to P:{req.pan} T:{req.tilt} Z:{req.zoom}")
     result = await asyncio.to_thread(
@@ -1984,7 +2105,7 @@ async def onvif_ptz_move(req: PTZMoveRequest):
 # ------------------------------------------------------------------
 # Dashboard
 # ------------------------------------------------------------------
-@app.get("/api/dashboard/summary")
+@app.get("/api/dashboard/summary", dependencies=[Depends(verify_token)])
 async def get_dashboard_summary():
     if cameras_col is None or analytics_col is None:
         return {}
@@ -2041,7 +2162,7 @@ async def get_dashboard_summary():
         "alerts": alerts,
         "status": status
     }
-@app.get("/api/camera-health")
+@app.get("/api/camera-health", dependencies=[Depends(verify_token)])
 def get_camera_health():
     # 1. Get valid camera IPs from DB
     cameras = list(cameras_col.find({}, {"_id": 0, "ip": 1}))
@@ -2062,11 +2183,11 @@ def get_camera_health():
                 filtered.append(d)
 
     return filtered
-@app.get("/api/action-rules")
+@app.get("/api/action-rules", dependencies=[Depends(verify_token)])
 def get_action_rules():
     rules = list(_db["action_rules"].find({}, {"_id": 0}))
     return {"rules": rules}
-@app.get("/api/dashboard/events")
+@app.get("/api/dashboard/events", dependencies=[Depends(verify_token)])
 async def get_dashboard_events(limit: int = 20):
     if analytics_col is None:
         return []
@@ -2142,7 +2263,7 @@ async def get_alerts(limit: int = 50):
 #         return {"alerts": [], "error": str(e)}
 
 
-@app.get("/api/license")
+@app.get("/api/license", dependencies=[Depends(verify_token)])
 def get_license():
     from license.license_store import load_license
     from license.license_validator import validate_license

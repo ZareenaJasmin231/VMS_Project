@@ -29,7 +29,8 @@ import shutil
 import tempfile
 import zipfile
 from datetime import datetime, timedelta
-from fastapi import APIRouter, HTTPException, Query, UploadFile, File, BackgroundTasks
+from fastapi import APIRouter, HTTPException, Query, UploadFile, File, BackgroundTasks, Depends
+from jwt_auth import verify_token
 from fastapi.responses import StreamingResponse, FileResponse, Response
 from pydantic import BaseModel
 from pymongo import MongoClient
@@ -342,8 +343,8 @@ _CORS_HEADERS = {
 # ------------------------------------------------------------------
 # Routers
 # ------------------------------------------------------------------
-recording_router = APIRouter(prefix="/api/recordings", tags=["recordings"])
-storage_router   = APIRouter(prefix="/api/storage",    tags=["storage"])
+recording_router = APIRouter(prefix="/api/recordings", tags=["recordings"], dependencies=[Depends(verify_token)])
+storage_router   = APIRouter(prefix="/api/storage",    tags=["storage"], dependencies=[Depends(verify_token)])
 
 class ExportZipRequest(BaseModel):
     camera_id:  str

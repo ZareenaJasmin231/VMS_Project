@@ -1,4 +1,5 @@
-from fastapi import APIRouter, HTTPException, BackgroundTasks
+from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends
+from jwt_auth import verify_token
 from pydantic import BaseModel
 from typing import Optional
 import asyncio, shutil, os, json
@@ -7,7 +8,7 @@ from pathlib import Path
 from datetime import datetime, timedelta
 import rtsp_recorder as recorder
 
-backup_router = APIRouter(prefix="/api/backup", tags=["backup"])
+backup_router = APIRouter(prefix="/api/backup", tags=["backup"], dependencies=[Depends(verify_token)])
 HOST_AGENT = "http://host.docker.internal:9500"
 
 async def _agent(path: str):

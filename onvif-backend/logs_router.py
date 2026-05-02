@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, Query
+from jwt_auth import verify_token
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
 from datetime import datetime, timezone
@@ -18,7 +19,7 @@ except Exception as e:
     ui_logs_col = None
     terminal_logs_col = None
 
-router = APIRouter(prefix="/api/logs", tags=["logs"])
+router = APIRouter(prefix="/api/logs", tags=["logs"], dependencies=[Depends(verify_token)])
 
 class UILogEntry(BaseModel):
     user_email: str
@@ -58,7 +59,8 @@ def get_ui_logs(
     from_date: Optional[str] = None,
     to_date: Optional[str] = None,
     user_email: Optional[str] = None,
-    limit: int = 100
+    category: Optional[str] = None,
+    limit: int = 1000
 ):
     if ui_logs_col is None:
         return {"success": False, "error": "Database not connected", "logs": []}
@@ -70,10 +72,13 @@ def get_ui_logs(
         if from_date:
             query["timestamp"]["$gte"] = from_date
         if to_date:
-            query["timestamp"]["$lte"] = to_date + "T23:59:59.999Z"
+            query["timestamp"]["$lte"] = to_date if "T" in to_date else to_date + "T23:59:59.999Z"
             
     if user_email:
         query["user_email"] = user_email
+        
+    if category:
+        query["category"] = category
         
     try:
         cursor = ui_logs_col.find(query, {"_id": 0}).sort("timestamp", -1).limit(limit)
@@ -102,7 +107,7 @@ def get_terminal_logs(
     from_date: Optional[str] = None,
     to_date: Optional[str] = None,
     user_email: Optional[str] = None,
-    limit: int = 100
+    limit: int = 1000
 ):
     if terminal_logs_col is None:
         return {"success": False, "error": "Database not connected", "logs": []}
@@ -114,7 +119,7 @@ def get_terminal_logs(
         if from_date:
             query["timestamp"]["$gte"] = from_date
         if to_date:
-            query["timestamp"]["$lte"] = to_date + "T23:59:59.999Z"
+            query["timestamp"]["$lte"] = to_date if "T" in to_date else to_date + "T23:59:59.999Z"
             
     if user_email:
         query["user_email"] = user_email

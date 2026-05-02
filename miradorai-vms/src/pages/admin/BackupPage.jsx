@@ -207,7 +207,7 @@ export default function BackupPage() {
     }));
   };
 
-  // ── initial load + polling ─────────────────────────────────────────────────
+  // ── initial load + WebSocket for live status ────────────────────────────────
   useEffect(() => {
     const init = async () => {
       try {
@@ -231,16 +231,44 @@ export default function BackupPage() {
     };
     init();
 
-    const poll = setInterval(async () => {
+    // WebSocket for real-time backup status
+    let ws;
+    let reconnectTimer;
+
+    const connect = () => {
+      ws = new WebSocket("ws://192.168.126.200:8000/ws/backup-status");
+
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.type === "backup_status") {
+            setStatus(data);
+          }
+        } catch {}
+      };
+
+      ws.onclose = () => {
+        reconnectTimer = setTimeout(connect, 5000);
+      };
+
+      ws.onerror = () => ws.close();
+    };
+
+    connect();
+
+    // Also refresh logs periodically (less critical, 10s is fine)
+    const logPoll = setInterval(async () => {
       try {
-        const [sRes, lRes] = await Promise.all([
-          fetch(`${API}/status`), fetch(`${API}/logs`)
-        ]);
-        if (sRes.ok) setStatus(await sRes.json());
+        const lRes = await fetch(`${API}/logs`);
         if (lRes.ok) setLogs(await lRes.json());
       } catch {}
-    }, 3000);
-    return () => clearInterval(poll);
+    }, 10000);
+
+    return () => {
+      clearTimeout(reconnectTimer);
+      clearInterval(logPoll);
+      if (ws) ws.close();
+    };
   }, []);
 
   // ── network ────────────────────────────────────────────────────────────────

@@ -9,21 +9,35 @@ export default function LogsPage() {
   const [loading, setLoading] = useState(false);
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
-  const [userEmail, setUserEmail] = useState("");
+  const [category, setCategory] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const logsPerPage = 15;
 
   const fetchLogs = async () => {
     setLoading(true);
     setLogs([]);
     try {
       const queryParams = new URLSearchParams();
-      if (fromDate) queryParams.append("from_date", fromDate);
-      if (toDate) queryParams.append("to_date", toDate);
-      if (userEmail) queryParams.append("user_email", userEmail);
+      if (fromDate) {
+        const [y, m, d] = fromDate.split("-");
+        const startOfDay = new Date(y, m - 1, d, 0, 0, 0, 0);
+        queryParams.append("from_date", startOfDay.toISOString());
+      }
+      if (toDate) {
+        const [y, m, d] = toDate.split("-");
+        const endOfDay = new Date(y, m - 1, d, 23, 59, 59, 999);
+        queryParams.append("to_date", endOfDay.toISOString());
+      }
+      if (activeTab === "ui" && category) {
+        queryParams.append("category", category);
+      }
+      queryParams.append("limit", "1000");
 
       const response = await fetch(`${API_BASE}/api/logs/${activeTab}?${queryParams.toString()}`);
       const data = await response.json();
       if (data.success) {
         setLogs(data.logs);
+        setCurrentPage(1);
       }
     } catch (err) {
       console.error("Failed to fetch logs", err);
@@ -45,6 +59,16 @@ export default function LogsPage() {
     };
     return () => ws.close();
   }, []);
+
+  // Pagination calculations
+  const indexOfLastLog = currentPage * logsPerPage;
+  const indexOfFirstLog = indexOfLastLog - logsPerPage;
+  const currentLogs = logs.slice(indexOfFirstLog, indexOfLastLog);
+  const totalPages = Math.ceil(logs.length / logsPerPage);
+
+  const handlePageChange = (pageNumber) => {
+    setCurrentPage(pageNumber);
+  };
 
   return (
     <div className="logs-page page-shell slide-in">
@@ -89,16 +113,24 @@ export default function LogsPage() {
             onChange={(e) => setToDate(e.target.value)}
           />
         </div>
-        <div className="log-filter-group">
-          <label>User Email</label>
-          <input 
-            type="text" 
-            className="log-input" 
-            placeholder="example@mirador.com"
-            value={userEmail}
-            onChange={(e) => setUserEmail(e.target.value)}
-          />
-        </div>
+        {activeTab === "ui" && (
+          <div className="log-filter-group">
+            <label>Category</label>
+            <select 
+              className="log-input"
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+            >
+              <option value="">All Categories</option>
+              <option value="auth">Auth</option>
+              <option value="navigation">Navigation</option>
+              <option value="devices">Devices</option>
+              <option value="settings">Settings</option>
+              <option value="system">System</option>
+              <option value="recording">Recording</option>
+            </select>
+          </div>
+        )}
         <button className="log-btn-primary" onClick={fetchLogs}>Apply Filters</button>
       </div>
 
@@ -119,6 +151,7 @@ export default function LogsPage() {
                       <th>Role</th>
                       <th>Category</th>
                       <th>Action</th>
+                      <th>Details</th>
                     </>
                   ) : (
                     <>
@@ -130,7 +163,7 @@ export default function LogsPage() {
                 </tr>
               </thead>
               <tbody>
-                {logs.map((log, i) => (
+                {currentLogs.map((log, i) => (
                   <tr key={i}>
                     <td>{new Date(log.timestamp).toLocaleString()}</td>
                     <td>{log.user_email}</td>
@@ -143,6 +176,13 @@ export default function LogsPage() {
                         </td>
                         <td>{log.category?.toUpperCase()}</td>
                         <td>{log.action}</td>
+                        <td className="log-details-cell">
+                          {log.details && Object.keys(log.details).length > 0 ? (
+                            <pre className="log-details-pre">{JSON.stringify(log.details, null, 2)}</pre>
+                          ) : (
+                            "-"
+                          )}
+                        </td>
                       </>
                     ) : (
                       <>
@@ -160,6 +200,29 @@ export default function LogsPage() {
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {/* Pagination Controls */}
+        {logs.length > logsPerPage && (
+          <div className="pagination-container">
+            <button 
+              className="pagination-btn" 
+              disabled={currentPage === 1}
+              onClick={() => handlePageChange(currentPage - 1)}
+            >
+              Prev
+            </button>
+            <span className="pagination-info">
+              Page {currentPage} of {totalPages} ({logs.length} total logs)
+            </span>
+            <button 
+              className="pagination-btn" 
+              disabled={currentPage === totalPages}
+              onClick={() => handlePageChange(currentPage + 1)}
+            >
+              Next
+            </button>
           </div>
         )}
       </div>
