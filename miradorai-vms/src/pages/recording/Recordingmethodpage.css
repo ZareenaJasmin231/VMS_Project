@@ -309,20 +309,18 @@
 
 /* ── Buttons ────────────────────────────────────────────────── */
 .ec-btn--primary {
-  background: var(--teal) !important;
-  color: #000 !important;
-  font-weight: 700 !important;
-  border: none !important;
-  border-radius: 8px !important;
-  padding: 10px 24px !important;
-  transition: all 0.2s !important;
-  box-shadow: 0 4px 15px rgba(45, 212, 191, 0.3) !important;
+  background: rgba(0, 200, 160, 0.1);
+  color: var(--teal);
+  font-weight: 600;
+  border: 1px solid rgba(0, 200, 160, 0.35);
+  border-radius: 8px;
+  padding: 10px 24px;
+  transition: all 0.2s;
 }
 
 .ec-btn--primary:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(45, 212, 191, 0.5) !important;
-  filter: brightness(1.1);
+  background: rgba(0, 200, 160, 0.18);
+  border-color: rgba(0, 200, 160, 0.5);
 }
 
 .ec-btn--primary:active {

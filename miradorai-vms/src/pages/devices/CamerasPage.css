@@ -331,23 +331,24 @@ html, body, #root {
 }
 
 .ec-btn--primary {
-  background: var(--teal, #00c8a0);
-  border-color: var(--teal, #00c8a0);
-  color: #fff;
+  background: rgba(0, 200, 160, 0.1);
+  border-color: rgba(0, 200, 160, 0.35);
+  color: var(--teal, #00c8a0);
 }
 .ec-btn--primary:hover {
-  background: var(--teal-dim, #00a882);
-  border-color: var(--teal-dim, #00a882);
+  background: rgba(0, 200, 160, 0.18);
+  border-color: rgba(0, 200, 160, 0.5);
 }
 
 .ec-btn--danger {
   background: transparent;
-  border-color: rgba(255, 77, 106, 0.5);
-  color: var(--red, #ff4d6a);
+  border-color: rgba(255, 77, 106, 0.3);
+  color: rgba(255, 77, 106, 0.8);
 }
 .ec-btn--danger:hover {
-  background: rgba(255, 77, 106, 0.1);
-  border-color: var(--red, #ff4d6a);
+  background: rgba(255, 77, 106, 0.08);
+  border-color: rgba(255, 77, 106, 0.5);
+  color: var(--red, #ff4d6a);
 }
 
 .ec-btn--cancel {
@@ -867,6 +868,9 @@ html, body, #root {
   font-size: 13px;
   color: #c9d4e8;
   font-weight: 500;
+  display: block;
+  text-align: center;
+  width: 100%;
 }
 
 .group-status {
@@ -879,11 +883,17 @@ html, body, #root {
 .group-active {
   color: #22c55e;
   font-weight: 500;
+  display: block;
+  text-align: center;
+  width: 100%;
 }
 
 .group-disabled {
   color: #ef4444;
   font-weight: 500;
+  display: block;
+  text-align: center;
+  width: 100%;
 }
 
 .group-divider {

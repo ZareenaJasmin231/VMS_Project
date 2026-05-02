@@ -331,9 +331,9 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
                 </th>
                 <th style={{ width: 72 }}>Active</th>
                 <th>Group Name</th>
-                <th>Total Cameras</th>
-                <th>Active</th>
-                <th>Disabled</th>
+                <th style={{ textAlign: "center" }}>Total Cameras</th>
+                <th style={{ textAlign: "center" }}>Active</th>
+                <th style={{ textAlign: "center" }}>Disabled</th>
                 <th style={{ width: 140 }}></th>
               </tr>
             </thead>
@@ -457,7 +457,7 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
                         style={{ fontSize: "0.75rem", padding: "4px 10px" }}
                         onClick={() => openGroupPanel(group)}
                       >
-                        Camera Groups
+                        View All Cameras
                       </button>
                     </td>
                   </tr>
