@@ -399,7 +399,7 @@ const handleCreateGroupSubmit = (name) => {
           physical_camera_count: d.physical_camera_count || 1,
           label:         d.label         || d.profile_name || "",
           source:        "discovery",
-          group_id:      targetGroup,                    // ✅ from modal
+          group_id:      d.group_id || targetGroup,        // ✅ per-device first, then fallback
         };
 
         const existingIndex = next.findIndex(
@@ -516,7 +516,7 @@ const handleCreateGroupSubmit = (name) => {
         const res  = await fetch(`${STREAM_API}/api/streams/register`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ rtsp_url: url }),
+          body: JSON.stringify({ rtsp_url: url, group_id: groupId, device_name: streamName }),
         });
         const data = res.ok ? await res.json() : null;
 

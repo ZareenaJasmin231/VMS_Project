@@ -265,9 +265,15 @@ function ExpandedFeed({ cam, marker, onClose }) {
             </div>
           )}
 
-          {tab === "info" && (
+          {tab === "info" && (() => {
+            const groups = (() => { try { return JSON.parse(localStorage.getItem("miradorai_groups") || "[]"); } catch { return []; } })();
+            const groupName = cam.group_id && cam.group_id !== "default"
+              ? (groups.find(g => g.id === cam.group_id)?.name || "Default")
+              : "Default";
+            return (
             <div className="vt-info">
               <div className="vt-info-row"><span>Camera Name</span><strong>{cam.name}</strong></div>
+              <div className="vt-info-row"><span>Camera Group</span><strong>{groupName}</strong></div>
               <div className="vt-info-row"><span>IP Address</span><strong>{cam.ip}</strong></div>
               <div className="vt-info-row"><span>Status</span>
                 <strong className={cam.status === "online" ? "vt-info-online" : "vt-info-offline"}>
@@ -279,7 +285,8 @@ function ExpandedFeed({ cam, marker, onClose }) {
               <div className="vt-info-row"><span>Map Position</span><strong>x:{Math.round(marker.x)}, y:{Math.round(marker.y)}</strong></div>
               <div className="vt-info-row"><span>Stream URL</span><strong className="vt-info-url">{cam.ws_url || "—"}</strong></div>
             </div>
-          )}
+            );
+          })()}
         </div>
       </div>
     </div>

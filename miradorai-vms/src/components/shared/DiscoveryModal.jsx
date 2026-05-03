@@ -128,7 +128,7 @@ export default function DiscoveryModal({
     discoveredDevices
       .filter((d) => selectedDevices.has(d.id))
       .forEach((d) => {
-        init[d.id] = deviceCreds[d.id] || { username: "", password: "", cameraName: "", groupId: "default" };
+        init[d.id] = deviceCreds[d.id] || { username: "", password: "", cameraName: "", groupId: selectedGroupId || "default" };
       });
     setDeviceCreds(init);
     setShowCredModal(true);
