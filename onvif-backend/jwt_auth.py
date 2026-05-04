@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
 from jose import JWTError, jwt
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 import os
 
@@ -18,8 +18,23 @@ def create_token(email: str, role: str):
     }
     return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
 
-def verify_token(credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme)):
-    token = credentials.credentials
+def verify_token(
+    credentials: HTTPAuthorizationCredentials = Depends(HTTPBearer(auto_error=False)),
+    request: Request = None,
+):
+    # 1) Try Bearer header first
+    token = credentials.credentials if credentials else None
+
+    # 2) Fallback: ?token=<jwt> query param (needed for <video src="…"> and direct URLs)
+    if not token and request:
+        token = request.query_params.get("token")
+
+    if not token:
+        raise HTTPException(
+            status_code=401,
+            detail="Missing authentication token"
+        )
+
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         return payload

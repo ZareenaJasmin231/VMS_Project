@@ -5,6 +5,19 @@ import "./MediaPlayerPage.css";
 
 const STREAM_API = "http://localhost:8000";
 
+function getToken() {
+  return (
+    localStorage.getItem("miradorai_token") ||
+    localStorage.getItem("token") ||
+    localStorage.getItem("authToken") ||
+    ""
+  );
+}
+function authHeaders() {
+  const t = getToken();
+  return t ? { Authorization: `Bearer ${t}` } : {};
+}
+
 function extractHour(file) {
   const raw = file.start_time || file.name || "";
   const dashColon = raw.match(/^(\d{2})[-:]/);
@@ -107,7 +120,9 @@ export default function MediaPlayerPage() {
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch(`${STREAM_API}/api/recordings/cameras`);
+        const res = await fetch(`${STREAM_API}/api/recordings/cameras`, {
+          headers: authHeaders(),
+        });
         if (res.ok) {
           const ids = await res.json();
           setRecordingCameras(ids);
@@ -127,7 +142,8 @@ export default function MediaPlayerPage() {
       setFiles([]);
       try {
         const res = await fetch(
-          `${STREAM_API}/api/recordings/${selectedCam.stream_key}?date=${selectedDate}`
+          `${STREAM_API}/api/recordings/${selectedCam.stream_key}?date=${selectedDate}`,
+          { headers: authHeaders() }
         );
         if (!cancelled && res.ok) {
           const data = await res.json();
@@ -246,11 +262,13 @@ export default function MediaPlayerPage() {
       if (!v) return;
       v.crossOrigin = "anonymous";
       const cb = Date.now();
+      const tk = getToken();
       v.src = `${STREAM_API}/api/recordings/play`
         + `?camera_id=${encodeURIComponent(file.camera_id)}`
         + `&date=${encodeURIComponent(file.date)}`
         + `&start_time=${encodeURIComponent(file.start_time)}`
-        + `&_cb=${cb}`;
+        + `&_cb=${cb}`
+        + (tk ? `&token=${encodeURIComponent(tk)}` : "");
       v.load();
       v.play().catch(() => { });
     }, 50);
@@ -282,6 +300,7 @@ export default function MediaPlayerPage() {
 
       const res = await fetch(`${STREAM_API}/api/recordings/decrypt-upload`, {
         method: "POST",
+        headers: authHeaders(),
         body: formData,
       });
 
@@ -465,7 +484,7 @@ export default function MediaPlayerPage() {
 
         if (handle) {
           // Now fetch the blob and write to the chosen location
-          const response = await fetch(url);
+          const response = await fetch(url, { headers: authHeaders() });
           if (!response.ok) throw new Error(`Server returned ${response.status}: ${response.statusText}`);
           const blob = await response.blob();
           if (blob.size === 0) throw new Error("Received empty file from server.");
@@ -478,7 +497,7 @@ export default function MediaPlayerPage() {
       }
 
       // Fallback: fetch as blob → blob URL anchor download
-      const response = await fetch(url);
+      const response = await fetch(url, { headers: authHeaders() });
       if (!response.ok) throw new Error(`Server returned ${response.status}: ${response.statusText}`);
       const blob = await response.blob();
       if (blob.size === 0) throw new Error("Received empty file from server.");
@@ -522,7 +541,7 @@ export default function MediaPlayerPage() {
           });
           const response = await fetch(directUrl, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: { "Content-Type": "application/json", ...authHeaders() },
             body: JSON.stringify(payload),
           });
           if (!response.ok) throw new Error("Failed to create zip");
@@ -539,7 +558,7 @@ export default function MediaPlayerPage() {
 
       const response = await fetch(directUrl, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...authHeaders() },
         body: JSON.stringify(payload),
       });
       if (!response.ok) throw new Error("Failed to create zip");

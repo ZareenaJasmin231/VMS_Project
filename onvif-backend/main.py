@@ -257,6 +257,8 @@ class ProbeRequest(BaseModel):
     username: str = ""
     password: str = ""
     channel:  int = 0
+    group_id:    str = "default"
+    device_name: str = ""
  
 
 
@@ -270,6 +272,7 @@ class StreamRegisterRequest(BaseModel):
     model:        str = "Unknown"
     mac:          str = "—"
     device_name:  str = ""
+    group_id:     str = "default"
 
 
 class StreamAssignRequest(BaseModel):
@@ -1559,7 +1562,8 @@ async def onvif_probe(req: ProbeRequest):
                 "stream_count":    result.get("stream_count", 0),
                 "stream_profiles": result.get("profiles", []),
                 "api_profile":     result.get("api_profile"),
-                
+                "group_id":        req.group_id,
+                "device_name":     req.device_name,
             })
             recorder.start_camera(stream_name, rtsp, new_device if not existing else existing)
 
@@ -1687,6 +1691,7 @@ async def register_rtsp_stream(req: StreamRegisterRequest):
         "status":         "streaming",
         "enabled":        True,
         "source":         "rtsp",
+        "group_id":       req.group_id,
     })
  
  
