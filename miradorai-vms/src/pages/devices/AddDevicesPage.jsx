@@ -13,6 +13,11 @@ import useActivityLogger from "../../hooks/useActivityLogger";
 
 const STREAM_API = "http://192.168.126.200:8000";
 
+function getAuthHeaders() {
+  const t = localStorage.getItem("mirador_token");
+  return t ? { Authorization: `Bearer ${t}`, "Content-Type": "application/json" } : { "Content-Type": "application/json" };
+}
+
 // ─── Persisted Devices ───────────────────────────────────────────────────────
 function usePersistedDevices() {
   const [devices, setDevices] = useState(() => {
@@ -25,7 +30,7 @@ function usePersistedDevices() {
   const updateDevices = (updater) => {
     setDevices((prev) => {
       const next = typeof updater === "function" ? updater(prev) : updater;
-      try { localStorage.setItem("miradorai_devices", JSON.stringify(next)); } catch {}
+      try { localStorage.setItem("miradorai_devices", JSON.stringify(next)); } catch { }
       return next;
     });
   };
@@ -44,7 +49,7 @@ function usePersistedGroups() {
   const updateGroups = (updater) => {
     setGroups((prev) => {
       const next = typeof updater === "function" ? updater(prev) : updater;
-      try { localStorage.setItem("miradorai_groups", JSON.stringify(next)); } catch {}
+      try { localStorage.setItem("miradorai_groups", JSON.stringify(next)); } catch { }
       return next;
     });
   };
@@ -58,20 +63,20 @@ function EmptyState() {
     <div className="add-dev__empty">
       <div className="add-dev__empty-icon">
         <svg viewBox="0 0 64 64" fill="none" stroke="currentColor" strokeWidth="1.2" width="64" height="64" style={{ flexShrink: 0 }}>
-          <rect x="8" y="16" width="40" height="28" rx="4" stroke="var(--border-light)"/>
-          <path d="M48 26l10 6-10 6V26z" stroke="var(--border-light)"/>
-          <circle cx="28" cy="30" r="6" stroke="var(--text-muted)"/>
-          <path d="M16 52h32" stroke="var(--border-light)" strokeLinecap="round"/>
-          <path d="M32 44v8" stroke="var(--border-light)" strokeLinecap="round"/>
-          <circle cx="50" cy="14" r="8" fill="var(--bg-elevated)" stroke="var(--border-light)"/>
-          <path d="M50 11v4M50 17h.01" stroke="var(--teal)" strokeLinecap="round"/>
+          <rect x="8" y="16" width="40" height="28" rx="4" stroke="var(--border-light)" />
+          <path d="M48 26l10 6-10 6V26z" stroke="var(--border-light)" />
+          <circle cx="28" cy="30" r="6" stroke="var(--text-muted)" />
+          <path d="M16 52h32" stroke="var(--border-light)" strokeLinecap="round" />
+          <path d="M32 44v8" stroke="var(--border-light)" strokeLinecap="round" />
+          <circle cx="50" cy="14" r="8" fill="var(--bg-elevated)" stroke="var(--border-light)" />
+          <path d="M50 11v4M50 17h.01" stroke="var(--teal)" strokeLinecap="round" />
         </svg>
         <div className="add-dev__empty-pulse" />
       </div>
       <p className="add-dev__empty-title">No devices enrolled yet</p>
       <p className="add-dev__empty-sub">
         Use <strong>Manual Search</strong> to discover ONVIF cameras on your network,
-        <br/>or add a camera via <strong>Stream URL</strong>.
+        <br />or add a camera via <strong>Stream URL</strong>.
       </p>
     </div>
   );
@@ -99,33 +104,25 @@ function ContextMenu({ x, y, onEdit, onRemove, onStreamProfiles, onClose }) {
       className="ctx-menu"
       style={{
         position: "fixed",
-        top:  Math.min(y, window.innerHeight - 130),
-        left: Math.min(x, window.innerWidth  - 180),
+        top: Math.min(y, window.innerHeight - 130),
+        left: Math.min(x, window.innerWidth - 180),
         zIndex: 9999,
       }}
     >
       <button className="ctx-item" onClick={() => { onEdit(); onClose(); }}>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14" style={{ flexShrink: 0 }}>
-          <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
-          <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
+          <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
+          <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
         </svg>
         Edit
-      </button>
-      <button className="ctx-item" onClick={() => { onStreamProfiles?.(); onClose(); }}>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14" style={{ flexShrink: 0 }}>
-          <path d="M23 7l-7 5 7 5V7z"/>
-          <rect x="1" y="5" width="15" height="14" rx="2"/>
-          <path d="M8 10h5M8 14h3" strokeLinecap="round"/>
-        </svg>
-        Stream Profiles
       </button>
       <div className="ctx-divider" />
       <button className="ctx-item ctx-item--danger" onClick={() => { onRemove(); onClose(); }}>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14" style={{ flexShrink: 0 }}>
-          <polyline points="3 6 5 6 21 6"/>
-          <path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/>
-          <path d="M10 11v6M14 11v6"/>
-          <path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/>
+          <polyline points="3 6 5 6 21 6" />
+          <path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6" />
+          <path d="M10 11v6M14 11v6" />
+          <path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2" />
         </svg>
         Remove
       </button>
@@ -137,13 +134,13 @@ function ContextMenu({ x, y, onEdit, onRemove, onStreamProfiles, onClose }) {
 // Group reassignment is kept here — useful for moving a camera after the fact.
 function EditDeviceModal({ device, groups, onClose, onSave }) {
   const [form, setForm] = useState({
-    name:         device.name         || "",
-    ip:           device.ip           || "",
-    mac:          device.mac          || "",
+    name: device.name || "",
+    ip: device.ip || "",
+    mac: device.mac || "",
     manufacturer: device.manufacturer || "",
-    model:        device.model        || "",
-    rtsp_url:     device.rtsp_url     || "",
-    group_id:     device.group_id     || "default",
+    model: device.model || "",
+    rtsp_url: device.rtsp_url || "",
+    group_id: device.group_id || "default",
   });
 
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -168,18 +165,18 @@ function EditDeviceModal({ device, groups, onClose, onSave }) {
           <h2 className="modal-title">Edit Device</h2>
           <button className="modal-close" onClick={onClose}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16">
-              <path d="M18 6L6 18M6 6l12 12"/>
+              <path d="M18 6L6 18M6 6l12 12" />
             </svg>
           </button>
         </div>
         <div className="modal-body">
           {[
-            { label: "Device Name",  key: "name"         },
-            { label: "IP Address",   key: "ip"           },
-            { label: "MAC Address",  key: "mac"          },
+            { label: "Device Name", key: "name" },
+            { label: "IP Address", key: "ip" },
+            { label: "MAC Address", key: "mac" },
             { label: "Manufacturer", key: "manufacturer" },
-            { label: "Model",        key: "model"        },
-            { label: "RTSP URL",     key: "rtsp_url"     },
+            { label: "Model", key: "model" },
+            { label: "RTSP URL", key: "rtsp_url" },
           ].map(({ label, key }) => (
             <div className="modal-field" key={key}>
               <label className="modal-label">{label}</label>
@@ -197,7 +194,7 @@ function EditDeviceModal({ device, groups, onClose, onSave }) {
               >
                 <span>{form.group_id === "default" ? "Default" : groups.find(g => g.id === form.group_id)?.name || "Default"}</span>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: dropdownOpen ? "rotate(180deg)" : "rotate(0)", transition: "transform .2s", marginLeft: "8px", color: "var(--text-muted)" }}>
-                  <path d="M6 9l6 6 6-6"/>
+                  <path d="M6 9l6 6 6-6" />
                 </svg>
               </button>
               {dropdownOpen && (
@@ -235,13 +232,13 @@ function EditDeviceModal({ device, groups, onClose, onSave }) {
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function AddDevicesPage({ onNavigate }) {
-  const [filter, setFilter]                     = useState("");
-  const [activeGroup, setActiveGroup]           = useState("all");
+  const [filter, setFilter] = useState("");
+  const [activeGroup, setActiveGroup] = useState("all");
   const [showManualSearch, setShowManualSearch] = useState(false);
-  const [showStreamURL, setShowStreamURL]       = useState(false);
-  const [showDiscovery, setShowDiscovery]       = useState(false);
-  const [isDeletingGroup, setIsDeletingGroup]   = useState(false);
-  const [confirmAction, setConfirmAction]       = useState(null);
+  const [showStreamURL, setShowStreamURL] = useState(false);
+  const [showDiscovery, setShowDiscovery] = useState(false);
+  const [isDeletingGroup, setIsDeletingGroup] = useState(false);
+  const [confirmAction, setConfirmAction] = useState(null);
 
   const [filterDropdownOpen, setFilterDropdownOpen] = useState(false);
   const filterDropdownRef = useRef(null);
@@ -255,19 +252,19 @@ export default function AddDevicesPage({ onNavigate }) {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
-  const [enrolling, setEnrolling]               = useState(false);
-  const [enrollMsg, setEnrollMsg]               = useState("");
-  const [refreshing, setRefreshing]             = useState(false);
-  const [devices, setDevices]                   = usePersistedDevices();
-  const [groups, setGroups]                     = usePersistedGroups();
-  const [ctxMenu, setCtxMenu]                   = useState(null);
-  const [editDevice, setEditDevice]             = useState(null);
+  const [enrolling, setEnrolling] = useState(false);
+  const [enrollMsg, setEnrollMsg] = useState("");
+  const [refreshing, setRefreshing] = useState(false);
+  const [devices, setDevices] = usePersistedDevices();
+  const [groups, setGroups] = usePersistedGroups();
+  const [ctxMenu, setCtxMenu] = useState(null);
+  const [editDevice, setEditDevice] = useState(null);
   const [showCreateGroup, setShowCreateGroup] = useState(false);
 
 
   // selectedGroupId is owned here but only mutated/read through modals (FIX 1).
-  const [selectedGroupId, setSelectedGroupId]   = useState("default");
-  const { logAction }                           = useActivityLogger();
+  const [selectedGroupId, setSelectedGroupId] = useState("default");
+  const { logAction } = useActivityLogger();
 
   // ── Smart modal openers — pre-select active group (FIX 5) ────────────────
   const openManualSearch = () => {
@@ -287,26 +284,26 @@ export default function AddDevicesPage({ onNavigate }) {
   const filtered = devices.filter((d) => {
     const matchSearch =
       (d.name || "").toLowerCase().includes(filter.toLowerCase()) ||
-      (d.ip   || "").toLowerCase().includes(filter.toLowerCase());
+      (d.ip || "").toLowerCase().includes(filter.toLowerCase());
     const matchGroup =
       activeGroup === "all" || (d.group_id || "default") === activeGroup;
     return matchSearch && matchGroup;
   });
 
-  const onlineCount    = filtered.filter((d) => d.status === "Online").length;
-  const countForGroup  = (gid) => devices.filter((d) => (d.group_id || "default") === gid).length;
+  const onlineCount = filtered.filter((d) => d.status === "Online").length;
+  const countForGroup = (gid) => devices.filter((d) => (d.group_id || "default") === gid).length;
 
   // ── Create Group — toolbar action (FIX 3) ────────────────────────────────
-const handleCreateGroup = () => {
-  setShowCreateGroup(true);
-};
+  const handleCreateGroup = () => {
+    setShowCreateGroup(true);
+  };
 
-const handleCreateGroupSubmit = (name) => {
-  setGroups((prev) => [
-    ...prev,
-    { id: `group-${Date.now()}`, name }
-  ]);
-};
+  const handleCreateGroupSubmit = (name) => {
+    setGroups((prev) => [
+      ...prev,
+      { id: `group-${Date.now()}`, name }
+    ]);
+  };
 
   // ── Delete Group ─────────────────────────────────────────────────────────
   const handleDeleteGroup = (groupId) => {
@@ -334,7 +331,16 @@ const handleCreateGroupSubmit = (name) => {
     if (device) setEditDevice(device);
   }, [devices]);
 
-  const handleSaveDevice = useCallback((updated) => {
+  const handleSaveDevice = useCallback(async (updated) => {
+    try {
+      await fetch(`${STREAM_API}/api/cameras/by-ip/${updated.ip}`, {
+        method: "PUT",
+        headers: getAuthHeaders(),
+        body: JSON.stringify(updated),
+      });
+    } catch (e) {
+      console.error("Failed to update DB:", e);
+    }
     setDevices((prev) => prev.map((d) => d.id === updated.id ? updated : d));
   }, [setDevices]);
 
@@ -342,7 +348,10 @@ const handleCreateGroupSubmit = (name) => {
     const device = devices.find((d) => d.id === deviceId);
     if (!device) return;
     try {
-      await fetch(`${STREAM_API}/api/cameras/by-ip/${device.ip}/delete`, { method: "DELETE" });
+      await fetch(`${STREAM_API}/api/cameras/by-ip/${device.ip}/delete`, { 
+        method: "DELETE",
+        headers: getAuthHeaders()
+      });
     } catch (err) {
       console.error("❌ Failed to delete from DB:", err);
     }
@@ -378,28 +387,28 @@ const handleCreateGroupSubmit = (name) => {
           `${d.ip.replace(/\./g, "_")}_cam${d.channel ?? 0}`;
 
         const device = {
-          id:            d.id || `device-${d.ip}-cam${d.channel ?? 0}`,
-          type:          "entrance",
-          name:          d.cameraName || d.name ||
-                         `${d.manufacturer || ""} ${d.model || ""}`.trim() ||
-                         `Camera @ ${d.ip}`,
-          ip:            d.ip,
-          channel:       d.channel ?? 0,
-          mac:           d.mac           || "—",
-          status:        d.ws_url ? "Online" : "Offline",
-          manufacturer:  d.manufacturer  || "Unknown",
-          model:         d.model         || "Unknown",
-          firmware:      d.firmware      || "",
-          rtsp_url:      d.rtsp_url      || null,
-          ws_url:        d.ws_url        || null,
-          stream_key:    streamKey,
+          id: d.id || `device-${d.ip}-cam${d.channel ?? 0}`,
+          type: "entrance",
+          name: d.cameraName || d.name ||
+            `${d.manufacturer || ""} ${d.model || ""}`.trim() ||
+            `Camera @ ${d.ip}`,
+          ip: d.ip,
+          channel: d.channel ?? 0,
+          mac: d.mac || "—",
+          status: d.ws_url ? "Online" : "Offline",
+          manufacturer: d.manufacturer || "Unknown",
+          model: d.model || "Unknown",
+          firmware: d.firmware || "",
+          rtsp_url: d.rtsp_url || null,
+          ws_url: d.ws_url || null,
+          stream_key: streamKey,
           stream_status: d.ws_url ? "streaming" : (d.stream_status || "not_registered"),
-          stream_profiles: d.profiles    || d.stream_profiles || [],
-          stream_count:  d.stream_count  || d.profiles?.length || 0,
+          stream_profiles: d.profiles || d.stream_profiles || [],
+          stream_count: d.stream_count || d.profiles?.length || 0,
           physical_camera_count: d.physical_camera_count || 1,
-          label:         d.label         || d.profile_name || "",
-          source:        "discovery",
-          group_id:      d.group_id || targetGroup,        // ✅ per-device first, then fallback
+          label: d.label || d.profile_name || "",
+          source: "discovery",
+          group_id: d.group_id || targetGroup,        // ✅ per-device first, then fallback
         };
 
         const existingIndex = next.findIndex(
@@ -427,7 +436,8 @@ const handleCreateGroupSubmit = (name) => {
     setEnrollMsg("Registering stream with OME…");
     setShowManualSearch(false);
 
-    const { ip, user, pass, discovered, cameraName, channel = 0, group_id } = device;
+    const { ip, user, pass, discovered, cameraName, channel, group_id, port } = device;
+    const safeChannel = channel ?? 0;
     const enrichedName = discovered?.model
       ? `${discovered.manufacturer} ${discovered.model}`
       : null;
@@ -435,46 +445,46 @@ const handleCreateGroupSubmit = (name) => {
     const probeRes = await fetch(`${STREAM_API}/api/onvif/probe`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ip, port: 80, username: user, password: pass, channel, group_id: group_id || selectedGroupId }),
+      body: JSON.stringify({ ip, port: Number(port) || 80, username: user, password: pass, channel: safeChannel, group_id: group_id || selectedGroupId }),
     });
     const probeData = probeRes.ok ? await probeRes.json() : null;
 
     const streamKey =
       probeData?.stream_key ||
       probeData?.ome_stream ||
-      `${ip.replace(/\./g, "_")}_cam${channel}`;
+      `${ip.replace(/\./g, "_")}_cam${safeChannel}`;
 
     setDevices((prev) => {
       const existingIndex = prev.findIndex(
         (item) =>
           (item.stream_key && item.stream_key === streamKey) ||
-          (!item.stream_key && item.ip === ip && (item.channel ?? 0) === channel)
+          (!item.stream_key && item.ip === ip && (item.channel ?? 0) === safeChannel)
       );
 
       const updated = {
         id: existingIndex !== -1
           ? prev[existingIndex].id
-          : `device-${ip}-cam${channel}-${Date.now()}`,
-        type:            "entrance",
-        name:            cameraName || enrichedName || `Camera @ ${ip}`,
+          : `device-${ip}-cam${safeChannel}-${Date.now()}`,
+        type: "entrance",
+        name: cameraName || enrichedName || `Camera @ ${ip}`,
         ip,
-        channel,
-        mac:             discovered?.mac          || probeData?.mac          || "—",
-        status:          probeData?.ws_url ? "Online" : "Offline",
-        manufacturer:    discovered?.manufacturer || probeData?.manufacturer || "Unknown",
-        model:           discovered?.model        || probeData?.model        || "Unknown",
-        firmware:        probeData?.firmware      || discovered?.firmware    || "",
-        serial:          probeData?.serial        || discovered?.serial      || "",
-        ptz:             probeData?.ptz           || discovered?.ptz         || "No",
-        rtsp_url:        probeData?.rtsp_url      || probeData?.stream_uri   || null,
-        ws_url:          probeData?.ws_url        || null,
-        stream_key:      streamKey,
-        stream_status:   probeData?.status        || "error",
-        stream_profiles: probeData?.profiles      || discovered?.profiles    || [],
-        stream_count:    probeData?.stream_count  || discovered?.stream_count || 0,
+        channel: safeChannel,
+        mac: discovered?.mac || probeData?.mac || "—",
+        status: probeData?.ws_url ? "Online" : "Offline",
+        manufacturer: discovered?.manufacturer || probeData?.manufacturer || "Unknown",
+        model: discovered?.model || probeData?.model || "Unknown",
+        firmware: probeData?.firmware || discovered?.firmware || "",
+        serial: probeData?.serial || discovered?.serial || "",
+        ptz: probeData?.ptz || discovered?.ptz || "No",
+        rtsp_url: probeData?.rtsp_url || probeData?.stream_uri || null,
+        ws_url: probeData?.ws_url || null,
+        stream_key: streamKey,
+        stream_status: probeData?.status || "error",
+        stream_profiles: probeData?.profiles || discovered?.profiles || [],
+        stream_count: probeData?.stream_count || discovered?.stream_count || 0,
         physical_camera_count: probeData?.physical_camera_count || 1,
-        source:          "onvif",
-        group_id:        group_id || selectedGroupId,  // ✅ from modal field
+        source: "onvif",
+        group_id: group_id || selectedGroupId,  // ✅ from modal field
       };
 
       if (existingIndex !== -1) {
@@ -485,7 +495,7 @@ const handleCreateGroupSubmit = (name) => {
       return [...prev, updated];
     });
 
-    logAction("Camera added", "camera", { ip, channel });
+    logAction("Camera added", "camera", { ip, channel: safeChannel });
     setEnrolling(false);
     setEnrollMsg("");
   };
@@ -495,9 +505,9 @@ const handleCreateGroupSubmit = (name) => {
     setShowStreamURL(false);
     setEnrolling(true);
 
-    const urls       = Array.isArray(payload) ? payload : payload.urls;
+    const urls = Array.isArray(payload) ? payload : payload.urls;
     const cameraName = Array.isArray(payload) ? "" : (payload.cameraName || "");
-    const groupId    = Array.isArray(payload)
+    const groupId = Array.isArray(payload)
       ? selectedGroupId
       : (payload.group_id || selectedGroupId);           // ✅ from modal field
 
@@ -506,14 +516,14 @@ const handleCreateGroupSubmit = (name) => {
       setEnrollMsg(`Registering stream ${i + 1} of ${urls.length}…`);
 
       let ip = "—";
-      try { ip = new URL(url).hostname; } catch {}
+      try { ip = new URL(url).hostname; } catch { }
 
       const streamName = cameraName
         ? (urls.length > 1 ? `${cameraName} (${i + 1})` : cameraName)
         : `Stream @ ${ip}`;
 
       try {
-        const res  = await fetch(`${STREAM_API}/api/streams/register`, {
+        const res = await fetch(`${STREAM_API}/api/streams/register`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ rtsp_url: url, group_id: groupId, device_name: streamName }),
@@ -530,24 +540,24 @@ const handleCreateGroupSubmit = (name) => {
               item.rtsp_url === url
           );
           const entry = {
-            id:            existingIndex !== -1 ? prev[existingIndex].id : `device-rtsp-${streamKey}-${Date.now()}`,
-            type:          "entrance",
-            name:          streamName,
+            id: existingIndex !== -1 ? prev[existingIndex].id : `device-rtsp-${streamKey}-${Date.now()}`,
+            type: "entrance",
+            name: streamName,
             ip,
-            channel:       0,
-            mac:           "—",
-            status:        data?.ws_url ? "Online" : "Offline",
-            manufacturer:  "Unknown",
-            model:         "Unknown",
-            rtsp_url:      url,
-            ws_url:        data?.ws_url  || null,
-            stream_key:    streamKey,
+            channel: 0,
+            mac: "—",
+            status: data?.ws_url ? "Online" : "Offline",
+            manufacturer: "Unknown",
+            model: "Unknown",
+            rtsp_url: url,
+            ws_url: data?.ws_url || null,
+            stream_key: streamKey,
             stream_status: data?.ws_url ? "streaming" : "error",
             stream_profiles: [],
-            stream_count:  0,
+            stream_count: 0,
             physical_camera_count: 1,
-            source:        "rtsp",
-            group_id:      groupId,                      // ✅ from modal field
+            source: "rtsp",
+            group_id: groupId,                      // ✅ from modal field
           };
           if (existingIndex !== -1) {
             const next = [...prev];
@@ -564,13 +574,13 @@ const handleCreateGroupSubmit = (name) => {
         setDevices((prev) => {
           const existingIndex = prev.findIndex((item) => item.rtsp_url === url);
           const entry = {
-            id:            existingIndex !== -1 ? prev[existingIndex].id : `device-rtsp-${Date.now()}-${i}`,
-            type:          "entrance", name: streamName, ip, channel: 0,
-            mac:           "—", status: "Offline", manufacturer: "Unknown", model: "Unknown",
-            rtsp_url:      url, ws_url: null, stream_key: streamKey,
+            id: existingIndex !== -1 ? prev[existingIndex].id : `device-rtsp-${Date.now()}-${i}`,
+            type: "entrance", name: streamName, ip, channel: 0,
+            mac: "—", status: "Offline", manufacturer: "Unknown", model: "Unknown",
+            rtsp_url: url, ws_url: null, stream_key: streamKey,
             stream_status: "error", stream_profiles: [], stream_count: 0,
             physical_camera_count: 1, source: "rtsp",
-            group_id:      groupId,                      // ✅ from modal field
+            group_id: groupId,                      // ✅ from modal field
           };
           if (existingIndex !== -1) {
             const next = [...prev];
@@ -631,53 +641,53 @@ const handleCreateGroupSubmit = (name) => {
           </div>
         </div>
 
-<div className="add-dev__options-bar">
-  <SearchBar value={filter} onChange={setFilter} placeholder="Filter devices..." />
+        <div className="add-dev__options-bar">
+          <SearchBar value={filter} onChange={setFilter} placeholder="Filter devices..." />
 
-  <div className="adp-custom-select" ref={filterDropdownRef}>
-    <button
-      type="button"
-      className="adp-select-btn"
-      onClick={() => setFilterDropdownOpen(!filterDropdownOpen)}
-    >
-      <span>
-        {activeGroup === "all" ? "All Cameras" : activeGroup === "default" ? "Default" : groups.find(g => g.id === activeGroup)?.name || "All Cameras"}
-      </span>
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: filterDropdownOpen ? "rotate(180deg)" : "rotate(0)", transition: "transform .2s", marginLeft: "8px", color: "var(--text-muted)" }}>
-        <path d="M6 9l6 6 6-6"/>
-      </svg>
-    </button>
-    {filterDropdownOpen && (
-      <ul className="adp-dropdown-menu">
-        <li
-          className={`adp-dropdown-item ${activeGroup === "all" ? "active" : ""}`}
-          onClick={() => { setActiveGroup("all"); setFilterDropdownOpen(false); }}
-        >
-          All Cameras
-        </li>
-        <li
-          className={`adp-dropdown-item ${activeGroup === "default" ? "active" : ""}`}
-          onClick={() => { setActiveGroup("default"); setFilterDropdownOpen(false); }}
-        >
-          Default
-        </li>
-        {groups.map(g => (
-          <li
-            key={g.id}
-            className={`adp-dropdown-item ${activeGroup === g.id ? "active" : ""}`}
-            onClick={() => { setActiveGroup(g.id); setFilterDropdownOpen(false); }}
-          >
-            {g.name}
-          </li>
-        ))}
-      </ul>
-    )}
-  </div>
-</div>
+          <div className="adp-custom-select" ref={filterDropdownRef}>
+            <button
+              type="button"
+              className="adp-select-btn"
+              onClick={() => setFilterDropdownOpen(!filterDropdownOpen)}
+            >
+              <span>
+                {activeGroup === "all" ? "All Cameras" : activeGroup === "default" ? "Default" : groups.find(g => g.id === activeGroup)?.name || "All Cameras"}
+              </span>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: filterDropdownOpen ? "rotate(180deg)" : "rotate(0)", transition: "transform .2s", marginLeft: "8px", color: "var(--text-muted)" }}>
+                <path d="M6 9l6 6 6-6" />
+              </svg>
+            </button>
+            {filterDropdownOpen && (
+              <ul className="adp-dropdown-menu">
+                <li
+                  className={`adp-dropdown-item ${activeGroup === "all" ? "active" : ""}`}
+                  onClick={() => { setActiveGroup("all"); setFilterDropdownOpen(false); }}
+                >
+                  All Cameras
+                </li>
+                <li
+                  className={`adp-dropdown-item ${activeGroup === "default" ? "active" : ""}`}
+                  onClick={() => { setActiveGroup("default"); setFilterDropdownOpen(false); }}
+                >
+                  Default
+                </li>
+                {groups.map(g => (
+                  <li
+                    key={g.id}
+                    className={`adp-dropdown-item ${activeGroup === g.id ? "active" : ""}`}
+                    onClick={() => { setActiveGroup(g.id); setFilterDropdownOpen(false); }}
+                  >
+                    {g.name}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
         <div className="add-dev__info-pill">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="13" height="13" style={{ flexShrink: 0 }}>
-            <circle cx="12" cy="12" r="10"/>
-            <path d="M12 8h.01M12 12v4"/>
+            <circle cx="12" cy="12" r="10" />
+            <path d="M12 8h.01M12 12v4" />
           </svg>
           {enrolling
             ? `⏳ ${enrollMsg}`
@@ -697,7 +707,7 @@ const handleCreateGroupSubmit = (name) => {
               <thead>
                 <tr>
                   <th style={{ width: 60 }}></th>
-                  {["Device Name","IP Address","MAC Address","Status","Manufacturer","Model"].map((c) => (
+                  {["Device Name", "IP Address", "MAC Address", "Status", "Manufacturer", "Model"].map((c) => (
                     <th key={c}>{c}</th>
                   ))}
                   <th>Group</th>
@@ -738,7 +748,7 @@ const handleCreateGroupSubmit = (name) => {
                       <td>
                         <span className="add-dev__group-tag">
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="11" height="11">
-                            <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/>
+                            <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z" />
                           </svg>
                           {groupLabel}
                         </span>
@@ -749,8 +759,8 @@ const handleCreateGroupSubmit = (name) => {
                             ? <span className="add-dev__stream add-dev__stream--live">● LIVE</span>
                             : d.ws_url
                               ? <span className="add-dev__stream add-dev__stream--pending">
-                                  ● {d.stream_status || "pending"}
-                                </span>
+                                ● {d.stream_status || "pending"}
+                              </span>
                               : <span className="add-dev__stream add-dev__stream--none">— not registered</span>
                           }
                           {(d.stream_count > 0 || d.stream_profiles?.length > 0) && (
@@ -817,19 +827,19 @@ const handleCreateGroupSubmit = (name) => {
           onSave={handleSaveDevice}
         />
       )}
-{showCreateGroup && (
-  <CreateGroupModal
-    onClose={() => setShowCreateGroup(false)}
-    onCreate={handleCreateGroupSubmit}
-  />
-)}
+      {showCreateGroup && (
+        <CreateGroupModal
+          onClose={() => setShowCreateGroup(false)}
+          onCreate={handleCreateGroupSubmit}
+        />
+      )}
       {ctxMenu && (
         <ContextMenu
           x={ctxMenu.x}
           y={ctxMenu.y}
-          onEdit={()           => handleEditDevice(ctxMenu.deviceId)}
-          onRemove={()         => handleRemoveDevice(ctxMenu.deviceId)}
-          onStreamProfiles={()  => handleStreamProfiles(ctxMenu.deviceId)}
+          onEdit={() => handleEditDevice(ctxMenu.deviceId)}
+          onRemove={() => handleRemoveDevice(ctxMenu.deviceId)}
+          onStreamProfiles={() => handleStreamProfiles(ctxMenu.deviceId)}
           onClose={() => setCtxMenu(null)}
         />
       )}

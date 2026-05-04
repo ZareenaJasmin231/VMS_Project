@@ -1450,6 +1450,29 @@ async def delete_camera_by_ip(ip: str):
     return {"success": True, "ip": ip, "streams_stopped": stopped}
 
 
+@app.put("/api/cameras/by-ip/{ip}", dependencies=[Depends(verify_token)])
+async def update_camera_by_ip(ip: str, request: Request):
+    data = await request.json()
+    
+    if cameras_col is not None:
+        # Only update allowed fields
+        allowed_keys = {"name", "device_name", "mac", "manufacturer", "model", "rtsp_url", "group_id"}
+        update_data = {k: v for k, v in data.items() if k in allowed_keys}
+        if update_data:
+            cameras_col.update_many({"ip": ip}, {"$set": update_data})
+            print(f"[UPDATE] ✏️ MongoDB: updated document(s) for IP {ip}")
+
+    # Update in-memory devices
+    global devices
+    for d in devices:
+        if d.get("ip") == ip:
+            for k, v in data.items():
+                d[k] = v
+    save_devices(devices)
+    
+    return {"success": True, "ip": ip}
+
+
 # ------------------------------------------------------------------
 # ONVIF probe
 # ------------------------------------------------------------------
