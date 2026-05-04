@@ -2188,6 +2188,22 @@ def get_camera_health():
                 filtered.append(d)
 
     return filtered
+
+@app.get("/api/cameras", dependencies=[Depends(verify_token)])
+async def get_cameras():
+    if cameras_col is None:
+        return {"devices": []}
+    
+    docs = list(cameras_col.find({"enabled": {"$ne": False}}, {"_id": 0}))
+    
+    for d in docs:
+        d.setdefault("device_name", d.get("name", f"Camera @ {d.get('ip', 'unknown')}"))
+        d["stream_status"] = "streaming" if d.get("status") == "streaming" else "offline"
+        d.setdefault("group_id", "default")
+        d.setdefault("ome_stream", d.get("stream_key") or d.get("ip"))
+        
+    return {"devices": docs}
+
 @app.get("/api/action-rules", dependencies=[Depends(verify_token)])
 def get_action_rules():
     rules = list(_db["action_rules"].find({}, {"_id": 0}))

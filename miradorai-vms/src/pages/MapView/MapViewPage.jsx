@@ -625,11 +625,11 @@ export default function MapViewPage() {
 
       let cams = [];
       try {
-        const r = await fetch(`${API}/api/discover-devices`, { headers: getAuthHeaders() });
+        const r = await fetch(`${API}/api/cameras`, { headers: getAuthHeaders() });
         if (r.status === 401) { authFailedRef.current = true; }
         else if (r.ok) {
           const j = await r.json();
-          cams = normalizeCams(j.devices || []);
+          cams = normalizeCams(j.devices || j.cameras || []);
         }
       } catch {}
       if (!cams.length) {
@@ -684,22 +684,9 @@ export default function MapViewPage() {
     }
     init();
 
-    const poll = setInterval(async () => {
-      if (authFailedRef.current) return;
-      try {
-        const r = await fetch(`${API}/api/discover-devices`, { headers: getAuthHeaders() });
-        if (r.status === 401) { authFailedRef.current = true; return; }
-        if (r.ok) {
-          const j = await r.json();
-          if (j.devices?.length) { setCameras(normalizeCams(j.devices)); return; }
-        }
-      } catch {}
-      try {
-        setCameras(normalizeCams(JSON.parse(localStorage.getItem("miradorai_devices") || "[]")));
-      } catch {}
-    }, 15000);
-
-    return () => clearInterval(poll);
+    // ── Removed 15s polling interval ──
+    // Cameras are now statically fetched from the database on initial page load.
+    // If live updates are needed, consider implementing a WebSocket listener.
   }, []); // eslint-disable-line
 
   // ── Wheel zoom ────────────────────────────────────────────────────
