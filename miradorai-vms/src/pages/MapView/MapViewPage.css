@@ -80,6 +80,53 @@
   color: #f87171;
 }
 
+/* ── Create Zone button ── */
+.mv-tbtn--zone {
+  border-color: #F59E0B55;
+  color: #F59E0B;
+}
+.mv-tbtn--zone:hover {
+  background: #F59E0B15;
+  border-color: #F59E0B99;
+}
+.mv-tbtn--zone-active {
+  background: #F59E0B22;
+  border-color: #F59E0B;
+  color: #F59E0B;
+  box-shadow: 0 0 0 1px #F59E0B44;
+  animation: mv-zone-pulse 2s ease-in-out infinite;
+}
+@keyframes mv-zone-pulse {
+  0%, 100% { box-shadow: 0 0 0 1px #F59E0B44; }
+  50%       { box-shadow: 0 0 0 3px #F59E0B22; }
+}
+
+/* Zone drawing hint in toolbar right */
+.mv-zone-draw-hint {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11.5px;
+  color: #F59E0B;
+  background: #F59E0B15;
+  padding: 3px 10px;
+  border-radius: 99px;
+  border: 0.5px solid #F59E0B55;
+}
+.mv-zone-draw-done {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 5px;
+  background: #F59E0B;
+  color: #000;
+  border: none;
+  cursor: pointer;
+  font-weight: 700;
+  transition: background 0.12s;
+}
+.mv-zone-draw-done:hover   { background: #FBBF24; }
+.mv-zone-draw-done:disabled { opacity: 0.35; cursor: not-allowed; }
+
 .mv-saving {
   font-size: 11.5px;
   color: #1D9E75;
@@ -117,8 +164,8 @@
 }
 
 /* ══════════════════════════════════════════════════════════════
-   FLOOR SIDEBAR  (left panel — replaces horizontal floor tabs)
-   Collapses to 52 px; expands to 148 px on hover.
+   LEFT SIDEBAR (Zones + Floors)
+   Collapses to 52 px; expands to 160 px on hover.
    ══════════════════════════════════════════════════════════════ */
 .mv-floor-sidebar {
   width: 52px;
@@ -136,7 +183,7 @@
 }
 
 .mv-floor-sidebar:hover {
-  width: 152px;
+  width: 160px;
 }
 
 /* Sidebar header */
@@ -190,7 +237,7 @@
 }
 .mv-floor-sidebar__list::-webkit-scrollbar { display: none; }
 
-/* Individual floor button */
+/* Individual floor/zone button */
 .mv-floor-btn {
   display: flex;
   align-items: center;
@@ -277,7 +324,7 @@
 }
 
 .mv-floor-sidebar:hover .mv-floor-btn__name {
-  max-width: 80px;
+  max-width: 90px;
   opacity: 1;
 }
 
@@ -329,6 +376,100 @@
   border-color: #1D9E75;
 }
 
+/* ── Zone button specifics ── */
+.mv-zone-btn {
+  position: relative;
+}
+
+/* Zone color swatch (replaces number badge) */
+.mv-zone-btn__swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  flex-shrink: 0;
+  border: 1px solid rgba(255,255,255,0.15);
+}
+
+/* Active zone button uses its zone color instead of blue */
+.mv-zone-btn--active {
+  background: rgba(255,255,255,0.06);
+}
+.mv-zone-btn--active::before {
+  display: none; /* override the blue stripe; zone uses swatch color */
+}
+
+/* Delete button inside zone item */
+.mv-zone-btn__delete {
+  font-size: 9px;
+  color: var(--color-text-tertiary, #4a5568);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 3px;
+  opacity: 0;
+  flex-shrink: 0;
+  transition: opacity 0.1s, color 0.1s, background 0.1s;
+  max-width: 0;
+  overflow: hidden;
+  transition: max-width 0.22s ease, opacity 0.15s ease;
+}
+
+.mv-floor-sidebar:hover .mv-zone-btn:hover .mv-zone-btn__delete {
+  opacity: 1;
+  max-width: 24px;
+  color: #f87171;
+}
+
+/* Empty zones hint */
+.mv-zone-empty-hint {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 0 8px;
+  color: var(--color-text-tertiary, #4a5568);
+}
+.mv-zone-empty-hint__text {
+  font-size: 9.5px;
+  text-align: center;
+  max-width: 0;
+  opacity: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  transition: max-width 0.22s ease, opacity 0.18s ease;
+}
+.mv-floor-sidebar:hover .mv-zone-empty-hint__text {
+  max-width: 110px;
+  opacity: 1;
+}
+
+/* Divider between zones and floors in sidebar */
+.mv-zone-divider {
+  height: 0.5px;
+  background: var(--color-border-tertiary, #2e3d55);
+  margin: 8px 4px 6px;
+  flex-shrink: 0;
+}
+
+.mv-zone-section-label {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-text-tertiary, #3a4a5e);
+  padding: 0 8px 4px;
+  max-width: 0;
+  opacity: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  transition: max-width 0.22s ease, opacity 0.18s ease;
+}
+.mv-floor-sidebar:hover .mv-zone-section-label {
+  max-width: 120px;
+  opacity: 1;
+}
+
 /* ── Canvas area ──────────────────────────────────────────────── */
 .mv-canvas-wrap {
   flex: 1;
@@ -344,9 +485,91 @@
   touch-action: none;
   cursor: crosshair;
 }
-.mv-pan-mode canvas   { cursor: grab; }
+.mv-pan-mode canvas        { cursor: grab; }
 .mv-pan-mode:active canvas { cursor: grabbing; }
-.mv-place-mode canvas { cursor: crosshair; }
+.mv-place-mode canvas      { cursor: crosshair; }
+.mv-zone-mode canvas       { cursor: cell; }
+
+/* ── Zone Drawing Overlay (bottom hint) ── */
+.mv-zone-draw-overlay {
+  position: absolute;
+  bottom: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #0d1117ee;
+  color: #F59E0B;
+  font-size: 12px;
+  padding: 7px 16px;
+  border-radius: 99px;
+  border: 1px solid #F59E0B55;
+  pointer-events: none;
+  z-index: 10;
+  white-space: nowrap;
+  backdrop-filter: blur(4px);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+}
+
+/* ── Active Zone Badge (top-left of canvas) ── */
+.mv-active-zone-badge {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #0d1117ee;
+  font-size: 11.5px;
+  color: var(--color-text-primary, #e8edf5);
+  padding: 5px 10px;
+  border-radius: 8px;
+  border: 1px solid;
+  z-index: 8;
+  backdrop-filter: blur(4px);
+  box-shadow: 0 2px 12px rgba(0,0,0,0.4);
+}
+.mv-active-zone-badge__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.mv-active-zone-badge__clear {
+  background: none;
+  border: none;
+  color: var(--color-text-tertiary, #4a5568);
+  cursor: pointer;
+  font-size: 10px;
+  padding: 0 2px;
+  margin-left: 4px;
+  transition: color 0.12s;
+}
+.mv-active-zone-badge__clear:hover { color: #f87171; }
+
+/* ── Zone Alert Toast ── */
+.mv-zone-alert {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #1a0d0d;
+  color: #f87171;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 8px 18px;
+  border-radius: 8px;
+  border: 1px solid #8b2222;
+  z-index: 50;
+  white-space: nowrap;
+  box-shadow: 0 6px 24px rgba(0,0,0,0.5);
+  animation: mv-alert-in 0.2s ease;
+}
+@keyframes mv-alert-in {
+  from { opacity: 0; transform: translateX(-50%) translateY(-8px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
 
 /* Upload hint */
 .mv-hint {
@@ -409,7 +632,6 @@
    CONFIG PANEL MODAL  (placement confirmation)
    ══════════════════════════════════════════════════════════════ */
 
-/* Overlay */
 .mv-modal-overlay {
   position: absolute;
   inset: 0;
@@ -421,7 +643,6 @@
   backdrop-filter: blur(3px);
 }
 
-/* Modal card */
 .mv-modal {
   background: var(--color-background-secondary, #161c28);
   border: 0.5px solid var(--color-border-secondary, #2e3d55);
@@ -431,7 +652,6 @@
   box-shadow: 0 24px 64px rgba(0, 0, 0, 0.65);
 }
 
-/* Config variant — slightly wider */
 .mv-modal--config {
   width: 348px;
 }
@@ -473,12 +693,10 @@
 .mv-modal__badge--online  { color: #1D9E75; background: #1D9E7520; }
 .mv-modal__badge--offline { color: #888780; background: #88878020; }
 
-/* Field wrapper */
 .mv-modal__field {
   margin-bottom: 18px;
 }
 
-/* Field label row */
 .mv-modal__label {
   display: flex;
   align-items: center;
@@ -500,7 +718,6 @@
   color: #1D9E75;
 }
 
-/* Hint / sub-label */
 .mv-modal__hint {
   font-size: 11px;
   color: var(--color-text-tertiary, #4a5568);
@@ -515,7 +732,6 @@
   font-size: 11.5px;
 }
 
-/* Action row */
 .mv-modal__row {
   display: flex;
   gap: 8px;
@@ -647,7 +863,6 @@
     inset 0 0 30px rgba(0,0,0,0.6);
 }
 
-/* Inner tick ring */
 .mv-compass::before {
   content: "";
   position: absolute;
@@ -656,7 +871,6 @@
   border: 0.5px dashed #1e2d3e;
 }
 
-/* Cardinal labels */
 .mv-compass__label {
   position: absolute;
   top: 50%;
@@ -691,7 +905,6 @@
   font-weight: 900;
 }
 
-/* Needle */
 .mv-compass__needle {
   position: absolute;
   top: 50%;
@@ -707,7 +920,6 @@
   transition: transform 0.08s ease;
 }
 
-/* Needle tail */
 .mv-compass__needle::after {
   content: "";
   position: absolute;
@@ -720,7 +932,6 @@
   border-radius: 0 0 2px 2px;
 }
 
-/* Center dot */
 .mv-compass__center {
   position: absolute;
   top: 50%;
@@ -732,6 +943,86 @@
   transform: translate(-50%, -50%);
   box-shadow: 0 0 8px #1D9E75;
   pointer-events: none;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   ZONE NAME MODAL
+   ══════════════════════════════════════════════════════════════ */
+.mv-zone-name-modal {
+  background: var(--color-background-secondary, #161c28);
+  border: 0.5px solid #F59E0B55;
+  border-radius: 14px;
+  padding: 22px 24px 20px;
+  width: 340px;
+  box-shadow: 0 24px 64px rgba(0,0,0,0.65), 0 0 0 1px #F59E0B22;
+}
+
+.mv-zone-name-modal__header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #F59E0B;
+  margin-bottom: 8px;
+}
+
+.mv-zone-name-modal__sub {
+  font-size: 12px;
+  color: var(--color-text-secondary, #7a8499);
+  margin-bottom: 16px;
+  line-height: 1.55;
+}
+
+.mv-zone-name-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 9px 12px;
+  font-size: 13px;
+  border-radius: 8px;
+  border: 1px solid #2e3d55;
+  background: var(--color-background-primary, #0d1117);
+  color: var(--color-text-primary, #e8edf5);
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  margin-bottom: 4px;
+  font-family: inherit;
+}
+.mv-zone-name-input:focus {
+  border-color: #F59E0B;
+  box-shadow: 0 0 0 2px #F59E0B22;
+}
+.mv-zone-name-input--err {
+  border-color: #f87171;
+  box-shadow: 0 0 0 2px #f8717122;
+}
+.mv-zone-name-err {
+  font-size: 11px;
+  color: #f87171;
+  margin: 4px 0 12px;
+}
+
+.mv-zone-name-modal__row {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 18px;
+}
+
+/* ── Sidebar zone notice ── */
+.mv-sidebar-zone-notice {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 7px 12px;
+  background: rgba(255,255,255,0.03);
+  border-bottom: 0.5px solid;
+  font-size: 11px;
+  color: var(--color-text-secondary, #7a8499);
+  line-height: 1.4;
+}
+.mv-sidebar-zone-notice strong {
+  color: var(--color-text-primary, #e8edf5);
 }
 
 /* ── Sidebar (right — camera list) ───────────────────────────── */
@@ -883,6 +1174,9 @@
   font-variant-numeric: tabular-nums;
   margin-top: 1px;
 }
+.mv-legend__zone-tag {
+  font-weight: 600;
+}
 .mv-legend__remove {
   font-size: 10px;
   color: var(--color-text-tertiary, #4a5568);
@@ -1013,8 +1307,8 @@
   font-weight: 500;
   transition: all 0.15s;
 }
-.mv-stream-tab:hover       { color: #9ca3af; background: rgba(255,255,255,0.03); }
-.mv-stream-tab--active     { color: #1D9E75; border-bottom-color: #1D9E75; background: rgba(29,158,117,0.06); }
+.mv-stream-tab:hover   { color: #9ca3af; background: rgba(255,255,255,0.03); }
+.mv-stream-tab--active { color: #1D9E75; border-bottom-color: #1D9E75; background: rgba(29,158,117,0.06); }
 
 .mv-stream-body {
   flex: 1;
@@ -1024,13 +1318,6 @@
   background: #0a0c12;
   min-height: 340px;
   position: relative;
-}
-
-.mv-stream-img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  max-height: 420px;
 }
 
 .mv-stream-offline {
@@ -1104,3 +1391,232 @@
   flex-shrink: 0;
   min-width: 60px;
 }
+
+/* Wrapper for one zone + its cameras */
+.mv-zone-sidebar-item {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  border-radius: 8px;
+  overflow: hidden;
+  margin-bottom: 2px;
+  transition: background 0.12s;
+}
+ 
+.mv-zone-sidebar-item--active {
+  background: rgba(255, 255, 255, 0.03);
+}
+ 
+/* Zone header row (replaces old mv-floor-btn for zones) */
+.mv-zone-header-btn {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  padding: 8px 7px;
+  border-radius: 7px;
+  border: 0.5px solid transparent;
+  border-left: 2px solid transparent;
+  background: transparent;
+  color: var(--color-text-secondary, #7a8499);
+  cursor: pointer;
+  font-size: 11.5px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+  position: relative;
+  min-height: 38px;
+  text-align: left;
+}
+ 
+.mv-zone-header-btn:hover {
+  background: var(--color-background-primary, #0d1117);
+  color: var(--color-text-primary, #e8edf5);
+  border-color: var(--color-border-tertiary, #2e3d55);
+}
+ 
+/* Zone name — hidden until sidebar expanded */
+.mv-zone-header-btn__name {
+  flex: 1;
+  font-size: 11.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 0;
+  opacity: 0;
+  transition: max-width 0.22s ease, opacity 0.18s ease;
+}
+ 
+.mv-floor-sidebar:hover .mv-zone-header-btn__name {
+  max-width: 80px;
+  opacity: 1;
+}
+ 
+/* Camera count chip on zone header */
+.mv-zone-header-btn__count {
+  font-size: 9px;
+  font-weight: 700;
+  border-radius: 99px;
+  padding: 1px 5px;
+  flex-shrink: 0;
+  max-width: 0;
+  opacity: 0;
+  overflow: hidden;
+  transition: max-width 0.22s ease, opacity 0.18s ease;
+}
+ 
+.mv-floor-sidebar:hover .mv-zone-header-btn__count {
+  max-width: 36px;
+  opacity: 1;
+}
+ 
+/* Chevron icon on zone header */
+.mv-zone-chevron {
+  flex-shrink: 0;
+  color: var(--color-text-tertiary, #4a5568);
+  transition: transform 0.2s ease;
+  max-width: 0;
+  opacity: 0;
+  overflow: hidden;
+}
+ 
+.mv-floor-sidebar:hover .mv-zone-chevron {
+  max-width: 16px;
+  opacity: 1;
+}
+ 
+.mv-zone-chevron--open {
+  transform: rotate(180deg);
+}
+ 
+/* Delete button inside zone header */
+.mv-zone-btn__delete {
+  font-size: 9px;
+  color: var(--color-text-tertiary, #4a5568);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 3px;
+  opacity: 0;
+  flex-shrink: 0;
+  max-width: 0;
+  overflow: hidden;
+  transition: max-width 0.22s ease, opacity 0.15s ease, color 0.12s;
+}
+ 
+.mv-floor-sidebar:hover .mv-zone-header-btn:hover .mv-zone-btn__delete {
+  opacity: 1;
+  max-width: 24px;
+  color: #f87171;
+}
+
+.mv-floor-sidebar:hover .mv-floor-btn:hover .mv-zone-btn__delete {
+  opacity: 1;
+  max-width: 24px;
+  color: #f87171;
+}
+
+.mv-floor-btn .mv-zone-btn__delete {
+  max-width: 0;
+  opacity: 0;
+}
+ 
+/* ── Camera sub-list inside a zone ── */
+.mv-zone-cam-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 2px 4px 4px 4px;
+  max-width: 0;
+  opacity: 0;
+  overflow: hidden;
+  transition: max-width 0.22s ease, opacity 0.18s ease;
+}
+ 
+.mv-floor-sidebar:hover .mv-zone-cam-list {
+  max-width: 160px;
+  opacity: 1;
+}
+ 
+/* Individual camera row inside a zone */
+.mv-zone-cam-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 7px 5px 10px;
+  border-radius: 5px;
+  border: 0.5px solid transparent;
+  border-left: 2px solid transparent;
+  background: transparent;
+  cursor: pointer;
+  transition: background 0.1s, border-color 0.1s;
+  min-height: 28px;
+  position: relative;
+}
+ 
+.mv-zone-cam-item:hover {
+  background: var(--color-background-primary, #0d1117);
+  border-color: var(--color-border-tertiary, #2e3d55);
+}
+ 
+.mv-zone-cam-item--highlight {
+  /* border-left set inline with zone color */
+  background: rgba(255, 255, 255, 0.04);
+}
+ 
+.mv-zone-cam-item__name {
+  font-size: 11px;
+  color: var(--color-text-secondary, #7a8499);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+  transition: color 0.12s;
+}
+ 
+.mv-zone-cam-item:hover .mv-zone-cam-item__name,
+.mv-zone-cam-item--highlight .mv-zone-cam-item__name {
+  color: var(--color-text-primary, #e8edf5);
+}
+ 
+/* Remove camera button */
+.mv-zone-cam-item__remove {
+  font-size: 9px;
+  color: var(--color-text-tertiary, #4a5568);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 1px 3px;
+  border-radius: 3px;
+  opacity: 0;
+  flex-shrink: 0;
+  transition: opacity 0.12s, color 0.12s;
+}
+ 
+.mv-zone-cam-item:hover .mv-zone-cam-item__remove {
+  opacity: 1;
+}
+ 
+.mv-zone-cam-item__remove:hover {
+  color: #f87171;
+}
+ 
+/* Empty cameras in zone hint */
+.mv-zone-cam-empty {
+  font-size: 10px;
+  color: var(--color-text-tertiary, #4a5568);
+  padding: 4px 10px 6px;
+  font-style: italic;
+  max-width: 0;
+  opacity: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  transition: max-width 0.22s ease, opacity 0.18s ease;
+}
+ 
+.mv-floor-sidebar:hover .mv-zone-cam-empty {
+  max-width: 160px;
+  opacity: 1;
+}
+ 

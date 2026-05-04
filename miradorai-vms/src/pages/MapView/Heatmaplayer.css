@@ -1,108 +1,148 @@
-/* ── HeatmapLayer Legend ─────────────────────────────────────────────
-   Positioned bottom-left of the canvas wrap.
-   Add these rules to MapViewPage.css (or a shared canvas styles file).
-   ─────────────────────────────────────────────────────────────────── */
+/* ── HeatmapLayer.css ──────────────────────────────────────────────── */
 
+/* ── Density heatmap canvas overlay ──────────────────────────────── */
+.mv-heatmap-density-canvas {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  display: block;
+  z-index: 4;
+  mix-blend-mode: normal;
+}
+
+/* ── Legend Panel ─────────────────────────────────────────────────── */
 .mv-heatmap-legend {
   position: absolute;
   bottom: 16px;
   left: 16px;
   z-index: 15;
-  background: rgba(13, 17, 23, 0.88);
+  background: rgba(10, 12, 18, 0.93);
   border: 0.5px solid #2e3d55;
-  border-radius: 10px;
-  padding: 12px 14px 10px;
-  min-width: 196px;
-  backdrop-filter: blur(8px);
-  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.5);
+  border-radius: 12px;
+  padding: 13px 15px 11px;
+  min-width: 220px;
+  backdrop-filter: blur(10px);
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.6),
+    0 0 0 0.5px rgba(255,255,255,0.04) inset;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 7px;
   pointer-events: none;
   user-select: none;
 }
 
-/* Title row */
+/* Title */
 .mv-heatmap-legend__title {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 7px;
   font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.07em;
+  letter-spacing: 0.08em;
   color: #7a8499;
-  margin-bottom: 4px;
-  padding-bottom: 8px;
+  padding-bottom: 9px;
   border-bottom: 0.5px solid #1e2d3e;
+  margin-bottom: 2px;
+}
+.mv-heatmap-legend__title svg { color: #1D9E75; flex-shrink: 0; }
+
+/* ── Color scale bar ── */
+.mv-heatmap-legend__scale {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 4px;
 }
 
-.mv-heatmap-legend__title svg {
-  flex-shrink: 0;
-  color: #1D9E75;
+.mv-heatmap-legend__scale-bar {
+  height: 11px;
+  border-radius: 6px;
+  background: linear-gradient(
+    to right,
+    rgba(180, 0,   0,   0.92)  0%,
+    rgba(0,   210, 80,  0.92)  35%,
+    rgba(150, 200, 0,   0.92)  60%,
+    rgba(250, 250, 160, 0.95)  100%
+  );
+  border: 0.5px solid rgba(255,255,255,0.09);
+  box-shadow: 0 0 10px rgba(29,158,117,0.25);
 }
 
-/* Legend rows */
+.mv-heatmap-legend__scale-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 9px;
+  color: #4a5568;
+  font-variant-numeric: tabular-nums;
+  padding: 0 1px;
+}
+
+/* ── Legend rows ── */
 .mv-heatmap-legend__row {
   display: flex;
   align-items: center;
   gap: 9px;
-  font-size: 11.5px;
+  font-size: 11px;
   color: #9ca3af;
   line-height: 1;
 }
 
 /* Colour swatches */
 .mv-heatmap-legend__swatch {
-  width: 28px;
+  width: 30px;
   height: 10px;
   border-radius: 3px;
   flex-shrink: 0;
-  border: 0.5px solid rgba(255, 255, 255, 0.06);
+  border: 0.5px solid rgba(255,255,255,0.07);
 }
 
-/* Covered — bright green glow */
-.mv-heatmap-legend__swatch--bright {
-  background: linear-gradient(90deg, #1D9E75 0%, #2eedb0 100%);
-  box-shadow: 0 0 6px #1D9E7560;
+/* No coverage — blind spot (deep red) */
+.mv-heatmap-legend__swatch--none {
+  background: rgba(180, 0, 0, 0.88);
+  box-shadow: 0 0 5px rgba(180,0,0,0.5);
 }
 
-/* Blind spot — dark / near-black */
-.mv-heatmap-legend__swatch--dark {
-  background: linear-gradient(90deg, #0d1117 0%, #1a2030 100%);
-  border-color: #2e3d55;
+/* Single camera coverage (green) */
+.mv-heatmap-legend__swatch--single {
+  background: linear-gradient(90deg, rgba(0,180,80,0.92), rgba(0,210,100,0.92));
+  box-shadow: 0 0 5px rgba(0,200,100,0.4);
 }
 
-/* Offline camera zone — muted amber */
+/* 2-camera overlap (yellow-green) */
+.mv-heatmap-legend__swatch--overlap {
+  background: linear-gradient(90deg, rgba(130,200,0,0.92), rgba(200,210,0,0.92));
+  box-shadow: 0 0 5px rgba(180,210,0,0.35);
+}
+
+/* High overlap 3+ cameras (bright yellow) */
+.mv-heatmap-legend__swatch--high {
+  background: linear-gradient(90deg, rgba(240,240,100,0.92), rgba(250,250,200,0.97));
+  box-shadow: 0 0 6px rgba(240,240,160,0.4);
+}
+
+/* Offline camera zone — amber/orange */
 .mv-heatmap-legend__swatch--offline {
-  background: linear-gradient(90deg, #78350f 0%, #b45309 100%);
-  box-shadow: 0 0 5px #b4530930;
+  background: linear-gradient(90deg, rgba(180,80,0,0.9), rgba(220,120,0,0.9));
+  box-shadow: 0 0 5px rgba(200,100,0,0.35);
 }
 
-/* Stats row */
+/* ── Stats row ── */
 .mv-heatmap-legend__stats {
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin-top: 6px;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
   padding-top: 8px;
   border-top: 0.5px solid #1e2d3e;
+}
+
+.mv-heatmap-legend__stat {
   font-size: 11px;
   font-variant-numeric: tabular-nums;
   color: #4a5568;
 }
-
-.mv-heatmap-legend__stats span:first-child {
-  color: #1D9E75;
-  font-weight: 600;
-}
-
-.mv-heatmap-legend__offline {
-  color: #f59e0b !important;
-  font-weight: 600;
-}
-
-.mv-heatmap-legend__stats span:last-child {
-  margin-left: auto;
-  color: #4a5568;
-}
+.mv-heatmap-legend__stat--online  { color: #1D9E75; font-weight: 600; }
+.mv-heatmap-legend__stat--offline { color: #f59e0b; font-weight: 600; }

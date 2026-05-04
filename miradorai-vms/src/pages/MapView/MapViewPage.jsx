@@ -30,9 +30,12 @@ function getAuthHeaders() {
 }
 
 // ── LocalStorage ──────────────────────────────────────────────────────
-const LS_KEY = "miradorai_map_floors_v2_" + MAP_ID;
-function lsSave(v) { try { localStorage.setItem(LS_KEY, JSON.stringify(v)); } catch {} }
-function lsLoad()  { try { return JSON.parse(localStorage.getItem(LS_KEY) || "null"); } catch { return null; } }
+const LS_KEY      = "miradorai_map_floors_v2_" + MAP_ID;
+const LS_ZONE_KEY = "miradorai_map_zones_v1_" + MAP_ID;
+function lsSave(v)     { try { localStorage.setItem(LS_KEY,      JSON.stringify(v)); } catch {} }
+function lsLoad()      { try { return JSON.parse(localStorage.getItem(LS_KEY)      || "null"); } catch { return null; } }
+function lsZoneSave(v) { try { localStorage.setItem(LS_ZONE_KEY, JSON.stringify(v)); } catch {} }
+function lsZoneLoad()  { try { return JSON.parse(localStorage.getItem(LS_ZONE_KEY) || "null"); } catch { return null; } }
 
 // ── API ───────────────────────────────────────────────────────────────
 async function apiGetMap() {
@@ -49,14 +52,30 @@ async function apiSaveMap(floors) {
   if (!r.ok) throw new Error(r.status);
   return r.json();
 }
-async function apiDeleteMap() {
-  await fetch(`${API}/api/maps?map_id=${MAP_ID}`, {
+
+async function apiDeleteFloor(floorId) {
+  const r = await fetch(`${API}/api/maps/floor?map_id=${MAP_ID}&floor_id=${floorId}`, {
     method: "DELETE",
     headers: getAuthHeaders(),
   });
+  if (!r.ok) throw new Error(r.status);
+  return r.json();
 }
 
-// ── Normalise camera list from /api/discover-devices ─────────────────
+
+
+// ── NEW: Save zones to backend ────────────────────────────────────────
+async function apiSaveZones(zones) {
+  const r = await fetch(`${API}/api/maps/zones`, {
+    method: "POST",
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ map_id: MAP_ID, zones }),
+  });
+  if (!r.ok) throw new Error(r.status);
+  return r.json();
+}
+
+// ── Normalise camera list ─────────────────────────────────────────────
 function normalizeCams(data) {
   return (Array.isArray(data) ? data : []).map(d => ({
     id:     d.stream_key || d.ome_stream || d.ip,
@@ -64,6 +83,7 @@ function normalizeCams(data) {
     ip:     d.ip,
     ws_url: d.ws_url,
     status: d.stream_status === "streaming" ? "online" : "offline",
+    group_id: d.group_id || "default",
   }));
 }
 
@@ -76,6 +96,37 @@ function makeFloor(n) {
     markers:      [],
   };
 }
+
+// ── Zone helpers ──────────────────────────────────────────────────────
+function pointInPolygon(px, py, polygon) {
+  let inside = false;
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const xi = polygon[i].x, yi = polygon[i].y;
+    const xj = polygon[j].x, yj = polygon[j].y;
+    const intersect =
+      yi > py !== yj > py &&
+      px < ((xj - xi) * (py - yi)) / (yj - yi) + xi;
+    if (intersect) inside = !inside;
+  }
+  return inside;
+}
+
+function polygonBounds(polygon) {
+  const xs = polygon.map(p => p.x);
+  const ys = polygon.map(p => p.y);
+  return {
+    minX: Math.min(...xs),
+    maxX: Math.max(...xs),
+    minY: Math.min(...ys),
+    maxY: Math.max(...ys),
+  };
+}
+
+// Bright distinct zone colors
+const ZONE_COLORS = [
+  "#3B82F6", "#10B981", "#F59E0B", "#EF4444",
+  "#8B5CF6", "#EC4899", "#14B8A6", "#F97316",
+];
 
 // ── Stream + Alerts Modal ─────────────────────────────────────────────
 const StreamModal = React.memo(function StreamModal({ cam, onClose }) {
@@ -107,8 +158,6 @@ const StreamModal = React.memo(function StreamModal({ cam, onClose }) {
   return (
     <div className="mv-stream-overlay" onClick={onClose}>
       <div className="mv-stream-modal" onClick={e => e.stopPropagation()}>
-
-        {/* Header */}
         <div className="mv-stream-header">
           <div>
             <div className="mv-stream-title">{ref.current.name}</div>
@@ -124,32 +173,20 @@ const StreamModal = React.memo(function StreamModal({ cam, onClose }) {
           </div>
           <button className="mv-stream-close" onClick={onClose}>✕</button>
         </div>
-
-        {/* Tabs */}
         <div className="mv-stream-tabs">
           <button
             className={`mv-stream-tab ${tab === "stream" ? "mv-stream-tab--active" : ""}`}
             onClick={() => setTab("stream")}
-          >
-            📹 Live Stream
-          </button>
+          >📹 Live Stream</button>
           <button
             className={`mv-stream-tab ${tab === "alerts" ? "mv-stream-tab--active" : ""}`}
             onClick={() => setTab("alerts")}
-          >
-            🔔 Alerts
-          </button>
+          >🔔 Alerts</button>
         </div>
-
-        {/* Body */}
         {tab === "stream" ? (
           <div className="mv-stream-body">
             {ref.current.status === "online" ? (
-              <WebRTCPlayer
-                key={ref.current.id}
-                serverUrl={ref.current.ws_url}
-                cameraId={ref.current.id}
-              />
+              <WebRTCPlayer key={ref.current.id} serverUrl={ref.current.ws_url} cameraId={ref.current.id} />
             ) : (
               <div className="mv-stream-offline">
                 <div style={{ fontSize: 48 }}>📷</div>
@@ -202,10 +239,193 @@ function AlertSection({ label, items }) {
   );
 }
 
-// ── Main ──────────────────────────────────────────────────────────────
+// ── Zone Name Modal ───────────────────────────────────────────────────
+function ZoneNameModal({ onSave, onCancel, existingNames }) {
+  const [name, setName] = useState("");
+  const [err,  setErr]  = useState("");
+  const inputRef = useRef(null);
+
+  useEffect(() => { inputRef.current?.focus(); }, []);
+
+  function handleSave() {
+    const trimmed = name.trim();
+    if (!trimmed)                           { setErr("Zone name is required."); return; }
+    if (existingNames.includes(trimmed))    { setErr("A zone with this name already exists."); return; }
+    onSave(trimmed);
+  }
+
+  return (
+    <div className="mv-stream-overlay" onClick={onCancel}>
+      <div className="mv-zone-name-modal" onClick={e => e.stopPropagation()}>
+        <div className="mv-zone-name-modal__header">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" width="20" height="20">
+            <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/>
+            <line x1="8" y1="2" x2="8" y2="18"/>
+            <line x1="16" y1="6" x2="16" y2="22"/>
+          </svg>
+          <span>Name this Zone</span>
+        </div>
+        <p className="mv-zone-name-modal__sub">
+          Give your drawn zone a name. Cameras placed inside it will be associated with this zone.
+        </p>
+        <input
+          ref={inputRef}
+          className={`mv-zone-name-input ${err ? "mv-zone-name-input--err" : ""}`}
+          placeholder="e.g. Lobby, Warehouse A, Parking Lot…"
+          value={name}
+          onChange={e => { setName(e.target.value); setErr(""); }}
+          onKeyDown={e => { if (e.key === "Enter") handleSave(); if (e.key === "Escape") onCancel(); }}
+          maxLength={40}
+        />
+        {err && <p className="mv-zone-name-err">{err}</p>}
+        <div className="mv-zone-name-modal__row">
+          <button className="mv-modal__btn mv-modal__btn--cancel" onClick={onCancel}>Cancel</button>
+          <button className="mv-modal__btn mv-modal__btn--confirm" onClick={handleSave}>Save Zone</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Zone Alert Toast ──────────────────────────────────────────────────
+function ZoneAlert({ message, onDismiss }) {
+  useEffect(() => {
+    const t = setTimeout(onDismiss, 3500);
+    return () => clearTimeout(t);
+  }, [onDismiss]);
+
+  return (
+    <div className="mv-zone-alert">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15">
+        <circle cx="12" cy="12" r="10"/>
+        <line x1="12" y1="8" x2="12" y2="12"/>
+        <line x1="12" y1="16" x2="12.01" y2="16"/>
+      </svg>
+      {message}
+    </div>
+  );
+}
+
+// ── Zone Camera Sub-item ──────────────────────────────────────────────
+function ZoneCameraItem({ marker, cameras, isHighlighted, onHighlight, onRemove, zoneColor }) {
+  const cam = cameras.find(c => c.id === marker.camId) || {
+    name:   marker.camName || marker.camId,
+    ip:     marker.camIp || "",
+    status: "offline",
+  };
+
+  return (
+    <div
+      className={`mv-zone-cam-item ${isHighlighted ? "mv-zone-cam-item--highlight" : ""}`}
+      style={isHighlighted ? { borderLeft: `2px solid ${zoneColor}`, background: `${zoneColor}14` } : {}}
+      onClick={e => { e.stopPropagation(); onHighlight(marker.camId); }}
+      title={`${cam.name} • ${cam.ip}`}
+    >
+      {/* Status dot */}
+      <span className={`mv-cam-dot mv-cam-dot--${cam.status}`} style={{ flexShrink: 0 }} />
+
+      {/* Name */}
+      <span className="mv-zone-cam-item__name">{cam.name}</span>
+
+      {/* Remove button */}
+      <button
+        className="mv-zone-cam-item__remove"
+        onClick={e => { e.stopPropagation(); onRemove(marker.camId); }}
+        title="Remove camera from map"
+      >✕</button>
+    </div>
+  );
+}
+
+// ── Zone Sidebar Item (zone + cameras inside) ─────────────────────────
+function ZoneSidebarItem({
+  zone,
+  markers,
+  cameras,
+  isActive,
+  highlightedCamId,
+  onSelect,
+  onDelete,
+  onHighlightCam,
+  onRemoveCam,
+  sidebarExpanded,
+}) {
+  const camsInZone = markers.filter(
+    m => zone.polygon.length >= 3 && pointInPolygon(m.x, m.y, zone.polygon)
+  );
+
+  return (
+    <div className={`mv-zone-sidebar-item ${isActive ? "mv-zone-sidebar-item--active" : ""}`}>
+      {/* Zone header row */}
+      <button
+        className="mv-zone-header-btn"
+        onClick={() => onSelect(zone)}
+        title={zone.name}
+        style={isActive ? { borderLeft: `2.5px solid ${zone.color}` } : {}}
+      >
+        {/* Color swatch */}
+        <span
+          className="mv-zone-btn__swatch"
+          style={{ background: zone.color, flexShrink: 0 }}
+        />
+
+        {/* Zone name + cam count */}
+        <span className="mv-zone-header-btn__name">{zone.name}</span>
+
+        {camsInZone.length > 0 && (
+          <span className="mv-zone-header-btn__count" style={{ background: `${zone.color}28`, color: zone.color }}>
+            {camsInZone.length}
+          </span>
+        )}
+
+        {/* Chevron (shown when sidebar expanded) */}
+        {sidebarExpanded && camsInZone.length > 0 && (
+          <svg
+            className={`mv-zone-chevron ${isActive ? "mv-zone-chevron--open" : ""}`}
+            viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
+            width="10" height="10"
+          >
+            <polyline points="6 9 12 15 18 9"/>
+          </svg>
+        )}
+
+        {/* Delete zone */}
+        <span
+          className="mv-zone-btn__delete"
+          onClick={e => { e.stopPropagation(); onDelete(zone.id); }}
+          title="Delete zone"
+        >✕</span>
+      </button>
+
+      {/* Camera sub-list — shown only when zone is active & sidebar is expanded */}
+      {isActive && sidebarExpanded && camsInZone.length > 0 && (
+        <div className="mv-zone-cam-list">
+          {camsInZone.map((m, i) => (
+            <ZoneCameraItem
+              key={m.camId + i}
+              marker={m}
+              cameras={cameras}
+              isHighlighted={highlightedCamId === m.camId}
+              onHighlight={onHighlightCam}
+              onRemove={onRemoveCam}
+              zoneColor={zone.color}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Empty hint when active and no cams */}
+      {isActive && sidebarExpanded && camsInZone.length === 0 && (
+        <div className="mv-zone-cam-empty">No cameras in zone</div>
+      )}
+    </div>
+  );
+}
+
+// ── Main ──────────────────────────────────────────────────────────
 export default function MapViewPage() {
 
-  // ── Canvas interaction refs (never cause re-renders) ─────────────
+  // Canvas refs
   const wrapRef         = useRef(null);
   const fileInputRef    = useRef(null);
   const floorImgRef     = useRef(null);
@@ -220,12 +440,21 @@ export default function MapViewPage() {
   const markersRef      = useRef([]);
   const selectedCamRef  = useRef(null);
   const saveTimerRef    = useRef(null);
+  const zoneTimerRef    = useRef(null);
   const mouseDownPosRef = useRef(null);
   const authFailedRef   = useRef(false);
   const canvasApiRef    = useRef(null);
   const floorsRef       = useRef([]);
 
-  // ── React state ───────────────────────────────────────────────────
+  // Zone drawing refs
+  const zonesRef           = useRef([]);
+  const drawingPointsRef   = useRef([]);
+  const activeZoneIdRef    = useRef(null);
+
+  // NEW: highlighted camera in sidebar
+  const highlightedCamIdRef = useRef(null);
+
+  // React state
   const [cameras,          setCameras]          = useState([]);
   const [markers,          setMarkers]          = useState([]);
   const [floors,           setFloors]           = useState(() => [makeFloor(1)]);
@@ -250,14 +479,31 @@ export default function MapViewPage() {
   const [virtualMode,      setVirtualMode]      = useState(false);
   const [expandedCamId,    setExpandedCamId]    = useState(null);
 
+  // Zone state
+  const [zones,            setZones]            = useState([]);
+  const [drawingPoints,    setDrawingPoints]    = useState([]);
+  const [pendingZonePoly,  setPendingZonePoly]  = useState(null);
+  const [showZoneNameModal, setShowZoneNameModal] = useState(false);
+  const [activeZoneId,     setActiveZoneId]     = useState(null);
+  const [zoneAlert,        setZoneAlert]        = useState(null);
+
+  // NEW: highlighted camera (from sidebar click)
+  const [highlightedCamId, setHighlightedCamId] = useState(null);
+
+  // NEW: sidebar hover state (to know if it's expanded)
+  const [sidebarExpanded, setSidebarExpanded] = useState(false);
+
   // Keep refs in sync
-  useEffect(() => { floorsRef.current    = floors;      }, [floors]);
+  useEffect(() => { floorsRef.current   = floors; }, [floors]);
+  useEffect(() => { zonesRef.current    = zones;  }, [zones]);
+  useEffect(() => { drawingPointsRef.current = drawingPoints; }, [drawingPoints]);
+  useEffect(() => { activeZoneIdRef.current  = activeZoneId;  }, [activeZoneId]);
   useEffect(() => { selectedCamRef.current = selectedCam; }, [selectedCam]);
+  useEffect(() => { highlightedCamIdRef.current = highlightedCamId; }, [highlightedCamId]);
 
   const pendingDirectionRef = useRef(0);
   useEffect(() => { pendingDirectionRef.current = pendingDirection; }, [pendingDirection]);
 
-  // Preview marker shown on canvas while placement modal is open
   const previewMarker =
     showModal && pendingCam && pendingPos
       ? [{
@@ -291,7 +537,7 @@ export default function MapViewPage() {
     }
   }, []); // eslint-disable-line
 
-  // ── Fit image to canvas ───────────────────────────────────────────
+  // ── Fit image ────────────────────────────────────────────────────
   const fitImage = useCallback(() => {
     const wrap = wrapRef.current;
     const img  = floorImgRef.current;
@@ -320,7 +566,7 @@ export default function MapViewPage() {
     wrapRef.current?.__vtReposition?.();
   }, []);
 
-  // ── Persist ───────────────────────────────────────────────────────
+  // ── Persist floors ────────────────────────────────────────────────
   const persistFloors = useCallback((updated) => {
     lsSave(updated);
     if (authFailedRef.current) return;
@@ -335,6 +581,20 @@ export default function MapViewPage() {
     }, 800);
   }, []);
 
+  // ── NEW: Persist zones to backend ─────────────────────────────────
+  const persistZones = useCallback((updated) => {
+    lsZoneSave(updated);
+    if (authFailedRef.current) return;
+    if (zoneTimerRef.current) clearTimeout(zoneTimerRef.current);
+    zoneTimerRef.current = setTimeout(async () => {
+      try { await apiSaveZones(updated); }
+      catch (e) {
+        if (e.message === "401") { authFailedRef.current = true; setSaveErr(true); }
+        // Zone save failure is non-critical — local cache is the fallback
+      }
+    }, 800);
+  }, []);
+
   const updateMarkers = useCallback((next) => {
     markersRef.current = next;
     setMarkers([...next]);
@@ -346,8 +606,15 @@ export default function MapViewPage() {
     persistFloors(updated);
   }, [activeFloor, persistFloors]);
 
-  // ── Init on mount ─────────────────────────────────────────────────
+  // ── Init ─────────────────────────────────────────────────────────
   useEffect(() => {
+    // Load saved zones
+    const cachedZones = lsZoneLoad();
+    if (cachedZones?.length) {
+      setZones(cachedZones);
+      zonesRef.current = cachedZones;
+    }
+
     async function init() {
       const cached = lsLoad();
       if (cached?.length) {
@@ -373,6 +640,14 @@ export default function MapViewPage() {
 
       try {
         const data = await apiGetMap();
+
+        // Load zones from backend if present
+        if (data.zones?.length && !cachedZones?.length) {
+          setZones(data.zones);
+          zonesRef.current = data.zones;
+          lsZoneSave(data.zones);
+        }
+
         if (data.floors?.length) {
           setFloors(data.floors);
           floorsRef.current = data.floors;
@@ -477,10 +752,65 @@ export default function MapViewPage() {
     return best;
   }
 
+  // ── Zone: check if a point is inside the active zone ─────────────
+  function isInsideActiveZone(px, py) {
+    const azId = activeZoneIdRef.current;
+    if (!azId) return true;
+    const zone = zonesRef.current.find(z => z.id === azId);
+    if (!zone || zone.polygon.length < 3) return true;
+    return pointInPolygon(px, py, zone.polygon);
+  }
+
+  // ── Zoom to zone ──────────────────────────────────────────────────
+  function zoomToZone(zone) {
+    const wrap = wrapRef.current;
+    if (!wrap || zone.polygon.length < 2) return;
+    const bounds = polygonBounds(zone.polygon);
+    const W = wrap.clientWidth, H = wrap.clientHeight;
+    const pw = bounds.maxX - bounds.minX;
+    const ph = bounds.maxY - bounds.minY;
+    if (pw < 1 || ph < 1) return;
+    const pad = 80;
+    const s   = Math.min((W - pad * 2) / pw, (H - pad * 2) / ph, 8);
+    const cx  = (bounds.minX + bounds.maxX) / 2;
+    const cy  = (bounds.minY + bounds.maxY) / 2;
+    scaleRef.current  = s;
+    offsetRef.current = {
+      x: W / 2 - cx * s,
+      y: H / 2 - cy * s,
+    };
+    setZoomPct(Math.round(s * 100));
+    canvasApiRef.current?.drawAll();
+    wrapRef.current?.__vtReposition?.();
+  }
+
+  // ── NEW: Zoom to a specific camera marker ─────────────────────────
+  function zoomToCamera(camId) {
+    const marker = markersRef.current.find(m => m.camId === camId);
+    if (!marker) return;
+    const wrap = wrapRef.current;
+    if (!wrap) return;
+    const W = wrap.clientWidth, H = wrap.clientHeight;
+    const targetScale = Math.max(scaleRef.current, 2);
+    scaleRef.current  = targetScale;
+    offsetRef.current = {
+      x: W / 2 - marker.x * targetScale,
+      y: H / 2 - marker.y * targetScale,
+    };
+    setZoomPct(Math.round(targetScale * 100));
+    canvasApiRef.current?.drawAll();
+    wrapRef.current?.__vtReposition?.();
+  }
+
   // ── Canvas mouse events ───────────────────────────────────────────
   const onMouseMove = useCallback(e => {
     if (!floorImgRef.current) return;
     const p = toImg(e.clientX, e.clientY);
+
+    if (modeRef.current === "zone") {
+      canvasApiRef.current?.drawAll();
+      return;
+    }
 
     // Rotating
     if (rotatingRef.current !== null) {
@@ -504,8 +834,13 @@ export default function MapViewPage() {
 
     // Dragging marker
     if (draggingRef.current !== null && modeRef.current === "place") {
-      markersRef.current[draggingRef.current].x = p.x;
-      markersRef.current[draggingRef.current].y = p.y;
+      const nx = p.x, ny = p.y;
+      if (!isInsideActiveZone(nx, ny)) {
+        setZoneAlert("⚠ Camera cannot be placed outside this zone.");
+        return;
+      }
+      markersRef.current[draggingRef.current].x = nx;
+      markersRef.current[draggingRef.current].y = ny;
       setMarkers([...markersRef.current]);
       canvasApiRef.current?.drawAll();
       return;
@@ -552,6 +887,22 @@ export default function MapViewPage() {
     mouseDownPosRef.current = { x: e.clientX, y: e.clientY };
     const p = toImg(e.clientX, e.clientY);
 
+    // Zone drawing mode
+    if (modeRef.current === "zone") {
+      const pts = drawingPointsRef.current;
+      if (pts.length >= 3) {
+        const dist = Math.hypot(p.x - pts[0].x, p.y - pts[0].y);
+        if (dist < 20 / scaleRef.current) {
+          finishZoneDrawing(pts);
+          return;
+        }
+      }
+      const updated = [...pts, p];
+      drawingPointsRef.current = updated;
+      setDrawingPoints([...updated]);
+      return;
+    }
+
     const rotIdx = nearDirectionHandle(p.x, p.y);
     if (rotIdx >= 0 && modeRef.current === "place") {
       rotatingRef.current = rotIdx;
@@ -571,6 +922,10 @@ export default function MapViewPage() {
       return;
     }
     if (selectedCamRef.current && modeRef.current === "place") {
+      if (!isInsideActiveZone(p.x, p.y)) {
+        setZoneAlert("⚠ Camera cannot be placed outside the selected zone.");
+        return;
+      }
       setPendingFov(60);
       setPendingDirection(0);
       setPendingPos(p);
@@ -580,6 +935,8 @@ export default function MapViewPage() {
   }, []); // eslint-disable-line
 
   const onMouseUp = useCallback(e => {
+    if (modeRef.current === "zone") return;
+
     if (rotatingRef.current !== null) {
       const previewIdx = markersRef.current.length;
       if (rotatingRef.current !== previewIdx) {
@@ -628,13 +985,111 @@ export default function MapViewPage() {
   const onDrop = useCallback(e => {
     e.preventDefault();
     if (!floorImgRef.current || !dragCamRef.current) return;
+    const p = toImg(e.clientX, e.clientY);
+    if (!isInsideActiveZone(p.x, p.y)) {
+      setZoneAlert("⚠ Camera cannot be dropped outside the selected zone.");
+      dragCamRef.current = null;
+      return;
+    }
     setPendingFov(60);
     setPendingDirection(0);
-    setPendingPos(toImg(e.clientX, e.clientY));
+    setPendingPos(p);
     setPendingCam(dragCamRef.current);
     setShowModal(true);
     dragCamRef.current = null;
-  }, []);
+  }, []); // eslint-disable-line
+
+  // ── Zone drawing ──────────────────────────────────────────────────
+  function finishZoneDrawing(pts) {
+    if (pts.length < 3) {
+      setZoneAlert("Draw at least 3 points to create a zone.");
+      cancelZoneDrawing();
+      return;
+    }
+    setPendingZonePoly(pts);
+    setDrawingPoints([]);
+    drawingPointsRef.current = [];
+    setShowZoneNameModal(true);
+  }
+
+  function cancelZoneDrawing() {
+    setDrawingPoints([]);
+    drawingPointsRef.current = [];
+    setPendingZonePoly(null);
+    setShowZoneNameModal(false);
+    modeRef.current = "place";
+    setMode("place");
+    setStatus("Select a camera then click the map to place");
+  }
+
+  function saveZone(name) {
+    const color   = ZONE_COLORS[zonesRef.current.length % ZONE_COLORS.length];
+    const newZone = {
+      id:      `zone_${Date.now()}`,
+      name,
+      color,
+      polygon: pendingZonePoly,
+      floorIndex: activeFloor,
+    };
+    const updated = [...zonesRef.current, newZone];
+    setZones(updated);
+    zonesRef.current = updated;
+    persistZones(updated); // ← saves to backend + localStorage
+    setPendingZonePoly(null);
+    setShowZoneNameModal(false);
+    modeRef.current = "place";
+    setMode("place");
+    setStatus(`Zone "${name}" created`);
+    canvasApiRef.current?.drawAll();
+  }
+
+  function deleteZone(id) {
+    const updated = zonesRef.current.filter(z => z.id !== id);
+    setZones(updated);
+    zonesRef.current = updated;
+    persistZones(updated); // ← saves to backend + localStorage
+    if (activeZoneIdRef.current === id) {
+      setActiveZoneId(null);
+      activeZoneIdRef.current = null;
+    }
+    canvasApiRef.current?.drawAll();
+  }
+
+  function selectZone(zone) {
+    const newId = activeZoneId === zone.id ? null : zone.id;
+    setActiveZoneId(newId);
+    activeZoneIdRef.current = newId;
+    setHighlightedCamId(null);
+    if (newId) {
+      zoomToZone(zone);
+      setStatus(`Zone "${zone.name}" active`);
+    } else {
+      setStatus("Zone deselected");
+    }
+  }
+
+  // ── NEW: Highlight camera from sidebar ────────────────────────────
+  function handleHighlightCam(camId) {
+    const newId = highlightedCamId === camId ? null : camId;
+    setHighlightedCamId(newId);
+    highlightedCamIdRef.current = newId;
+    if (newId) {
+      zoomToCamera(newId);
+      // Flash the marker on canvas
+      canvasApiRef.current?.drawAll();
+    }
+  }
+
+  // ── NEW: Remove camera from zone (removes from map) ───────────────
+  function removeCamFromZone(camId) {
+    const next = markersRef.current.filter(m => m.camId !== camId);
+    updateMarkers(next);
+    if (highlightedCamId === camId) {
+      setHighlightedCamId(null);
+      highlightedCamIdRef.current = null;
+    }
+    setStatus("Camera removed");
+  }
 
   // ── Floor plan import ─────────────────────────────────────────────
   function handleFileChange(e) {
@@ -672,24 +1127,70 @@ export default function MapViewPage() {
     loadFloor(updated.length - 1, updated);
   }
 
-  function switchFloor(idx) {
-    if (idx === activeFloor) return;
-    setActiveFloor(idx);
-    loadFloor(idx);
+ function switchFloor(idx) {
+  if (idx === activeFloor) return;
+  setActiveFloor(idx);
+  loadFloor(idx);
+  setActiveZoneId(null);
+  activeZoneIdRef.current = null;
+  setHighlightedCamId(null);
+}
+function deleteFloor(idx) {
+  if (floors.length === 1) {
+    alert("Cannot delete the last floor.");
+    return;
   }
+  if (!window.confirm(`Delete ${floors[idx]?.name} and all its cameras?`)) return;
+
+  // Remove zones belonging to this floor, shift floorIndex for floors above
+  const updatedZones = zones
+    .filter(z => z.floorIndex !== idx)
+    .map(z => z.floorIndex > idx ? { ...z, floorIndex: z.floorIndex - 1 } : z);
+  setZones(updatedZones);
+  zonesRef.current = updatedZones;
+  persistZones(updatedZones);
+
+  const updatedFloors = floors.filter((_, i) => i !== idx);
+  const newActiveFloor = activeFloor >= updatedFloors.length
+    ? updatedFloors.length - 1
+    : activeFloor === idx ? 0 : activeFloor > idx ? activeFloor - 1 : activeFloor;
+
+  setFloors(updatedFloors);
+  floorsRef.current = updatedFloors;
+  persistFloors(updatedFloors);
+  setActiveFloor(newActiveFloor);
+  loadFloor(newActiveFloor, updatedFloors);
+  setActiveZoneId(null);
+  activeZoneIdRef.current = null;
+  setHighlightedCamId(null);
+  setStatus(`${floors[idx]?.name} deleted`);
+}
 
   // ── Mode helpers ──────────────────────────────────────────────────
   function setPlaceMode() {
     modeRef.current = "place";
     setMode("place");
+    setDrawingPoints([]);
+    drawingPointsRef.current = [];
     setStatus("Select a camera then click the map to place");
   }
   function setPanMode() {
     modeRef.current = "pan";
     setMode("pan");
+    setDrawingPoints([]);
+    drawingPointsRef.current = [];
     setStatus("Drag to pan");
     setSelectedCam(null);
     selectedCamRef.current = null;
+  }
+  function setZoneMode() {
+    modeRef.current = "zone";
+    setMode("zone");
+    setSelectedCam(null);
+    selectedCamRef.current = null;
+    setDrawingPoints([]);
+    drawingPointsRef.current = [];
+    setStatus("Click to add zone points — click near the first point to close & save");
   }
 
   // ── Placement confirmation ────────────────────────────────────────
@@ -743,10 +1244,109 @@ export default function MapViewPage() {
     updateMarkers([]);
     setStatus("Floor cleared");
   }
+  async function downloadFloor() {
+  const img = floorImgRef.current;
+  if (!img) return;
 
-  // ── Computed ──────────────────────────────────────────────────────
+  const canvas  = document.createElement("canvas");
+  canvas.width  = img.width;
+  canvas.height = img.height;
+  const ctx     = canvas.getContext("2d");
+
+  // Polyfill roundRect
+  if (!ctx.roundRect) {
+    ctx.roundRect = function(x, y, w, h, r) {
+      this.beginPath();
+      this.moveTo(x + r, y);
+      this.lineTo(x + w - r, y);
+      this.quadraticCurveTo(x + w, y, x + w, y + r);
+      this.lineTo(x + w, y + h - r);
+      this.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+      this.lineTo(x + r, y + h);
+      this.quadraticCurveTo(x, y + h, x, y + h - r);
+      this.lineTo(x, y + r);
+      this.quadraticCurveTo(x, y, x + r, y);
+      this.closePath();
+    };
+  }
+
+  // 1 — Floor plan image
+  ctx.drawImage(img, 0, 0);
+
+  // 2 — Zones (filled polygon + border only, NO label)
+  zones.filter(z => z.floorIndex === activeFloor).forEach(zone => {
+    if (zone.polygon.length < 3) return;
+    ctx.beginPath();
+    ctx.moveTo(zone.polygon[0].x, zone.polygon[0].y);
+    zone.polygon.slice(1).forEach(p => ctx.lineTo(p.x, p.y));
+    ctx.closePath();
+    ctx.fillStyle   = zone.color + "22";
+    ctx.fill();
+    ctx.strokeStyle = zone.color;
+    ctx.lineWidth   = 2;
+    ctx.setLineDash([6, 3]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  });
+
+  // 3 — Camera markers (icon only, NO name label)
+  markers.forEach(m => {
+    const cam      = cameras.find(c => c.id === m.camId);
+    const isOnline = cam?.status === "online";
+    const color    = isOnline ? "#1D9E75" : "#888780";
+    const fov      = (m.fovAngle || 60) * (Math.PI / 180);
+    const dir      = ((m.direction || 0) - 90) * (Math.PI / 180);
+    const radius   = 60;
+
+    // FOV cone — subtle, no stroke label
+    ctx.beginPath();
+    ctx.moveTo(m.x, m.y);
+    ctx.arc(m.x, m.y, radius, dir - fov / 2, dir + fov / 2);
+    ctx.closePath();
+    ctx.fillStyle = color + "28";
+    ctx.fill();
+    ctx.strokeStyle = color + "55";
+    ctx.lineWidth   = 1;
+    ctx.stroke();
+
+    // Camera circle
+    ctx.beginPath();
+    ctx.arc(m.x, m.y, 9, 0, Math.PI * 2);
+    ctx.fillStyle   = color;
+    ctx.fill();
+    ctx.strokeStyle = "#fff";
+    ctx.lineWidth   = 2;
+    ctx.stroke();
+
+    // Center dot
+    ctx.beginPath();
+    ctx.arc(m.x, m.y, 3.5, 0, Math.PI * 2);
+    ctx.fillStyle = "#fff";
+    ctx.fill();
+  });
+
+  // 4 — Floor name watermark only (small, bottom-left)
+  const floorName = floors[activeFloor]?.name || "Floor";
+  ctx.font         = "600 16px Inter, sans-serif";
+  ctx.textAlign    = "left";
+  ctx.textBaseline = "bottom";
+  ctx.fillStyle    = "#000000aa";
+  ctx.fillText(floorName, 16, canvas.height - 12);
+  ctx.fillStyle    = "#ffffffcc";
+  ctx.fillText(floorName, 14, canvas.height - 14);
+
+  // 5 — Download
+  const link    = document.createElement("a");
+  link.download = `${floorName.replace(/\s+/g, "_")}_map.png`;
+  link.href     = canvas.toDataURL("image/png");
+  link.click();
+}
+
+
+  // Computed
   const placedIds   = new Set(markers.map(m => m.camId));
   const totalPlaced = floors.reduce((s, f) => s + (f.markers?.length || 0), 0);
+  const activeZone  = zones.find(z => z.id === activeZoneId) || null;
 
   // ── Render ────────────────────────────────────────────────────────
   return (
@@ -764,7 +1364,6 @@ export default function MapViewPage() {
           <span className="mv-toolbar__title">Map View</span>
           <div className="mv-sep" />
 
-          {/* Import */}
           <button className="mv-tbtn" onClick={() => fileInputRef.current?.click()}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="13" height="13">
               <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/>
@@ -781,7 +1380,6 @@ export default function MapViewPage() {
 
           <div className="mv-sep" />
 
-          {/* Place mode */}
           <button
             className={`mv-tbtn ${mode === "place" ? "mv-tbtn--active" : ""}`}
             onClick={setPlaceMode}
@@ -793,7 +1391,6 @@ export default function MapViewPage() {
             Place
           </button>
 
-          {/* Pan mode */}
           <button
             className={`mv-tbtn ${mode === "pan" ? "mv-tbtn--active" : ""}`}
             onClick={setPanMode}
@@ -804,7 +1401,19 @@ export default function MapViewPage() {
             Pan
           </button>
 
-          {/* Blind spots / heatmap */}
+          <button
+            className={`mv-tbtn mv-tbtn--zone ${mode === "zone" ? "mv-tbtn--zone-active" : ""}`}
+            onClick={mode === "zone" ? cancelZoneDrawing : setZoneMode}
+            title="Draw a zone on the map"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="13" height="13">
+              <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/>
+              <line x1="8" y1="2" x2="8" y2="18"/>
+              <line x1="16" y1="6" x2="16" y2="22"/>
+            </svg>
+            {mode === "zone" ? "Cancel Zone" : "Create Zone"}
+          </button>
+
           <button
             className={`mv-tbtn ${showHeatmap ? "mv-tbtn--active" : ""}`}
             onClick={() => setShowHeatmap(h => !h)}
@@ -814,14 +1423,13 @@ export default function MapViewPage() {
               <circle cx="12" cy="12" r="3"/>
               <path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
             </svg>
-            {showHeatmap ? "Hide Heatmap" : "Blind Spots"}
+            {showHeatmap ? "Hide Heatmap" : "Heatmap"}
           </button>
 
-          {/* Virtual map view */}
           <button
             className={`mv-tbtn ${virtualMode ? "mv-tbtn--virtual" : ""}`}
             onClick={() => { setVirtualMode(v => !v); setExpandedCamId(null); }}
-            title="Toggle Virtual Map View — live feeds pinned to camera positions"
+            title="Toggle Virtual Map View"
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="13" height="13">
               <rect x="2" y="3" width="20" height="14" rx="2"/>
@@ -833,13 +1441,24 @@ export default function MapViewPage() {
             {virtualMode ? "Exit View" : "Map View"}
           </button>
 
-          {/* Clear floor */}
           <button className="mv-tbtn mv-tbtn--danger" onClick={clearFloor}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="13" height="13">
               <polyline points="3 6 5 6 21 6"/>
               <path d="M19 6l-1 14H6L5 6M10 11v6M14 11v6M9 6V4h6v2"/>
             </svg>
             Clear Floor
+          </button>
+
+          <button
+            className="mv-tbtn"
+            onClick={downloadFloor}
+            disabled={!hasFloor}
+            title="Download current floor map with cameras and zones"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="13" height="13">
+              <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/>
+            </svg>
+            Download
           </button>
         </div>
 
@@ -850,23 +1469,37 @@ export default function MapViewPage() {
               ⚠ Cached locally
             </span>
           )}
+          {mode === "zone" && drawingPoints.length > 0 && (
+            <span className="mv-zone-draw-hint">
+              {drawingPoints.length} pts — click near start point to close
+              <button
+                className="mv-zone-draw-done"
+                onClick={() => drawingPoints.length >= 3 && finishZoneDrawing(drawingPoints)}
+                disabled={drawingPoints.length < 3}
+              >
+                Finish
+              </button>
+            </span>
+          )}
           <span className="mv-status-txt">{statusTxt}</span>
           <span className="mv-status-count">
-            {totalPlaced} cam{totalPlaced !== 1 ? "s" : ""} / {floors.length} floor{floors.length !== 1 ? "s" : ""}
+            {totalPlaced} cam{totalPlaced !== 1 ? "s" : ""}
+            {zones.length > 0 && ` / ${zones.length} zone${zones.length !== 1 ? "s" : ""}`}
           </span>
         </div>
       </div>
 
-      {/* ── Main area (toolbar ▸ floor sidebar + canvas + camera sidebar) ── */}
+      {/* ── Main ── */}
       <div className="mv-main">
 
         {/* ════════════════════════════════════════
-            Floor Sidebar  (left)
-            Collapses to 52 px; expands on hover.
+            LEFT SIDEBAR — Zones only (floors removed)
             ════════════════════════════════════════ */}
-        <div className="mv-floor-sidebar">
-
-          {/* Header */}
+        <div
+          className="mv-floor-sidebar"
+          onMouseEnter={() => setSidebarExpanded(true)}
+          onMouseLeave={() => setSidebarExpanded(false)}
+        >
           <div className="mv-floor-sidebar__head">
             <svg
               className="mv-floor-sidebar__icon"
@@ -877,50 +1510,88 @@ export default function MapViewPage() {
               width="16"
               height="16"
             >
-              <polygon points="12 2 2 7 12 12 22 7 12 2"/>
-              <polyline points="2 17 12 22 22 17"/>
-              <polyline points="2 12 12 17 22 12"/>
+              <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/>
+              <line x1="8" y1="2" x2="8" y2="18"/>
+              <line x1="16" y1="6" x2="16" y2="22"/>
             </svg>
-            <span className="mv-floor-sidebar__label">Floors</span>
+            <span className="mv-floor-sidebar__label">Zones</span>
           </div>
 
-          {/* Floor list */}
           <div className="mv-floor-sidebar__list">
-            {floors.map((f, i) => (
-              <button
-                key={f.id}
-                className={`mv-floor-btn ${i === activeFloor ? "mv-floor-btn--active" : ""}`}
-                onClick={() => switchFloor(i)}
-                title={f.name}
-              >
-                {/* Number badge — always visible */}
-                <span className="mv-floor-btn__num">{i + 1}</span>
-                {/* Name — revealed on sidebar hover */}
-                <span className="mv-floor-btn__name">{f.name}</span>
-                {/* Camera count chip */}
-                {f.markers?.length > 0 && (
-                  <span className="mv-floor-btn__badge">{f.markers.length}</span>
-                )}
-              </button>
+            {zones.length === 0 && (
+              <div className="mv-zone-empty-hint">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" width="22" height="22" style={{ opacity: 0.3 }}>
+                  <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/>
+                </svg>
+                <span className="mv-zone-empty-hint__text">No zones yet</span>
+              </div>
+            )}
+
+            {/* ── Zone items with camera sub-lists ── */}
+            {zones.filter(z => z.floorIndex === activeFloor).map((zone) => (
+              <ZoneSidebarItem
+                key={zone.id}
+                zone={zone}
+                markers={markers}
+                cameras={cameras}
+                isActive={activeZoneId === zone.id}
+                highlightedCamId={highlightedCamId}
+                onSelect={selectZone}
+                onDelete={deleteZone}
+                onHighlightCam={handleHighlightCam}
+                onRemoveCam={removeCamFromZone}
+                sidebarExpanded={sidebarExpanded}
+              />
             ))}
 
-            {/* Add floor */}
+            {/* Create zone shortcut */}
             <button
               className="mv-floor-btn mv-floor-btn--add"
-              onClick={addFloor}
-              title="Add Floor"
+              onClick={setZoneMode}
+              title="Draw a new zone"
             >
               <span className="mv-floor-btn__num">+</span>
-              <span className="mv-floor-btn__name">Add Floor</span>
+              <span className="mv-floor-btn__name">Create Zone</span>
             </button>
+            {/* Divider */}
+<div className="mv-zone-divider" />
+
+{/* Floors sub-section */}
+<div className="mv-zone-section-label">Floors</div>
+{floors.map((f, i) => (
+  <button
+    key={f.id}
+    className={`mv-floor-btn ${i === activeFloor ? "mv-floor-btn--active" : ""}`}
+    onClick={() => switchFloor(i)}
+    title={f.name}
+  >
+    <span className="mv-floor-btn__num">{i + 1}</span>
+    <span className="mv-floor-btn__name">{f.name}</span>
+    {f.markers?.length > 0 && (
+      <span className="mv-floor-btn__badge">{f.markers.length}</span>
+    )}
+    <span
+      className="mv-zone-btn__delete"
+      onClick={e => { e.stopPropagation(); deleteFloor(i); }}
+      title="Delete floor"
+    >✕</span>
+  </button>
+))}
+<button
+  className="mv-floor-btn mv-floor-btn--add"
+  onClick={addFloor}
+  title="Add Floor"
+>
+  <span className="mv-floor-btn__num">+</span>
+  <span className="mv-floor-btn__name">Add Floor</span>
+</button>
           </div>
         </div>
-        {/* ════════════ end floor sidebar ════════════ */}
 
         {/* ── Canvas ── */}
         <div
           ref={wrapRef}
-          className={`mv-canvas-wrap ${mode === "pan" ? "mv-pan-mode" : ""} ${selectedCam ? "mv-place-mode" : ""}`}
+          className={`mv-canvas-wrap ${mode === "pan" ? "mv-pan-mode" : ""} ${selectedCam ? "mv-place-mode" : ""} ${mode === "zone" ? "mv-zone-mode" : ""}`}
           onDragOver={e => e.preventDefault()}
           onDrop={onDrop}
         >
@@ -934,9 +1605,11 @@ export default function MapViewPage() {
               cameras={cameras}
               markers={canvasMarkers}
               floorImgRef={floorImgRef}
+              zones={zones}
               scaleRef={scaleRef}
               offsetRef={offsetRef}
               hoveredIdxRef={hoveredIdxRef}
+              highlightedCamId={highlightedCamId}
               showHeatmap={showHeatmap}
               onMouseMove={onMouseMove}
               onMouseDown={onMouseDown}
@@ -950,6 +1623,19 @@ export default function MapViewPage() {
             />
           )}
 
+          {/* ── Zone SVG overlay ── */}
+          {!pageLoading && hasFloor && (
+            <ZoneOverlay
+              zones={zones.filter(z => z.floorIndex === activeFloor)}
+              drawingPoints={drawingPoints}
+              activeZoneId={activeZoneId}
+              scaleRef={scaleRef}
+              offsetRef={offsetRef}
+              wrapRef={wrapRef}
+              mode={mode}
+            />
+          )}
+
           {/* Empty-floor hint */}
           {!hasFloor && !pageLoading && (
             <div className="mv-hint">
@@ -959,7 +1645,7 @@ export default function MapViewPage() {
                   <path d="M3 9h18M9 21V9"/>
                 </svg>
               </div>
-              <p className="mv-hint__title">No floor plan for {floors[activeFloor]?.name}</p>
+              <p className="mv-hint__title">No floor plan loaded</p>
               <p className="mv-hint__sub">
                 Click <strong>Import Floor Plan</strong> above to upload a JPEG or PNG
               </p>
@@ -994,9 +1680,15 @@ export default function MapViewPage() {
           )}
 
           {/* Heatmap overlay */}
-          {showHeatmap && (
-            <HeatmapLayer markers={markers} cameras={cameras} />
-          )}
+          <HeatmapLayer
+            markers={markers}
+            cameras={cameras}
+            scaleRef={scaleRef}
+            offsetRef={offsetRef}
+            wrapRef={wrapRef}
+            showHeatmap={showHeatmap}
+            floorImgRef={floorImgRef}
+          />
 
           {/* Virtual Map View */}
           <VirtualMapView
@@ -1023,8 +1715,38 @@ export default function MapViewPage() {
               onCancel={cancelPlacement}
             />
           )}
+
+          {/* Zone alert toast */}
+          {zoneAlert && (
+            <ZoneAlert message={zoneAlert} onDismiss={() => setZoneAlert(null)} />
+          )}
+
+          {/* Active zone indicator */}
+          {activeZone && (
+            <div className="mv-active-zone-badge" style={{ borderColor: activeZone.color }}>
+              <span className="mv-active-zone-badge__dot" style={{ background: activeZone.color }} />
+              Zone: {activeZone.name}
+              <button
+                className="mv-active-zone-badge__clear"
+                onClick={() => {
+                  setActiveZoneId(null);
+                  activeZoneIdRef.current = null;
+                  setStatus("Zone deselected");
+                }}
+              >✕</button>
+            </div>
+          )}
+
+          {/* Zone drawing hint overlay */}
+          {mode === "zone" && (
+            <div className="mv-zone-draw-overlay">
+              {drawingPoints.length === 0
+                ? "Click anywhere on the map to start drawing a zone"
+                : `${drawingPoints.length} point${drawingPoints.length !== 1 ? "s" : ""} — keep clicking to add more, or click near the first point to close`
+              }
+            </div>
+          )}
         </div>
-        {/* ── end canvas ── */}
 
         {/* ── Camera sidebar (right) ── */}
         <div className="mv-sidebar">
@@ -1032,6 +1754,13 @@ export default function MapViewPage() {
             <span>Available Cameras</span>
             <span className="mv-sidebar__count">{cameras.length}</span>
           </div>
+
+          {activeZone && (
+            <div className="mv-sidebar-zone-notice" style={{ borderColor: activeZone.color + "60" }}>
+              <span style={{ color: activeZone.color }}>●</span>
+              &nbsp;Cameras must be placed inside <strong>{activeZone.name}</strong>
+            </div>
+          )}
 
           <div className="mv-cam-list">
             {pageLoading ? (
@@ -1063,6 +1792,7 @@ export default function MapViewPage() {
                   name:   m.camName,
                   status: "offline",
                 };
+                const camZone = zones.filter(z => z.floorIndex === activeFloor).find(z => z.polygon.length >= 3 && pointInPolygon(m.x, m.y, z.polygon));
                 return (
                   <div key={i} className="mv-legend__item">
                     <span className="mv-legend__num">{i + 1}</span>
@@ -1071,15 +1801,18 @@ export default function MapViewPage() {
                       <span className="mv-legend__name">{cam.name}</span>
                       <span className="mv-legend__meta">
                         FOV {m.fovAngle || 60}° · {Math.round(m.direction || 0)}°
+                        {camZone && (
+                          <span className="mv-legend__zone-tag" style={{ color: camZone.color }}>
+                            &nbsp;· {camZone.name}
+                          </span>
+                        )}
                       </span>
                     </div>
                     <button
                       className="mv-legend__remove"
                       onClick={() => removeMarker(i)}
                       title="Remove"
-                    >
-                      ✕
-                    </button>
+                    >✕</button>
                   </div>
                 );
               })}
@@ -1094,9 +1827,7 @@ export default function MapViewPage() {
                 const el = wrapRef.current;
                 if (el) applyZoom(-0.2, el.clientWidth / 2, el.clientHeight / 2);
               }}
-            >
-              −
-            </button>
+            >−</button>
             <span className="mv-zoom-label">{zoomPct}%</span>
             <button
               className="mv-zbtn"
@@ -1104,23 +1835,183 @@ export default function MapViewPage() {
                 const el = wrapRef.current;
                 if (el) applyZoom(0.2, el.clientWidth / 2, el.clientHeight / 2);
               }}
-            >
-              +
-            </button>
-            <button className="mv-zbtn mv-zbtn--fit" onClick={fitImage}>
-              Fit
-            </button>
+            >+</button>
+            <button className="mv-zbtn mv-zbtn--fit" onClick={fitImage}>Fit</button>
           </div>
         </div>
-        {/* ── end camera sidebar ── */}
-
       </div>
-      {/* ── end mv-main ── */}
 
       {/* Stream / Alerts modal */}
       {streamCam && (
         <StreamModal cam={streamCam} onClose={() => setStreamCam(null)} />
       )}
+
+      {/* Zone name modal */}
+      {showZoneNameModal && (
+        <ZoneNameModal
+          onSave={saveZone}
+          onCancel={cancelZoneDrawing}
+          existingNames={zones.map(z => z.name)}
+        />
+      )}
     </div>
+  );
+}
+
+// ── Zone SVG Overlay ──────────────────────────────────────────────────
+function ZoneOverlay({ zones, drawingPoints, activeZoneId, scaleRef, offsetRef, wrapRef, mode }) {
+  const [, forceRender] = useState(0);
+
+  useEffect(() => {
+    let raf;
+    function tick() {
+      forceRender(n => n + 1);
+      raf = requestAnimationFrame(tick);
+    }
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
+  const wrap = wrapRef.current;
+  if (!wrap) return null;
+  const W = wrap.clientWidth;
+  const H = wrap.clientHeight;
+
+  function toPx(ix, iy) {
+    return [
+      ix * scaleRef.current + offsetRef.current.x,
+      iy * scaleRef.current + offsetRef.current.y,
+    ];
+  }
+
+  function polyPoints(polygon) {
+    return polygon.map(p => toPx(p.x, p.y).join(",")).join(" ");
+  }
+
+  return (
+    <svg
+      style={{
+        position: "absolute",
+        inset: 0,
+        width: W,
+        height: H,
+        pointerEvents: "none",
+        zIndex: 4,
+      }}
+    >
+      <defs>
+        {zones.map(z => (
+          <pattern
+            key={`pat-${z.id}`}
+            id={`hatch-${z.id}`}
+            width="10"
+            height="10"
+            patternUnits="userSpaceOnUse"
+            patternTransform="rotate(45)"
+          >
+            <line
+              x1="0" y1="0" x2="0" y2="10"
+              stroke={z.color}
+              strokeWidth="1.5"
+              strokeOpacity="0.18"
+            />
+          </pattern>
+        ))}
+      </defs>
+
+      {zones.map(z => {
+        if (z.polygon.length < 3) return null;
+        const pts      = polyPoints(z.polygon);
+        const isActive = z.id === activeZoneId;
+        const cx = z.polygon.reduce((s, p) => s + p.x, 0) / z.polygon.length;
+        const cy = z.polygon.reduce((s, p) => s + p.y, 0) / z.polygon.length;
+        const [lx, ly] = toPx(cx, cy);
+
+        return (
+          <g key={z.id}>
+            <polygon
+              points={pts}
+              fill={`url(#hatch-${z.id})`}
+              stroke={z.color}
+              strokeWidth={isActive ? 2.5 : 1.5}
+              strokeOpacity={isActive ? 1 : 0.55}
+              strokeDasharray={isActive ? "none" : "6 3"}
+            />
+            <polygon
+              points={pts}
+              fill={z.color}
+              fillOpacity={isActive ? 0.1 : 0.05}
+              stroke="none"
+            />
+            {z.polygon.map((p, i) => {
+              const [vx, vy] = toPx(p.x, p.y);
+              return (
+                <circle
+                  key={i}
+                  cx={vx} cy={vy}
+                  r={isActive ? 4 : 3}
+                  fill={z.color}
+                  fillOpacity={isActive ? 0.9 : 0.5}
+                  stroke="#fff"
+                  strokeWidth="1"
+                  strokeOpacity="0.4"
+                />
+              );
+            })}
+            <g transform={`translate(${lx},${ly})`}>
+              <rect x={-32} y={-11} width={64} height={22} rx={5} fill={z.color} fillOpacity={0.85} />
+              <text
+                x={0} y={4}
+                textAnchor="middle"
+                fontSize={10}
+                fontWeight={700}
+                fontFamily="Inter, sans-serif"
+                fill="#fff"
+                fillOpacity={0.95}
+              >
+                {z.name.length > 10 ? z.name.slice(0, 9) + "…" : z.name}
+              </text>
+            </g>
+          </g>
+        );
+      })}
+
+      {mode === "zone" && drawingPoints.length > 0 && (
+        <g>
+          {drawingPoints.length > 1 && (
+            <polyline
+              points={drawingPoints.map(p => toPx(p.x, p.y).join(",")).join(" ")}
+              fill="none"
+              stroke="#F59E0B"
+              strokeWidth="2"
+              strokeDasharray="6 3"
+              strokeOpacity="0.9"
+            />
+          )}
+          {drawingPoints.map((p, i) => {
+            const [vx, vy] = toPx(p.x, p.y);
+            return (
+              <circle
+                key={i}
+                cx={vx} cy={vy}
+                r={i === 0 ? 6 : 4}
+                fill={i === 0 ? "#F59E0B" : "#fff"}
+                stroke="#F59E0B"
+                strokeWidth="2"
+                fillOpacity={i === 0 ? 1 : 0.85}
+              />
+            );
+          })}
+          {(() => {
+            const [fx, fy] = toPx(drawingPoints[0].x, drawingPoints[0].y);
+            return (
+              <text x={fx + 8} y={fy - 8} fontSize={9} fill="#F59E0B" fontFamily="Inter, sans-serif" fontWeight={700}>
+                start
+              </text>
+            );
+          })()}
+        </g>
+      )}
+    </svg>
   );
 }

@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, Depends
 from pymongo import MongoClient
 from datetime import datetime
 from pydantic import BaseModel
-from typing import List, Optional, Any, Dict
+from typing import List, Optional
 from jwt_auth import verify_token
 import os
 
@@ -22,32 +22,49 @@ class Marker(BaseModel):
     camIp:     Optional[str] = ""
     x:         float
     y:         float
-    fovAngle:  Optional[float] = 60    # ← NEW: FOV angle in degrees (40/60/90/120)
-    direction: Optional[float] = 0     # ← NEW: facing direction 0–359°
+    fovAngle:  Optional[float] = 60
+    direction: Optional[float] = 0
 
 
 class Floor(BaseModel):
     id:           str
     name:         str
-    imageDataUrl: Optional[str] = None   # base64 data-URL of floor plan image
+    imageDataUrl: Optional[str] = None
     markers:      List[Marker]  = []
 
 
 class MapSaveRequest(BaseModel):
     map_id:     Optional[str]         = "default"
-    floors:     Optional[List[Floor]] = None   # new multi-floor format
-    # ── legacy single-floor fields (kept for backward compat) ──
+    floors:     Optional[List[Floor]] = None
+    # legacy single-floor fields
     markers:    Optional[List[Marker]] = None
     floor_plan: Optional[str]          = None
 
 
-# ── Helpers ───────────────────────────────────────────────────────
+# ── Zone models ───────────────────────────────────────────────────
+
+class ZonePoint(BaseModel):
+    x: float
+    y: float
+
+
+class Zone(BaseModel):
+    id:         str
+    name:       str
+    color:      str
+    polygon:    List[ZonePoint]
+    floorIndex: Optional[int] = 0   # which floor this zone belongs to
+
+
+class ZoneSaveRequest(BaseModel):
+    map_id: Optional[str] = "default"
+    zones:  List[Zone]    = []
+
+
+# ── Legacy migration helper ───────────────────────────────────────
 
 def _migrate_to_floors(doc: dict) -> List[dict]:
-    """
-    If the stored document is in the old single-floor format
-    (markers[] + floor_plan) migrate it to the new floors[] format.
-    """
+    """Convert old single-document format to floors list."""
     if doc.get("floors"):
         return doc["floors"]
     return [{
@@ -55,126 +72,234 @@ def _migrate_to_floors(doc: dict) -> List[dict]:
         "name":         "Floor 1",
         "imageDataUrl": doc.get("floor_plan"),
         "markers":      doc.get("markers", []),
+        "floor_index":  0,
     }]
 
 
 # ── GET /api/maps ─────────────────────────────────────────────────
 @router.get("", dependencies=[Depends(verify_token)])
 def get_map(map_id: str = "default"):
-    doc = maps_col.find_one({"map_id": map_id}, {"_id": 0})
-    if not doc:
-        return {"map_id": map_id, "floors": [], "markers": [], "floor_plan": None}
+    # Fetch all documents for this map_id, sorted by floor_index
+    all_docs = list(maps_col.find({"map_id": map_id}, {"_id": 0}).sort("floor_index", 1))
 
-    floors = _migrate_to_floors(doc)
+    if not all_docs:
+        return {
+            "map_id":     map_id,
+            "floors":     [],
+            "zones":      [],
+            "markers":    [],
+            "floor_plan": None,
+        }
+
+    # Separate floor docs from zones doc
+    floor_docs = [d for d in all_docs if d.get("doc_type") == "floor"]
+    zones_doc  = next((d for d in all_docs if d.get("doc_type") == "zones"), None)
+
+    # If no typed docs exist, fall back to legacy single-document format
+    if not floor_docs:
+        legacy = next((d for d in all_docs if not d.get("doc_type")), None)
+        if legacy:
+            floors = _migrate_to_floors(legacy)
+            zones  = legacy.get("zones", [])
+            return {
+                "map_id":     map_id,
+                "floors":     floors,
+                "zones":      zones,
+                "markers":    legacy.get("markers", []),
+                "floor_plan": legacy.get("floor_plan"),
+                "updated_at": legacy.get("updated_at"),
+            }
+        return {
+            "map_id":     map_id,
+            "floors":     [],
+            "zones":      [],
+            "markers":    [],
+            "floor_plan": None,
+        }
+
+    # Build floors array from separate documents
+    floors = []
+    for doc in floor_docs:
+        floors.append({
+            "id":           doc.get("floor_id"),
+            "name":         doc.get("name"),
+            "imageDataUrl": doc.get("imageDataUrl"),
+            "markers":      doc.get("markers", []),
+            "floor_index":  doc.get("floor_index", 0),
+        })
+
+    zones = zones_doc.get("zones", []) if zones_doc else []
+
     return {
         "map_id":     map_id,
         "floors":     floors,
-        # Keep legacy fields so old clients don't break
-        "markers":    doc.get("markers", []),
-        "floor_plan": doc.get("floor_plan"),
-        "updated_at": doc.get("updated_at"),
+        "zones":      zones,
+        "markers":    [],
+        "floor_plan": None,
+        "updated_at": floor_docs[0].get("updated_at") if floor_docs else None,
     }
 
 
 # ── POST /api/maps ────────────────────────────────────────────────
 @router.post("", dependencies=[Depends(verify_token)])
 def save_map(req: MapSaveRequest):
-    existing = maps_col.find_one({"map_id": req.map_id}, {"_id": 0})
-
     if req.floors is not None:
-        # ── New multi-floor save ──────────────────────────────────
-        floors_data = []
-        for f in req.floors:
+        # Save each floor as its own separate document
+        total_markers = 0
+        for idx, f in enumerate(req.floors):
             floor_dict = f.dict()
-            # If client sent None for imageDataUrl, keep existing if available
-            if floor_dict["imageDataUrl"] is None and existing:
-                existing_floors = existing.get("floors", [])
-                match = next((ef for ef in existing_floors if ef.get("id") == f.id), None)
-                if match:
-                    floor_dict["imageDataUrl"] = match.get("imageDataUrl")
-            floors_data.append(floor_dict)
 
-        doc = {
-            "map_id":     req.map_id,
-            "floors":     floors_data,
-            "updated_at": datetime.utcnow().isoformat(),
-        }
-        total_markers = sum(len(f.get("markers", [])) for f in floors_data)
+            # Preserve existing imageDataUrl if client sent None
+            existing_floor = maps_col.find_one(
+                {"map_id": req.map_id, "doc_type": "floor", "floor_id": f.id},
+                {"_id": 0}
+            )
+            if floor_dict["imageDataUrl"] is None and existing_floor:
+                floor_dict["imageDataUrl"] = existing_floor.get("imageDataUrl")
+
+            maps_col.update_one(
+                {"map_id": req.map_id, "doc_type": "floor", "floor_id": f.id},
+                {"$set": {
+                    "map_id":       req.map_id,
+                    "doc_type":     "floor",
+                    "floor_id":     f.id,
+                    "floor_index":  idx,
+                    "name":         f.name,
+                    "imageDataUrl": floor_dict["imageDataUrl"],
+                    "markers":      floor_dict["markers"],
+                    "updated_at":   datetime.utcnow().isoformat(),
+                }},
+                upsert=True,
+            )
+            total_markers += len(floor_dict["markers"])
+
+        print(
+            f"[MAPS] ✅ Saved {len(req.floors)} floor(s) for map '{req.map_id}' | "
+            f"{total_markers} total markers"
+        )
+        return {"success": True, "map_id": req.map_id, "marker_count": total_markers}
 
     else:
-        # ── Legacy single-floor save (backward compat) ────────────
-        floor_plan = req.floor_plan
-        if floor_plan is None and existing:
-            floor_plan = existing.get("floor_plan")
-
+        # Legacy single-floor save (backward compat)
+        existing     = maps_col.find_one({"map_id": req.map_id}, {"_id": 0})
+        floor_plan   = req.floor_plan or (existing.get("floor_plan") if existing else None)
         markers_data = [m.dict() for m in (req.markers or [])]
 
-        doc = {
-            "map_id":     req.map_id,
-            "markers":    markers_data,
-            "floor_plan": floor_plan,
-            "updated_at": datetime.utcnow().isoformat(),
-        }
-        total_markers = len(markers_data)
+        maps_col.update_one(
+            {"map_id": req.map_id},
+            {"$set": {
+                "markers":    markers_data,
+                "floor_plan": floor_plan,
+                "updated_at": datetime.utcnow().isoformat(),
+            }},
+            upsert=True,
+        )
+        print(f"[MAPS] ✅ Legacy save for map '{req.map_id}': {len(markers_data)} markers")
+        return {"success": True, "map_id": req.map_id, "marker_count": len(markers_data)}
 
-    result = maps_col.update_one(
-        {"map_id": req.map_id},
-        {"$set": doc},
+
+# ── POST /api/maps/zones ──────────────────────────────────────────
+@router.post("/zones", dependencies=[Depends(verify_token)])
+def save_zones(req: ZoneSaveRequest):
+    """
+    Saves all zone definitions for a map in a single dedicated document.
+    Each zone has a floorIndex field so zones are floor-specific on the frontend.
+    """
+    zones_data = [z.dict() for z in req.zones]
+
+    maps_col.update_one(
+        {"map_id": req.map_id, "doc_type": "zones"},
+        {"$set": {
+            "map_id":     req.map_id,
+            "doc_type":   "zones",
+            "zones":      zones_data,
+            "updated_at": datetime.utcnow().isoformat(),
+        }},
         upsert=True,
     )
-    print(
-        f"[MAPS] ✅ Saved map '{req.map_id}': {total_markers} total markers | "
-        f"upserted={result.upserted_id is not None} modified={result.modified_count}"
+    print(f"[MAPS] 🗺  Saved {len(zones_data)} zone(s) for map '{req.map_id}'")
+    return {"success": True, "map_id": req.map_id, "zone_count": len(zones_data)}
+
+
+# ── DELETE /api/maps/zones/{zone_id} ─────────────────────────────
+@router.delete("/zones/{zone_id}", dependencies=[Depends(verify_token)])
+def delete_zone(zone_id: str, map_id: str = "default"):
+    """Remove a single zone by ID from the zones document."""
+    result = maps_col.update_one(
+        {"map_id": map_id, "doc_type": "zones"},
+        {"$pull": {"zones": {"id": zone_id}}}
     )
-    return {"success": True, "map_id": req.map_id, "marker_count": total_markers}
+    if result.modified_count == 0:
+        raise HTTPException(status_code=404, detail=f"Zone '{zone_id}' not found")
+
+    print(f"[MAPS] 🗑  Deleted zone '{zone_id}' from map '{map_id}'")
+    return {"success": True, "map_id": map_id, "deleted_zone_id": zone_id}
+
+
+# ── DELETE /api/maps/floor ────────────────────────────────────────
+@router.delete("/floor", dependencies=[Depends(verify_token)])
+def delete_floor(floor_id: str, map_id: str = "default"):
+    """Delete a floor's own document from MongoDB and re-index remaining floors."""
+    result = maps_col.delete_one(
+        {"map_id": map_id, "doc_type": "floor", "floor_id": floor_id}
+    )
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail=f"Floor '{floor_id}' not found")
+
+    # Re-index remaining floors so floor_index stays sequential (0, 1, 2 ...)
+    remaining = list(
+        maps_col.find({"map_id": map_id, "doc_type": "floor"}, {"_id": 0})
+               .sort("floor_index", 1)
+    )
+    for new_idx, doc in enumerate(remaining):
+        maps_col.update_one(
+            {"map_id": map_id, "doc_type": "floor", "floor_id": doc["floor_id"]},
+            {"$set": {"floor_index": new_idx}}
+        )
+
+    print(f"[MAPS] 🗑  Deleted floor '{floor_id}' from map '{map_id}', re-indexed {len(remaining)} remaining floors")
+    return {"success": True, "map_id": map_id, "deleted_floor_id": floor_id}
 
 
 # ── DELETE /api/maps ──────────────────────────────────────────────
 @router.delete("", dependencies=[Depends(verify_token)])
 def delete_map(map_id: str = "default"):
-    maps_col.delete_one({"map_id": map_id})
+    """Delete ALL documents for a map (all floors + zones)."""
+    result = maps_col.delete_many({"map_id": map_id})
+    print(f"[MAPS] 🗑  Deleted all {result.deleted_count} document(s) for map '{map_id}'")
     return {"success": True, "map_id": map_id}
 
 
 # ── POST /api/maps/floor-plan ─────────────────────────────────────
-# Legacy endpoint — updates floor plan of floor_1 only
+# Legacy endpoint — updates imageDataUrl for a specific floor document
 @router.post("/floor-plan", dependencies=[Depends(verify_token)])
 def save_floor_plan(payload: dict):
     map_id     = payload.get("map_id", "default")
     floor_plan = payload.get("floor_plan")
-    floor_id   = payload.get("floor_id", "floor_1")   # ← NEW optional param
+    floor_id   = payload.get("floor_id", "floor_1")
 
     if not floor_plan:
         raise HTTPException(status_code=400, detail="floor_plan required")
 
-    existing = maps_col.find_one({"map_id": map_id}, {"_id": 0})
+    # Try new per-floor document first
+    result = maps_col.update_one(
+        {"map_id": map_id, "doc_type": "floor", "floor_id": floor_id},
+        {"$set": {
+            "imageDataUrl": floor_plan,
+            "updated_at":   datetime.utcnow().isoformat(),
+        }},
+    )
 
-    if existing and existing.get("floors"):
-        # Update the matching floor's imageDataUrl
-        floors = existing["floors"]
-        updated = False
-        for f in floors:
-            if f.get("id") == floor_id:
-                f["imageDataUrl"] = floor_plan
-                updated = True
-                break
-        if not updated:
-            # Floor not found — add it
-            floors.append({"id": floor_id, "name": floor_id, "imageDataUrl": floor_plan, "markers": []})
-
-        result = maps_col.update_one(
+    # Fall back to legacy single-document format
+    if result.matched_count == 0:
+        maps_col.update_one(
             {"map_id": map_id},
-            {"$set": {"floors": floors, "updated_at": datetime.utcnow().isoformat()}},
-            upsert=True,
-        )
-    else:
-        # Legacy: save as top-level floor_plan
-        result = maps_col.update_one(
-            {"map_id": map_id},
-            {"$set": {"floor_plan": floor_plan, "updated_at": datetime.utcnow().isoformat()}},
+            {"$set": {
+                "floor_plan": floor_plan,
+                "updated_at": datetime.utcnow().isoformat(),
+            }},
             upsert=True,
         )
 
-    print(f"[MAPS] ✅ Floor plan saved for map '{map_id}' floor '{floor_id}' | "
-          f"upserted={result.upserted_id is not None}")
+    print(f"[MAPS] ✅ Floor plan saved for map '{map_id}' floor '{floor_id}'")
     return {"success": True, "map_id": map_id, "floor_id": floor_id}
