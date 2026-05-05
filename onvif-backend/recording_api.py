@@ -642,18 +642,21 @@ def list_recordings(
         query["camera_id"] = camera_id
     if date:
         query["date"] = date
-    docs = list(_collection.find(query).sort("created_at", -1).limit(limit))
+    # Only return .enc files, not .meta or .mp4
+    query["file_path"] = {"$regex": "\\.enc$"}
+    docs = list(_collection.find(query).sort("created_at", -1))
     return [_doc_to_dict(d) for d in docs]
 
 @recording_router.get("/cameras")
-def list_recording_cameras():
+def list_recordings_cameras():
     """
-    Return the names of folders (camera IDs) found inside all configured storage locations.
+    Return the names of folders (camera IPs/IDs) found ONLY on disk storage paths.
+    This matches the "File Explorer" view requested by the user.
     """
+    results = set()
+    
+    # Scan configured storage locations for folder names
     locs = list(locations_collection.find())
-    camera_ids = set()
-
-    # Always include the current recording dir as a scan source
     scan_paths = [l["container_path"] for l in locs]
     rec_dir = recorder.get_recordings_dir()
     if rec_dir not in scan_paths:
@@ -663,22 +666,15 @@ def list_recording_cameras():
         if not os.path.exists(path):
             continue
         try:
-            # List all directories in this storage location
             for entry in os.listdir(path):
-                full_entry = os.path.join(path, entry)
-                if os.path.isdir(full_entry):
-                    # We assume every subfolder in the storage root is a camera_id folder
-                    camera_ids.add(entry)
-        except Exception as e:
-            print(f"[BACKEND] Error scanning storage path {path}: {e}")
+                full_path = os.path.join(path, entry)
+                if os.path.isdir(full_path):
+                    if entry not in ("Non-indexed Files", "lost+found", "Config"):
+                        results.add(entry)
+        except:
+            pass
 
-    # Sort and return
-    result = sorted(list(camera_ids))
-    if not result:
-        # Fallback to database distinct camera_ids if no folders found on disk
-        return _collection.distinct("camera_id")
-    
-    return result
+    return sorted(list(results))
 
 @recording_router.get("/status")
 def recorder_status():
@@ -787,16 +783,25 @@ def list_camera_recordings(camera_id_or_path: str, date: str = Query(None)):
     docs = list(_collection.find(query).sort("created_at", -1))
     
     if not docs:
-        # Try as a storage path (the dropdown might have sent the display path)
-        # We need to find recordings whose file_path starts with the container_path
-        # of the storage location matching this display path.
+        # Try as a storage path / folder name
+        # We search for recordings whose file_path contains this folder name
+        # or starts with the container_path of a storage location.
         loc = locations_collection.find_one({"display_path": camera_id_or_path})
-        if loc:
-            c_path = loc["container_path"]
-            query = {"file_path": {"$regex": f"^{re.escape(c_path)}"}}
-            if date:
-                query["date"] = date
-            docs = list(_collection.find(query).sort("created_at", -1))
+        c_path = loc["container_path"] if loc else camera_id_or_path
+        
+        # Regex to find the folder name anywhere in the path, surrounded by slashes or at boundaries
+        # Also handle potential leading slash in the database file_path
+        safe_name = re.escape(c_path.replace("\\", "/"))
+        # Only return .enc files, not .meta or .mp4
+        query = {
+            "$and": [
+                {"file_path": {"$regex": f"/{safe_name}/|^{safe_name}/"}},
+                {"file_path": {"$regex": "\\.enc$"}}
+            ]
+        }
+        if date:
+            query["date"] = date
+        docs = list(_collection.find(query).sort("created_at", -1))
 
     return [_doc_to_dict(d) for d in docs]
 

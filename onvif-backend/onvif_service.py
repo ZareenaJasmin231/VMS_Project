@@ -716,6 +716,13 @@ def probe_camera(ip: str, port: int, username: str, password: str, channel: int 
 
             for src in video_sources:
                 is_active = False
+                
+                # Exclude composite/Quad views
+                token_lower = str(src.token).lower()
+                if "quad" in token_lower or "viewarea" in token_lower or "composite" in token_lower:
+                    print(f"[ONVIF]   ⏭ Skipping source {src.token} (Quad/Composite view)")
+                    continue
+                    
                 try:
                     w = getattr(src.Resolution, 'Width', 0) or 0
                     h = getattr(src.Resolution, 'Height', 0) or 0
@@ -724,12 +731,26 @@ def probe_camera(ip: str, port: int, username: str, password: str, channel: int 
                         # Extra check: some modular units report resolution but imaging fails if sensor missing
                         if imaging_service:
                             try:
-                                imaging_service.GetImagingSettings({'VideoSourceToken': src.token})
+                                img_settings = imaging_service.GetImagingSettings({'VideoSourceToken': src.token})
+                                # Check for dummy ports (Axis typically returns MaxExposureTime = -1.0 on disconnected sensors)
+                                exposure = getattr(img_settings, 'Exposure', None)
+                                
+                                if "axis" in manufacturer_str and exposure is not None:
+                                    max_exp = getattr(exposure, 'MaxExposureTime', 0)
+                                    if max_exp == -1.0:
+                                        is_active = False
+                                        print(f"[ONVIF]   ⬜ Source {src.token}: exposure MaxExposureTime is -1.0, assuming dummy/empty slot")
                             except Exception as e:
                                 err = str(e).lower()
-                                if any(x in err for x in ["no such device", "device not found", "invalid token"]):
+                                if any(x in err for x in [
+                                    "no such device", "device not found", "invalid token",
+                                    "ter:actionnotsupported", "action not supported",
+                                    "ter:invalidargval", "invalid argument",
+                                    "ter:notfound", "not found",
+                                    "does not support imaging settings"
+                                ]):
                                     is_active = False
-                                    print(f"[ONVIF]   ⬜ Source {src.token}: imaging failed, assuming empty slot")
+                                    print(f"[ONVIF]   ⬜ Source {src.token}: imaging failed ({err}), assuming empty slot")
                     
                     if is_active:
                         active_source_tokens.add(src.token)
@@ -738,6 +759,42 @@ def probe_camera(ip: str, port: int, username: str, password: str, channel: int 
                         print(f"[ONVIF]   ⬜ Source {src.token}: no signal/imaging failed (empty slot)")
                 except Exception:
                     print(f"[ONVIF]   ⚠ Could not read resolution for source {src.token}")
+                    
+            # ── VAPIX fallback for Axis Ghost Sensors ──
+            if "axis" in manufacturer_str:
+                try:
+                    from requests.auth import HTTPDigestAuth
+                    import requests
+                    r = requests.get(
+                        f"http://{ip}/axis-cgi/param.cgi?action=list&group=Properties.Image.Sensor",
+                        auth=HTTPDigestAuth(username, password),
+                        timeout=3,
+                        verify=False
+                    )
+                    if r.status_code == 200:
+                        # e.g., Properties.Image.Sensor.S0.Connected=yes
+                        # Properties.Image.Sensor.S1.Connected=no
+                        connected_sensors = []
+                        for line in r.text.splitlines():
+                            if ".Connected=yes" in line:
+                                # Extracts '0' from S0, '1' from S1, etc.
+                                match = re.search(r'\.S(\d+)\.Connected=yes', line)
+                                if match:
+                                    # ONVIF tokens are usually 1-indexed compared to Axis S0
+                                    sensor_idx = int(match.group(1)) + 1
+                                    connected_sensors.append(sensor_idx)
+                        
+                        if connected_sensors:
+                            print(f"[VAPIX] Axis connected sensors detected: {connected_sensors}")
+                            # Now filter active_source_tokens based on this strict VAPIX data
+                            filtered_tokens = set()
+                            for idx, t in enumerate(video_sources):
+                                if (idx + 1) in connected_sensors and t.token in active_source_tokens:
+                                    filtered_tokens.add(t.token)
+                            active_source_tokens = filtered_tokens
+                except Exception as e:
+                    print(f"[VAPIX] Axis sensor verification failed: {e}")
+
         except Exception as vs_err:
             print(f"[ONVIF] ⚠ GetVideoSources failed ({vs_err}), continuing")
             active_source_tokens = None  # None means don't filter

@@ -179,9 +179,15 @@ def _record_loop(
 
         # ── Use the current effective recordings dir (respects runtime override) ──
         recordings_dir = get_recordings_dir()
-        out_dir  = os.path.join(recordings_dir, stream_name, date_str)
+        
+        # ✅ GROUP BY IP FOLDER (standardize naming)
+        ip_folder = (camera_data or {}).get("ip", stream_name).replace(".", "_")
+        
+        out_dir  = os.path.join(recordings_dir, ip_folder, date_str)
         os.makedirs(out_dir, exist_ok=True)
-        out_file = os.path.join(out_dir, f"{timestamp}.mp4")
+        
+        # ✅ PREFIX FILENAME WITH STREAM NAME (avoid collision in same IP folder)
+        out_file = os.path.join(out_dir, f"{stream_name}_{timestamp}.mp4")
 
         print(f"[RECORDER] 💾 Saving chunk to: {out_file}")
 

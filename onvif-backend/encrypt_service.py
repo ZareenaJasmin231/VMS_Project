@@ -103,14 +103,24 @@ def _aes_encrypt(data: bytes) -> bytes:
 
 
 def _parse_path(input_path: str):
-    filename  = os.path.basename(input_path)
-    date_dir  = os.path.basename(os.path.dirname(input_path))
-    camera_id = os.path.basename(os.path.dirname(os.path.dirname(input_path)))
-    stem      = filename.replace(".mp4", "")
-    parts     = stem.split("_", 1)
-    date_part = parts[0] if len(parts) > 1 else date_dir
-    time_part = parts[1] if len(parts) > 1 else stem
-    return camera_id, date_part, time_part
+    filename = os.path.basename(input_path)
+    date_dir = os.path.basename(os.path.dirname(input_path))
+    
+    # New structure: IP_FOLDER / DATE / STREAM_TIMESTAMP.mp4
+    # filename is like "cam1_10-43-41.mp4"
+    stem = filename.replace(".mp4", "").replace(".enc", "")
+    
+    if "_" in stem:
+        # Split from the right once to separate the timestamp
+        parts = stem.rsplit("_", 1)
+        camera_id = parts[0]
+        time_part = parts[1]
+    else:
+        # Fallback to old behavior
+        camera_id = os.path.basename(os.path.dirname(os.path.dirname(input_path)))
+        time_part = stem
+
+    return camera_id, date_dir, time_part
 
 
 def _save_metadata_to_db(camera_id, date_part, time_part, output_path):
