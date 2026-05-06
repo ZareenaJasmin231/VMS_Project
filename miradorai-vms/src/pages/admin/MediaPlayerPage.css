@@ -1018,3 +1018,205 @@
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+/* ═══════════════════════════════════════════════
+   TIMESCALE — Axis VMS style ruler timeline
+═══════════════════════════════════════════════ */
+.mp-timescale {
+  background: var(--bg-panel);
+  border-top: 1px solid var(--border-subtle);
+  padding: 0 0 6px;
+  flex-shrink: 0;
+  user-select: none;
+}
+
+.mp-timescale-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 16px 4px;
+}
+
+.mp-timescale-header svg {
+  color: var(--amber-dim);
+  flex-shrink: 0;
+}
+
+.mp-timescale-label {
+  font-family: var(--font-display);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.mp-timescale-range {
+  margin-left: auto;
+  font-family: var(--font-display);
+  font-size: 10px;
+  font-weight: 400;
+  color: var(--text-hint);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+
+/* ── Track ─────────────────────────────────────── */
+.mp-timescale-track {
+  position: relative;
+  height: 40px;
+  margin: 0 16px;
+  background: var(--bg-deep);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  overflow: visible;
+}
+
+.mp-timescale-track:hover {
+  border-color: var(--border-mid);
+}
+
+/* ── Fill ──────────────────────────────────────── */
+.mp-timescale-fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  background: linear-gradient(
+    90deg,
+    rgba(245, 166, 35, 0.06) 0%,
+    rgba(245, 166, 35, 0.12) 100%
+  );
+  border-radius: var(--radius-sm) 0 0 var(--radius-sm);
+  pointer-events: none;
+  transition: width 0.08s linear;
+}
+
+/* ── Tick Marks ────────────────────────────────── */
+.mp-timescale-tick {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.mp-timescale-tick-line {
+  width: 1px;
+  flex-shrink: 0;
+}
+
+.mp-timescale-tick.major .mp-timescale-tick-line {
+  height: 14px;
+  background: var(--border-accent);
+}
+
+.mp-timescale-tick.minor .mp-timescale-tick-line {
+  height: 8px;
+  background: var(--border-subtle);
+}
+
+.mp-timescale-tick-label {
+  font-family: var(--font-display);
+  font-size: 9px;
+  font-weight: 400;
+  color: var(--text-muted);
+  white-space: nowrap;
+  margin-top: 2px;
+  font-variant-numeric: tabular-nums;
+  transform: translateX(-50%);
+  letter-spacing: 0.01em;
+}
+
+/* hide label if it would overflow on the very first tick */
+.mp-timescale-tick:first-child .mp-timescale-tick-label {
+  transform: translateX(0);
+}
+/* anchor last label to the right */
+.mp-timescale-tick:last-child .mp-timescale-tick-label {
+  transform: translateX(-100%);
+}
+
+/* ── Playhead ─────────────────────────────────── */
+.mp-timescale-playhead {
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  width: 0;
+  z-index: 5;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.mp-timescale-playhead-needle {
+  width: 2px;
+  flex: 1;
+  background: var(--amber);
+  border-radius: 1px;
+  box-shadow:
+    0 0 6px rgba(245, 166, 35, 0.5),
+    0 0 12px rgba(245, 166, 35, 0.2);
+}
+
+.mp-timescale-playhead-flag {
+  position: relative;
+  top: -20px;
+  background: var(--amber);
+  color: #0a0d14;
+  font-family: var(--font-display);
+  font-size: 9px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 3px;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  box-shadow: 0 2px 8px rgba(245, 166, 35, 0.4);
+  letter-spacing: 0.02em;
+  transform: translateX(-50%);
+}
+
+.mp-timescale-playhead-flag::after {
+  content: '';
+  position: absolute;
+  bottom: -4px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-top: 4px solid var(--amber);
+}
+
+/* ── Hover interaction on the track ────────────── */
+.mp-timescale-track:hover .mp-timescale-fill {
+  background: linear-gradient(
+    90deg,
+    rgba(245, 166, 35, 0.08) 0%,
+    rgba(245, 166, 35, 0.18) 100%
+  );
+}
+
+.mp-timescale-track:hover .mp-timescale-playhead-needle {
+  width: 3px;
+  box-shadow:
+    0 0 8px rgba(245, 166, 35, 0.6),
+    0 0 16px rgba(245, 166, 35, 0.3);
+}
+
+/* ── Subtle animation on the playhead flag ─────── */
+@keyframes timescale-glow {
+  0%, 100% { box-shadow: 0 2px 8px rgba(245, 166, 35, 0.4); }
+  50% { box-shadow: 0 2px 12px rgba(245, 166, 35, 0.6); }
+}
+
+.mp-timescale-playhead-flag {
+  animation: timescale-glow 2s ease-in-out infinite;
+}

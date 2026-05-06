@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { useAuth } from "../../context/AuthContext";
 import { useImageConfig } from "../../hooks/useImageConfig";
 import "./MediaPlayerPage.css";
@@ -98,6 +98,8 @@ export default function MediaPlayerPage() {
   const isDragging = useRef(false);
   const camDropdownRef = useRef(null);
   const browseInputRef = useRef(null);
+  const timelineRef = useRef(null);
+  const isTimelineDragging = useRef(false);
 
   // ── Toast helper ───────────────────────────────────────────────
   const showToast = (msg, type = "success") => {
@@ -191,18 +193,32 @@ export default function MediaPlayerPage() {
     };
   }, [playingFile]);
 
-  // ── Progress drag ──────────────────────────────────────────────
+  // ── Progress drag + Timeline drag ─────────────────────────────
   useEffect(() => {
     const handleMove = (e) => {
-      if (!isDragging.current || !progressRef.current || !duration) return;
-      const rect = progressRef.current.getBoundingClientRect();
-      const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-      if (videoRef.current) {
-        videoRef.current.currentTime = pct * duration;
-        setCurrentTime(pct * duration);
+      // Progress bar drag
+      if (isDragging.current && progressRef.current && duration) {
+        const rect = progressRef.current.getBoundingClientRect();
+        const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+        if (videoRef.current) {
+          videoRef.current.currentTime = pct * duration;
+          setCurrentTime(pct * duration);
+        }
+      }
+      // Timeline drag
+      if (isTimelineDragging.current && timelineRef.current && duration) {
+        const rect = timelineRef.current.getBoundingClientRect();
+        const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+        if (videoRef.current) {
+          videoRef.current.currentTime = pct * duration;
+          setCurrentTime(pct * duration);
+        }
       }
     };
-    const handleUp = () => { isDragging.current = false; };
+    const handleUp = () => {
+      isDragging.current = false;
+      isTimelineDragging.current = false;
+    };
     window.addEventListener("mousemove", handleMove);
     window.addEventListener("mouseup", handleUp);
     return () => {
@@ -603,6 +619,38 @@ export default function MediaPlayerPage() {
     return d.toLocaleTimeString([], { hour12: false, hour: "2-digit", minute: "2-digit", second: "2-digit" });
   };
 
+  // ── Timeline ticks ─────────────────────────────────────────────
+  const timelineTicks = useMemo(() => {
+    if (!duration || duration <= 0) return [];
+    // Determine a sensible tick interval based on video duration
+    let interval;
+    if (duration <= 30) interval = 5;
+    else if (duration <= 60) interval = 10;
+    else if (duration <= 300) interval = 30;
+    else if (duration <= 900) interval = 60;
+    else if (duration <= 3600) interval = 300;
+    else interval = 600;
+
+    const ticks = [];
+    for (let t = 0; t <= duration; t += interval) {
+      ticks.push(t);
+    }
+    // Always include the end
+    if (ticks[ticks.length - 1] < duration) ticks.push(duration);
+    return ticks;
+  }, [duration]);
+
+  const handleTimelineMouseDown = useCallback((e) => {
+    if (!timelineRef.current || !duration) return;
+    isTimelineDragging.current = true;
+    const rect = timelineRef.current.getBoundingClientRect();
+    const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    if (videoRef.current) {
+      videoRef.current.currentTime = pct * duration;
+      setCurrentTime(pct * duration);
+    }
+  }, [duration]);
+
   // ── Render ─────────────────────────────────────────────────────
   return (
     <div className="mp-shell">
@@ -965,6 +1013,66 @@ export default function MediaPlayerPage() {
                 </button>
               </div>
             </div>
+
+            {/* ── Timescale / Timeline ── */}
+            {playingFile && duration > 0 && (
+              <div className="mp-timescale">
+                <div className="mp-timescale-header">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" width="12" height="12">
+                    <circle cx="12" cy="12" r="10" />
+                    <polyline points="12 6 12 12 16 14" />
+                  </svg>
+                  <span className="mp-timescale-label">Timeline</span>
+                  <span className="mp-timescale-range">
+                    {getAbsoluteTime(0) || fmt(0)} — {getAbsoluteTime(duration) || fmt(duration)}
+                  </span>
+                </div>
+                <div
+                  className="mp-timescale-track"
+                  ref={timelineRef}
+                  onMouseDown={handleTimelineMouseDown}
+                >
+                  {/* Filled portion */}
+                  <div
+                    className="mp-timescale-fill"
+                    style={{ width: `${(currentTime / duration) * 100}%` }}
+                  />
+
+                  {/* Tick marks and labels */}
+                  {timelineTicks.map((t, i) => {
+                    const pct = (t / duration) * 100;
+                    const isFirst = i === 0;
+                    const isLast = i === timelineTicks.length - 1;
+                    const isMajor = isFirst || isLast || t % (duration <= 300 ? 60 : 300) === 0;
+                    return (
+                      <div
+                        key={t}
+                        className={`mp-timescale-tick ${isMajor ? "major" : "minor"}`}
+                        style={{ left: `${pct}%` }}
+                      >
+                        <div className="mp-timescale-tick-line" />
+                        {isMajor && (
+                          <span className="mp-timescale-tick-label">
+                            {getAbsoluteTime(t) || fmt(t)}
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })}
+
+                  {/* Playhead */}
+                  <div
+                    className="mp-timescale-playhead"
+                    style={{ left: `${(currentTime / duration) * 100}%` }}
+                  >
+                    <div className="mp-timescale-playhead-flag">
+                      {getAbsoluteTime(currentTime) || fmt(currentTime)}
+                    </div>
+                    <div className="mp-timescale-playhead-needle" />
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </>
       )}
