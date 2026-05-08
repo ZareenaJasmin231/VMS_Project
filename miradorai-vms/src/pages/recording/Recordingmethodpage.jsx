@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import Button from "../../components/shared/Button";
-import WebRTCPlayer from "../../components/shared/WebRTCPlayer";
+
 import "./Recordingmethodpage.css";
 
 const STREAM_API = `http://${window.location.hostname}:8000`;
@@ -54,6 +54,12 @@ export default function RecordingMethodPage() {
   const [selectedGroup, setSelectedGroup] = useState(null);
   const [checkedGroups, setCheckedGroups] = useState([]);
   const [checkedCams, setCheckedCams] = useState([]);
+  const [toastMessage, setToastMessage] = useState(null);
+
+  const showToast = (message, isError = false) => {
+    setToastMessage({ text: message, isError });
+    setTimeout(() => setToastMessage(null), 3000);
+  };
 
   useEffect(() => {
     const init = async () => {
@@ -235,7 +241,7 @@ export default function RecordingMethodPage() {
         } else {
           // Fallback to the live stream URL if no specific profiles are found
           authedRtsp = injectAuth(cam.rtsp_url, cam.username, cam.password);
-          profileToken = cam.active_rec_profile || "FALLBACK";
+          profileToken = data.profile || "SUB_STREAM";
         }
 
         if (authedRtsp) {
@@ -290,13 +296,13 @@ export default function RecordingMethodPage() {
       });
 
       const scheduleName = schedules.find(s => s.id === template.continuous.schedule)?.name || template.continuous.schedule;
-      alert(`Successfully applied settings to ${targets.length} camera(s)!\n\nSchedule: ${scheduleName}`);
+      showToast(`Successfully applied settings to ${targets.length} camera(s)!`);
       await fetchDevices(schedules);
       setCheckedCams([]);
       setCheckedGroups([]);
     } catch (err) {
       console.error(err);
-      alert("Failed to apply settings.");
+      showToast("Failed to apply settings.", true);
     } finally {
       setLoading(false);
     }
@@ -396,25 +402,6 @@ export default function RecordingMethodPage() {
               <button className="close-btn" onClick={() => setSelectedGroup(null)}>✕</button>
             </div>
             <div className="rm-side-list">
-              {selectedId && (
-                <div className="rm-preview">
-                  {devices.find(d => d.ome_stream === selectedId)?.ws_url ? (
-                    <WebRTCPlayer
-                      key={selectedId}
-                      serverUrl={devices.find(d => d.ome_stream === selectedId).ws_url}
-                      cameraId={selectedId}
-                    />
-                  ) : (
-                    <div className="rm-preview__placeholder">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" width="32" height="32">
-                        <path d="M23 7l-7 5 7 5V7z" />
-                        <rect x="1" y="5" width="15" height="14" rx="2" />
-                      </svg>
-                      <span>No live stream available</span>
-                    </div>
-                  )}
-                </div>
-              )}
               {selectedGroup.cameras.map(cam => (
                 <div
                   key={cam.ome_stream}
@@ -427,7 +414,12 @@ export default function RecordingMethodPage() {
                     onChange={(e) => { e.stopPropagation(); toggleCam(cam.ome_stream); }}
                   />
                   <div className="rm-item-info">
-                    <div className="rm-item-name">{cam.name || cam.ip}</div>
+                    <div className="rm-item-name">
+                      {cam.name || cam.ip}
+                      <span className="rm-stream-badge">
+                        {cam.active_rec_profile === "MAIN_STREAM" ? "Main" : cam.active_rec_profile === "SUB_STREAM" ? "Sub" : (cam.active_rec_profile || "Sub")}
+                      </span>
+                    </div>
                     <div className="rm-item-mode">{(!cam.assigned_schedule_id || cam.assigned_schedule_id === "Always") ? "Continuous" : "Scheduled"}</div>
                   </div>
                 </div>
@@ -484,6 +476,12 @@ export default function RecordingMethodPage() {
       {!selected && !checkedCams.length && filteredGroups.length > 0 && (
         <div className="rm-detail rm-detail--empty">
           <span>Select a camera or group above to configure recording settings.</span>
+        </div>
+      )}
+
+      {toastMessage && (
+        <div className={`rm-toast ${toastMessage.isError ? "rm-toast--error" : ""}`}>
+          {toastMessage.text}
         </div>
       )}
     </div>
