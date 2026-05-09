@@ -47,7 +47,15 @@ const CORE_NAV = [
       },
     ],
   },
-
+  {
+    label: "Masking",
+    page: "masking",
+    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+      <rect x="3" y="3" width="18" height="18" rx="2"/>
+      <rect x="8" y="8" width="8" height="8" rx="1"/>
+      <path d="M3 8h2M19 8h2M3 16h2M19 16h2M8 3v2M16 3v2M8 19v2M16 19v2"/>
+    </svg>`,
+  },
   // ✅ RECORDING & EVENTS
   {
     section: "Recording & Events",
@@ -140,6 +148,27 @@ const ADMIN_ONLY_NAV = [
     </svg>`,
   },
 
+  {
+  section: "Designer View",
+  page: "designer-view",
+
+  icon: `<svg viewBox="0 0 24 24" fill="none"
+  stroke="currentColor" stroke-width="1.8">
+    <rect x="3" y="3" width="18" height="18" rx="2"/>
+    <path d="M8 8h8v8H8z"/>
+    <path d="M3 12h5M16 12h5"/>
+  </svg>`,
+},
+
+  // ✅ NETWORK HEALTH
+  {
+    section: "Network Health",
+    page: "network-health",
+    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+      <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+    </svg>`,
+  },
+
     // ✅ ABOUT
   {
     section: "About",
@@ -192,23 +221,15 @@ export const CAMERA_FEATURES_CONFIG = [
       <path d="M12 8l1.5 3h3l-2.5 2 1 3L12 14.5 9 16l1-3-2.5-2h3z"/>
     </svg>`,
   },
+
   // {
-  //   label: "Masking",
-  //   page: "masking",
+  //   label: "Camera Features",
+  //   page: "camera-features",
   //   icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-  //     <rect x="3" y="3" width="18" height="18" rx="2"/>
-  //     <rect x="8" y="8" width="8" height="8" rx="1"/>
-  //     <path d="M3 8h2M19 8h2M3 16h2M19 16h2M8 3v2M16 3v2M8 19v2M16 19v2"/>
+  //     <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"/>
+  //     <circle cx="12" cy="12" r="3"/>
   //   </svg>`,
   // },
-  {
-    label: "Camera Features",
-    page: "camera-features",
-    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-      <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"/>
-      <circle cx="12" cy="12" r="3"/>
-    </svg>`,
-  },
   // {
   //   label: "IO Ports",
   //   page: "io-ports",
@@ -262,6 +283,9 @@ export const PAGE_TITLES = {
   "client-settings": "Client Settings",
   "user-settings": "User Settings",
   profile: "Profile",
+  "designer-view": "Designer View",
+
+  "network-health": "Network Health",
   about: "About",
 
   // Admin pages

@@ -1270,7 +1270,7 @@ export default function CameraFeaturesPage({ onNavigate }) {
       case "streams":    return <StreamsSection   {...props} />;
       case "analytics":  return <AnalyticsSection {...props} />;
 case "masking":
-  return <MaskingSection camera={device} caps={caps} />;
+  return <MaskingSection device={device} showToast={showToast} />;
         case "brand-features": return <BrandFeaturesSection {...props} />;
       default:           return <OverviewSection  {...props} />;
 

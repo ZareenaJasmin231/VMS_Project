@@ -20,9 +20,9 @@ export const MASKING_CSS = `
 /* ── Masking canvas ── */
 .cfp-mask-wrap {
   position: relative;
-  background: #060a10;
-  border: 1px solid #1a2332;
-  border-radius: 10px;
+  background: var(--bg-base);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
   overflow: hidden;
   user-select: none;
   touch-action: none;
@@ -39,94 +39,92 @@ export const MASKING_CSS = `
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 10px 14px;
-  background: #0a0f1a;
-  border-bottom: 1px solid #1a2332;
+  padding: 12px 16px;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border);
   flex-wrap: wrap;
 }
 .cfp-mask-tool-btn {
-  font-family: 'DM Mono', monospace;
-  font-size: 10px;
+  font-family: var(--font-mono);
+  font-size: 11px;
   font-weight: 500;
-  letter-spacing: .04em;
-  padding: 5px 12px;
-  border-radius: 6px;
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
-  border: 1px solid #1e2d42;
-  background: #0d1420;
-  color: #6b7a99;
-  transition: all .12s;
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  transition: var(--transition);
 }
-.cfp-mask-tool-btn:hover { border-color: #2563eb; color: #3b82f6; }
-.cfp-mask-tool-btn.active { border-color: #2563eb; background: #0d1f3d; color: #3b82f6; }
-.cfp-mask-tool-btn.danger { border-color: #dc2626; background: #1a0808; color: #f87171; }
-.cfp-mask-tool-btn.danger:hover { background: #220e0e; }
-.cfp-mask-tool-btn.success { border-color: #14532d; background: #0a1f0f; color: #22c55e; }
-.cfp-mask-tool-btn.success:hover { background: #0f2914; }
+.cfp-mask-tool-btn:hover { border-color: var(--teal-dim); color: var(--text-primary); }
+.cfp-mask-tool-btn.active { border-color: var(--teal); background: var(--teal-subtle); color: var(--teal); }
+.cfp-mask-tool-btn.danger { border-color: var(--red); background: rgba(255,77,106,0.1); color: var(--red); }
+.cfp-mask-tool-btn.danger:hover { background: rgba(255,77,106,0.15); }
+.cfp-mask-tool-btn.success { border-color: var(--teal); background: var(--teal-subtle); color: var(--teal); }
+.cfp-mask-tool-btn.success:hover { background: var(--teal-glow); }
 .cfp-mask-tool-btn:disabled { opacity: .35; cursor: not-allowed; }
 
-.cfp-mask-sep { width: 1px; height: 20px; background: #1a2332; }
+.cfp-mask-sep { width: 1px; height: 20px; background: var(--border); }
 
 .cfp-mask-hint {
-  font-size: 10px;
-  color: #2e3d55;
+  font-size: 11px;
+  color: var(--text-muted);
   margin-left: auto;
 }
 
-.cfp-mask-list { margin-top: 14px; display: flex; flex-direction: column; gap: 8px; }
+.cfp-mask-list { margin-top: 16px; display: flex; flex-direction: column; gap: 8px; }
 .cfp-mask-item {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 14px;
-  background: #0d1420;
-  border: 1px solid #1a2332;
-  border-radius: 8px;
-  font-size: 11px;
-  color: #6b7a99;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  font-size: 12px;
+  color: var(--text-secondary);
   cursor: pointer;
-  transition: all .12s;
+  transition: var(--transition);
 }
-.cfp-mask-item:hover { border-color: #2e3d55; }
-.cfp-mask-item.selected { border-color: #2563eb; background: #0d1f3d; color: #3b82f6; }
+.cfp-mask-item:hover { border-color: var(--border-light); background: var(--bg-hover); }
+.cfp-mask-item.selected { border-color: var(--teal); background: var(--teal-subtle); color: var(--text-primary); }
 .cfp-mask-item-color {
   width: 14px; height: 14px;
   border-radius: 3px;
   flex-shrink: 0;
-  border: 1px solid rgba(255,255,255,.12);
+  border: 1px solid var(--border-light);
 }
-.cfp-mask-item-name { flex: 1; color: #c9d4e8; }
-.cfp-mask-item-pts { font-size: 9px; }
+.cfp-mask-item-name { flex: 1; color: var(--text-primary); }
+.cfp-mask-item-pts { font-size: 10px; color: var(--text-muted); }
 .cfp-mask-item-del {
-  width: 22px; height: 22px;
+  width: 24px; height: 24px;
   display: flex; align-items: center; justify-content: center;
   border-radius: 4px; border: 1px solid transparent;
-  cursor: pointer; color: #2e3d55; font-size: 13px;
-  transition: all .12s; background: none;
-  font-family: 'DM Mono', monospace;
+  cursor: pointer; color: var(--text-muted); font-size: 14px;
+  transition: var(--transition); background: none;
 }
-.cfp-mask-item-del:hover { border-color: #dc2626; color: #f87171; background: #1a0808; }
+.cfp-mask-item-del:hover { border-color: var(--red); color: var(--red); background: rgba(255,77,106,0.1); }
 
 .cfp-mask-empty {
   text-align: center;
-  color: #2e3d55;
-  font-size: 11px;
-  padding: 24px 0;
-  border: 1px dashed #1a2332;
-  border-radius: 8px;
-  margin-top: 14px;
+  color: var(--text-muted);
+  font-size: 12px;
+  padding: 32px 0;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-md);
+  margin-top: 16px;
 }
 
 .cfp-mask-saving {
   position: absolute;
-  top: 10px; right: 10px;
-  background: #0a1f0f;
-  border: 1px solid #14532d;
+  top: 12px; right: 12px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--teal-dim);
   border-radius: 6px;
-  color: #22c55e;
-  font-size: 10px;
-  padding: 4px 10px;
-  animation: cfp-toast-in .2s ease;
+  color: var(--teal);
+  font-size: 11px;
+  padding: 4px 12px;
+  box-shadow: var(--shadow-sm);
 }
 `;
 
