@@ -39,74 +39,95 @@ export default function MaskingPage() {
   };
 
   if (loading) {
-    return <div className="masking-page-loading">Loading cameras...</div>;
+    return <div className="mp-loading-screen">Initializing Vision Systems…</div>;
   }
 
   return (
-    <div className="masking-page-layout">
+    <div className="mp-layout">
       {/* Left Sidebar: Camera List */}
-      <aside className="masking-sidebar">
-        <div className="masking-sidebar-header">
-          <h3 className="masking-sidebar-title">Devices</h3>
-          <span className="masking-count">{cameras.length}</span>
+      <aside className="mp-sidebar">
+        <div className="mp-sidebar-head">
+          <h3 className="mp-sidebar-title">Devices</h3>
+          <span className="mp-badge">{cameras.length}</span>
         </div>
-        <div className="masking-sidebar-list">
+        <div className="mp-sidebar-list">
           {cameras.map(cam => (
             <button
               key={cam.id}
-              className={`masking-cam-item ${selectedCam?.id === cam.id ? "active" : ""}`}
+              className={`mp-cam-btn ${selectedCam?.id === cam.id ? "active" : ""}`}
               onClick={() => handleCamSelect(cam)}
             >
-              <div className="masking-cam-icon">
+              <div className="mp-cam-icon">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/>
                 </svg>
               </div>
-              <div className="masking-cam-info">
-                <div className="masking-cam-name">{cam.name || "Unnamed"}</div>
-                <div className="masking-cam-ip">{cam.ip}</div>
+              <div className="mp-cam-info">
+                <div className="mp-cam-name">{cam.name || "Unnamed"}</div>
+                <div className="mp-cam-ip">{cam.ip}</div>
               </div>
-              {selectedCam?.id === cam.id && <div className="masking-active-indicator" />}
+              {selectedCam?.id === cam.id && <div className="mp-active-bar" />}
             </button>
           ))}
           {cameras.length === 0 && (
-            <div className="masking-empty-state">No cameras found.</div>
+            <div className="mp-sidebar-empty">No cameras found.</div>
           )}
         </div>
       </aside>
 
       {/* Main Content: Masking UI */}
-      <main className="masking-main">
+      <main className="mp-main">
         {selectedCam ? (
-          <div className="masking-page-container">
-            <div className="masking-page-header">
+          <div className="mp-container">
+            {/* Professional Top Bar */}
+            <div className="mp-topbar">
+              <div className="mp-breadcrumb">
+                Mirador VMS
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ opacity: 0.3, margin: '0 8px' }}>
+                  <path d="m9 18 6-6-6-6" />
+                </svg>
+                <span className="mp-breadcrumb-active">Masking</span>
+              </div>
+              <div className="mp-status-pill">
+                <div className="mp-status-dot green" />
+                <span>Streaming Active</span>
+              </div>
+            </div>
+
+            <div className="mp-page-header">
               <div>
-                <h1 className="masking-page-title">Privacy <span>Masking</span></h1>
-                <p className="masking-page-desc">
-                  {selectedCam.name || selectedCam.ip} · Configuration for burned-in privacy regions
-                </p>
+                <div className="mp-eyebrow">Privacy Configuration</div>
+                <h1 className="mp-title">Masking <span>Regions</span></h1>
+              </div>
+              <div className="mp-device-pill">
+                <div className="mp-device-dot" />
+                <div className="mp-device-info">
+                  <span className="mp-device-name">{selectedCam.name || selectedCam.ip}</span>
+                  <span className="mp-device-ip">{selectedCam.ip}</span>
+                </div>
               </div>
             </div>
             
-            <div className="masking-page-content">
+            <div className="mp-content">
               <MaskingSection device={selectedCam} showToast={showToast} />
             </div>
           </div>
         ) : (
-          <div className="masking-page--empty">
-          <div className="masking-empty-icon">
-            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.5 }}>
-              <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-              <path d="M8 8h8v8H8z" />
-            </svg>
-          </div>
-          <p>Select a camera from the list on the left to start configuring privacy masks.</p>
+          <div className="mp-empty-state">
+            <div className="mp-empty-icon">
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.2 }}>
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                <path d="M8 8h8v8H8z" />
+              </svg>
+            </div>
+            <p>Select a camera from the list on the left to start configuring privacy masks.</p>
           </div>
         )}
       </main>
 
       {toast && (
-        <div className={`masking-toast masking-toast--${toast.type}`} key={toast.key}>
+        <div className={`mp-toast mp-toast--${toast.type}`} key={toast.key}>
+          {toast.type === 'success' ? '✅ ' : '❌ '}
           {toast.msg}
         </div>
       )}

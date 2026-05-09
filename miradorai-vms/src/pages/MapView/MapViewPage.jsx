@@ -1419,6 +1419,90 @@ export default function MapViewPage() {
     ctx.fillStyle = "rgba(255,255,255,0.90)";
     ctx.fillText(floorName, 14, oc.height - 14);
 
+
+    // ── LEGEND ────────────────────────────────────────────────────────
+const typesOnFloor = {};
+markersRef.current.forEach(m => {
+  const cam  = cameras.find(c => c.id === m.camId);
+  const type = getCamTypeFromName(cam?.name || "");
+  typesOnFloor[type] = (typesOnFloor[type] || 0) + 1;
+});
+
+const TYPE_COLORS_EXPORT = {
+  dome:    "#3b82f6",
+  bullet:  "#f59e0b",
+  ptz:     "#8b5cf6",
+  fisheye: "#10b981",
+  box:     "#f97316",
+  turret:  "#ec4899",
+};
+
+function getCamTypeFromName(name) {
+  const n = (name || "").toLowerCase();
+  if (n.includes("bullet")) return "bullet";
+  if (n.includes("ptz"))    return "ptz";
+  if (n.includes("fish"))   return "fisheye";
+  if (n.includes("box"))    return "box";
+  if (n.includes("turret")) return "turret";
+  return "dome";
+}
+
+const legendEntries = Object.entries(typesOnFloor);
+if (legendEntries.length > 0) {
+  const padX   = 14, padY = 10;
+  const rowH   = 22, swatchW = 14;
+  const boxW   = 160;
+  const boxH   = padY * 2 + legendEntries.length * rowH + 4;
+  const lx     = oc.width  - boxW - 16;
+  const ly     = oc.height - boxH - 16;
+
+  // Background
+  ctx.fillStyle = "rgba(10,14,23,0.82)";
+  ctx.beginPath();
+  ctx.roundRect?.(lx, ly, boxW, boxH, 8) || ctx.rect(lx, ly, boxW, boxH);
+  ctx.fill();
+
+  // Border
+  ctx.strokeStyle = "rgba(255,255,255,0.12)";
+  ctx.lineWidth   = 0.5;
+  ctx.stroke();
+
+  // Title
+  ctx.font         = "bold 11px Inter, system-ui, sans-serif";
+  ctx.fillStyle    = "rgba(255,255,255,0.55)";
+  ctx.textAlign    = "left";
+  ctx.textBaseline = "top";
+  ctx.fillText("CAMERA TYPES", lx + padX, ly + padY);
+
+  legendEntries.forEach(([type, count], idx) => {
+    const ry   = ly + padY + 16 + idx * rowH;
+    const col  = TYPE_COLORS_EXPORT[type] || "#3b82f6";
+
+    // Color swatch circle
+    ctx.beginPath();
+    ctx.arc(lx + padX + swatchW / 2, ry + rowH / 2, 6, 0, Math.PI * 2);
+    ctx.fillStyle = col;
+    ctx.fill();
+
+    // Type label
+    ctx.font         = "500 11px Inter, system-ui, sans-serif";
+    ctx.fillStyle    = "#e8edf5";
+    ctx.textAlign    = "left";
+    ctx.textBaseline = "middle";
+    ctx.fillText(
+      type.charAt(0).toUpperCase() + type.slice(1),
+      lx + padX + swatchW + 10,
+      ry + rowH / 2
+    );
+
+    // Count badge
+    ctx.font         = "bold 10px Inter, system-ui, sans-serif";
+    ctx.fillStyle    = col + "cc";
+    ctx.textAlign    = "right";
+    ctx.fillText(`×${count}`, lx + boxW - padX, ry + rowH / 2);
+  });
+}
+
     // ── Download ──────────────────────────────────────────────────
     const a    = document.createElement("a");
     a.download = `${floorName.replace(/\s+/g, "_")}_map.png`;
