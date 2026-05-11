@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import CameraThumb from "../../components/shared/CameraThumb";
-import Button from "../../components/shared/Button";
 import SearchBar from "../../components/shared/SearchBar";
 import StatusBadge from "../../components/shared/StatusBadge";
 import ManualSearchModal from "./ManualSearchModal";
@@ -11,10 +10,10 @@ import "./AddDevicesPage.css";
 import useActivityLogger from "../../hooks/useActivityLogger";
 
 
-const STREAM_API = "http://192.168.126.200:8000";
+const STREAM_API = import.meta.env.VITE_API_URL;
 
 function getAuthHeaders() {
-  const t = localStorage.getItem("mirador_token");
+  const t = localStorage.getItem("miradorai_token");
   return t ? { Authorization: `Bearer ${t}`, "Content-Type": "application/json" } : { "Content-Type": "application/json" };
 }
 
@@ -444,7 +443,7 @@ export default function AddDevicesPage({ onNavigate }) {
 
     const probeRes = await fetch(`${STREAM_API}/api/onvif/probe`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: getAuthHeaders(),
       body: JSON.stringify({ ip, port: Number(port) || 80, username: user, password: pass, channel: safeChannel, group_id: group_id || selectedGroupId }),
     });
     const probeData = probeRes.ok ? await probeRes.json() : null;
@@ -525,7 +524,7 @@ export default function AddDevicesPage({ onNavigate }) {
       try {
         const res = await fetch(`${STREAM_API}/api/streams/register`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: getAuthHeaders(),
           body: JSON.stringify({ rtsp_url: url, group_id: groupId, device_name: streamName }),
         });
         const data = res.ok ? await res.json() : null;
@@ -606,38 +605,28 @@ export default function AddDevicesPage({ onNavigate }) {
       {/* ── MAIN CONTENT ──────────────────────────────────────────────────── */}
       <div className="add-dev__main">
         <div className="page-header">
-          <div>
+          <div className="page-header__left">
             <h1 className="page-title">Add <span>Devices</span></h1>
             <p className="page-desc">Discover and enroll devices from your network into the MIRADOR VMS platform.</p>
           </div>
 
-          {/* Toolbar — FIX 3: Create Group sits here alongside other actions */}
           <div className="add-dev__toolbar">
-            <Button
-              label="Manual Search"
-              icon={`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>`}
-              onClick={openManualSearch}
-            />
-            <Button
-              label="Network Discovery"
-              icon={`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><circle cx="12" cy="12" r="9"/><path d="M12 2v20"/><path d="M2 12h20"/><circle cx="12" cy="12" r="1" fill="currentColor"/></svg>`}
-              onClick={openDiscovery}
-            />
-            <Button
-              label="Stream URL"
-              icon={`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>`}
-              onClick={openStreamURL}
-            />
-            <Button
-              label="Create Group"
-              icon={`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M12 5v14M5 12h14" stroke-linecap="round"/></svg>`}
-              onClick={handleCreateGroup}
-            />
-            {/* <Button
-              label="Refresh"
-              icon={`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" class="${refreshing ? "spin" : ""}"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>`}
-              onClick={handleRefresh}
-            /> */}
+            <button className="m-btn m-btn--elevated" onClick={openManualSearch}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+              Manual Search
+            </button>
+            <button className="m-btn m-btn--elevated" onClick={openDiscovery}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14"><circle cx="12" cy="12" r="9"/><path d="M12 2v20"/><path d="M2 12h20"/><circle cx="12" cy="12" r="1" fill="currentColor"/></svg>
+              Network Discovery
+            </button>
+            <button className="m-btn m-btn--elevated" onClick={openStreamURL}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>
+              Stream URL
+            </button>
+            <button className="m-btn m-btn--primary" onClick={handleCreateGroup}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14"><path d="M12 5v14M5 12h14" strokeLinecap="round"/></svg>
+              Create Group
+            </button>
           </div>
         </div>
 
@@ -684,20 +673,6 @@ export default function AddDevicesPage({ onNavigate }) {
             )}
           </div>
         </div>
-        <div className="add-dev__info-pill">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="13" height="13" style={{ flexShrink: 0 }}>
-            <circle cx="12" cy="12" r="10" />
-            <path d="M12 8h.01M12 12v4" />
-          </svg>
-          {enrolling
-            ? `⏳ ${enrollMsg}`
-            : activeGroup === "all"
-              ? "Showing all cameras across all groups."
-              : activeGroup === "default"
-                ? "Showing cameras in Default group."
-                : `Showing cameras in "${groups.find((g) => g.id === activeGroup)?.name || ""}" group.`
-          }
-        </div>
 
         <div className="add-dev__table-wrap card">
           {filtered.length === 0 ? (
@@ -729,16 +704,14 @@ export default function AddDevicesPage({ onNavigate }) {
                     >
                       <td><CameraThumb type={d.type} /></td>
                       <td className="m-table__primary">
-                        {d.name}
-                        {d.physical_camera_count > 1 && (
-                          <span style={{
-                            marginLeft: 6, fontSize: 10, padding: "1px 5px",
-                            background: "#1a0f2e", color: "#a78bfa",
-                            border: "1px solid #3b1f6e", borderRadius: 4,
-                          }}>
-                            CAM {(d.channel ?? 0) + 1}
-                          </span>
-                        )}
+                        <div className="add-dev__name-cell">
+                          {d.name}
+                          {d.physical_camera_count > 1 && (
+                            <span className="m-badge m-badge--purple">
+                              CAM {(d.channel ?? 0) + 1}
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td><code className="add-dev__ip">{d.ip}</code></td>
                       <td><code className="add-dev__ip">{d.mac}</code></td>

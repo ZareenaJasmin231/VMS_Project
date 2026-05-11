@@ -27,6 +27,8 @@ from fastapi import Depends
 import tempfile
 from ome_service import register_stream
 from maps_router import router as maps_router
+from designer_router import router as designer_router
+
 
 from onvif_service import (
     probe_camera,
@@ -47,6 +49,8 @@ from masks_router import router as masks_router
 from backup_service import backup_router  # ← moved here, before app is created
 from logs_router import router as logs_router
 from brand_control import brand_router
+from monitoring.router import router as infrastructure_router
+from monitoring.scheduler import scheduler as infrastructure_scheduler
 from license.license_store import load_license
 from license.license_validator import validate_license
 from fastapi import WebSocket, WebSocketDisconnect
@@ -147,6 +151,16 @@ app.include_router(brand_router)
 app.include_router(logs_router)
 app.include_router(camera_analytics_router)
 app.include_router(maps_router)
+app.include_router(designer_router)
+app.include_router(infrastructure_router)
+
+@app.on_event("startup")
+async def startup_event():
+    infrastructure_scheduler.start()
+    
+    # Start Real-Time Network Diagnostics
+    from monitoring.diagnostics import run_diagnostics_loop
+    asyncio.create_task(run_diagnostics_loop())
 
 
 
@@ -166,8 +180,8 @@ mongo_watch_client = MongoClient(MONGO_URI)
 watch_collection = mongo_watch_client["mirador-vms"]["mqtt_logs"]
 OME_HOST_IP   = os.environ.get("OME_HOST_IP", "localhost")
 OME_WS_PORT   = os.environ.get("OME_WS_PORT", "3333")
-OME_WHIP_BASE = os.environ.get("OME_WHIP_BASE", "http://192.168.126.200:3333/app")
-
+HOST_IP = os.environ.get("HOST_IP", "127.0.0.1")
+OME_WHIP_BASE = os.environ.get("OME_WHIP_BASE", f"http://{HOST_IP}:3333/app")
 WATCHDOG_INTERVAL      = 5
 WATCHDOG_MAX_RETRIES   = 20
 WATCHDOG_BACKOFF_RESET = 10
@@ -2550,25 +2564,37 @@ async def get_dashboard_summary():
     }
 @app.get("/api/camera-health", dependencies=[Depends(verify_token)])
 def get_camera_health():
-    # 1. Get valid camera IPs from DB
-    cameras = list(cameras_col.find({}, {"_id": 0, "ip": 1}))
-    valid_ips = [c["ip"].replace(".", "_") for c in cameras]
+    if cameras_col is None:
+        return []
+        
+    # 1. Get registered cameras
+    registered_cameras = list(cameras_col.find({}, {"_id": 0}))
+    result = []
+    
+    for cam in registered_cameras:
+        ip = cam.get("ip")
+        if not ip: continue
+        
+        # 2. Find the latest health record for this camera's IP
+        ip_pattern = ip.replace(".", "_")
+        latest = _db["camera_health"].find_one(
+            {"stream": {"$regex": ip_pattern}},
+            sort=[("timestamp", -1)]
+        )
+        
+        # 3. Combine registered info with live health info
+        health_entry = {
+            "name": cam.get("name") or cam.get("device_name") or f"Camera @ {ip}",
+            "model": cam.get("model", "ONVIF Camera"),
+            "ip": ip,
+            "status": latest.get("status", "offline") if latest else "offline",
+            "bitrate": latest.get("bitrate", 0) if latest else 0,
+            "fps": latest.get("fps", 0) if latest else 0,
+            "timestamp": latest.get("timestamp") if latest else None
+        }
+        result.append(health_entry)
 
-    # 2. Get latest health records only
-    docs = list(_db["camera_health"].find({}, {"_id": 0}))
-
-    filtered = []
-
-    for d in docs:
-        stream = d.get("stream", "")
-
-        # 3. Keep only streams matching DB cameras
-        if any(ip in stream for ip in valid_ips):
-            # 4. OPTIONAL: only main stream (avoid duplicates)
-            if "cam0" in stream:   # 🔥 IMPORTANT FILTER
-                filtered.append(d)
-
-    return filtered
+    return result
 
 @app.get("/api/cameras", dependencies=[Depends(verify_token)])
 async def get_cameras():
@@ -2602,7 +2628,30 @@ async def get_dashboard_events(limit: int = 20):
         if "received_at" in d:
             d["received_at"] = d["received_at"].isoformat()
     return docs
-
+# @app.get("/api/camera-models", dependencies=[Depends(verify_token)])
+# async def get_camera_models(brand: str = None, type: str = None, search: str = None):
+#     if _db is None:
+#         return {"cameras": [], "brands": []}
+#     try:
+#         query = {}
+#         if brand:
+#             query["brand"] = brand
+#         if type:
+#             query["type"] = type
+#         if search:
+#             query["$or"] = [
+#                 {"brand":  {"$regex": search, "$options": "i"}},
+#                 {"model":  {"$regex": search, "$options": "i"}},
+#                 {"series": {"$regex": search, "$options": "i"}},
+#                 {"notes":  {"$regex": search, "$options": "i"}},
+#             ]
+#         col = _db["camera_models"]
+#         cameras = list(col.find(query, {"_id": 0}))
+#         brands  = col.distinct("brand")
+#         return {"cameras": cameras, "brands": sorted(brands)}
+#     except Exception as e:
+#         print(f"[CAMERA-MODELS] ❌ {e}")
+#         return {"cameras": [], "brands": []}
 
 @app.get("/api/alerts", dependencies=[Depends(verify_token)])
 async def get_alerts(limit: int = 50):

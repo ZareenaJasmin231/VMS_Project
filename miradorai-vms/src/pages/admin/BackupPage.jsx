@@ -236,7 +236,7 @@ export default function BackupPage() {
     let reconnectTimer;
 
     const connect = () => {
-      ws = new WebSocket("ws://192.168.126.200:8000/ws/backup-status");
+      ws = new WebSocket(`${import.meta.env.VITE_WS_URL}/ws/backup-status`);
 
       ws.onmessage = (event) => {
         try {

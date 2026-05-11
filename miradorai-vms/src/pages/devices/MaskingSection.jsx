@@ -290,18 +290,18 @@ export const MASKING_CSS = `
 import { useState, useEffect, useRef, useCallback } from "react";
 import WebRTCPlayer from "../../components/shared/WebRTCPlayer";
 
-const API = "http://192.168.126.200:8000";
+const API = import.meta.env.VITE_API_URL;
 const CANVAS_W = 640;
 const CANVAS_H = 360;
 
 // ── MASK COLORS ───────────────────────────────────────────────────
 const MASK_COLORS = [
-  { fill: "rgba(37,99,235,0.4)",  stroke: "#3b82f6", label: "Blue"   },
-  { fill: "rgba(239,68,68,0.4)",  stroke: "#ef4444", label: "Red"    },
-  { fill: "rgba(34,197,94,0.4)",  stroke: "#22c55e", label: "Green"  },
-  { fill: "rgba(234,179,8,0.4)",  stroke: "#eab308", label: "Amber"  },
-  { fill: "rgba(168,85,247,0.4)", stroke: "#a855f7", label: "Purple" },
-  { fill: "rgba(249,115,22,0.4)", stroke: "#f97316", label: "Orange" },
+  { fill: "rgba(59,130,246,0.3)",  stroke: "#60a5fa", label: "Deep Sea" },
+  { fill: "rgba(239,68,68,0.3)",   stroke: "#f87171", label: "Critical" },
+  { fill: "rgba(16,185,129,0.3)",  stroke: "#34d399", label: "Standard" },
+  { fill: "rgba(245,158,11,0.3)",  stroke: "#fbbf24", label: "Caution"  },
+  { fill: "rgba(139,92,246,0.3)",  stroke: "#a78bfa", label: "Mystic"   },
+  { fill: "rgba(249,115,22,0.3)",  stroke: "#fb923c", label: "Warning"  },
 ];
 
 export default function MaskingSection({ device, showToast }) {

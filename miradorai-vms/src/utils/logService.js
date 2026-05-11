@@ -1,4 +1,4 @@
-const API_BASE = import.meta.env.VITE_API_URL || "http://192.168.126.200:8000";
+const API_BASE = import.meta.env.VITE_API_URL;
 
 export const logUI = async ({ action, category, details = {} }) => {
   try {

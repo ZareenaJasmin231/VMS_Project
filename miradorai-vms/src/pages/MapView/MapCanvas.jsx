@@ -34,7 +34,26 @@ const MapCanvas = forwardRef(function MapCanvas(
   ref
 ) {
   const canvasRef = useRef(null);
-  const rafRef    = useRef(null);
+  const rafRef = useRef(null);
+  const TYPE_COLORS = {
+    dome: "#3b82f6",  // blue
+    bullet: "#f59e0b",  // amber
+    ptz: "#8b5cf6",  // purple
+    fisheye: "#10b981",  // green
+    box: "#f97316",  // orange
+    turret: "#ec4899",  // pink
+  };
+
+  function getCamType(cam) {
+    if (!cam) return "dome";
+    const name = (cam.name || cam.model || "").toLowerCase();
+    if (name.includes("bullet") || name.includes("bllt")) return "bullet";
+    if (name.includes("ptz")) return "ptz";
+    if (name.includes("fish")) return "fisheye";
+    if (name.includes("box")) return "box";
+    if (name.includes("turret")) return "turret";
+    return "dome";
+  }
 
   // ── Polyfill roundRect ────────────────────────────────────────────
   function ensureRoundRect(ctx) {
@@ -62,7 +81,7 @@ const MapCanvas = forwardRef(function MapCanvas(
       const xi = polygon[i].x, yi = polygon[i].y;
       const xj = polygon[j].x, yj = polygon[j].y;
       if ((yi > py) !== (yj > py) &&
-          px < ((xj - xi) * (py - yi)) / (yj - yi) + xi) {
+        px < ((xj - xi) * (py - yi)) / (yj - yi) + xi) {
         inside = !inside;
       }
     }
@@ -106,7 +125,7 @@ const MapCanvas = forwardRef(function MapCanvas(
 
     const W = wrap.clientWidth;
     const H = wrap.clientHeight;
-    canvas.width  = W;
+    canvas.width = W;
     canvas.height = H;
 
     const ctx = canvas.getContext("2d");
@@ -138,15 +157,16 @@ const MapCanvas = forwardRef(function MapCanvas(
       // Step B — erase (punch out) each camera's FOV cone from dark layer
       //          clipped to zone polygon so light stays inside the zone
       markers.forEach(m => {
-        const fovAngle  = m.fovAngle  || 60;
+        const fovAngle = m.fovAngle || 60;
         const direction = m.direction || 0;
-        const fovLen    = fovAngle * 2.2 + 40;
-        const halfRad   = (fovAngle / 2) * (Math.PI / 180);
-        const angle     = direction * (Math.PI / 180);
+        const fovLen = fovAngle * 2.2 + 40;
+        const halfRad = (fovAngle / 2) * (Math.PI / 180);
+        const angle = direction * (Math.PI / 180);
 
         // ★ Light starts from CENTRE of camera body
-        const originX = m.x;
-        const originY = m.y;
+        const S = 0.62;
+        const originX = m.x + Math.cos(angle) * (1.5 * S);
+        const originY = m.y + Math.sin(angle) * (1.5 * S);
 
         const zone = getMarkerZone(m);
 
@@ -156,10 +176,10 @@ const MapCanvas = forwardRef(function MapCanvas(
 
         ctx.globalCompositeOperation = "destination-out";
         const g = ctx.createRadialGradient(originX, originY, 0, originX, originY, fovLen);
-        g.addColorStop(0,    "rgba(0,0,0,1)");
+        g.addColorStop(0, "rgba(0,0,0,1)");
         g.addColorStop(0.58, "rgba(0,0,0,0.90)");
         g.addColorStop(0.82, "rgba(0,0,0,0.45)");
-        g.addColorStop(1,    "rgba(0,0,0,0)");
+        g.addColorStop(1, "rgba(0,0,0,0)");
 
         traceCone(ctx, originX, originY, fovLen, angle, halfRad);
         ctx.fillStyle = g;
@@ -170,17 +190,19 @@ const MapCanvas = forwardRef(function MapCanvas(
       // Step C — colour tint layer (green = online, grey = offline, blue = highlight)
       //          same zone clip applied
       markers.forEach(m => {
-        const cam       = cameras.find(c => c.id === m.camId);
-        const online    = cam?.status === "online";
+        const cam = cameras.find(c => c.id === m.camId);
+        const online = cam?.status === "online";
         const isHighlit = m.camId === highlightedCamId;
 
-        const fovAngle  = m.fovAngle  || 60;
+        const fovAngle = m.fovAngle || 60;
         const direction = m.direction || 0;
-        const fovLen    = fovAngle * 2.2 + 40;
-        const halfRad   = (fovAngle / 2) * (Math.PI / 180);
-        const angle     = direction * (Math.PI / 180);
-        const originX   = m.x;
-        const originY   = m.y;
+        const fovLen = fovAngle * 2.2 + 40;
+        const halfRad = (fovAngle / 2) * (Math.PI / 180);
+        const angle = direction * (Math.PI / 180);
+        const S = 0.62;
+
+        const originX = m.x + Math.cos(angle) * (1.5 * S);
+        const originY = m.y + Math.sin(angle) * (1.5 * S);
 
         const zone = getMarkerZone(m);
 
@@ -188,24 +210,30 @@ const MapCanvas = forwardRef(function MapCanvas(
         if (zone) buildZoneClip(ctx, zone);
         ctx.globalCompositeOperation = "source-over";
 
+        const camType = getCamType(cam);
+        const typeCol = TYPE_COLORS[camType] || "#3b82f6";
+        const col = online ? (isHighlit ? "#5aabf0" : typeCol) : "#555";
+
+
+        // Parse hex color to rgb for gradient
+        function hexToRgb(hex) {
+          const r = parseInt(hex.slice(1, 3), 16);
+          const g = parseInt(hex.slice(3, 5), 16);
+          const b = parseInt(hex.slice(5, 7), 16);
+          return `${r},${g},${b}`;
+        }
+        const rgb = hexToRgb(isHighlit ? "#5aabf0" : typeCol);
+
         let g;
-        if (isHighlit) {
-          // Blue highlight
+        if (!online) {
           g = ctx.createRadialGradient(originX, originY, 0, originX, originY, fovLen);
-          g.addColorStop(0,    "rgba(90,171,240,0.48)");
-          g.addColorStop(0.55, "rgba(90,171,240,0.22)");
-          g.addColorStop(1,    "rgba(90,171,240,0)");
-        } else if (online) {
-          // ★ Green — camera is live
-          g = ctx.createRadialGradient(originX, originY, 0, originX, originY, fovLen);
-          g.addColorStop(0,    "rgba(29,158,117,0.62)");
-          g.addColorStop(0.50, "rgba(29,158,117,0.28)");
-          g.addColorStop(1,    "rgba(29,158,117,0)");
+          g.addColorStop(0, "rgba(110,110,110,0.14)");
+          g.addColorStop(1, "rgba(110,110,110,0)");
         } else {
-          // Offline — very faint, just shows the floor naturally
           g = ctx.createRadialGradient(originX, originY, 0, originX, originY, fovLen);
-          g.addColorStop(0,   "rgba(110,110,110,0.14)");
-          g.addColorStop(1,   "rgba(110,110,110,0)");
+          g.addColorStop(0, `rgba(${rgb},0.60)`);
+          g.addColorStop(0.55, `rgba(${rgb},0.26)`);
+          g.addColorStop(1, `rgba(${rgb},0)`);
         }
 
         traceCone(ctx, originX, originY, fovLen, angle, halfRad);
@@ -219,14 +247,14 @@ const MapCanvas = forwardRef(function MapCanvas(
     const S = 0.62; // ★ Camera scale — smaller & cleaner
 
     markers.forEach((m, i) => {
-      const cam    = cameras.find(c => c.id === m.camId) || {
+      const cam = cameras.find(c => c.id === m.camId) || {
         name: m.camName || m.camId, ip: m.camIp || "", status: "offline",
       };
-      const online    = cam.status === "online";
+      const online = cam.status === "online";
       const isHighlit = m.camId === highlightedCamId;
-      const col       = online ? (isHighlit ? "#5aabf0" : "#1D9E75") : "#555";
-      const R         = 8;   // glow / hit radius
-      const hov       = i === hoveredIdxRef.current;
+      const col = online ? (isHighlit ? "#5aabf0" : "#1D9E75") : "#555";
+      const R = 8;   // glow / hit radius
+      const hov = i === hoveredIdxRef.current;
 
       // ── Glow ring ──
       ctx.beginPath();
@@ -243,32 +271,32 @@ const MapCanvas = forwardRef(function MapCanvas(
       // Mount (back base disk)
       ctx.beginPath();
       ctx.arc(-14 * S, 0, 5 * S, 0, Math.PI * 2);
-      ctx.fillStyle   = isHighlit ? "#a8ccee" : "#cecece";
+      ctx.fillStyle = isHighlit ? "#a8ccee" : "#cecece";
       ctx.fill();
       ctx.strokeStyle = isHighlit ? "#5aabf0" : "#888";
-      ctx.lineWidth   = 0.8;
+      ctx.lineWidth = 0.8;
       ctx.stroke();
 
       // Neck
       ctx.beginPath();
       ctx.roundRect(-14 * S, -2.5 * S, 7 * S, 5 * S, 1.5);
-      ctx.fillStyle   = isHighlit ? "#9bbdd8" : "#c4c4c4";
+      ctx.fillStyle = isHighlit ? "#9bbdd8" : "#c4c4c4";
       ctx.fill();
       ctx.stroke();
 
       // Main barrel body
       ctx.beginPath();
       ctx.roundRect(-7 * S, -5.5 * S, 17 * S, 11 * S, 5 * S);
-      ctx.fillStyle   = isHighlit ? "#daeeff" : "#efefef";
+      ctx.fillStyle = isHighlit ? "#daeeff" : "#efefef";
       ctx.fill();
       ctx.strokeStyle = isHighlit ? "#5aabf0" : "#aaa";
-      ctx.lineWidth   = 0.8;
+      ctx.lineWidth = 0.8;
       ctx.stroke();
 
       // Front bezel ring
       ctx.beginPath();
       ctx.arc(10 * S, 0, 5.5 * S, 0, Math.PI * 2);
-      ctx.fillStyle   = isHighlit ? "#b8d8f0" : "#dfdfdf";
+      ctx.fillStyle = isHighlit ? "#b8d8f0" : "#dfdfdf";
       ctx.fill();
       ctx.strokeStyle = isHighlit ? "#5aabf0" : "#aaa";
       ctx.stroke();
@@ -290,9 +318,9 @@ const MapCanvas = forwardRef(function MapCanvas(
       // ── Number label (sits at body centre) ──
       ctx.save();
       ctx.translate(m.x, m.y);
-      ctx.fillStyle    = online ? "#fff" : "#aaa";
-      ctx.font         = `bold ${hov ? 9 : 8}px monospace`;
-      ctx.textAlign    = "center";
+      ctx.fillStyle = online ? "#fff" : "#aaa";
+      ctx.font = `bold ${hov ? 9 : 8}px monospace`;
+      ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.fillText((i + 1).toString(), -2 * S, 0);
       ctx.restore();
@@ -301,16 +329,16 @@ const MapCanvas = forwardRef(function MapCanvas(
       if (hov) {
         ctx.font = "10.5px Inter, sans-serif";
         const lbl = cam.name;
-        const tw  = ctx.measureText(lbl).width;
-        const bx  = m.x - tw / 2 - 7;
-        const by  = m.y - R - 22;
+        const tw = ctx.measureText(lbl).width;
+        const bx = m.x - tw / 2 - 7;
+        const by = m.y - R - 22;
         ctx.save();
         ctx.fillStyle = "#0d1117f2";
         ctx.beginPath();
         ctx.roundRect(bx, by, tw + 14, 18, 4);
         ctx.fill();
-        ctx.fillStyle    = "#e8edf5";
-        ctx.textAlign    = "center";
+        ctx.fillStyle = "#e8edf5";
+        ctx.textAlign = "center";
         ctx.textBaseline = "middle";
         ctx.fillText(lbl, m.x, by + 9);
         ctx.restore();
@@ -318,14 +346,14 @@ const MapCanvas = forwardRef(function MapCanvas(
 
       // ── Direction handle ──
       const ang2 = (m.direction || 0) * (Math.PI / 180);
-      const hx   = m.x + Math.cos(ang2) * (R + 9);
-      const hy   = m.y + Math.sin(ang2) * (R + 9);
+      const hx = m.x + Math.cos(ang2) * (R + 9);
+      const hy = m.y + Math.sin(ang2) * (R + 9);
       ctx.beginPath();
       ctx.arc(hx, hy, 3, 0, Math.PI * 2);
-      ctx.fillStyle   = online ? col : "#555";
+      ctx.fillStyle = online ? col : "#555";
       ctx.fill();
       ctx.strokeStyle = "rgba(255,255,255,0.30)";
-      ctx.lineWidth   = 1;
+      ctx.lineWidth = 1;
       ctx.stroke();
     });
 
@@ -342,7 +370,7 @@ const MapCanvas = forwardRef(function MapCanvas(
 
   useEffect(() => {
     const obs = new ResizeObserver(drawAll);
-    const el  = canvasRef.current?.parentElement;
+    const el = canvasRef.current?.parentElement;
     if (el) obs.observe(el);
     return () => obs.disconnect();
   }, [drawAll]);

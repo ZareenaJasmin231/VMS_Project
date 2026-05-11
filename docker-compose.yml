@@ -4,14 +4,14 @@ services:
     container_name: ome
     restart: unless-stopped
     ports:
-      - "1935:1935"
-      - "9999:9999/udp"
-      - "3333:3333"
-      - "3334:3334"
-      - "8080:8080"
-      - "8081:8081"
-      - "554:554"
-      - "10000-10009:10000-10009/udp"
+      - "${OME_RTMP_PORT}:${OME_RTMP_PORT}"
+      - "${OME_SRT_PORT}:${OME_SRT_PORT}/udp"
+      - "${OME_WEBRTC_PORT}:${OME_WEBRTC_PORT}"
+      - "${OME_WEBRTC_TLS_PORT}:${OME_WEBRTC_TLS_PORT}"
+      - "${OME_LLHLS_PORT}:${OME_LLHLS_PORT}"
+      - "${OME_API_PORT}:${OME_API_PORT}"
+      - "${OME_RTSP_PORT}:${OME_RTSP_PORT}"
+      - "${OME_ICE_RANGE}:${OME_ICE_RANGE}/udp"
     volumes:
       - ./origin_conf:/opt/ovenmediaengine/bin/origin_conf
     extra_hosts:
@@ -24,7 +24,7 @@ services:
     container_name: mongo
     restart: unless-stopped
     ports:
-      - "27017:27017"
+      - "${MONGO_PORT}:${MONGO_PORT}"
     volumes:
       - mongo_data:/data/db
     networks:
@@ -35,8 +35,8 @@ services:
     container_name: mosquitto
     restart: unless-stopped
     ports:
-      - "1883:1883"
-      - "9001:9001"
+      - "${MQTT_PORT}:${MQTT_PORT}"
+      - "${MQTT_WS_PORT}:${MQTT_WS_PORT}"
     volumes:
       - ./mosquitto/config/mosquitto.conf:/mosquitto/config/mosquitto.conf
       - mosquitto_data:/mosquitto/data
@@ -50,9 +50,9 @@ services:
     restart: unless-stopped
     command: python mqtt_to_db.py
     environment:
-      - MONGO_URI=mongodb://mongo:27017/
+      - MONGO_URI=mongodb://mongo:${MONGO_PORT}/
       - MQTT_BROKER=mosquitto
-      - MQTT_PORT=1883
+      - MQTT_PORT=${MQTT_PORT}
       - TZ=Asia/Kolkata
     volumes:
       - /etc/localtime:/etc/localtime:ro
@@ -64,21 +64,21 @@ services:
 
   backend:
     build: ./onvif-backend
-    command: uvicorn main:app --host 0.0.0.0 --port 8000
+    command: uvicorn main:app --host 0.0.0.0 --port ${BACKEND_PORT}
     container_name: backend
     restart: unless-stopped
     ports:
-      - "8000:8000"
+      - "${BACKEND_PORT}:${BACKEND_PORT}"
     environment:
-      - OME_URL=http://ome:8081/v1/vhosts/default/apps/app/streams
+      - OME_URL=http://ome:${OME_API_PORT}/v1/vhosts/default/apps/app/streams
       - OME_HOST=ome
-      - OME_PORT=3333
-      - OME_HOST_IP=192.168.126.200
+      - OME_PORT=${OME_WEBRTC_PORT}
+      - OME_HOST_IP=${HOST_IP}
       - HOST_SUBNET=192.168.126
-      - OME_WS_PORT=3333
-      - MONGO_URI=mongodb://mongo:27017/
+      - OME_WS_PORT=${OME_WEBRTC_PORT}
+      - MONGO_URI=mongodb://mongo:${MONGO_PORT}/
       - MQTT_BROKER=mosquitto
-      - MQTT_PORT=1883
+      - MQTT_PORT=${MQTT_PORT}
       - RECORDINGS_DIR=/recordings
       - RECORDING_CONFIG_FILE=/app/data/recording_config.json
       - VIDEO_KEY_FILE=/app/data/video.key

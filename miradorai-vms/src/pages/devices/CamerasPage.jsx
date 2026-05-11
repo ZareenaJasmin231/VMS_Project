@@ -1,5 +1,4 @@
 import { useState } from "react";
-import Button from "../../components/shared/Button";
 import SearchBar from "../../components/shared/SearchBar";
 import Modal from "../../components/shared/Modal";
 import { CAMERA_FEATURES_CONFIG } from "../../data/navConfig";
@@ -30,7 +29,7 @@ function saveGroups(groupsData) {
   try { localStorage.setItem("miradorai_groups", JSON.stringify(groupsData)); } catch {}
 }
 
-const API_BASE = "http://192.168.126.200:8000";
+const API_BASE = import.meta.env.VITE_API_URL;
 const INLINE_PAGES = ["masking"];
 
 export default function CamerasPage({ onNavigate, onCameraSelect }) {
@@ -156,7 +155,14 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
     const ip     = encodeURIComponent(cam.ip);
     const url    = `${API_BASE}/api/cameras/by-ip/${ip}/${action}`;
     const method = action === "delete" ? "DELETE" : "POST";
-    fetch(url, { method })
+    
+    const token = localStorage.getItem("miradorai_token");
+    const headers = {
+      "Authorization": "Bearer " + (token || ""),
+      "Content-Type": "application/json"
+    };
+
+    fetch(url, { method, headers })
       .then((r) => r.json())
       .then((d) => console.log(`[CAMERA] ${action} OK for ${cam.ip}:`, d))
       .catch((err) => console.error(`[CAMERA] ${action} FAILED for ${cam.ip}:`, err));
@@ -195,7 +201,7 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
       name:        c.name        || "",
       description: c.description || "",
       ip:          c.ip          || "",
-      port:        c.port        || "80",
+      port:        c.port ? Number(c.port) : 80,
       username:    c.username    || "",
       password:    c.password    || "",
     });
@@ -248,8 +254,12 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
     for (const cam of camsToRemove) {
       try {
         const ip  = encodeURIComponent(cam.ip);
-        const res = await fetch(`${API_BASE}/api/cameras/by-ip/${ip}/delete`, { method: "DELETE" });
-        const data = await res.json();
+        const token = localStorage.getItem("miradorai_token");
+        const res = await fetch(`${API_BASE}/api/cameras/by-ip/${ip}/delete`, { 
+          method: "DELETE",
+          headers: { "Authorization": "Bearer " + (token || "") }
+        });
+        const data = await res.ok ? await res.json() : null;
         console.log("✅ Deleted from DB:", data);
         logAction("Camera deleted", "camera", { ip: cam.ip });
       } catch (err) {
@@ -302,267 +312,270 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
 
   return (
     <div className="page-shell">
-      {/* ── Header ── */}
       <div className="page-header">
-        <div>
-          <h1 className="page-title"><span>Manage</span> Camera Groups</h1>
-          <p className="page-desc">
-            Manage camera groups. View, move, or remove cameras within each group.
-          </p>
+        <div className="page-header__left">
+          <h1 className="page-title">Manage <span>Camera Groups</span></h1>
+          <p className="page-desc">Organize your devices into logical groups for easier management and bulk operations.</p>
         </div>
-        <SearchBar value={filter} onChange={setFilter} placeholder="Type to filter" />
+        <SearchBar value={filter} onChange={setFilter} placeholder="Filter groups or cameras..." />
       </div>
 
-      {/* ── Main layout: table + side panel ── */}
-      <div className={`cameras-content-layout ${selectedGroup ? "has-panel" : ""}`}>
+      <div className="app-content">
+        <div className={`cameras-content-layout ${selectedGroup ? "has-panel" : ""}`}>
 
-        {/* ── Group table ── */}
-        <div className="card cam-table-wrap">
-          <table className="m-table">
-            <thead>
-              <tr>
-                <th style={{ width: 36 }}>
-                  <input
-                    type="checkbox"
-                    className="m-checkbox"
-                    checked={allChecked}
-                    onChange={toggleAll}
-                  />
-                </th>
-                <th style={{ width: 72 }}>Active</th>
-                <th>Group Name</th>
-                <th style={{ textAlign: "center" }}>Total Cameras</th>
-                <th style={{ textAlign: "center" }}>Active</th>
-                <th style={{ textAlign: "center" }}>Disabled</th>
-                <th style={{ width: 140 }}></th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredGroups.length === 0 ? (
+          {/* ── Group table ── */}
+          <div className="card cam-table-wrap">
+            <table className="m-table">
+              <thead>
                 <tr>
-                  <td colSpan={5} className="m-table__empty">
-                    {cameras.length === 0
-                      ? "No cameras enrolled. Go to Add Devices to get started."
-                      : "No groups match your filter."}
-                  </td>
+                  <th style={{ width: 36 }}>
+                    <input
+                      type="checkbox"
+                      className="m-checkbox"
+                      checked={allChecked}
+                      onChange={toggleAll}
+                    />
+                  </th>
+                  <th style={{ width: 72 }}>Active</th>
+                  <th>Group Name</th>
+                  <th style={{ textAlign: "center" }}>Total Cameras</th>
+                  <th style={{ textAlign: "center" }}>Active</th>
+                  <th style={{ textAlign: "center" }}>Disabled</th>
+                  <th style={{ width: 140 }}></th>
                 </tr>
-              ) : filteredGroups.map((group) => {
-                const total       = group.cameras.length;
-                const activeCount = group.cameras.filter(c => c.enabled !== false).length;
-                const isChecked   = checked.includes(group.group_id);
-                const isSel       = selectedGroup?.group_id === group.group_id;
+              </thead>
+              <tbody>
+                {filteredGroups.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="m-table__empty">
+                      {cameras.length === 0
+                        ? "No cameras enrolled. Go to Add Devices to get started."
+                        : "No groups match your filter."}
+                    </td>
+                  </tr>
+                ) : filteredGroups.map((group) => {
+                  const total       = group.cameras.length;
+                  const activeCount = group.cameras.filter(c => c.enabled !== false).length;
+                  const isChecked   = checked.includes(group.group_id);
+                  const isSel       = selectedGroup?.group_id === group.group_id;
 
-                return (
-                  <tr
-                    key={group.group_id}
-                    className={[
-                      "m-table__row",
-                      isSel     ? "m-table__row--selected" : "",
-                      isChecked ? "m-table__row--selected" : "",
-                    ].join(" ")}
-                  >
-                    {/* Checkbox */}
-                    <td onClick={(e) => e.stopPropagation()}>
+                  return (
+                    <tr
+                      key={group.group_id}
+                      className={[
+                        "m-table__row",
+                        isSel     ? "m-table__row--selected" : "",
+                        isChecked ? "m-table__row--selected" : "",
+                      ].join(" ")}
+                    >
+                      {/* Checkbox */}
+                      <td onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          className="m-checkbox"
+                          checked={isChecked}
+                          onChange={() => toggleGroup(group.group_id)}
+                        />
+                      </td>
+
+                      {/* Active toggle (affects all cameras in group) */}
+                      <td onClick={(e) => e.stopPropagation()}>
+                        <label className="cam-toggle" title={activeCount > 0 ? "Disable all" : "Enable all"}>
+                          <input
+                            type="checkbox"
+                            checked={activeCount > 0}
+                            onChange={() => toggleGroupEnabled(group.group_id)}
+                          />
+                          <span className="cam-toggle-track">
+                            <span className="cam-toggle-thumb" />
+                          </span>
+                        </label>
+                      </td>
+
+                      {/* Group Name */}
+                      <td className="m-table__primary">
+                        {editingGroupId === group.group_id ? (
+                          <div style={{ display: "flex", alignItems: "center", gap: "8px" }} onClick={(e) => e.stopPropagation()}>
+                            <input
+                              className="ec-input"
+                              style={{ height: "26px", padding: "0 6px" }}
+                              value={editingGroupName}
+                              onChange={(e) => setEditingGroupName(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") handleSaveGroupName(group.group_id);
+                                if (e.key === "Escape") setEditingGroupId(null);
+                              }}
+                              autoFocus
+                            />
+                            <button
+                              className="ec-btn ec-btn--primary"
+                              style={{ padding: "0 8px", height: "26px", fontSize: "11px" }}
+                              onClick={() => handleSaveGroupName(group.group_id)}
+                            >
+                              Save
+                            </button>
+                            <button
+                              className="ec-btn ec-btn--cancel"
+                              style={{ padding: "0 8px", height: "26px", fontSize: "11px" }}
+                              onClick={() => setEditingGroupId(null)}
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        ) : (
+                          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                            {group.name}
+                            {group.group_id !== "default" && (
+                              <button
+                                title="Edit Group Name"
+                                style={{
+                                  background: "none", border: "none", color: "var(--text-secondary)", cursor: "pointer", display: "flex", alignItems: "center"
+                                }}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setEditingGroupId(group.group_id);
+                                  setEditingGroupName(group.name);
+                                }}
+                              >
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </td>
+
+                      {/* Total Cameras */}
+                      <td>
+                        <span className="group-total">{total}</span>
+                      </td>
+                      {/* Active */}
+                      <td>
+                        <span className="group-active">{activeCount}</span>
+                      </td>
+                      {/* Disabled */}
+                      <td>
+                        <span className="group-disabled">{total - activeCount}</span>
+                      </td>
+
+                      {/* View All button */}
+                      <td>
+                        <button
+                          className="ec-btn ec-btn--primary"
+                          style={{ fontSize: "0.75rem", padding: "4px 10px" }}
+                          onClick={() => openGroupPanel(group)}
+                        >
+                          View All Cameras
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {/* ── Right Side Panel (Group) ── */}
+          {selectedGroup && (
+            <div className="card cam-side-panel">
+
+              {/* ── UPDATED: Panel header ── */}
+              <div className="cam-side-panel__header">
+                <div className="cam-side-panel__info">
+                  <div className="cam-side-panel__name-row">
+                    <div className="group-panel-header">
+                      <h3>{selectedGroup.name}</h3>
+                      <div className="group-panel-meta">
+                        <span>{selectedGroup.cameras.length} Camera{selectedGroup.cameras.length !== 1 ? "s" : ""}</span>
+                        <span className="dot">•</span>
+                        <span className="active-count">
+                          {selectedGroup.cameras.filter(c => c.enabled !== false).length} Active
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      className="close-btn"
+                      onClick={() => setSelectedGroup(null)}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* ── UPDATED: Camera list with per-camera toggle ── */}
+              <div className="group-cam-list">
+                {selectedGroup.cameras.length === 0 ? (
+                  <div className="m-table__empty" style={{ padding: "1rem" }}>No cameras in this group.</div>
+                ) : selectedGroup.cameras.map((cam) => {
+                  const isEnabled    = cam.enabled !== false;
+                  const isCamChecked = groupChecked.includes(cam.id);
+
+                  return (
+                    <div
+                      key={cam.id}
+                      className={`group-cam-item ${isCamChecked ? "checked" : ""}`}
+                      onClick={() => toggleGroupCam(cam.id)}
+                    >
                       <input
                         type="checkbox"
                         className="m-checkbox"
-                        checked={isChecked}
-                        onChange={() => toggleGroup(group.group_id)}
+                        checked={isCamChecked}
+                        onChange={() => toggleGroupCam(cam.id)}
+                        onClick={(e) => e.stopPropagation()}
                       />
-                    </td>
-
-                    {/* Active toggle (affects all cameras in group) */}
-                    <td onClick={(e) => e.stopPropagation()}>
-                      <label className="cam-toggle" title={activeCount > 0 ? "Disable all" : "Enable all"}>
+                      <div className="group-cam-info">
+                        <div className="group-cam-name">{cam.name || cam.ip}</div>
+                        <div className="group-cam-ip">{cam.ip}</div>
+                      </div>
+                      <label className="cam-toggle" onClick={(e) => e.stopPropagation()}>
                         <input
                           type="checkbox"
-                          checked={activeCount > 0}
-                          onChange={() => toggleGroupEnabled(group.group_id)}
+                          checked={isEnabled}
+                          onChange={(e) => toggleEnabled(cam, e)}
                         />
                         <span className="cam-toggle-track">
                           <span className="cam-toggle-thumb" />
                         </span>
                       </label>
-                    </td>
-
-                    {/* Group Name */}
-                    <td className="m-table__primary">
-                      {editingGroupId === group.group_id ? (
-                        <div style={{ display: "flex", alignItems: "center", gap: "8px" }} onClick={(e) => e.stopPropagation()}>
-                          <input
-                            className="ec-input"
-                            style={{ height: "26px", padding: "0 6px" }}
-                            value={editingGroupName}
-                            onChange={(e) => setEditingGroupName(e.target.value)}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter") handleSaveGroupName(group.group_id);
-                              if (e.key === "Escape") setEditingGroupId(null);
-                            }}
-                            autoFocus
-                          />
-                          <button
-                            className="ec-btn ec-btn--primary"
-                            style={{ padding: "0 8px", height: "26px", fontSize: "11px" }}
-                            onClick={() => handleSaveGroupName(group.group_id)}
-                          >
-                            Save
-                          </button>
-                          <button
-                            className="ec-btn ec-btn--cancel"
-                            style={{ padding: "0 8px", height: "26px", fontSize: "11px" }}
-                            onClick={() => setEditingGroupId(null)}
-                          >
-                            Cancel
-                          </button>
-                        </div>
-                      ) : (
-                        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                          {group.name}
-                          {group.group_id !== "default" && (
-                            <button
-                              title="Edit Group Name"
-                              style={{
-                                background: "none", border: "none", color: "var(--text-secondary)", cursor: "pointer", display: "flex", alignItems: "center"
-                              }}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setEditingGroupId(group.group_id);
-                                setEditingGroupName(group.name);
-                              }}
-                            >
-                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
-                            </button>
-                          )}
-                        </div>
-                      )}
-                    </td>
-
-                    {/* Total Cameras */}
-                    <td>
-                      <span className="group-total">{total}</span>
-                    </td>
-                    {/* Active */}
-                    <td>
-                      <span className="group-active">{activeCount}</span>
-                    </td>
-                    {/* Disabled */}
-                    <td>
-                      <span className="group-disabled">{total - activeCount}</span>
-                    </td>
-
-                    {/* View All button */}
-                    <td>
-                      <button
-                        className="ec-btn ec-btn--primary"
-                        style={{ fontSize: "0.75rem", padding: "4px 10px" }}
-                        onClick={() => openGroupPanel(group)}
-                      >
-                        View All Cameras
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-
-        {/* ── Right Side Panel (Group) ── */}
-        {selectedGroup && (
-          <div className="card cam-side-panel">
-
-            {/* ── UPDATED: Panel header ── */}
-            <div className="cam-side-panel__header">
-              <div className="cam-side-panel__info">
-                <div className="cam-side-panel__name-row">
-                  <div className="group-panel-header">
-                    <h3>{selectedGroup.name}</h3>
-                    <div className="group-panel-meta">
-                      <span>{selectedGroup.cameras.length} Camera{selectedGroup.cameras.length !== 1 ? "s" : ""}</span>
-                      <span className="dot">•</span>
-                      <span className="active-count">
-                        {selectedGroup.cameras.filter(c => c.enabled !== false).length} Active
-                      </span>
                     </div>
-                  </div>
+                  );
+                })}
+              </div>
+
+              {/* Panel footer */}
+              <div className="ec-panel__footer">
+                <div className="ec-panel__footer-left">
+                  <span>{groupChecked.length} selected</span>
+                </div>
+                <div className="ec-panel__footer-right">
                   <button
-                    className="close-btn"
-                    onClick={() => setSelectedGroup(null)}
+                    className="ec-btn ec-btn--danger"
+                    disabled={groupChecked.length === 0}
+                    onClick={() => {
+                      setConfirmAction({
+                        title: "Delete Cameras",
+                        message: `Are you sure you want to delete ${groupChecked.length} selected camera(s)?`,
+                        onConfirm: () => {
+                          handleDeleteGroupCams();
+                          setConfirmAction(null);
+                        }
+                      });
+                    }}
                   >
-                    ✕
+                    Delete
+                  </button>
+                  <button
+                    className="ec-btn ec-btn--primary"
+                    disabled={groupChecked.length === 0}
+                    onClick={() => setShowMoveModal(true)}
+                  >
+                    Move To
                   </button>
                 </div>
               </div>
             </div>
-
-            {/* ── UPDATED: Camera list with per-camera toggle ── */}
-            <div className="group-cam-list">
-              {selectedGroup.cameras.length === 0 ? (
-                <div className="m-table__empty" style={{ padding: "1rem" }}>No cameras in this group.</div>
-              ) : selectedGroup.cameras.map((cam) => {
-                const isEnabled    = cam.enabled !== false;
-                const isCamChecked = groupChecked.includes(cam.id);
-                return (
-                  <div
-                    key={cam.id}
-                    className={`group-cam-row ${isCamChecked ? "group-cam-row--checked" : ""}`}
-                  >
-                    {/* Checkbox */}
-                    <input
-                      type="checkbox"
-                      className="m-checkbox"
-                      checked={isCamChecked}
-                      onChange={() => toggleGroupCam(cam.id)}
-                    />
-
-                    {/* Camera Info */}
-                    <div className="group-cam-info">
-                      <div className="group-cam-name">{cam.name || "Unnamed Camera"}</div>
-                      <div className="group-cam-ip">{cam.ip || "No IP"}</div>
-                    </div>
-
-                    {/* Per-camera enable/disable toggle */}
-                    <label className="cam-toggle" title={isEnabled ? "Disable camera" : "Enable camera"}>
-                      <input
-                        type="checkbox"
-                        checked={isEnabled}
-                        onChange={(e) => toggleEnabled(cam, e)}
-                      />
-                      <span className="cam-toggle-track">
-                        <span className="cam-toggle-thumb" />
-                      </span>
-                    </label>
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* Footer actions */}
-            <div className="group-footer">
-              <button
-                className="ec-btn ec-btn--danger"
-                disabled={groupChecked.length === 0}
-                onClick={() => setConfirmAction({
-                  title: "Delete Cameras",
-                  message: `Are you sure you want to delete the ${groupChecked.length} selected camera(s)?`,
-                  onConfirm: () => {
-                    handleDeleteGroupCams();
-                    setConfirmAction(null);
-                  }
-                })}
-              >
-                Delete
-              </button>
-              <button
-                className="ec-btn ec-btn--primary"
-                disabled={groupChecked.length === 0}
-                onClick={() => setShowMoveModal(true)}
-              >
-                Move To
-              </button>
-            </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {/* ── Footer ── */}
@@ -574,9 +587,8 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
           </span>
         </span>
         <div className="page-footer-right">
-          <Button
-            label={checked.length > 1 ? `Remove Groups (${checked.length})` : "Remove Group"}
-            variant="danger"
+          <button
+            className="m-btn m-btn--danger"
             disabled={checked.length === 0}
             onClick={() => setConfirmAction({
               title: "Remove Groups",
@@ -586,7 +598,9 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
                 setConfirmAction(null);
               }
             })}
-          />
+          >
+            {checked.length > 1 ? `Remove Groups (${checked.length})` : "Remove Group"}
+          </button>
         </div>
       </div>
 

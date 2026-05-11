@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import "./DiscoveryModal.css";
 
-const STREAM_API = "http://192.168.126.200:8000";
+const API_BASE = import.meta.env.VITE_API_URL;
 
 
 export default function DiscoveryModal({
@@ -78,7 +78,7 @@ export default function DiscoveryModal({
 
     let devices = [];
     try {
-      const response = await fetch(`${STREAM_API}/api/discover-devices`, {
+      const response = await fetch(`${API_BASE}/api/discover-devices`, {
         headers: {
           Authorization: "Bearer " + token
         }
@@ -203,9 +203,12 @@ export default function DiscoveryModal({
 
         let data = null;
         try {
-          const res = await fetch(`${STREAM_API}/api/onvif/probe`, {
+          const res = await fetch(`${API_BASE}/api/onvif/probe`, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: { 
+              "Content-Type": "application/json",
+              "Authorization": "Bearer " + (localStorage.getItem("miradorai_token") || "")
+            },
             body: JSON.stringify(probePayload),
           });
 

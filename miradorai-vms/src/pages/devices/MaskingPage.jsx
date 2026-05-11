@@ -2,8 +2,8 @@ import { useState, useEffect } from "react";
 import MaskingSection from "./MaskingSection";
 import "./MaskingPage.css";
 
-const API = "http://192.168.126.200:8000";
-
+const API = import.meta.env.VITE_API_URL;
+const WS_BASE = import.meta.env.VITE_WS_URL;
 export default function MaskingPage() {
   const [cameras, setCameras] = useState([]);
   const [selectedCam, setSelectedCam] = useState(null);

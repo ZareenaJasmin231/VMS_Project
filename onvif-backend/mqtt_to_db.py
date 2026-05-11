@@ -6,7 +6,7 @@ from pymongo import MongoClient
 from datetime import datetime, timezone, timedelta
 
 # ── Config ─────────────────────────────────────────────────────────
-MQTT_BROKER = "192.168.126.200"
+MQTT_BROKER = os.environ.get("MQTT_BROKER", os.environ.get("HOST_IP", "127.0.0.1"))
 MQTT_PORT   = int(os.environ.get("MQTT_PORT", 1883))
 MQTT_TOPIC  = "axis/#"
 

@@ -12,6 +12,45 @@ import {
 } from "lucide-react";
 const API_BASE = "http://localhost:8000";
 
+const Sparkline = ({ data, color = '#6366f1', height = 60 }) => {
+  if (!data || data.length < 2) return <div style={{ height }} />;
+  const min = Math.min(...data);
+  const max = Math.max(...data);
+  const range = max - min || 1;
+  const width = 200;
+  const points = data.map((val, i) => {
+    const x = (i / (data.length - 1)) * width;
+    const y = height - ((val - min) / range) * height;
+    return `${x},${y}`;
+  }).join(' ');
+  const pathData = `M ${points}`;
+  const areaData = `${pathData} L ${width},${height} L 0,${height} Z`;
+
+  return (
+    <svg viewBox={`0 0 ${width} ${height}`} className="dashboard-sparkline" preserveAspectRatio="none">
+      <defs>
+        <linearGradient id={`grad-${color}`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={color} stopOpacity="0.3" />
+          <stop offset="100%" stopColor={color} stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <path d={areaData} fill={`url(#grad-${color})`} />
+      <path d={pathData} fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+};
+
+const timeAgo = (date) => {
+  if (!date) return 'Never';
+  const seconds = Math.floor((new Date() - new Date(date)) / 1000);
+  if (seconds < 60) return 'Just now';
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return `${Math.floor(hours / 24)}d ago`;
+};
+
 const DashboardPage = () => {
   const [summary, setSummary] = useState({
     total_cameras: 0,
@@ -21,7 +60,8 @@ const DashboardPage = () => {
     ram: 0,
     disk: 0,
     alerts: [],
-    status: "Healthy"
+    status: "Healthy",
+    history: { cpu: [], ram: [], disk: [] }
   });
   const [storage, setStorage] = useState({ total: 0, used: 0, free: 0, location: "—" });
   const [events, setEvents] = useState([]);
@@ -44,7 +84,26 @@ const DashboardPage = () => {
         const eventData = await eventRes.json();
         const camData = await camRes.json();
 
-        setSummary(sumData);
+        // Fetch history for the VMS host (assuming it's node-172-19-0-6 or similar)
+        // We'll try to find the host node first or just fetch history if we have an ID
+        try {
+          const topoRes = await fetch(`${API_BASE}/api/infrastructure/topology`);
+          const topoData = await topoRes.json();
+          const hostNode = topoData.nodes.find(n => n.model === "VMS Host");
+          if (hostNode) {
+            const histRes = await fetch(`${API_BASE}/api/infrastructure/nodes/${hostNode.id}/history`);
+            const histData = await histRes.json();
+            sumData.history = {
+              cpu: histData.map(h => h.metrics.cpu),
+              ram: histData.map(h => h.metrics.ram),
+              disk: histData.map(h => h.metrics.disk)
+            };
+          }
+        } catch (hErr) {
+          console.warn("History fetch failed:", hErr);
+        }
+
+        setSummary(prev => ({ ...sumData, history: sumData.history || prev.history }));
         if (storData && storData.length > 0) setStorage(storData[0]);
         setEvents(eventData);
         setCameras(camData);
@@ -183,24 +242,33 @@ const DashboardPage = () => {
         <div className="health-grid">
 
           <div className="health-box">
-            <p>CPU</p>
-            <h2>{summary.cpu}%</h2>
+            <div className="health-box-header">
+              <p>CPU</p>
+              <h2>{summary.cpu}%</h2>
+            </div>
+            <Sparkline data={summary.history.cpu} color={summary.cpu > 80 ? "#ef4444" : "#6366f1"} />
             <span className={summary.cpu > 85 ? "bad" : summary.cpu > 60 ? "warn" : "good"}>
               {summary.cpu > 85 ? "Critical" : summary.cpu > 60 ? "High" : "Normal"}
             </span>
           </div>
 
           <div className="health-box">
-            <p>RAM</p>
-            <h2>{summary.ram}%</h2>
+            <div className="health-box-header">
+              <p>RAM</p>
+              <h2>{summary.ram}%</h2>
+            </div>
+            <Sparkline data={summary.history.ram} color={summary.ram > 80 ? "#f59e0b" : "#22c55e"} />
             <span className={summary.ram > 85 ? "bad" : summary.ram > 60 ? "warn" : "good"}>
               {summary.ram > 85 ? "Critical" : summary.ram > 60 ? "High" : "Normal"}
             </span>
           </div>
 
           <div className="health-box">
-            <p>Disk</p>
-            <h2>{summary.disk}%</h2>
+            <div className="health-box-header">
+              <p>Disk</p>
+              <h2>{summary.disk}%</h2>
+            </div>
+            <Sparkline data={summary.history.disk} color="#94a3b8" />
             <span className={summary.disk > 90 ? "bad" : summary.disk > 75 ? "warn" : "good"}>
               {summary.disk > 90 ? "Full" : summary.disk > 75 ? "Filling" : "Healthy"}
             </span>
@@ -226,64 +294,64 @@ const DashboardPage = () => {
           )}
         </div>
 
-        <div className="widget camera-stream-health">
-          <h3>Camera Stream Health</h3>
+        <div className="widget camera-health-center">
+          <div className="widget-header">
+            <h3>Camera Health Monitoring</h3>
+            <div className="health-summary">
+              <span className="count-pill online">{cameraHealth.filter(c => getCameraHealth(c) === 'online').length} Online</span>
+              <span className="count-pill warning">{cameraHealth.filter(c => getCameraHealth(c) === 'warning').length} Issues</span>
+              <span className="count-pill bad">{cameraHealth.filter(c => getCameraHealth(c) === 'error').length} Offline</span>
+            </div>
+          </div>
 
-          <div className="stream-grid">
+          <div className="camera-health-list">
             {cameraHealth.length > 0 ? (
-              // ✅ FIX 1 — Removed stray `const health = getCameraHealth(cam)` from component level
-              // ✅ FIX 2 — health is now defined INSIDE the map using block body
               cameraHealth.map((cam, i) => {
                 const health = getCameraHealth(cam);
-
+                const isBitrateDrop = cam.bitrate > 0 && cam.bitrate < 400; // Threshold for drop detection
+                
                 return (
-                  <div key={i} className="stream-card">
-
-                    <div className="stream-header">
-                      <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                        <span className={`status-dot ${health}`} />
-
-                        <span className="stream-name">
-                          {cam.stream?.replaceAll("_", ".").replace(".cam0", "")}
-                        </span>
+                  <div key={i} className={`health-item ${health} ${isBitrateDrop ? 'bitrate-warning' : ''}`}>
+                    <div className="health-item-main">
+                      <div className="cam-info">
+                        <div className="cam-status-box">
+                          <span className={`status-dot ${health} ${health === 'online' ? 'pulse' : ''}`} />
+                          <span className="cam-name-text">
+                            {cam.name}
+                          </span>
+                        </div>
+                        <span className="cam-model-sub">{cam.model || 'ONVIF Camera'}</span>
                       </div>
 
-                      <span className={`stream-status ${
-                        health === "error" ? "bad" :
-                        health === "warning" ? "warning" :
-                        health === "connecting" ? "bad" : "good"
-                      }`}>
-                        {health === "error" ? "Error" :
-                         health === "connecting" ? "Connecting" :
-                         health === "warning" ? "Low FPS" :
-                         "Healthy"}
-                      </span>
-                    </div>
-
-                    <div className="stream-metrics">
-                      <div>
-                        <p className="label">FPS</p>
-                        <h4>{cam.fps || "--"}</h4>
-                      </div>
-
-                      <div>
-                        <p className="label">Bitrate</p>
-                        <h4>{cam.bitrate || "--"}</h4>
+                      <div className="cam-metrics-live">
+                        <div className="metric-box">
+                          <label>Bitrate</label>
+                          <span className={isBitrateDrop ? 'value warning' : 'value'}>
+                            {typeof cam.bitrate === 'number' && cam.bitrate > 0 
+                              ? `${(cam.bitrate / 1024).toFixed(1)} Mbps` 
+                              : '0.0 Mbps'}
+                          </span>
+                        </div>
+                        <div className="metric-box">
+                          <label>Last Seen</label>
+                          <span className="value">
+                            {cam.timestamp ? timeAgo(cam.timestamp) : 'Just now'}
+                          </span>
+                        </div>
                       </div>
                     </div>
-
-                    {/* Low FPS Warning */}
-                    {cam.fps && cam.fps < 10 && (
-                      <p style={{ color: "#f59e0b", fontSize: "11px", marginTop: "6px" }}>
-                        ⚠ Low FPS detected
-                      </p>
+                    
+                    {isBitrateDrop && (
+                      <div className="health-alert-bar">
+                        <AlertTriangle size={12} />
+                        <span>Bitrate Drop Detected</span>
+                      </div>
                     )}
-
                   </div>
                 );
               })
             ) : (
-              <p className="empty-msg">No stream data available</p>
+              <div className="empty-msg">No cameras registered for monitoring</div>
             )}
           </div>
         </div>

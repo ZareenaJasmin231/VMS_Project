@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import Button from "../../components/shared/Button";
+import SearchBar from "../../components/shared/SearchBar";
 import "./Schedules.css";
 
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
@@ -236,157 +236,126 @@ export default function Schedules() {
     setSchedules((prev) => prev.map((s) => (s.id === selectedId ? { ...s, ...patch } : s)));
 
   return (
-    <div className="schedules-page">
-      {/* Header */}
+    <div className="page-shell">
       <div className="page-header">
-        <div>
+        <div className="page-header__left">
           <h1 className="page-title">Schedules</h1>
           <p className="page-desc">Define weekly schedules and exceptions for recording and event triggers.</p>
         </div>
-        <input
-          className="sch-filter"
-          placeholder="Type to filter"
+        <SearchBar
           value={filter}
-          onChange={(e) => setFilter(e.target.value)}
+          onChange={setFilter}
+          placeholder="Filter schedules..."
         />
       </div>
 
-      {/* Schedule list table */}
-      <div className="sch-table-wrap">
-        <table className="sch-table">
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Used</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map((s) => (
-              <tr
-                key={s.id}
-                className={s.id === selectedId ? "selected" : ""}
-                onClick={() => { setSelectedId(s.id); setShowExceptions(false); }}
-              >
-                <td>{s.name}</td>
-                <td></td>
+      <div className="app-content">
+        {/* Schedule list table */}
+        <div className="sch-table-wrap card">
+          <table className="m-table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Status</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      {/* New / Remove */}
-      <div className="sch-actions">
-        <Button label="New"    variant="outline" onClick={addNew} />
-        <Button label="Remove" variant="outline" onClick={remove} disabled={!selectedId} />
-      </div>
-
-      {/* Resize handle */}
-      <div className="sch-divider"><div className="divider-handle" /></div>
-
-      {/* Detail panel */}
-      {selected && (
-        <div className="sch-detail">
-          {/* Tabs */}
-          <div className="sch-tabs">
-            <button className={`sch-tab${!showExceptions ? " active" : ""}`} onClick={() => setShowExceptions(false)}>
-              Week schedule
-            </button>
-            <button className={`sch-tab${showExceptions ? " active" : ""}`} onClick={() => setShowExceptions(true)}>
-              Schedule exceptions
-            </button>
-          </div>
-
-          {!showExceptions ? (
-            <>
-              {/* Name + mode */}
-              <div className="sch-name-row">
-                <label className="sch-name-label">Name:</label>
-                <input
-                  className="sch-name-input"
-                  value={selected.name}
-                  onChange={(e) => updateSelected({ name: e.target.value })}
-                />
-                <div className="sch-mode-row">
-                  <label className="mode-check">
-                    <span className="mode-box on" />
-                    Schedule on
-                  </label>
-                  <label className="mode-check">
-                    <input type="checkbox" />
-                    Schedule off
-                  </label>
-                </div>
-              </div>
-
-              <h3 className="week-title">Week schedule</h3>
-              <WeekGrid week={selected.week} onChange={(week) => updateSelected({ week })} />
-            </>
-          ) : (
-            <>
-              <div className="exc-header">
-                <h3 className="exc-title">Schedule exceptions</h3>
-                <div className="exc-btns">
-                  <Button label="Add..."    variant="outline" onClick={() => {}} />
-                  <Button label="Remove..." variant="outline" disabled />
-                </div>
-              </div>
-              <ExceptionCalendar
-                exceptions={selected.exceptions}
-                onChange={(exceptions) => updateSelected({ exceptions })}
-              />
-              <p className="wg-hint">
-                Hold Ctrl to select 5 minute intervals. To copy and paste day schedules, use right click.
-              </p>
-            </>
-          )}
-
-          {/* Apply */}
-          <div className="sch-apply-row">
-            <Button
-              label={loading ? "Saving..." : "Apply"}
-              variant="primary"
-              disabled={loading}
-              onClick={async () => {
-                setLoading(true);
-                try {
-                  const readableRanges = {};
-                  DAYS.forEach(d => {
-                    readableRanges[d] = getRanges(selected.week[d]);
-                  });
-
-                  // Ensure we send the full object without mutating the technical week data
-                  const payload = {
-                    id:         selected.id,
-                    name:       selected.name,
-                    week:       selected.week,
-                    exceptions: selected.exceptions,
-                    ranges:     readableRanges
-                  };
-
-                  await fetch(`${BACKEND}/api/storage/schedules`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify(payload),
-                  });
-
-                  const rangeSummary = Object.entries(readableRanges)
-                    .filter(([day, range]) => range !== "Always Off")
-                    .map(([day, range]) => `${day}: ${range}`)
-                    .join("\n");
-
-                  alert(
-                    `Schedule saved successfully!\n\n` +
-                    `Name: ${selected.name}\n\n` +
-                    `Marked Ranges:\n${rangeSummary || "No ranges marked"}`
-                  );
-                } catch (err) { console.error(err); }
-                finally { setLoading(false); }
-              }}
-            />
-          </div>
+            </thead>
+            <tbody>
+              {filtered.map((s) => (
+                <tr
+                  key={s.id}
+                  className={`m-table__row ${selectedId === s.id ? "m-table__row--selected" : ""}`}
+                  onClick={() => { setSelectedId(s.id); setShowExceptions(false); }}
+                >
+                  <td className="m-table__primary">{s.name}</td>
+                  <td>
+                    <span className={`m-badge ${s.status === "active" ? "m-badge--teal" : "m-badge--purple"}`}>
+                      {s.status || "Active"}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
-      )}
+
+        <div className="sch-actions">
+          <button className="m-btn m-btn--elevated" onClick={addNew}>New Schedule</button>
+          <button className="m-btn m-btn--danger" onClick={remove} disabled={!selectedId}>Remove</button>
+        </div>
+
+        {selected && (
+          <div className="sch-detail card">
+            <div className="sch-tabs">
+              <button className={`sch-tab${!showExceptions ? " active" : ""}`} onClick={() => setShowExceptions(false)}>
+                Week schedule
+              </button>
+              <button className={`sch-tab${showExceptions ? " active" : ""}`} onClick={() => setShowExceptions(true)}>
+                Schedule exceptions
+              </button>
+            </div>
+
+            <div className="sch-detail-body">
+              {!showExceptions ? (
+                <>
+                  <div className="sch-name-row">
+                    <label>Name:</label>
+                    <input
+                      className="ec-input"
+                      value={selected.name}
+                      onChange={(e) => updateSelected({ name: e.target.value })}
+                    />
+                  </div>
+                  <h3 className="week-title">Week schedule</h3>
+                  <WeekGrid week={selected.week} onChange={(week) => updateSelected({ week })} />
+                </>
+              ) : (
+                <div className="sch-exceptions">
+                  <div className="exc-header">
+                    <h3 className="exc-title">Schedule exceptions</h3>
+                    <div className="exc-btns">
+                      <button className="m-btn m-btn--elevated" onClick={() => {}}>Add...</button>
+                      <button className="m-btn m-btn--elevated" disabled>Remove...</button>
+                    </div>
+                  </div>
+                  <ExceptionCalendar
+                    exceptions={selected.exceptions}
+                    onChange={(exceptions) => updateSelected({ exceptions })}
+                  />
+                  <p className="exc-note">
+                    Exceptions are dates or date ranges when the schedule is different from the normal weekly routine.
+                  </p>
+                </div>
+              )}
+
+              <div className="sch-apply-row">
+                <button
+                  className="m-btn m-btn--primary"
+                  disabled={loading}
+                  onClick={async () => {
+                    setLoading(true);
+                    try {
+                      const readableRanges = {};
+                      DAYS.forEach(d => {
+                        readableRanges[d] = getRanges(selected.week[d]);
+                      });
+                      const payload = { ...selected, ranges: readableRanges };
+                      await fetch(`${BACKEND}/api/storage/schedules`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify(payload),
+                      });
+                      alert("Schedule saved successfully!");
+                    } catch (err) { console.error(err); }
+                    finally { setLoading(false); }
+                  }}
+                >
+                  {loading ? "Saving..." : "Apply"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

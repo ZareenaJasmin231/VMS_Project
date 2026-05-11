@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import Button from "../../components/shared/Button";
+import SearchBar from "../../components/shared/SearchBar";
 
 import "./Recordingmethodpage.css";
 
@@ -33,9 +33,6 @@ function getAuthHeaders() {
 function injectAuth(url, user, pass) {
   if (!url || !user) return url;
   try {
-    // RTSP URLs can be tricky for the URL constructor.
-    // Use a robust regex to replace/inject credentials.
-    // This handles rtsp://ip:port, rtsp://user@ip:port, etc.
     const baseUrl = url.replace(/^rtsp:\/\/([^@]+@)?/, "rtsp://");
     const encodedUser = encodeURIComponent(user);
     const encodedPass = encodeURIComponent(pass || "");
@@ -86,17 +83,13 @@ export default function RecordingMethodPage() {
 
   const fetchDevices = async (currentSchedules = []) => {
     setLoading(true);
-    console.log("[RM] Fetching devices...");
     try {
-      // 1. Load from localStorage
       let localDevices = [];
       try {
         const saved = localStorage.getItem("miradorai_devices");
-        console.log("[RM] LocalStorage 'miradorai_devices':", saved ? "Found" : "Empty");
         if (saved) localDevices = JSON.parse(saved);
       } catch (e) { console.error("[RM] LS Load error", e); }
 
-      // 2. Fetch from Backend
       let backendData = [];
       try {
         const res = await fetch(`${STREAM_API}/api/cameras`, {
@@ -105,12 +98,9 @@ export default function RecordingMethodPage() {
         if (res.ok) {
           const json = await res.json();
           backendData = Array.isArray(json) ? json : (json.devices || []);
-          console.log("[RM] Backend cameras found:", backendData.length);
         }
-      } catch (e) { console.warn("[RM] Backend fetch failed (using local fallback)", e); }
+      } catch (e) { console.warn("[RM] Backend fetch failed", e); }
 
-      // 3. Merge
-      // If backend has data, use it. We'll augment it with group info from local storage if available.
       const data = backendData.map(s => {
         const matchingLocal = localDevices.find(d => d.ip === s.ip && d.ome_stream === s.ome_stream);
         return {
@@ -120,14 +110,11 @@ export default function RecordingMethodPage() {
         };
       });
 
-      // If backend was empty, fallback to local
       const finalData = data.length > 0 ? data : localDevices;
-
-      console.log("[RM] Total merged devices:", finalData.length);
       setDevices(finalData);
 
       const initialSettings = {};
-      data.forEach((cam) => {
+      finalData.forEach((cam) => {
         const profiles = cam.stream_profiles || [];
         let pVal = cam.active_rec_profile || cam.recording_profile || "SUB_STREAM";
         if (profiles.length > 0 && pVal !== "MAIN_STREAM" && pVal !== "SUB_STREAM") {
@@ -161,7 +148,6 @@ export default function RecordingMethodPage() {
     }
   };
 
-  // ── Aggregation ──
   const groupedData = Object.values(
     devices.reduce((acc, cam) => {
       const gid = cam.group_id || "default";
@@ -196,6 +182,9 @@ export default function RecordingMethodPage() {
       return next;
     });
   };
+
+  const updateProfile = (val) => updateSection("continuous", { profile: val });
+  const updateSchedule = (val) => updateSection("continuous", { schedule: val });
 
   const handleApply = async () => {
     const targets = checkedCams.length > 0 ? checkedCams : (selectedId ? [selectedId] : []);
@@ -239,7 +228,6 @@ export default function RecordingMethodPage() {
           authedRtsp = injectAuth(targetProfile.rtsp_url, cam.username, cam.password);
           profileToken = targetProfile.token;
         } else {
-          // Fallback to the live stream URL if no specific profiles are found
           authedRtsp = injectAuth(cam.rtsp_url, cam.username, cam.password);
           profileToken = data.profile || "SUB_STREAM";
         }
@@ -277,7 +265,6 @@ export default function RecordingMethodPage() {
 
       await Promise.all(applyTasks);
 
-      // Update local state so the UI reflects the changes immediately
       setRecSettings(prev => {
         const next = { ...prev };
         targets.forEach(tid => {
@@ -295,7 +282,6 @@ export default function RecordingMethodPage() {
         return next;
       });
 
-      const scheduleName = schedules.find(s => s.id === template.continuous.schedule)?.name || template.continuous.schedule;
       showToast(`Successfully applied settings to ${targets.length} camera(s)!`);
       await fetchDevices(schedules);
       setCheckedCams([]);
@@ -326,164 +312,176 @@ export default function RecordingMethodPage() {
     setCheckedCams(prev => prev.includes(cid) ? prev.filter(id => id !== cid) : [...prev, cid]);
   };
 
-  const selected = selectedId ? recSettings[selectedId] : null;
-
   return (
-    <div className="rm-page">
-      <div className="rm-page-header">
-        <div>
-          <h1 className="rm-page-title">Recording method</h1>
-          <p className="rm-page-desc">Manage recording methods by groups. Configure continuous or scheduled recording.</p>
+    <div className="page-shell">
+      <div className="page-header">
+        <div className="page-header__left">
+          <h1 className="page-title">Recording <span>Method</span></h1>
+          <p className="page-desc">Manage recording methods by groups. Configure continuous or scheduled recording.</p>
         </div>
-        <input className="rm-filter" placeholder="Type to filter" value={filter} onChange={e => setFilter(e.target.value)} />
+        <SearchBar value={filter} onChange={setFilter} placeholder="Filter groups or cameras..." />
       </div>
 
-      <div className={`rm-content-layout ${selectedGroup ? "has-panel" : ""}`}>
-        <div className="rm-table-wrap card">
-          <table className="rm-table m-table">
-            <thead>
-              <tr>
-                <th style={{ width: 40 }}>
-                  <input
-                    type="checkbox"
-                    checked={filteredGroups.length > 0 && filteredGroups.every(g => checkedGroups.includes(g.group_id))}
-                    onChange={() => {
-                      const allGids = filteredGroups.map(g => g.group_id);
-                      const allChecked = filteredGroups.every(g => checkedGroups.includes(g.group_id));
-                      if (allChecked) {
-                        setCheckedGroups([]);
-                        setCheckedCams([]);
-                      } else {
-                        setCheckedGroups(allGids);
-                        const allCids = filteredGroups.flatMap(g => g.cameras.map(c => c.ome_stream));
-                        setCheckedCams(allCids);
-                      }
-                    }}
-                  />
-                </th>
-                <th>Group Name</th>
-                <th style={{ width: 120 }}>Continuous</th>
-                <th style={{ width: 120 }}>Scheduled</th>
-                <th style={{ width: 150 }}></th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredGroups.length === 0 ? (
+      <div className="app-content">
+        <div className={`rm-content-layout ${selectedGroup ? "has-panel" : ""}`}>
+          <div className="rm-table-wrap card">
+            <table className="rm-table m-table">
+              <thead>
                 <tr>
-                  <td colSpan={5} className="rm-table__empty" style={{ textAlign: "center", padding: "40px", color: "rgba(255,255,255,0.3)" }}>
-                    {devices.length === 0
-                      ? "No cameras enrolled. Go to Add Devices first."
-                      : "No groups match your filter."}
-                  </td>
+                  <th style={{ width: 40 }}>
+                    <input
+                      type="checkbox"
+                      checked={filteredGroups.length > 0 && filteredGroups.every(g => checkedGroups.includes(g.group_id))}
+                      onChange={() => {
+                        const allGids = filteredGroups.map(g => g.group_id);
+                        const allChecked = filteredGroups.every(g => checkedGroups.includes(g.group_id));
+                        if (allChecked) {
+                          setCheckedGroups([]);
+                          setCheckedCams([]);
+                        } else {
+                          setCheckedGroups(allGids);
+                          const allCids = filteredGroups.flatMap(g => g.cameras.map(c => c.ome_stream));
+                          setCheckedCams(allCids);
+                        }
+                      }}
+                    />
+                  </th>
+                  <th>Group Name</th>
+                  <th style={{ width: 120 }}>Continuous</th>
+                  <th style={{ width: 120 }}>Scheduled</th>
+                  <th style={{ width: 150 }}></th>
                 </tr>
-              ) : filteredGroups.map(group => {
-                const continuousCount = group.cameras.filter(c => c.assigned_schedule_id === "Always" || !c.assigned_schedule_id).length;
-                const scheduledCount = group.cameras.length - continuousCount;
-                return (
-                  <tr key={group.group_id} className={checkedGroups.includes(group.group_id) ? "selected" : ""}>
-                    <td><input type="checkbox" checked={checkedGroups.includes(group.group_id)} onChange={() => toggleGroup(group.group_id)} /></td>
-                    <td className="m-table__primary">{group.name}</td>
-                    <td><span className="count-badge continuous">{continuousCount}</span></td>
-                    <td><span className="count-badge scheduled">{scheduledCount}</span></td>
-                    <td>
-                      <button className="ec-btn ec-btn--primary" onClick={() => setSelectedGroup(group)}>View All Camera</button>
+              </thead>
+              <tbody>
+                {filteredGroups.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="m-table__empty" style={{ textAlign: "center", padding: "40px", color: "rgba(255,255,255,0.3)" }}>
+                      {devices.length === 0
+                        ? "No cameras enrolled. Go to Add Devices first."
+                        : "No groups match your filter."}
                     </td>
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                ) : filteredGroups.map(group => {
+                  const continuousCount = group.cameras.filter(c => c.assigned_schedule_id === "Always" || !c.assigned_schedule_id).length;
+                  const scheduledCount = group.cameras.length - continuousCount;
+                  return (
+                    <tr key={group.group_id} className={checkedGroups.includes(group.group_id) ? "selected" : ""}>
+                      <td><input type="checkbox" checked={checkedGroups.includes(group.group_id)} onChange={() => toggleGroup(group.group_id)} /></td>
+                      <td className="m-table__primary">{group.name}</td>
+                      <td><span className="count-badge continuous">{continuousCount}</span></td>
+                      <td><span className="count-badge scheduled">{scheduledCount}</span></td>
+                      <td>
+                        <button className="m-btn m-btn--primary" onClick={() => setSelectedGroup(group)}>
+                          View All Cameras
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {selectedGroup && (
+            <div className="rm-side-panel card">
+              <div className="rm-side-header">
+                <h3>{selectedGroup.name}</h3>
+                <button className="close-btn" onClick={() => setSelectedGroup(null)}>✕</button>
+              </div>
+              <div className="rm-side-list">
+                {selectedGroup.cameras.map(cam => (
+                  <div
+                    key={cam.ome_stream}
+                    className={`rm-side-item ${selectedId === cam.ome_stream ? "active" : ""} ${checkedCams.includes(cam.ome_stream) ? "checked" : ""}`}
+                    onClick={() => setSelectedId(cam.ome_stream)}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checkedCams.includes(cam.ome_stream)}
+                      onChange={(e) => { e.stopPropagation(); toggleCam(cam.ome_stream); }}
+                    />
+                    <div className="rm-item-info">
+                      <div className="rm-item-name">
+                        {cam.name || cam.ip}
+                        <span className="rm-stream-badge">
+                          {cam.active_rec_profile === "MAIN_STREAM" ? "Main" : cam.active_rec_profile === "SUB_STREAM" ? "Sub" : (cam.active_rec_profile || "Sub")}
+                        </span>
+                      </div>
+                      <div className="rm-item-mode">{(!cam.assigned_schedule_id || cam.assigned_schedule_id === "Always") ? "Continuous" : "Scheduled"}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
-        {selectedGroup && (
-          <div className="rm-side-panel card">
-            <div className="rm-side-header">
-              <h3>{selectedGroup.name}</h3>
-              <button className="close-btn" onClick={() => setSelectedGroup(null)}>✕</button>
-            </div>
-            <div className="rm-side-list">
-              {selectedGroup.cameras.map(cam => (
-                <div
-                  key={cam.ome_stream}
-                  className={`rm-side-item ${selectedId === cam.ome_stream ? "active" : ""} ${checkedCams.includes(cam.ome_stream) ? "checked" : ""}`}
-                  onClick={() => setSelectedId(cam.ome_stream)}
+        {(selectedId || checkedCams.length > 0) && (
+          <div className="rm-detail-horizontal">
+            <div className="rm-h-group">
+              <div className="rm-h-field">
+                <label className="rm-h-label">Profiles</label>
+                <select
+                  className="rm-h-select"
+                  value={
+                    selectedId 
+                      ? devices.find(d => d.ome_stream === selectedId)?.active_rec_profile 
+                      : devices.find(d => d.ome_stream === checkedCams[0])?.active_rec_profile || "SUB_STREAM"
+                  }
+                  onChange={e => updateProfile(e.target.value)}
                 >
-                  <input
-                    type="checkbox"
-                    checked={checkedCams.includes(cam.ome_stream)}
-                    onChange={(e) => { e.stopPropagation(); toggleCam(cam.ome_stream); }}
-                  />
-                  <div className="rm-item-info">
-                    <div className="rm-item-name">
-                      {cam.name || cam.ip}
-                      <span className="rm-stream-badge">
-                        {cam.active_rec_profile === "MAIN_STREAM" ? "Main" : cam.active_rec_profile === "SUB_STREAM" ? "Sub" : (cam.active_rec_profile || "Sub")}
-                      </span>
-                    </div>
-                    <div className="rm-item-mode">{(!cam.assigned_schedule_id || cam.assigned_schedule_id === "Always") ? "Continuous" : "Scheduled"}</div>
-                  </div>
-                </div>
-              ))}
+                  <option value="MAIN_STREAM">Main Stream</option>
+                  <option value="SUB_STREAM">Sub Stream</option>
+                </select>
+              </div>
+
+              <div className="rm-h-sep">|</div>
+
+              <div className="rm-h-field">
+                <label className="rm-h-label">Recording mode</label>
+                <select
+                  className="rm-h-select"
+                  value={
+                    selectedId
+                      ? devices.find(d => d.ome_stream === selectedId)?.assigned_schedule_id || "Always"
+                      : devices.find(d => d.ome_stream === checkedCams[0])?.assigned_schedule_id || "Always"
+                  }
+                  onChange={e => updateSchedule(e.target.value)}
+                >
+                  <option value="Always">Continuous</option>
+                  {schedules.map(s => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
+                  ))}
+                  <option value="Never">Never</option>
+                </select>
+              </div>
+
+              <div className="rm-h-sep">|</div>
+
+              <button
+                className="m-btn m-btn--primary"
+                onClick={handleApply}
+                disabled={loading}
+                style={{ minWidth: 120 }}
+              >
+                {loading ? "Applying..." : (checkedCams.length > 1 ? `Apply to ${checkedCams.length} Cameras` : "Apply")}
+              </button>
             </div>
           </div>
         )}
-      </div>
 
-      {(selected || checkedCams.length > 0) && (
-        <div className="rm-detail-horizontal">
-          <div className="rm-h-group">
-            <div className="rm-h-field">
-              <label className="rm-h-label">Profiles</label>
-              <select
-                className="rm-h-select"
-                value={selected?.continuous.profile || recSettings[checkedCams[0]]?.continuous.profile || ""}
-                onChange={e => updateSection("continuous", { profile: e.target.value })}
-              >
-                {(selected || recSettings[checkedCams[0]])?.continuous.availableProfiles?.map(p => (
-                  <option key={p.token} value={p.token}>{p.label}</option>
-                ))}
-              </select>
-            </div>
-
-            <div className="rm-h-sep">|</div>
-
-            <div className="rm-h-field">
-              <label className="rm-h-label">Recording mode</label>
-              <select
-                className="rm-h-select"
-                value={selected?.continuous.schedule || recSettings[checkedCams[0]]?.continuous.schedule || "Always"}
-                onChange={e => updateSection("continuous", { schedule: e.target.value })}
-              >
-                {(selected || recSettings[checkedCams[0]])?.continuous.availableSchedules?.map(s => (
-                  <option key={s.id} value={s.id}>{s.name}</option>
-                ))}
-              </select>
-            </div>
-
-            <div className="rm-h-sep">|</div>
-
-            <Button
-              label={loading ? "Applying..." : (checkedCams.length > 1 ? `Apply to ${checkedCams.length} Cameras` : "Apply")}
-              variant="primary"
-              onClick={handleApply}
-              disabled={loading}
-              style={{ minWidth: 120 }}
-            />
+        {!selectedGroup && !selectedId && !checkedCams.length && filteredGroups.length > 0 && (
+          <div className="rm-detail rm-detail--empty">
+            <span>Select a camera or group above to configure recording settings.</span>
           </div>
-        </div>
-      )}
+        )}
 
-      {!selected && !checkedCams.length && filteredGroups.length > 0 && (
-        <div className="rm-detail rm-detail--empty">
-          <span>Select a camera or group above to configure recording settings.</span>
-        </div>
-      )}
-
-      {toastMessage && (
-        <div className={`rm-toast ${toastMessage.isError ? "rm-toast--error" : ""}`}>
-          {toastMessage.text}
-        </div>
-      )}
+        {toastMessage && (
+          <div className={`rm-toast ${toastMessage.isError ? "rm-toast--error" : ""}`}>
+            {toastMessage.text}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

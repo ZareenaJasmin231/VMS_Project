@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from "react";
 import "./LogsPage.css";
 
-const API_BASE = (typeof import.meta !== "undefined" && import.meta.env?.VITE_API_URL) || "http://192.168.126.200:8000";
-
+const API_BASE = import.meta.env.VITE_API_URL;
+const WS_BASE = import.meta.env.VITE_WS_URL;
 export default function LogsPage() {
   const [activeTab, setActiveTab] = useState("ui");
   const [logs, setLogs] = useState([]);
@@ -51,7 +51,7 @@ export default function LogsPage() {
   }, [activeTab]);
 
   useEffect(() => {
-    const ws = new WebSocket("ws://192.168.126.200:8000/ws/logs");
+    const ws = new WebSocket(`${WS_BASE}/ws/logs`);
     ws.onmessage = (event) => {
       const newLog = JSON.parse(event.data);
       // 🔥 Add new log on top

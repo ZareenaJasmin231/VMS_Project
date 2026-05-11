@@ -48,84 +48,47 @@
 }
 .mv-heatmap-legend__title svg { color: #1D9E75; flex-shrink: 0; }
 
-/* ── Color scale bar ── */
-.mv-heatmap-legend__scale {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin-bottom: 4px;
-}
-
-.mv-heatmap-legend__scale-bar {
-  height: 11px;
-  border-radius: 6px;
-  background: linear-gradient(
-    to right,
-    rgba(180, 0,   0,   0.92)  0%,
-    rgba(0,   210, 80,  0.92)  35%,
-    rgba(150, 200, 0,   0.92)  60%,
-    rgba(250, 250, 160, 0.95)  100%
-  );
-  border: 0.5px solid rgba(255,255,255,0.09);
-  box-shadow: 0 0 10px rgba(29,158,117,0.25);
-}
-
-.mv-heatmap-legend__scale-labels {
-  display: flex;
-  justify-content: space-between;
-  font-size: 9px;
-  color: #4a5568;
-  font-variant-numeric: tabular-nums;
-  padding: 0 1px;
-}
-
 /* ── Legend rows ── */
 .mv-heatmap-legend__row {
   display: flex;
   align-items: center;
-  gap: 9px;
-  font-size: 11px;
-  color: #9ca3af;
+  gap: 10px;
+  font-size: 11.5px;
+  color: #e2e8f0;
   line-height: 1;
 }
 
 /* Colour swatches */
 .mv-heatmap-legend__swatch {
-  width: 30px;
-  height: 10px;
+  width: 32px;
+  height: 12px;
   border-radius: 3px;
   flex-shrink: 0;
-  border: 0.5px solid rgba(255,255,255,0.07);
+  border: 0.5px solid rgba(255,255,255,0.1);
 }
 
-/* No coverage — blind spot (deep red) */
+/* Blind spot (Dark Slate) */
 .mv-heatmap-legend__swatch--none {
-  background: rgba(180, 0, 0, 0.88);
-  box-shadow: 0 0 5px rgba(180,0,0,0.5);
+  background: #1e293b;
+  box-shadow: 0 0 5px rgba(0,0,0,0.3);
 }
 
-/* Single camera coverage (green) */
+/* Single camera coverage (Green) */
 .mv-heatmap-legend__swatch--single {
-  background: linear-gradient(90deg, rgba(0,180,80,0.92), rgba(0,210,100,0.92));
-  box-shadow: 0 0 5px rgba(0,200,100,0.4);
+  background: #22c55e;
+  box-shadow: 0 0 8px rgba(34, 197, 94, 0.4);
 }
 
-/* 2-camera overlap (yellow-green) */
+/* 2-camera overlap (Yellow) */
 .mv-heatmap-legend__swatch--overlap {
-  background: linear-gradient(90deg, rgba(130,200,0,0.92), rgba(200,210,0,0.92));
-  box-shadow: 0 0 5px rgba(180,210,0,0.35);
+  background: #eab308;
+  box-shadow: 0 0 8px rgba(234, 179, 8, 0.4);
 }
 
-/* High overlap 3+ cameras (bright yellow) */
+/* High density (Red) */
 .mv-heatmap-legend__swatch--high {
-  background: linear-gradient(90deg, rgba(240,240,100,0.92), rgba(250,250,200,0.97));
-  box-shadow: 0 0 6px rgba(240,240,160,0.4);
-}
-
-/* Offline camera zone — amber/orange */
-.mv-heatmap-legend__swatch--offline {
-  background: linear-gradient(90deg, rgba(180,80,0,0.9), rgba(220,120,0,0.9));
-  box-shadow: 0 0 5px rgba(200,100,0,0.35);
+  background: #dc2626;
+  box-shadow: 0 0 10px rgba(220, 38, 38, 0.5);
 }
 
 /* ── Stats row ── */

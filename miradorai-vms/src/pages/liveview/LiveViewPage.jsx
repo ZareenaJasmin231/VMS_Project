@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import WebRTCPlayer from "../../components/shared/WebRTCPlayer";
 import "./LiveViewPage.css";
 
-const API = "http://192.168.126.200:8000";
+const API = import.meta.env.VITE_API_URL;
 
 function getAuthHeaders() {
   const token = localStorage.getItem("miradorai_token");
@@ -326,7 +326,7 @@ function AlertsPanel({ onAlertCountUpdate }) {
   useEffect(() => {
     if (wsRef.current) return;
 
-    const ws = new WebSocket("ws://192.168.126.200:8000/ws/events");
+    const ws = new WebSocket(`${import.meta.env.VITE_WS_URL}/ws/events`);
     wsRef.current = ws;
 
     ws.onopen = () => {

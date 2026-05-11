@@ -2,9 +2,8 @@ import { useEffect, useRef } from "react";
 import { useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
-const API_BASE =
-  (typeof import.meta !== "undefined" && import.meta.env?.VITE_API_URL) ||
-  "http://192.168.126.200:8000";
+const API_BASE = import.meta.env.VITE_API_URL;
+
 
 export const logUIAction = async (user, action, category, details = {}) => {
   if (!user) return;

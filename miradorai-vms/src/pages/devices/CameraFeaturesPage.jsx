@@ -14,7 +14,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import MaskingSection, { MASKING_CSS } from "./MaskingSection";
 import BrandFeaturesSection from "./BrandFeaturesSection";
-const API = "http://192.168.126.200:8000";
+const API = import.meta.env.VITE_API_URL;
 
 // ── tiny helpers ─────────────────────────────────────────────────
 const cls = (...args) => args.filter(Boolean).join(" ");

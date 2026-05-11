@@ -6,8 +6,10 @@ import ConfigPanel    from "./ConfigPanel";
 import HeatmapLayer   from "./HeatmapLayer";
 import CameraItem     from "./CameraItem";
 import VirtualMapView from "./VirtualMapView";
+import { drawHeatmapToContext, drawHeatmapLegendToCanvas } from "./HeatmapLogic";
+import { drawCamera, getCamTypeFromName, renderMapViewSnapshot } from "./MapDrawingUtils";
 
-const API    = "http://192.168.126.200:8000";
+const API = import.meta.env.VITE_API_URL;
 const MAP_ID = "default";
 
 // ── Auth ──────────────────────────────────────────────────────────────
@@ -439,7 +441,19 @@ export default function MapViewPage() {
   const [cameras,          setCameras]          = useState([]);
   const [markers,          setMarkers]          = useState([]);
   const [floors,           setFloors]           = useState(() => [makeFloor(1)]);
-  const [activeFloor,      setActiveFloor]      = useState(0);
+  const [activeFloor, setActiveFloor] = useState(0);
+  const [showExportMenu, setShowExportMenu] = useState(false);
+  const exportMenuRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (exportMenuRef.current && !exportMenuRef.current.contains(e.target)) {
+        setShowExportMenu(false);
+      }
+    };
+    if (showExportMenu) document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [showExportMenu]);
   const [mode,             setMode]             = useState("place");
   const [zoomPct,          setZoomPct]          = useState(100);
   const [statusTxt,        setStatus]           = useState("Loading map…");
@@ -1203,131 +1217,11 @@ export default function MapViewPage() {
   //  - Consistent zone stroke style drawn separately (FIX 4 handled in exportMapPNG)
   //  - Camera name label (FIX 5)
   //  - Zone clipping per camera (FIX 6) — caller must pass ctx already clipped if needed
-  function drawCameraOnExport(ctx, m, img, allZones) {
-    const originX = m.x;
-    const originY = m.y;
-    const angle   = (m.direction || 0) * Math.PI / 180;
-    const half    = ((m.fovAngle  || 60) / 2) * Math.PI / 180;
-
-    // FIX 1: Scale radius relative to image size instead of hardcoded 120
-    const radius = (m.rangeMeters != null)
-      ? m.rangeMeters * (Math.min(img.width, img.height) / 100)   // if range stored in meters
-      : Math.min(img.width, img.height) * 0.08;                   // fallback: 8% of shorter side
-
-    // FIX 6: Find the zone this camera belongs to and clip to it
-    const owningZone = allZones.find(
-      z => z.polygon.length >= 3 && pointInPolygon(originX, originY, z.polygon)
-    );
-
-    ctx.save();
-
-    if (owningZone) {
-      ctx.beginPath();
-      owningZone.polygon.forEach((p, i) => {
-        if (i === 0) ctx.moveTo(p.x, p.y);
-        else         ctx.lineTo(p.x, p.y);
-      });
-      ctx.closePath();
-      ctx.clip();
-    }
-
-    // FIX 2: Radial gradient beam (matches DesignerView)
-    const grad = ctx.createRadialGradient(originX, originY, 0, originX, originY, radius);
-    grad.addColorStop(0, "rgba(59,130,246,0.40)");
-    grad.addColorStop(0.6, "rgba(59,130,246,0.18)");
-    grad.addColorStop(1,   "rgba(59,130,246,0.04)");
-
-    ctx.beginPath();
-    ctx.moveTo(originX, originY);
-    ctx.arc(originX, originY, radius, angle - half, angle + half);
-    ctx.closePath();
-    ctx.fillStyle = grad;
-    ctx.fill();
-
-    // FOV cone outline
-    ctx.beginPath();
-    ctx.moveTo(originX, originY);
-    ctx.arc(originX, originY, radius, angle - half, angle + half);
-    ctx.closePath();
-    ctx.strokeStyle = "rgba(59,130,246,0.70)";
-    ctx.lineWidth   = 1.5;
-    ctx.stroke();
-
-    ctx.restore(); // end clip
-
-    // FIX 3: DesignerView-style camera icon (drawn outside clip so it's always fully visible)
-    // Outer glow ring
-    ctx.beginPath();
-    ctx.arc(originX, originY, 14, 0, Math.PI * 2);
-    ctx.fillStyle = "rgba(59,130,246,0.18)";
-    ctx.fill();
-
-    // Outer stroke ring
-    ctx.beginPath();
-    ctx.arc(originX, originY, 10, 0, Math.PI * 2);
-    ctx.strokeStyle = "#3b82f6";
-    ctx.lineWidth   = 2;
-    ctx.stroke();
-
-    // Filled body
-    ctx.beginPath();
-    ctx.arc(originX, originY, 8, 0, Math.PI * 2);
-    ctx.fillStyle = "#3b82f6";
-    ctx.fill();
-
-    // Inner white dot
-    ctx.beginPath();
-    ctx.arc(originX, originY, 3.5, 0, Math.PI * 2);
-    ctx.fillStyle = "#ffffff";
-    ctx.fill();
-
-    // Direction tick line (small line from center toward direction)
-    const tickLen = 12;
-    ctx.beginPath();
-    ctx.moveTo(originX, originY);
-    ctx.lineTo(
-      originX + Math.cos(angle) * tickLen,
-      originY + Math.sin(angle) * tickLen
-    );
-    ctx.strokeStyle = "rgba(255,255,255,0.80)";
-    ctx.lineWidth   = 1.5;
-    ctx.stroke();
-
-    // FIX 5: Camera name label above the icon
-    const label = m.camName || m.camId || "";
-    if (label) {
-      ctx.font         = "bold 11px Inter, system-ui, sans-serif";
-      ctx.textAlign    = "center";
-      ctx.textBaseline = "bottom";
-
-      const tw      = ctx.measureText(label).width;
-      const padX    = 6;
-      const padY    = 3;
-      const rectW   = tw + padX * 2;
-      const rectH   = 16;
-      const rx      = originX - rectW / 2;
-      const ry      = originY - 18 - rectH;
-
-      // Label background pill
-      ctx.fillStyle = "rgba(15,23,42,0.72)";
-      ctx.beginPath();
-      if (ctx.roundRect) {
-        ctx.roundRect(rx, ry, rectW, rectH, 4);
-      } else {
-        ctx.rect(rx, ry, rectW, rectH);
-      }
-      ctx.fill();
-
-      // Label text
-      ctx.fillStyle = "#ffffff";
-      ctx.fillText(label, originX, ry + rectH - padY + 1);
-    }
-  }
 
   // ── Export PNG ────────────────────────────────────────────────────
   // Z-order: 1 Floor → 2 Zones → 3 Cameras (clipped) → 4 Labels
   // FIX 7: correct z-order is enforced by the sequence below.
-  function exportMapPNG() {
+  function exportMapPNG(exportMode = "design") {
     const img = floorImgRef.current;
     if (!img) return;
 
@@ -1336,178 +1230,166 @@ export default function MapViewPage() {
     oc.height = img.height;
     const ctx = oc.getContext("2d");
 
-    // ── LAYER 1: Floor plan image ─────────────────────────────────
-    ctx.drawImage(img, 0, 0);
-
-    // ── LAYER 2: Zones ────────────────────────────────────────────
-    // FIX 4: solid border (2.5 px), matching DesignerView style
     const floorZones = zonesRef.current.filter(z => z.floorIndex === activeFloor);
 
-    floorZones.forEach(zone => {
-      if (zone.polygon.length < 2) return;
-
-      ctx.save();
-      ctx.beginPath();
-      zone.polygon.forEach((p, i) => {
-        if (i === 0) ctx.moveTo(p.x, p.y);
-        else         ctx.lineTo(p.x, p.y);
-      });
-      ctx.closePath();
-
-      // Subtle hatched fill
-      ctx.fillStyle = zone.color + "18";
-      ctx.fill();
-
-      // FIX 4: solid stroke, 2.5 px
-      ctx.strokeStyle = zone.color;
-      ctx.lineWidth   = 2.5;
-      ctx.setLineDash([]);   // solid — matches DesignerView
-      ctx.stroke();
-
-      // Vertex dots
-      zone.polygon.forEach(p => {
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, 3.5, 0, Math.PI * 2);
-        ctx.fillStyle   = zone.color;
-        ctx.globalAlpha = 0.7;
-        ctx.fill();
-        ctx.globalAlpha = 1;
+    if (exportMode === "design") {
+      // ── SNAPSHOT MECHANISM: Exactly like MapCanvas ──────────────────
+      renderMapViewSnapshot(ctx, {
+        img,
+        markers: markersRef.current,
+        cameras,
+        zones: zonesRef.current,
+        activeFloor,
+        highlightedCamId: null
       });
 
-      // Zone label badge
-      const cx    = zone.polygon.reduce((s, p) => s + p.x, 0) / zone.polygon.length;
-      const cy    = zone.polygon.reduce((s, p) => s + p.y, 0) / zone.polygon.length;
-      const label = zone.name.length > 12 ? zone.name.slice(0, 11) + "…" : zone.name;
+      // If intensity heatmap is toggled ON in the UI, include it in the snapshot
+      if (showHeatmap) {
+        const hcvs = document.createElement("canvas");
+        hcvs.width = oc.width; hcvs.height = oc.height;
+        const hctx = hcvs.getContext("2d");
 
-      ctx.font         = "bold 13px Inter, system-ui, sans-serif";
-      ctx.textAlign    = "center";
-      ctx.textBaseline = "middle";
-      const tw = ctx.measureText(label).width;
+        const heatmapMarkers = markersRef.current.map(m => ({
+          camId: m.camId, x: m.x, y: m.y, fovAngle: m.fovAngle, direction: m.direction
+        }));
+        
+        const foundLevels = drawHeatmapToContext(hctx, hcvs.width, hcvs.height, {
+          markers: heatmapMarkers,
+          cameras: cameras,
+          scale: 1,
+          offset: { x: 0, y: 0 },
+          activeZone: zonesRef.current.find(z => z.id === activeZoneIdRef.current) || null,
+          floorImg: img,
+          step: 2,
+          clear: true
+        });
 
-      ctx.fillStyle = zone.color + "dd";
-      ctx.beginPath();
-      if (ctx.roundRect) {
-        ctx.roundRect(cx - tw / 2 - 8, cy - 11, tw + 16, 22, 5);
-      } else {
-        ctx.rect(cx - tw / 2 - 8, cy - 11, tw + 16, 22);
+        ctx.globalAlpha = 0.85;
+        ctx.drawImage(hcvs, 0, 0);
+        ctx.globalAlpha = 1.0;
+        
+        // Draw legend for intensity heatmap
+        drawHeatmapLegendToCanvas(ctx, oc.width, oc.height, { foundLevels, compact: true });
       }
-      ctx.fill();
 
-      ctx.fillStyle = "#ffffff";
-      ctx.fillText(label, cx, cy);
+      // Also draw zones (UI style)
+      floorZones.forEach(zone => {
+        if (zone.polygon.length < 2) return;
+        ctx.save();
+        ctx.beginPath();
+        zone.polygon.forEach((p, i) => { if (i === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y); });
+        ctx.closePath();
+        const isActive = zone.id === activeZoneIdRef.current;
+        ctx.fillStyle = zone.color + (isActive ? "1a" : "0d");
+        ctx.fill();
+        ctx.strokeStyle = zone.color;
+        ctx.lineWidth   = isActive ? 2.5 : 1.5;
+        ctx.globalAlpha = isActive ? 1.0 : 0.55;
+        if (!isActive) ctx.setLineDash([6, 3]);
+        ctx.stroke();
+        ctx.globalAlpha = 1.0;
+        ctx.setLineDash([]); 
 
-      ctx.restore();
-    });
+        // Vertex dots
+        zone.polygon.forEach(p => {
+          ctx.beginPath(); ctx.arc(p.x, p.y, isActive ? 4 : 3, 0, Math.PI * 2);
+          ctx.fillStyle = zone.color; ctx.globalAlpha = isActive ? 0.9 : 0.5; ctx.fill();
+          ctx.strokeStyle = "#fff"; ctx.lineWidth = 1; ctx.stroke(); ctx.globalAlpha = 1;
+        });
 
-    // ── LAYER 3 + 4: Cameras (with clipping) + their labels ──────
-    // Each camera is drawn inside its zone clip (FIX 6).
-    // Labels are drawn after (FIX 7 z-order: cameras then labels on top).
-    markersRef.current.forEach(m => {
-      drawCameraOnExport(ctx, m, img, floorZones);
-    });
+        // Zone label badge
+        const cx = zone.polygon.reduce((s, p) => s + p.x, 0) / zone.polygon.length;
+        const cy = zone.polygon.reduce((s, p) => s + p.y, 0) / zone.polygon.length;
+        const label = zone.name.length > 12 ? zone.name.slice(0, 11) + "…" : zone.name;
+        ctx.font = "bold 13px Inter, sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+        const tw = ctx.measureText(label).width;
+        ctx.fillStyle = zone.color + "dd";
+        ctx.beginPath();
+        if (ctx.roundRect) ctx.roundRect(cx - tw / 2 - 8, cy - 11, tw + 16, 22, 5);
+        else ctx.rect(cx - tw / 2 - 8, cy - 11, tw + 16, 22);
+        ctx.fill();
+        ctx.fillStyle = "#ffffff"; ctx.fillText(label, cx, cy);
+        ctx.restore();
+      });
+
+    } else if (exportMode === "heatmap") {
+      // 0. Base floor plan
+      ctx.drawImage(img, 0, 0);
+
+      // 1. Draw Heatmap to a temporary canvas
+      const hcvs = document.createElement("canvas");
+      hcvs.width = oc.width; hcvs.height = oc.height;
+      const hctx = hcvs.getContext("2d");
+
+      const heatmapMarkers = markersRef.current.map(m => ({
+        camId: m.camId, x: m.x, y: m.y, fovAngle: m.fovAngle, direction: m.direction
+      }));
+      
+      const foundLevels = drawHeatmapToContext(hctx, hcvs.width, hcvs.height, {
+        markers: heatmapMarkers,
+        cameras: cameras,
+        scale: 1,
+        offset: { x: 0, y: 0 },
+        activeZone: zonesRef.current.find(z => z.id === activeZoneIdRef.current) || null,
+        allZones: floorZones,
+        floorImg: img,
+        step: 2,
+        clear: true
+      });
+
+      // 2. Composite heatmap onto the floor plan
+      ctx.globalAlpha = 0.85; 
+      ctx.drawImage(hcvs, 0, 0);
+      ctx.globalAlpha = 1.0;
+
+      // 3. Draw Zones (Dashed lines, matching Designer View)
+      floorZones.forEach(zone => {
+        if (zone.polygon.length < 2) return;
+        ctx.save(); ctx.beginPath();
+        zone.polygon.forEach((p, i) => { if (i === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y); });
+        ctx.closePath();
+        ctx.strokeStyle = zone.color; ctx.lineWidth = 1.5; ctx.setLineDash([5, 5]); ctx.stroke(); ctx.restore();
+      });
+
+      // 4. Draw Cameras on top (Premium pill style for Heatmap)
+      markersRef.current.forEach(m => {
+        const cameraObj = cameras.find(c => c.id === m.camId) || {
+          name: m.camName || m.camId,
+          type: getCamTypeFromName(m.camName),
+          rangeDay: 30,
+          hfov: m.fovAngle || 60
+        };
+      drawCamera(ctx, {
+        x: m.x, y: m.y, direction: m.direction,
+        camera: { ...cameraObj, model: cameraObj.name || cameraObj.model }
+      }, 8, {                        // ← radius 22 → 13 (smaller icon)
+        showLabel: false,             // ← no camera name
+        zones: floorZones,
+        activeZoneId: activeZoneIdRef.current,
+        showFov: false,
+      });
+      });
+
+      // 5. Draw Legend at top-right
+      drawHeatmapLegendToCanvas(ctx, oc.width, oc.height, { foundLevels, compact: true });
+    }
 
     // ── Watermark: floor name ─────────────────────────────────────
     const floorName = floorsRef.current[activeFloor]?.name || "Floor";
     ctx.font         = "600 15px Inter, system-ui, sans-serif";
     ctx.textAlign    = "left";
     ctx.textBaseline = "bottom";
-
-    // Shadow pass
     ctx.fillStyle = "rgba(0,0,0,0.55)";
     ctx.fillText(floorName, 16, oc.height - 12);
-    // Highlight pass
     ctx.fillStyle = "rgba(255,255,255,0.90)";
     ctx.fillText(floorName, 14, oc.height - 14);
 
-
-    // ── LEGEND ────────────────────────────────────────────────────────
-const typesOnFloor = {};
-markersRef.current.forEach(m => {
-  const cam  = cameras.find(c => c.id === m.camId);
-  const type = getCamTypeFromName(cam?.name || "");
-  typesOnFloor[type] = (typesOnFloor[type] || 0) + 1;
-});
-
-const TYPE_COLORS_EXPORT = {
-  dome:    "#3b82f6",
-  bullet:  "#f59e0b",
-  ptz:     "#8b5cf6",
-  fisheye: "#10b981",
-  box:     "#f97316",
-  turret:  "#ec4899",
-};
-
-function getCamTypeFromName(name) {
-  const n = (name || "").toLowerCase();
-  if (n.includes("bullet")) return "bullet";
-  if (n.includes("ptz"))    return "ptz";
-  if (n.includes("fish"))   return "fisheye";
-  if (n.includes("box"))    return "box";
-  if (n.includes("turret")) return "turret";
-  return "dome";
-}
-
-const legendEntries = Object.entries(typesOnFloor);
-if (legendEntries.length > 0) {
-  const padX   = 14, padY = 10;
-  const rowH   = 22, swatchW = 14;
-  const boxW   = 160;
-  const boxH   = padY * 2 + legendEntries.length * rowH + 4;
-  const lx     = oc.width  - boxW - 16;
-  const ly     = oc.height - boxH - 16;
-
-  // Background
-  ctx.fillStyle = "rgba(10,14,23,0.82)";
-  ctx.beginPath();
-  ctx.roundRect?.(lx, ly, boxW, boxH, 8) || ctx.rect(lx, ly, boxW, boxH);
-  ctx.fill();
-
-  // Border
-  ctx.strokeStyle = "rgba(255,255,255,0.12)";
-  ctx.lineWidth   = 0.5;
-  ctx.stroke();
-
-  // Title
-  ctx.font         = "bold 11px Inter, system-ui, sans-serif";
-  ctx.fillStyle    = "rgba(255,255,255,0.55)";
-  ctx.textAlign    = "left";
-  ctx.textBaseline = "top";
-  ctx.fillText("CAMERA TYPES", lx + padX, ly + padY);
-
-  legendEntries.forEach(([type, count], idx) => {
-    const ry   = ly + padY + 16 + idx * rowH;
-    const col  = TYPE_COLORS_EXPORT[type] || "#3b82f6";
-
-    // Color swatch circle
-    ctx.beginPath();
-    ctx.arc(lx + padX + swatchW / 2, ry + rowH / 2, 6, 0, Math.PI * 2);
-    ctx.fillStyle = col;
-    ctx.fill();
-
-    // Type label
-    ctx.font         = "500 11px Inter, system-ui, sans-serif";
-    ctx.fillStyle    = "#e8edf5";
-    ctx.textAlign    = "left";
-    ctx.textBaseline = "middle";
-    ctx.fillText(
-      type.charAt(0).toUpperCase() + type.slice(1),
-      lx + padX + swatchW + 10,
-      ry + rowH / 2
-    );
-
-    // Count badge
-    ctx.font         = "bold 10px Inter, system-ui, sans-serif";
-    ctx.fillStyle    = col + "cc";
-    ctx.textAlign    = "right";
-    ctx.fillText(`×${count}`, lx + boxW - padX, ry + rowH / 2);
-  });
-}
-
     // ── Download ──────────────────────────────────────────────────
     const a    = document.createElement("a");
-    a.download = `${floorName.replace(/\s+/g, "_")}_map.png`;
+    a.download = exportMode === "heatmap" ? `${floorName.replace(/\s+/g, "_")}_heatmap.png` : `${floorName.replace(/\s+/g, "_")}_design.png`;
     a.href     = oc.toDataURL("image/png");
     a.click();
+    setShowExportMenu(false);
   }
 
   // Computed
@@ -1616,17 +1498,49 @@ if (legendEntries.length > 0) {
             Clear Floor
           </button>
 
-          <button
-            className="mv-tbtn"
-            onClick={exportMapPNG}
-            disabled={!hasFloor}
-            title="Download current floor map with cameras and zones (full resolution)"
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="13" height="13">
-              <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/>
-            </svg>
-            Download
-          </button>
+          <div className="mv-export-group" ref={exportMenuRef}>
+            <button
+              className={`mv-tbtn mv-tbtn--export ${showExportMenu ? "mv-tbtn--active" : ""}`}
+              onClick={() => setShowExportMenu(!showExportMenu)}
+              disabled={!hasFloor}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="13" height="13">
+                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/>
+              </svg>
+              Export PNG
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="10" height="10" style={{ marginLeft: 2, opacity: 0.6 }}>
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
+            </button>
+
+            {showExportMenu && (
+              <div className="mv-export-menu">
+                <button className="mv-export-item" onClick={() => exportMapPNG("design")}>
+                  <div className="mv-export-item__icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
+                      <rect x="3" y="3" width="18" height="18" rx="2" /><path d="M3 9h18M9 21V9" />
+                    </svg>
+                  </div>
+                  <div className="mv-export-item__label">
+                    <span>Download Map View</span>
+                    <small>Exact snapshot of current layout</small>
+                  </div>
+                </button>
+                <button className="mv-export-item" onClick={() => exportMapPNG("heatmap")}>
+                  <div className="mv-export-item__icon mv-export-item__icon--heatmap">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
+                      <circle cx="12" cy="12" r="3" />
+                      <path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
+                    </svg>
+                  </div>
+                  <div className="mv-export-item__label">
+                    <span>Download Heatmap</span>
+                    <small>Coverage intensity map</small>
+                  </div>
+                </button>
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="mv-toolbar__right">
@@ -1850,6 +1764,8 @@ if (legendEntries.length > 0) {
             wrapRef={wrapRef}
             showHeatmap={showHeatmap}
             floorImgRef={floorImgRef}
+            activeZone={activeZoneId ? zones.find(z => z.id === activeZoneId) : null}
+            zones={zones.filter(z => z.floorIndex === activeFloor)}
           />
 
           {/* Virtual Map View */}
