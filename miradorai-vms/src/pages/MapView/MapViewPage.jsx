@@ -1297,18 +1297,8 @@ export default function MapViewPage() {
           ctx.strokeStyle = "#fff"; ctx.lineWidth = 1; ctx.stroke(); ctx.globalAlpha = 1;
         });
 
-        // Zone label badge
-        const cx = zone.polygon.reduce((s, p) => s + p.x, 0) / zone.polygon.length;
-        const cy = zone.polygon.reduce((s, p) => s + p.y, 0) / zone.polygon.length;
-        const label = zone.name.length > 12 ? zone.name.slice(0, 11) + "…" : zone.name;
-        ctx.font = "bold 13px Inter, sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
-        const tw = ctx.measureText(label).width;
-        ctx.fillStyle = zone.color + "dd";
-        ctx.beginPath();
-        if (ctx.roundRect) ctx.roundRect(cx - tw / 2 - 8, cy - 11, tw + 16, 22, 5);
-        else ctx.rect(cx - tw / 2 - 8, cy - 11, tw + 16, 22);
-        ctx.fill();
-        ctx.fillStyle = "#ffffff"; ctx.fillText(label, cx, cy);
+        // Zone label badge removed per user request
+
         ctx.restore();
       });
 
@@ -2036,20 +2026,8 @@ function ZoneOverlay({ zones, drawingPoints, activeZoneId, scaleRef, offsetRef, 
                 />
               );
             })}
-            <g transform={`translate(${lx},${ly})`}>
-              <rect x={-32} y={-11} width={64} height={22} rx={5} fill={z.color} fillOpacity={0.85} />
-              <text
-                x={0} y={4}
-                textAnchor="middle"
-                fontSize={10}
-                fontWeight={700}
-                fontFamily="Inter, sans-serif"
-                fill="#fff"
-                fillOpacity={0.95}
-              >
-                {z.name.length > 10 ? z.name.slice(0, 9) + "…" : z.name}
-              </text>
-            </g>
+            {/* Zone label removed per user request */}
+
           </g>
         );
       })}

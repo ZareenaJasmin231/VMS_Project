@@ -37,11 +37,10 @@ import LogsPage from "../../pages/logs/LogsPage";
 // ✅ IMPORTANT PAGES
 import DashboardPage from "../../pages/Dashboard/DashboardPage";
 import MapViewPage from "../../pages/mapview/MapViewPage";
+import TopologyPage from "../../pages/infrastructure/Topology";
 import NetworkHealthPage from "../../pages/diagnostics/NetworkHealthPage";
 import DesignerView from "../../pages/Mapview/DesignerView";
 import MaskingPage from "../../pages/devices/MaskingPage";
-
-
 
 
 
@@ -65,7 +64,8 @@ const MAP = {
   "ext-data": ExternalDataPage,
   "time-sync": TimeSyncPage,
   "camera-features": CameraFeaturesPage,
-  "masking": MaskingPage,
+    "masking": MaskingPage,
+
 
   // ================= STORAGE =================
   "storage-mgmt": StorageMgmtPage,
@@ -98,7 +98,8 @@ const MAP = {
   "backup": BackupPage,
   "logs": LogsPage,
   "map-view": MapViewPage,
-  "designer-view": DesignerView,
+  "infrastructure": TopologyPage,
+    "designer-view": DesignerView,
   "network-health": NetworkHealthPage,
 
 

@@ -205,3 +205,107 @@ export function drawHeatmapLegendToCanvas(
   });
   ctx.restore();
 }
+
+/** Draws a design legend (camera types and counts) */
+export function drawDesignLegendToCanvas(
+  ctx, canvasW, canvasH,
+  { placedCameras = [], compact = false } = {}
+) {
+  const typeCounts = {};
+  placedCameras.forEach(p => {
+    const t = p.camera.type || "dome";
+    typeCounts[t] = (typeCounts[t] || 0) + 1;
+  });
+
+  const TYPE_COLORS = {
+    dome: "#3b82f6", bullet: "#f59e0b", ptz: "#8b5cf6",
+    fisheye: "#10b981", box: "#f97316", turret: "#ec4899",
+  };
+
+  const entries = Object.keys(typeCounts).sort().map(type => ({
+    type,
+    color: TYPE_COLORS[type] || "#3b82f6",
+    label: `${type.charAt(0).toUpperCase() + type.slice(1)}: ${typeCounts[type]}`,
+  }));
+
+  if (!entries.length) return;
+
+  const fontSize = compact ? 9 : 11, iconSize = compact ? 14 : 18;
+  const rowGap = compact ? 18 : 24, padX = compact ? 8 : 12, padY = compact ? 6 : 10;
+  const radius = compact ? 4 : 6, margin = compact ? 8 : 16;
+
+  ctx.save();
+  ctx.font = `600 ${fontSize}px Inter, system-ui, sans-serif`;
+  const maxLW = Math.max(...entries.map(e => ctx.measureText(e.label).width));
+  const boxW = padX * 2 + iconSize + 12 + maxLW;
+  const boxH = padY * 2 + entries.length * rowGap - (rowGap - iconSize);
+  const bx = canvasW - boxW - margin;
+  const by = canvasH - boxH - margin;
+
+  // Background box
+  ctx.fillStyle = "rgba(13, 17, 23, 0.9)";
+  ctx.beginPath();
+  if (ctx.roundRect) ctx.roundRect(bx, by, boxW, boxH, radius); else ctx.rect(bx, by, boxW, boxH);
+  ctx.fill();
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.15)";
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  entries.forEach((e, i) => {
+    const ey = by + padY + i * rowGap;
+    const ix = bx + padX;
+    const iy = ey;
+    
+    // Draw Camera Icon
+    drawCameraIcon(ctx, ix, iy, iconSize, e.type, e.color);
+
+    // Draw Label
+    ctx.fillStyle = "#e8edf5";
+    ctx.font = `600 ${fontSize}px Inter, system-ui, sans-serif`;
+    ctx.textBaseline = "middle";
+    ctx.fillText(e.label, ix + iconSize + 10, iy + iconSize / 2);
+  });
+  ctx.restore();
+}
+
+function drawCameraIcon(ctx, x, y, size, type, color) {
+  ctx.save();
+  ctx.translate(x, y);
+  const s = size / 24;
+  ctx.scale(s, s);
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 1.8;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+
+  if (type === "ptz") {
+    ctx.beginPath(); ctx.arc(12, 12, 4, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(12, 2); ctx.lineTo(12, 6); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(12, 18); ctx.lineTo(12, 22); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(2, 12); ctx.lineTo(6, 12); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(18, 12); ctx.lineTo(22, 12); ctx.stroke();
+    const d = 4.93, d2 = 2.83;
+    ctx.beginPath(); ctx.moveTo(d, d); ctx.lineTo(d + d2, d + d2); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(24 - d, 24 - d); ctx.lineTo(24 - d - d2, 24 - d - d2); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(24 - d, d); ctx.lineTo(24 - d - d2, d + d2); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(d, 24 - d); ctx.lineTo(d + d2, 24 - d - d2); ctx.stroke();
+  } else if (type === "fisheye") {
+    ctx.beginPath(); ctx.arc(12, 12, 9, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(12, 12, 4, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(12, 12, 1, 0, Math.PI * 2); ctx.fillStyle = color; ctx.fill();
+  } else if (type === "bullet") {
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(3, 9, 14, 6, 2); else ctx.rect(3, 9, 14, 6);
+    ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(17, 12); ctx.lineTo(21, 12); ctx.stroke();
+    ctx.beginPath(); ctx.arc(8, 12, 1.5, 0, Math.PI * 2); ctx.fillStyle = color; ctx.fill();
+  } else {
+    // Dome/Default
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(2, 7, 15, 10, 2); else ctx.rect(2, 7, 15, 10);
+    ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(17, 9); ctx.lineTo(22, 7); ctx.lineTo(22, 17); ctx.lineTo(17, 15); ctx.closePath(); ctx.stroke();
+    ctx.beginPath(); ctx.arc(9, 12, 2, 0, Math.PI * 2); ctx.fillStyle = color + "44"; ctx.fill(); ctx.stroke();
+  }
+  ctx.restore();
+}
