@@ -24,8 +24,18 @@ def log_terminal(user_email, user_role, command, project_folder, exit_code=0, ou
 
         # 🔥 SEND TO WEBSOCKET
         try:
-            from main import broadcast_log
-            asyncio.create_task(broadcast_log(doc))
+            from main import broadcast_log, manager
+
+            loop = manager.loop if hasattr(manager, 'loop') and manager.loop else None
+
+            if loop and loop.is_running():
+                asyncio.run_coroutine_threadsafe(
+                    broadcast_log(doc),
+                    loop
+                )
+            else:
+                print("No running event loop for broadcast")
+
         except Exception as e:
             print("WS broadcast failed:", e)
 

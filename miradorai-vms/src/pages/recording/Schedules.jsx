@@ -236,7 +236,7 @@ export default function Schedules() {
     setSchedules((prev) => prev.map((s) => (s.id === selectedId ? { ...s, ...patch } : s)));
 
   return (
-    <div className="page-shell">
+    <div className="page-shell schedules-page">
       <div className="page-header">
         <div className="page-header__left">
           <h1 className="page-title">Schedules</h1>

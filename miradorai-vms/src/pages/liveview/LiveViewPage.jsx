@@ -687,15 +687,17 @@ export default function LiveViewPage() {
       {/* ── Toolbar ── */}
       <div className="lv-toolbar">
         <div className="lv-toolbar__left">
-          <span className="lv-toolbar__title">Live View</span>
-          <span className="lv-toolbar__count">
-            {onlineCams.length} stream{onlineCams.length !== 1 ? "s" : ""} online
-          </span>
-          {disabledCount > 0 && (
-            <span className="lv-toolbar__disabled-badge">
-              {disabledCount} disabled
+          <h1 className="lv-page-title">Live View</h1>
+          <div className="lv-toolbar__stats">
+            <span className="lv-toolbar__count">
+              {onlineCams.length} stream{onlineCams.length !== 1 ? "s" : ""} online
             </span>
-          )}
+            {disabledCount > 0 && (
+              <span className="lv-toolbar__disabled-badge">
+                {disabledCount} disabled
+              </span>
+            )}
+          </div>
         </div>
         <div className="lv-toolbar__right">
           <div className="lv-layouts">

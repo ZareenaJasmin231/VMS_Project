@@ -147,8 +147,7 @@ const ADMIN_ONLY_NAV = [
       <line x1="16" y1="6" x2="16" y2="22"/>
     </svg>`,
   },
-
-  {
+    {
   section: "Designer View",
   page: "designer-view",
 
@@ -159,13 +158,12 @@ const ADMIN_ONLY_NAV = [
     <path d="M3 12h5M16 12h5"/>
   </svg>`,
 },
-
-  // ✅ NETWORK HEALTH
+  // ✅ INFRASTRUCTURE
   {
-    section: "Network Health",
-    page: "network-health",
+    section: "Infrastructure",
+    page: "infrastructure",
     icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-      <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+      <rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" y1="6" x2="6" y2="6"/><line x1="6" y1="18" x2="6" y2="18"/><path d="M12 10v4M12 10h4M12 14h4"/>
     </svg>`,
   },
 
@@ -221,7 +219,15 @@ export const CAMERA_FEATURES_CONFIG = [
       <path d="M12 8l1.5 3h3l-2.5 2 1 3L12 14.5 9 16l1-3-2.5-2h3z"/>
     </svg>`,
   },
-
+  // {
+  //   label: "Masking",
+  //   page: "masking",
+  //   icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+  //     <rect x="3" y="3" width="18" height="18" rx="2"/>
+  //     <rect x="8" y="8" width="8" height="8" rx="1"/>
+  //     <path d="M3 8h2M19 8h2M3 16h2M19 16h2M8 3v2M16 3v2M8 19v2M16 19v2"/>
+  //   </svg>`,
+  // },
   // {
   //   label: "Camera Features",
   //   page: "camera-features",
@@ -283,15 +289,13 @@ export const PAGE_TITLES = {
   "client-settings": "Client Settings",
   "user-settings": "User Settings",
   profile: "Profile",
-  "designer-view": "Designer View",
-
-  "network-health": "Network Health",
   about: "About",
 
   // Admin pages
   "media-player": "Playback",
   backup: "Backup",
   logs: "System Logs",
+  infrastructure: "Infrastructure",
 
   // Camera feature pages
   "stream-profiles": "Stream Profiles",
@@ -304,6 +308,8 @@ export const PAGE_TITLES = {
   "time-sync": "Time Synchronization",
   "device-mgmt": "Device Management",
   "analytics-rules": "Analytics Rules",
+    "designer-view": "Designer View",
+
 };
 
 // ================= HELPER FUNCTION =================

@@ -457,7 +457,7 @@ export default function MediaPlayerPage() {
       document.body.removeChild(a);
       setTimeout(() => URL.revokeObjectURL(url), 3000);
 
-      showToast("Snapshot saved successfully! ✓");
+      showToast("Snapshot saved successfully! ");
     } catch (err) {
       console.error("Snapshot error:", err);
       if (err.name === "SecurityError") {
@@ -560,15 +560,20 @@ export default function MediaPlayerPage() {
             headers: { "Content-Type": "application/json", ...authHeaders() },
             body: JSON.stringify(payload),
           });
-          if (!response.ok) throw new Error("Failed to create zip");
+          if (!response.ok) {
+            const errBody = await response.json().catch(() => ({ detail: "Failed to create zip" }));
+            throw new Error(errBody.detail || "Failed to create zip");
+          }
           const blob = await response.blob();
           const writable = await handle.createWritable();
           await writable.write(blob);
           await writable.close();
           setShowExportModal(false);
+          showToast("Export ZIP saved successfully! ✓");
           return;
         } catch (innerError) {
           if (innerError.name === "AbortError") { setExporting(false); return; }
+          throw innerError; // Let outer catch handle it
         }
       }
 
@@ -577,7 +582,10 @@ export default function MediaPlayerPage() {
         headers: { "Content-Type": "application/json", ...authHeaders() },
         body: JSON.stringify(payload),
       });
-      if (!response.ok) throw new Error("Failed to create zip");
+      if (!response.ok) {
+        const errBody = await response.json().catch(() => ({ detail: "Failed to create zip" }));
+        throw new Error(errBody.detail || "Failed to create zip");
+      }
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -588,7 +596,8 @@ export default function MediaPlayerPage() {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
       setShowExportModal(false);
-      showToast("Export ZIP saved successfully! ✓");
+      showToast("Export ZIP downloaded successfully! ✓");
+
     } catch (error) {
       if (error.name !== "AbortError") showToast("Failed to export: " + error.message, "error");
     } finally {

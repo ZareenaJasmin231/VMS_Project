@@ -101,12 +101,12 @@ export default function RecordingMethodPage() {
         }
       } catch (e) { console.warn("[RM] Backend fetch failed", e); }
 
-      const data = backendData.map(s => {
+      const data = backendData.map((s, idx) => {
         const matchingLocal = localDevices.find(d => d.ip === s.ip && d.ome_stream === s.ome_stream);
         return {
           ...s,
           group_id: s.group_id || matchingLocal?.group_id || "default",
-          ome_stream: s.ome_stream || s.ip?.replace(/\./g, "_") || `cam_${s.id}`,
+          ome_stream: s.ome_stream || (s.ip ? `${s.ip.replace(/\./g, "_")}_cam${s.channel || 0}` : `cam_${s.id || idx}`),
         };
       });
 
@@ -116,7 +116,7 @@ export default function RecordingMethodPage() {
       const initialSettings = {};
       finalData.forEach((cam) => {
         const profiles = cam.stream_profiles || [];
-        let pVal = cam.active_rec_profile || cam.recording_profile || "SUB_STREAM";
+        let pVal = cam.active_rec_profile || cam.recording_profile || "MAIN_STREAM";
         if (profiles.length > 0 && pVal !== "MAIN_STREAM" && pVal !== "SUB_STREAM") {
           const sortedMain = [...profiles].sort((a, b) => ((b.width || 0) * (b.height || 0)) - ((a.width || 0) * (a.height || 0)) || (b.bitrate || 0) - (a.bitrate || 0));
           const sortedSub = [...profiles].sort((a, b) => ((a.width || 0) * (a.height || 0)) - ((b.width || 0) * (b.height || 0)) || (a.bitrate || 0) - (b.bitrate || 0));
@@ -183,7 +183,28 @@ export default function RecordingMethodPage() {
     });
   };
 
-  const updateProfile = (val) => updateSection("continuous", { profile: val });
+  const updateProfile = (val) => {
+    const targets = checkedCams.length > 0 ? checkedCams : (selectedId ? [selectedId] : []);
+    if (targets.length === 0) return;
+
+    // Check eligibility: camera must have at least 2 profiles to "switch"
+    const ineligible = targets.filter(tid => {
+      const cam = devices.find(d => d.ome_stream === tid);
+      return !cam || !cam.stream_profiles || cam.stream_profiles.length < 2;
+    });
+
+    if (ineligible.length > 0) {
+      if (targets.length === 1) {
+        showToast("This camera only has one stream profile and is not eligible for profile switching.", true);
+      } else {
+        showToast(`${ineligible.length} of the selected cameras only have one stream profile and are not eligible for profile switching.`, true);
+      }
+      return;
+    }
+
+    updateSection("continuous", { profile: val });
+  };
+
   const updateSchedule = (val) => updateSection("continuous", { schedule: val });
 
   const handleApply = async () => {
@@ -192,8 +213,14 @@ export default function RecordingMethodPage() {
 
     setLoading(true);
     try {
-      const template = selectedId ? recSettings[selectedId] : (checkedCams[0] ? recSettings[checkedCams[0]] : null);
-      if (!template) throw new Error("No settings template found");
+      const templateId = (selectedId && recSettings[selectedId]) ? selectedId : checkedCams.find(id => recSettings[id]);
+      const template = recSettings[templateId];
+
+      if (!template) {
+        showToast("No settings found for the selected camera(s). Please try refreshing.", true);
+        setLoading(false);
+        return;
+      }
 
       const applyTasks = targets.map(async (tid) => {
         const cam = devices.find(d => d.ome_stream === tid);
@@ -404,7 +431,7 @@ export default function RecordingMethodPage() {
                       <div className="rm-item-name">
                         {cam.name || cam.ip}
                         <span className="rm-stream-badge">
-                          {cam.active_rec_profile === "MAIN_STREAM" ? "Main" : cam.active_rec_profile === "SUB_STREAM" ? "Sub" : (cam.active_rec_profile || "Sub")}
+                          {(recSettings[cam.ome_stream]?.continuous?.profile || cam.active_rec_profile) === "MAIN_STREAM" ? "MAIN" : "SUB"}
                         </span>
                       </div>
                       <div className="rm-item-mode">{(!cam.assigned_schedule_id || cam.assigned_schedule_id === "Always") ? "Continuous" : "Scheduled"}</div>
@@ -425,8 +452,8 @@ export default function RecordingMethodPage() {
                   className="rm-h-select"
                   value={
                     selectedId 
-                      ? devices.find(d => d.ome_stream === selectedId)?.active_rec_profile 
-                      : devices.find(d => d.ome_stream === checkedCams[0])?.active_rec_profile || "SUB_STREAM"
+                      ? recSettings[selectedId]?.continuous?.profile 
+                      : recSettings[checkedCams[0]]?.continuous?.profile || "SUB_STREAM"
                   }
                   onChange={e => updateProfile(e.target.value)}
                 >
@@ -443,8 +470,8 @@ export default function RecordingMethodPage() {
                   className="rm-h-select"
                   value={
                     selectedId
-                      ? devices.find(d => d.ome_stream === selectedId)?.assigned_schedule_id || "Always"
-                      : devices.find(d => d.ome_stream === checkedCams[0])?.assigned_schedule_id || "Always"
+                      ? recSettings[selectedId]?.continuous?.schedule || "Always"
+                      : recSettings[checkedCams[0]]?.continuous?.schedule || "Always"
                   }
                   onChange={e => updateSchedule(e.target.value)}
                 >

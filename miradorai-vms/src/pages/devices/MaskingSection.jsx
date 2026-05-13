@@ -565,13 +565,13 @@ export default function MaskingSection({ device, showToast }) {
               className={`mp-tool-btn ${mode === "draw" ? "active" : ""}`}
               onClick={() => { setMode("draw"); setSelectedId(null); }}
             >
-              ✏️ Draw
+              Draw
             </button>
             <button
               className={`mp-tool-btn ${mode === "select" ? "active" : ""}`}
               onClick={() => { setMode("select"); setDraftPts([]); }}
             >
-              ↖️ Select
+              Select
             </button>
           </div>
 
@@ -600,20 +600,20 @@ export default function MaskingSection({ device, showToast }) {
                 onClick={finalizeMask}
                 disabled={draftPts.length < 3}
               >
-                ✅ Close Polygon ({draftPts.length})
+                Close Polygon ({draftPts.length})
               </button>
               <button className="mp-tool-btn" onClick={() => setDraftPts(p => p.slice(0, -1))}>
-                ↩️ Undo
+                Undo
               </button>
               <button className="mp-tool-btn danger" onClick={() => setDraftPts([])}>
-                ❌ Cancel
+                Cancel
               </button>
             </div>
           )}
 
           {masks.length > 0 && draftPts.length === 0 && (
             <button className="mp-tool-btn success" onClick={saveAll}>
-              💾 Save All
+              Save All
             </button>
           )}
 
@@ -628,20 +628,20 @@ export default function MaskingSection({ device, showToast }) {
 
         {/* Viewport (Video + Canvas) */}
         <div className="mp-viewport">
-          {/* 🎥 LIVE STREAM */}
+          {/* LIVE STREAM */}
           <div className="mp-video-layer">
             {wsUrl ? (
               <WebRTCPlayer serverUrl={wsUrl} cameraId={device.id} />
             ) : (
               <div className="mp-video-placeholder">
-                <div className="mp-placeholder-icon">📡</div>
+                <div className="mp-placeholder-icon"></div>
                 <div>Live stream unavailable</div>
                 <div className="mp-placeholder-sub">Snapshot fallback disabled</div>
               </div>
             )}
           </div>
 
-          {/* 🎯 MASK CANVAS */}
+          {/* MASK CANVAS */}
           <canvas
             ref={canvasRef}
             width={CANVAS_W}
@@ -694,7 +694,7 @@ export default function MaskingSection({ device, showToast }) {
         <h3 className="mp-list-title">Defined Regions ({masks.length})</h3>
         {selectedId && (
           <button className="mp-tool-btn danger" style={{ height: 26, fontSize: 11 }} onClick={() => deleteMask(selectedId)}>
-            🗑️ Delete Selected
+            Delete Selected
           </button>
         )}
       </div>
@@ -725,14 +725,18 @@ export default function MaskingSection({ device, showToast }) {
                     onBlur={() => commitRename(mask.id)}
                     onClick={e => e.stopPropagation()}
                   />
-                  <label className="mp-switch" onClick={e => { e.stopPropagation(); toggleMask(mask.id); }}>
-                    <input type="checkbox" checked={!!mask.enabled} readOnly />
+                  <label className="mp-switch" onClick={e => e.stopPropagation()}>
+                    <input 
+                      type="checkbox" 
+                      checked={!!mask.enabled} 
+                      onChange={() => toggleMask(mask.id)} 
+                    />
                     <span className="mp-switch-slider" />
                   </label>
                 </div>
                 <div className="mp-card-meta">
                   <span>{mask.points?.length} vertices · {mask.enabled ? "Active" : "Disabled"}</span>
-                  <button className="mp-card-del" onClick={e => { e.stopPropagation(); deleteMask(mask.id); }}>🗑️</button>
+                  <button className="mp-card-del" onClick={e => { e.stopPropagation(); deleteMask(mask.id); }}>Delete</button>
                 </div>
               </div>
             );
@@ -740,24 +744,6 @@ export default function MaskingSection({ device, showToast }) {
         </div>
       )}
 
-      {/* Quick Guide */}
-      <div className="mp-guide">
-        <div className="mp-guide-step">
-          <span className="mp-step-num">01.</span>
-          <h4>Draw Regions</h4>
-          <p>Click the canvas to place vertices. Click the origin point to close and save.</p>
-        </div>
-        <div className="mp-guide-step">
-          <span className="mp-step-num">02.</span>
-          <h4>Refine Shape</h4>
-          <p>Switch to Select mode and drag any vertex to adjust the mask geometry.</p>
-        </div>
-        <div className="mp-guide-step">
-          <span className="mp-step-num">03.</span>
-          <h4>Permanent Burn</h4>
-          <p>Masks are burned into the video feed and cannot be bypassed once saved.</p>
-        </div>
-      </div>
     </>
   );
 }

@@ -20,8 +20,9 @@
 .rm-page-title {
   font-size: 26px;
   font-weight: 700;
-  margin: 0 0 4px;
-  background: linear-gradient(135deg, #fff 0%, #a5f3fc 100%);
+  margin: 0;
+  color: var(--text-primary);
+  background: linear-gradient(135deg, #fff 0%, var(--teal) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   letter-spacing: -0.02em;

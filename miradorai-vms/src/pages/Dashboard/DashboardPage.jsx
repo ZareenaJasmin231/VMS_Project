@@ -210,22 +210,21 @@ const DashboardPage = () => {
 
   return (
     <div className="dashboard">
-      <h2 className="dashboard-title"> Live VMS Overview</h2>
-
-      {/* Last Updated */}
-      <p style={{ fontSize: "11px", color: "#888", marginBottom: "10px" }}>
-        Last updated: {new Date().toLocaleTimeString()}
-      </p>
+      <div className="dashboard-header">
+        <h1 className="dashboard-page-title">Overview</h1>
+        <div className="dashboard-update-badge">
+          Last updated: {new Date().toLocaleTimeString()}
+        </div>
+      </div>
 
       {/* 🔹 Stats Cards */}
       <div className="cards">
         {stats.map((item, index) => (
           <div className="card" key={index}>
-            <div className={`icon ${
-              index === 0 ? "blue"  :
-              index === 1 ? "green" :
-              index === 2 ? "red"   : "orange"
-            }`}>
+            <div className={`icon ${index === 0 ? "blue" :
+                index === 1 ? "green" :
+                  index === 2 ? "red" : "orange"
+              }`}>
               {item.icon}
             </div>
             <div className="card-content">
@@ -309,7 +308,7 @@ const DashboardPage = () => {
               cameraHealth.map((cam, i) => {
                 const health = getCameraHealth(cam);
                 const isBitrateDrop = cam.bitrate > 0 && cam.bitrate < 400; // Threshold for drop detection
-                
+
                 return (
                   <div key={i} className={`health-item ${health} ${isBitrateDrop ? 'bitrate-warning' : ''}`}>
                     <div className="health-item-main">
@@ -327,8 +326,8 @@ const DashboardPage = () => {
                         <div className="metric-box">
                           <label>Bitrate</label>
                           <span className={isBitrateDrop ? 'value warning' : 'value'}>
-                            {typeof cam.bitrate === 'number' && cam.bitrate > 0 
-                              ? `${(cam.bitrate / 1024).toFixed(1)} Mbps` 
+                            {typeof cam.bitrate === 'number' && cam.bitrate > 0
+                              ? `${(cam.bitrate / 1024).toFixed(1)} Mbps`
                               : '0.0 Mbps'}
                           </span>
                         </div>
@@ -340,7 +339,7 @@ const DashboardPage = () => {
                         </div>
                       </div>
                     </div>
-                    
+
                     {isBitrateDrop && (
                       <div className="health-alert-bar">
                         <AlertTriangle size={12} />

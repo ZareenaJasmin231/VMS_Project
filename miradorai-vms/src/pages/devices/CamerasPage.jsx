@@ -477,33 +477,21 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
           {/* ── Right Side Panel (Group) ── */}
           {selectedGroup && (
             <div className="card cam-side-panel">
-
-              {/* ── UPDATED: Panel header ── */}
-              <div className="cam-side-panel__header">
-                <div className="cam-side-panel__info">
-                  <div className="cam-side-panel__name-row">
-                    <div className="group-panel-header">
-                      <h3>{selectedGroup.name}</h3>
-                      <div className="group-panel-meta">
-                        <span>{selectedGroup.cameras.length} Camera{selectedGroup.cameras.length !== 1 ? "s" : ""}</span>
-                        <span className="dot">•</span>
-                        <span className="active-count">
-                          {selectedGroup.cameras.filter(c => c.enabled !== false).length} Active
-                        </span>
-                      </div>
-                    </div>
-                    <button
-                      className="close-btn"
-                      onClick={() => setSelectedGroup(null)}
-                    >
-                      ✕
-                    </button>
+              <div className="cam-side-header">
+                <div className="cam-side-header__info">
+                  <h3>{selectedGroup.name}</h3>
+                  <div className="cam-side-header__meta">
+                    <span>{selectedGroup.cameras.length} Camera{selectedGroup.cameras.length !== 1 ? "s" : ""}</span>
+                    <span className="dot">•</span>
+                    <span className="active-count">
+                      {selectedGroup.cameras.filter(c => c.enabled !== false).length} Active
+                    </span>
                   </div>
                 </div>
+                <button className="close-btn" onClick={() => setSelectedGroup(null)}>✕</button>
               </div>
 
-              {/* ── UPDATED: Camera list with per-camera toggle ── */}
-              <div className="group-cam-list">
+              <div className="cam-side-body">
                 {selectedGroup.cameras.length === 0 ? (
                   <div className="m-table__empty" style={{ padding: "1rem" }}>No cameras in this group.</div>
                 ) : selectedGroup.cameras.map((cam) => {
@@ -513,19 +501,18 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
                   return (
                     <div
                       key={cam.id}
-                      className={`group-cam-item ${isCamChecked ? "checked" : ""}`}
+                      className={`cam-side-item ${isCamChecked ? "checked" : ""}`}
                       onClick={() => toggleGroupCam(cam.id)}
                     >
                       <input
                         type="checkbox"
-                        className="m-checkbox"
                         checked={isCamChecked}
                         onChange={() => toggleGroupCam(cam.id)}
                         onClick={(e) => e.stopPropagation()}
                       />
-                      <div className="group-cam-info">
-                        <div className="group-cam-name">{cam.name || cam.ip}</div>
-                        <div className="group-cam-ip">{cam.ip}</div>
+                      <div className="cam-item-info">
+                        <div className="cam-item-name">{cam.name || cam.ip}</div>
+                        <div className="cam-item-ip">{cam.ip}</div>
                       </div>
                       <label className="cam-toggle" onClick={(e) => e.stopPropagation()}>
                         <input

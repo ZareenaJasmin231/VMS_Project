@@ -440,17 +440,17 @@ def discover_onvif_devices(timeout: int = 5) -> list:
 # ─────────────────────────────────────────────────────────────────────────────
 
 def discover_onvif_devices_simple(
-    timeout_ms:  int = 150,
+    timeout_ms:  int = 500,
     username:    str = "",
     password:    str = "",
-    max_workers: int = 50,
+    max_workers: int = 100,
 ) -> list:
     discovered_devices: dict[str, dict] = {}
     lock = threading.Lock()
 
     subnet = get_local_subnet()
     # Only ONVIF management ports — 554 checked separately as camera gate
-    ports  = [80, 8080, 8081, 8888]
+    ports = [80, 8080, 8081, 8888, 8000, 8899, 37777, 5000]
 
     print(f"[DISCOVERY] Scanning {subnet}.1-254 on ports {ports} "
           f"(timeout={timeout_ms}ms, workers={max_workers})...")

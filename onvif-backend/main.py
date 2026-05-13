@@ -1399,22 +1399,98 @@ from utils.terminal_logger import log_terminal
 
 @app.on_event("startup")
 async def startup():
-    # ── Standardize DB naming convention ──────────────────────────
+    # ── DB naming cleanup (4 steps) ───────────────────────────────
     if cameras_col is not None:
         try:
             all_cams = list(cameras_col.find({}))
+
+            # ── Step 1: Rename old MD5 hash-suffix entries → plain IP name ──
+            # e.g. 192_168_126_235_3b1b71 → 192_168_126_235
+            # BUT only when NO camN entry for the same IP exists
+            # (if camN exists, step 3 will delete the hash entry instead).
+            # _camN entries are left completely untouched.
             for cam in all_cams:
                 ip = cam.get("ip")
-                if not ip: continue
+                if not ip:
+                    continue
                 base_name = ip.replace(".", "_")
                 current   = cam.get("ome_stream", "")
-                # Only rename if the stream has NO hash suffix (old format).
-                # Multi-channel streams have a suffix like 192_168_126_240_e1c95c — leave them alone.
+
+                # Proper camN entry → skip
+                if re.search(r"_cam\d+$", current):
+                    continue
+
+                # Old MD5 hash entry (e.g. _3b1b71) → rename to plain IP
+                if re.search(r"_[0-9a-f]{6}$", current):
+                    # Only rename if no camN entry exists for this IP
+                    has_cam_n = cameras_col.find_one({
+                        "ip": ip,
+                        "ome_stream": re.compile(f"^{re.escape(base_name)}_cam\\d+$")
+                    })
+                    if not has_cam_n:
+                        # Avoid collision with an already-existing plain entry
+                        conflict = cameras_col.find_one({
+                            "ome_stream": base_name,
+                            "_id": {"$ne": cam["_id"]}
+                        })
+                        if not conflict:
+                            cameras_col.update_one(
+                                {"_id": cam["_id"]},
+                                {"$set": {"ome_stream": base_name}}
+                            )
+                            print(f"[MIGRATION] 🚚 Renamed hash entry: {current} → {base_name}")
+                    continue
+
+                # Completely foreign name (not IP-based at all) → rename to base_name
                 if current and current != base_name and not current.startswith(base_name + "_"):
-                    print(f"[MIGRATION] 🚚 Renaming stream: {current} -> {base_name}")
+                    print(f"[MIGRATION] 🚚 Renaming stream: {current} → {base_name}")
                     cameras_col.update_one({"_id": cam["_id"]}, {"$set": {"ome_stream": base_name}})
-                # If it already HAS a unique suffix, don't touch it
-            # Reload devices after migration
+
+            # ── Step 2: Purge ghost entries (no rtsp_url) ─────────────────
+            ghost_result = cameras_col.delete_many({
+                "$or": [
+                    {"rtsp_url": {"$exists": False}},
+                    {"rtsp_url": None},
+                    {"rtsp_url": ""},
+                ]
+            })
+            if ghost_result.deleted_count:
+                print(f"[MIGRATION] 🧹 Purged {ghost_result.deleted_count} ghost entry/entries with no rtsp_url")
+
+            # Re-fetch after steps 1 & 2
+            all_cams = list(cameras_col.find({}))
+
+            # Build set of IPs that have at least one camN entry
+            cam_n_ips = {
+                cam.get("ip", "")
+                for cam in all_cams
+                if re.search(r"_cam\d+$", cam.get("ome_stream", ""))
+            }
+
+            ids_to_delete = []
+
+            for cam in all_cams:
+                stream = cam.get("ome_stream", "")
+                ip     = cam.get("ip", "")
+                base   = ip.replace(".", "_") if ip else ""
+
+                # ── Step 3: Old MD5 hash entry AND camN exists for same IP → delete
+                if re.search(r"_[0-9a-f]{6}$", stream) and ip in cam_n_ips:
+                    ids_to_delete.append(cam["_id"])
+                    print(f"[MIGRATION] 🗑 Removing superseded hash entry: {stream}")
+                    continue
+
+                # ── Step 4: Plain IP entry AND camN exists for same IP → delete
+                # e.g. 192_168_126_240 is redundant when 192_168_126_240_cam1 exists
+                if stream == base and ip in cam_n_ips:
+                    ids_to_delete.append(cam["_id"])
+                    print(f"[MIGRATION] 🗑 Removing plain IP entry: {stream} (camN exists for {ip})")
+
+            if ids_to_delete:
+                cameras_col.delete_many({"_id": {"$in": ids_to_delete}})
+                print(f"[MIGRATION] ✅ Removed {len(ids_to_delete)} stale entry/entries")
+
+            # Reload devices after all migration steps
             global devices
             devices = load_devices()
         except Exception as e:
@@ -1822,6 +1898,38 @@ async def delete_camera_by_ip(ip: str):
     return {"success": True, "ip": ip, "streams_stopped": stopped}
 
 
+@app.delete("/api/cameras/by-stream/{stream_name}/delete", dependencies=[Depends(verify_token)])
+async def delete_camera_by_stream(stream_name: str):
+    """
+    Delete a camera entry by its ome_stream name.
+    Removes ghost/stale entries that exist in MongoDB but were never properly cleaned up.
+    The frontend (AddDevicesPage.jsx) already calls this endpoint on Remove.
+    """
+    global devices
+    stopped = []
+    # Stop recorder and OME stream
+    recorder.stop_camera(stream_name)
+    stopped.append(stream_name)
+    try:
+        r = http_requests.delete(
+            f"{OME_API}/{stream_name}",
+            headers={"Authorization": OME_AUTH},
+            timeout=3,
+        )
+        print(f"[DELETE-STREAM] OME unregister {stream_name}: HTTP {r.status_code}")
+    except Exception as e:
+        print(f"[DELETE-STREAM] OME unregister failed for {stream_name} (non-fatal): {e}")
+    _watchdog_failures.pop(stream_name, None)
+    # Remove from in-memory devices
+    devices = [d for d in devices if d.get("ome_stream") != stream_name]
+    save_devices(devices)
+    # Remove from MongoDB by ome_stream name
+    if cameras_col is not None:
+        result = cameras_col.delete_many({"ome_stream": stream_name})
+        print(f"[DELETE-STREAM] 🗑 MongoDB: removed {result.deleted_count} doc(s) for stream '{stream_name}'")
+    return {"success": True, "stream_name": stream_name, "streams_stopped": stopped}
+
+
 @app.put("/api/cameras/by-ip/{ip}", dependencies=[Depends(verify_token)])
 async def update_camera_by_ip(ip: str, request: Request):
     data = await request.json()
@@ -1908,7 +2016,7 @@ async def onvif_probe(req: ProbeRequest):
         # changes ends
         # Generate a unique stream name based on IP and a hash of the RTSP URL
         # Use channel-based suffix for stable, unique stream names on multi-channel devices
-        suffix = f"cam{req.channel}" if req.channel > 0 else hashlib.md5(rtsp.encode()).hexdigest()[:6]
+        suffix = f"cam{req.channel}" if req.channel > 0 else None
         stream_name = normalize_stream_name(req.ip, suffix)
         
         existing    = next((d for d in devices if d.get("ome_stream") == stream_name), None)
@@ -1928,6 +2036,8 @@ async def onvif_probe(req: ProbeRequest):
                     "port":           req.port,
                     "username":       req.username,
                     "password":       req.password,
+                    "active_rec_profile": "MAIN_STREAM",
+                    "recording_profile":  "MAIN_STREAM",
                     "enabled":        True,
                 }
                 devices.append(new_device)
@@ -1956,6 +2066,8 @@ async def onvif_probe(req: ProbeRequest):
                 "enabled":         True,
                 "stream_count":    result.get("stream_count", 0),
                 "stream_profiles": result.get("profiles", []),
+                "active_rec_profile": "MAIN_STREAM",
+                "recording_profile":  "MAIN_STREAM",
                 "api_profile":     result.get("api_profile"),
                 "group_id":        req.group_id,
                 "device_name":     req.device_name,
@@ -2058,6 +2170,8 @@ async def register_rtsp_stream(req: StreamRegisterRequest):
             "port":           req.port,
             "username":       req.username,
             "password":       req.password,
+            "active_rec_profile": "MAIN_STREAM",
+            "recording_profile":  "MAIN_STREAM",
             "enabled":        True,
         }
         devices.append(new_device)
@@ -2084,6 +2198,8 @@ async def register_rtsp_stream(req: StreamRegisterRequest):
         "password":       req.password,
         "added_at":       datetime.utcnow(),
         "status":         "streaming",
+        "active_rec_profile": "MAIN_STREAM",
+        "recording_profile":  "MAIN_STREAM",
         "enabled":        True,
         "source":         "rtsp",
         "group_id":       req.group_id,

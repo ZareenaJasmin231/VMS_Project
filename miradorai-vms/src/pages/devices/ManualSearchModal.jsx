@@ -391,7 +391,8 @@ export default function ManualSearchModal({
           port: port ? Number(port) : 80,
           username: user,
           password: pass,
-          group_id: selectedGroupId
+          group_id: selectedGroupId,
+          save_to_db: false // ✅ Explicitly set to false for discovery probe
         }),
         signal: controller.signal,
       });

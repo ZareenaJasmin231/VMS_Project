@@ -3,6 +3,8 @@ import "./DesignerView.css";
 import { fovDrawParams } from "./CameraModelDB";
 import { drawHeatmapToContext, drawHeatmapLegendToCanvas, drawDesignLegendToCanvas } from "./HeatmapLogic";
 import HeatmapLayer from "./HeatmapLayer";
+import * as CctvCalc from "./CctvCalculators";
+import { drawStorageReport } from "./ReportLogic.js";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const API = "http://192.168.126.200:8000";
@@ -108,11 +110,12 @@ async function fetchCameraModels({ brand = null, type = null, search = "" } = {}
 }
 
 const TYPE_ICONS = {
-  dome: "⊙", bullet: "▶", ptz: "↻", fisheye: "◎", box: "▪", turret: "⊕",
+  dome: "⊙", bullet: "▶", ptz: "↻", fisheye: "◎", box: "▪", thermal: "🌡",
 };
 const TYPE_COLORS = {
   dome: "#3b82f6", bullet: "#f59e0b", ptz: "#8b5cf6",
-  fisheye: "#10b981", box: "#f97316", turret: "#ec4899",
+  fisheye: "#10b981", box: "#f97316", thermal: "#ef4444",
+
 };
 const ZONE_COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#ec4899", "#8b5cf6", "#f97316", "#06b6d4"];
 
@@ -179,6 +182,7 @@ function ModelCard({ camera, onDragStart, onSelect, isSelected }) {
           <span className="dv-spec-pill">{camera.rangeDay}m</span>
           {camera.ir > 0 && <span className="dv-spec-pill dv-spec-pill--ir">IR {camera.ir}m</span>}
           {camera.isVarifocal && <span className="dv-spec-pill dv-spec-pill--vari">VF</span>}
+          {camera.onboardStorage && <span className="dv-spec-pill" style={{ color: "#10b981", borderColor: "#10b98144" }}>💾 SD</span>}
         </div>
       </div>
     </div>
@@ -189,6 +193,10 @@ function ModelCard({ camera, onDragStart, onSelect, isSelected }) {
 function SpecPanel({ camera, onClose }) {
   if (!camera) return null;
   const col = TYPE_COLORS[camera.type] || "#3b82f6";
+
+  const codecs = camera.codecSupport?.join(", ") ?? "—";
+  const bitrateH265 = camera.bitrateTypical ?? null;
+  const bitrateH264 = camera.bitrateH264 ?? null;
   const rows = [
     ["Type", camera.type.charAt(0).toUpperCase() + camera.type.slice(1)],
     ["Sensor", camera.sensor],
@@ -199,6 +207,11 @@ function SpecPanel({ camera, onClose }) {
     ["Diagonal FOV", `${camera.dfov}°`],
     ["Day Range", `${camera.rangeDay} m`],
     ["IR Range", camera.ir > 0 ? `${camera.ir} m` : "None"],
+    ["Frame Rate", camera.fps ? `${camera.fps} fps` : "—"],
+    ["Codecs", codecs],
+    ["Bitrate H.265", bitrateH265 ? `${bitrateH265} Mbps` : "—"],
+    ["Bitrate H.264", bitrateH264 ? `${bitrateH264} Mbps` : "—"],
+    ["Onboard SD", camera.onboardStorage ? `Yes — up to ${camera.onboardStorageMaxGB} GB` : "No"],
     ["PoE", camera.poe ? "Yes" : "No"],
     ["IP Rating", camera.ip],
     ["Coverage", `≈ ${camera.coverageArea.toLocaleString()} m²`],
@@ -214,36 +227,52 @@ function SpecPanel({ camera, onClose }) {
           <div className="dv-spec-panel__brand">
             <span style={{ color: col, fontWeight: 600 }}>{camera.brand}</span>
             <span style={{ color: "#2e3d55", margin: "0 4px" }}>·</span>
-            <span>{camera.series}</span>
+            <span style={{ color: "#94a3b8" }}>{camera.series}</span>
           </div>
         </div>
         <button className="dv-spec-panel__close" onClick={onClose}>✕</button>
       </div>
       <div style={{ padding: "10px 14px 0", display: "flex", alignItems: "center", gap: 8 }}>
-        <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", padding: "2px 8px", borderRadius: 4, background: col + "22", color: col, border: `0.5px solid ${col}55` }}>
+        <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", padding: "2px 8px", borderRadius: 4, background: col + "22", color: col, border: `0.5px solid ${col}55` }}>
           {TYPE_ICONS[camera.type]} {camera.type}
         </span>
         {camera.megapixels && (
-          <span style={{ fontSize: 10, fontWeight: 600, padding: "2px 8px", borderRadius: 4, background: "#1e2738", color: "#7a8499", border: "0.5px solid #2e3d55" }}>
+          <span style={{ fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 4, background: "#1e2738", color: "#94a3b8", border: "0.5px solid #2e3d55" }}>
             {camera.megapixels} MP
           </span>
         )}
         {camera.ir > 0 && (
-          <span style={{ fontSize: 10, fontWeight: 600, padding: "2px 8px", borderRadius: 4, background: "#f59e0b18", color: "#f59e0b", border: "0.5px solid #f59e0b44" }}>
+          <span style={{ fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 4, background: "#f59e0b18", color: "#f59e0b", border: "0.5px solid #f59e0b44" }}>
             IR {camera.ir}m
           </span>
         )}
       </div>
       {camera.notes && (
-        <div style={{ margin: "10px 14px 0", padding: "8px 10px", background: "#10151f", border: "0.5px solid #1e2d3e", borderRadius: 6, fontSize: 11, color: "#7a8499", lineHeight: 1.6 }}>
+        <div style={{ margin: "10px 14px 0", padding: "8px 10px", background: "#10151f", border: "0.5px solid #1e2d3e", borderRadius: 6, fontSize: 12, color: "#94a3b8", lineHeight: 1.6 }}>
           {camera.notes}
+        </div>
+      )}
+
+      {camera.securityBadges?.length > 0 && (
+        <div style={{ padding: "8px 14px 0", display: "flex", flexWrap: "wrap", gap: 5 }}>
+          {camera.securityBadges.map(badge => (
+            <span key={badge} style={{
+              fontSize: 10, fontWeight: 600,
+              padding: "2px 7px", borderRadius: 4,
+              background: badge === "Thermal" ? "#8b5cf622" : badge.startsWith("IK") ? "#f59e0b22" : badge === "PoE" ? "#3b82f622" : "#10b98122",
+              color: badge === "Thermal" ? "#8b5cf6" : badge.startsWith("IK") ? "#f59e0b" : badge === "PoE" ? "#3b82f6" : "#10b981",
+              border: `0.5px solid currentColor`,
+            }}>
+              {badge}
+            </span>
+          ))}
         </div>
       )}
       <div style={{ padding: "12px 14px 6px" }}>
         {rows.map(([k, v]) => (
           <div key={k} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "5px 0", borderBottom: "0.5px solid #1a2030" }}>
-            <span style={{ fontSize: 11, color: "#4a5568" }}>{k}</span>
-            <span style={{ fontSize: 11, color: "#c9d1d9", fontVariantNumeric: "tabular-nums", fontFamily: "monospace" }}>{v}</span>
+            <span style={{ fontSize: 12, color: "#94a3b8" }}>{k}</span>
+            <span style={{ fontSize: 12, color: "#e2e8f0", fontVariantNumeric: "tabular-nums", fontFamily: "monospace" }}>{v}</span>
           </div>
         ))}
       </div>
@@ -301,13 +330,13 @@ function FovVisualizer({ camera }) {
     ctx.beginPath(); ctx.arc(cx, cy, 5, 0, Math.PI * 2);
     ctx.fillStyle = col; ctx.fill();
   }, [camera]);
-  return <canvas ref={ref} width={180} height={100} style={{ display: "block", margin: "0 auto" }} />;
+  return <canvas ref={ref} width={220} height={130} style={{ display: "block", margin: "0 auto" }} />;
 }
 
 // ── Camera drawing ────────────────────────────────────────────────────────────
 // FIX 1: clipZone now auto-detects the camera's own zone when no active zone is set.
 // This ensures FOV is always clipped to its zone even after refresh.
-function drawPlacedCamera(ctx, p, ppm, hovering, selected, zonesRef, activeZoneIdRef, highlightedId, showLabel = true) {
+function drawPlacedCamera(ctx, p, ppm, hovering, selected, zonesRef, activeZoneIdRef, highlightedId, showLabel = true, showPpm = false) {
   const { x, y, direction, camera } = p;
   const col = TYPE_COLORS[camera.type] || "#3b82f6";
   const isHighlit = p.id === highlightedId;
@@ -333,16 +362,21 @@ function drawPlacedCamera(ctx, p, ppm, hovering, selected, zonesRef, activeZoneI
     ) || null;
   }
 
-  if (clipZone && clipZone.polygon.length >= 3) {
-    ctx.save();
-    ctx.beginPath();
-    clipZone.polygon.forEach((pt, i) => {
-      if (i === 0) ctx.moveTo(pt.x, pt.y); else ctx.lineTo(pt.x, pt.y);
-    });
-    ctx.closePath();
-    ctx.clip();
-    clipping = true;
-  }
+  const startClip = () => {
+    if (clipZone && clipZone.polygon.length >= 3) {
+      ctx.save();
+      ctx.beginPath();
+      clipZone.polygon.forEach((pt, i) => {
+        if (i === 0) ctx.moveTo(pt.x, pt.y); else ctx.lineTo(pt.x, pt.y);
+      });
+      ctx.closePath();
+      ctx.clip();
+      clipping = true;
+    }
+  };
+  const endClip = () => { if (clipping) { ctx.restore(); clipping = false; } };
+
+  startClip();
 
   // ── FOV cone ─────────────────────────────────────────────────────
   ctx.save();
@@ -358,7 +392,35 @@ function drawPlacedCamera(ctx, p, ppm, hovering, selected, zonesRef, activeZoneI
   ctx.lineWidth = selected || isHighlit ? 1.5 : 1; ctx.stroke();
   ctx.restore();
 
-  if (clipping) ctx.restore();
+  // ── PPM Clarity Zones ────────────────────────────────────────────
+  if (showPpm) {
+    const resX = camera.megapixels >= 8 ? 3840 : camera.megapixels >= 4 ? 2688 : 1920;
+    const hfovRad = (camera.hfov * Math.PI) / 180;
+    const tanHalf = Math.tan(hfovRad / 2);
+    const getDistForPpm = (tPpm) => (resX / tPpm) / (2 * tanHalf);
+
+    const zonesPpm = [
+      { d: getDistForPpm(80) * ppm, c: "#10b981", l: "IDENT" },
+      { d: getDistForPpm(60) * ppm, c: "#f59e0b", l: "RECOG" },
+      { d: getDistForPpm(40) * ppm, c: "#3b82f6", l: "CLASS" },
+    ];
+
+    zonesPpm.forEach(z => {
+      if (z.d > radius) return;
+      ctx.beginPath();
+      ctx.arc(originX, originY, z.d, angle - halfRad, angle + halfRad);
+      ctx.strokeStyle = z.c + "aa"; ctx.lineWidth = 1.2; ctx.stroke();
+
+      ctx.save();
+      ctx.translate(originX, originY);
+      ctx.rotate(angle - halfRad + 0.05);
+      ctx.fillStyle = z.c; ctx.font = "bold 8px monospace";
+      ctx.fillText(z.l, z.d + 2, 0);
+      ctx.restore();
+    });
+  }
+
+  endClip();
 
   // ── Range circle (dashed) ─────────────────────────────────────────
   ctx.save();
@@ -390,11 +452,11 @@ function drawPlacedCamera(ctx, p, ppm, hovering, selected, zonesRef, activeZoneI
     // Lens "eye" (the dark window)
     ctx.beginPath(); ctx.arc(4 * S, 0, 5.5 * S, 0, Math.PI * 2);
     ctx.fillStyle = "#1a1a1a"; ctx.fill();
-    
+
     // Glass highlight/glint
     ctx.beginPath(); ctx.arc(5.5 * S, -1.5 * S, 1.5 * S, 0, Math.PI * 2);
     ctx.fillStyle = "rgba(255,255,255,0.4)"; ctx.fill();
-  } 
+  }
   else if (type === "fisheye") {
     // ── FISHEYE (Reference: Flat UFO-style ceiling mount) ──
     // Outer base
@@ -409,11 +471,11 @@ function drawPlacedCamera(ctx, p, ppm, hovering, selected, zonesRef, activeZoneI
     // Center lens
     ctx.beginPath(); ctx.arc(0, 0, 3.5 * S, 0, Math.PI * 2);
     ctx.fillStyle = "#0e0e0e"; ctx.fill();
-    
+
     // Lens detail (inner ring)
     ctx.beginPath(); ctx.arc(0, 0, 1.5 * S, 0, Math.PI * 2);
     ctx.strokeStyle = "rgba(255,255,255,0.2)"; ctx.stroke();
-  } 
+  }
   else if (type === "ptz") {
     // ── PTZ (Reference: Wall-mount bracket with hanging ball) ──
     // Wall mount plate
@@ -445,7 +507,7 @@ function drawPlacedCamera(ctx, p, ppm, hovering, selected, zonesRef, activeZoneI
     // Lens
     ctx.beginPath(); ctx.arc(6 * S, 0, 2.5 * S, 0, Math.PI * 2);
     ctx.fillStyle = "#000"; ctx.fill();
-  } 
+  }
   else {
     // ── BULLET / BOX / OTHER (Rectangular) ──
     const shift = 14 * S;
@@ -550,15 +612,15 @@ function DvZoneSidebarItem({
         }} />
 
         {sidebarExpanded && (
-          <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 11 }}>
+          <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 13, fontWeight: 700, color: "#e8edf5" }}>
             {zone.name}
           </span>
         )}
 
         {sidebarExpanded && camsInZone.length > 0 && (
           <span style={{
-            fontSize: 9, fontWeight: 700, borderRadius: 10,
-            padding: "1px 5px", background: zone.color + "28", color: zone.color,
+            fontSize: 10, fontWeight: 800, borderRadius: 10,
+            padding: "2px 6px", background: zone.color + "28", color: zone.color,
           }}>
             {camsInZone.length}
           </span>
@@ -568,13 +630,13 @@ function DvZoneSidebarItem({
           <span
             onClick={e => { e.stopPropagation(); onDelete(zone.id); }}
             title="Delete zone"
-            style={{ fontSize: 9, color: "#4a5568", cursor: "pointer", padding: "0 2px", flexShrink: 0 }}
+            style={{ fontSize: 10, color: "#4a5568", cursor: "pointer", padding: "0 2px", flexShrink: 0 }}
           >✕</span>
         )}
       </button>
 
       {isActive && sidebarExpanded && camsInZone.length > 0 && (
-        <div style={{ paddingBottom: 4 }}>
+        <div style={{ paddingBottom: 6 }}>
           {camsInZone.map((p) => {
             const col = TYPE_COLORS[p.camera.type] || "#3b82f6";
             const isHighlit = highlightedId === p.id;
@@ -583,19 +645,17 @@ function DvZoneSidebarItem({
                 key={p.id}
                 onClick={e => { e.stopPropagation(); onHighlightCam(p.id); }}
                 style={{
-                  display: "flex", alignItems: "center", gap: 5,
-                  padding: "3px 10px 3px 18px", cursor: "pointer",
+                  display: "flex", alignItems: "center", gap: 6,
+                  padding: "5px 10px 5px 20px", cursor: "pointer",
                   background: isHighlit ? zone.color + "18" : "transparent",
-                  borderLeft: isHighlit ? `2px solid ${zone.color}` : "2px solid transparent",
+                  borderLeft: isHighlit ? `2.5px solid ${zone.color}` : "2.5px solid transparent",
                   transition: "all 0.1s",
                 }}
               >
+                <CameraIcon type={p.camera.type} size={14} color={col} />
                 <span style={{
-                  width: 6, height: 6, borderRadius: "50%",
-                  background: col, flexShrink: 0,
-                }} />
-                <span style={{
-                  flex: 1, fontSize: 10, color: isHighlit ? "#e8edf5" : "#7a8499",
+                  flex: 1, fontSize: 12, color: isHighlit ? "#ffffff" : "#cbd5e1",
+                  fontWeight: isHighlit ? 600 : 400,
                   overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
                 }}>
                   {p.camera.model}
@@ -684,6 +744,9 @@ export default function DesignerView({ onBack }) {
   const modeRef = useRef("place");
   useEffect(() => { modeRef.current = mode; }, [mode]);
   const [showExportMenu, setShowExportMenu] = useState(false);
+  const [showStats, setShowStats] = useState(false);
+  const [showPpm, setShowPpm] = useState(false);
+  const [retentionDays, setRetentionDays] = useState(30);
   const exportMenuRef = useRef(null);
 
   // ── Debounced save ────────────────────────────────────────────────────────
@@ -837,15 +900,16 @@ export default function DesignerView({ onBack }) {
 
     // ── Placed cameras ────────────────────────────────────────────────────────
     placedRef.current.forEach((p, i) => {
-        drawPlacedCamera(
-          ctx, p, ppm,
-          i === hoveredIdx,
-          i === selectedIdx,
-          zonesRef,
-          activeZoneIdRef,
-          highlightedCamIdRef.current,
-          false
-        );
+      drawPlacedCamera(
+        ctx, p, ppm,
+        i === hoveredIdx,
+        i === selectedIdx,
+        zonesRef,
+        activeZoneIdRef,
+        highlightedCamIdRef.current,
+        false,
+        showPpm
+      );
     });
 
     // ── Rotation handle for selected camera ───────────────────────────────────
@@ -860,7 +924,7 @@ export default function DesignerView({ onBack }) {
     }
 
     ctx.restore();
-  }, [ppm, hoveredIdx, selectedIdx]);
+  }, [ppm, hoveredIdx, selectedIdx, showPpm]);
 
   useEffect(() => {
     if (rafRef.current) cancelAnimationFrame(rafRef.current);
@@ -1157,7 +1221,7 @@ export default function DesignerView({ onBack }) {
         ctx.fillStyle = zone.color + "22"; ctx.fill();
         ctx.strokeStyle = zone.color; ctx.lineWidth = 2; ctx.stroke(); ctx.restore();
       });
-      placedRef.current.forEach(p => drawPlacedCamera(ctx, p, ppm, false, false, zonesRef, activeZoneIdRef, null, false));
+      placedRef.current.forEach(p => drawPlacedCamera(ctx, p, ppm, false, false, zonesRef, activeZoneIdRef, null, false, showPpm));
       drawDesignLegendToCanvas(ctx, oc.width, oc.height, { placedCameras: placedRef.current, compact: true });
     } else if (exportMode === "heatmap") {
       const hcvs = document.createElement("canvas");
@@ -1177,7 +1241,7 @@ export default function DesignerView({ onBack }) {
         ctx.closePath();
         ctx.strokeStyle = zone.color; ctx.lineWidth = 1.5; ctx.setLineDash([5, 5]); ctx.stroke(); ctx.restore();
       });
-      placedRef.current.forEach(p => drawPlacedCamera(ctx, p, ppm, false, false, zonesRef, activeZoneIdRef, null, false));
+      placedRef.current.forEach(p => drawPlacedCamera(ctx, p, ppm, false, false, zonesRef, activeZoneIdRef, null, false, showPpm));
       drawHeatmapLegendToCanvas(ctx, oc.width, oc.height, { foundLevels, compact: true });
     }
     const a = document.createElement("a");
@@ -1250,20 +1314,7 @@ export default function DesignerView({ onBack }) {
 
       {/* ── Top bar ── */}
       <div className="dv-topbar">
-        <button className="dv-back-btn" onClick={onBack}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
-            <polyline points="15 18 9 12 15 6" />
-          </svg>
-          Map View
-        </button>
-        <div className="dv-topbar__title">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="15" height="15">
-            <rect x="3" y="3" width="18" height="18" rx="2" /><path d="M3 9h18M9 21V9" />
-            <circle cx="15" cy="15" r="2" />
-          </svg>
-          Designer View
-        </div>
-        <div className="dv-topbar__actions">
+        <div className="dv-topbar__actions" style={{ marginLeft: 0 }}>
           <div className="dv-scale-control">
             <label>Scale</label>
             <input type="number" min="4" max="100" value={ppm}
@@ -1317,6 +1368,16 @@ export default function DesignerView({ onBack }) {
             </svg>
             Heatmap
           </button>
+          <button
+            className={`dv-tbtn ${showPpm ? "dv-tbtn--active" : ""}`}
+            onClick={() => setShowPpm(!showPpm)}
+            title="Visualize image clarity (PPM) zones"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="12" height="12">
+              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" />
+            </svg>
+            Clarity Zones
+          </button>
           <div className="dv-sep" />
 
           <button className="dv-tbtn" onClick={() => fileInputRef.current?.click()}>
@@ -1335,6 +1396,19 @@ export default function DesignerView({ onBack }) {
               Remove
             </button>
           )}
+
+
+
+          <button
+            className={`dv-tbtn ${showStats ? "dv-tbtn--active" : ""}`}
+            onClick={() => setShowStats(!showStats)}
+            title="View project engineering summary"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="12" height="12">
+              <path d="M12 20V10M18 20V4M6 20v-4" />
+            </svg>
+            Project Summary
+          </button>
 
           <div className="dv-export-group" ref={exportMenuRef}>
             <button
@@ -1547,118 +1621,6 @@ export default function DesignerView({ onBack }) {
           </div>
         </div>
 
-        {/* ── Camera Library (left panel) ── */}
-        <div className="dv-library">
-          <div className="dv-library__head">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="13" height="13">
-              <rect x="2" y="3" width="20" height="14" rx="2" /><path d="M8 21h8M12 17v4" />
-            </svg>
-            Camera Library
-            <span className="dv-library__count">{filteredCameras.length}</span>
-          </div>
-
-          <div className="dv-library__filters">
-            <input className="dv-search" placeholder="Search models…"
-              value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
-            <div className="dv-filter-row">
-              <select className="dv-select" value={brandFilter || ""} onChange={e => setBrandFilter(e.target.value || null)}>
-                <option value="">-- Brand --</option>
-                {brands.map(b => <option key={b} value={b}>{b}</option>)}
-              </select>
-              <select className="dv-select" value={typeFilter || ""} onChange={e => setTypeFilter(e.target.value || null)}>
-                <option value="">-- Type --</option>
-                {["dome", "bullet", "ptz", "fisheye", "box", "turret"].map(t => (
-                  <option key={t} value={t}>{TYPE_ICONS[t]} {t.charAt(0).toUpperCase() + t.slice(1)}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          <div className="dv-type-pills">
-            {["dome", "bullet", "ptz", "fisheye"].map(t => (
-              <button key={t}
-                className={`dv-type-pill ${typeFilter === t ? "dv-type-pill--active" : ""}`}
-                style={typeFilter === t ? { background: TYPE_COLORS[t] + "22", borderColor: TYPE_COLORS[t], color: TYPE_COLORS[t] } : {}}
-                onClick={() => setTypeFilter(prev => prev === t ? null : t)}>
-                {`${TYPE_ICONS[t]} ${t}`}
-              </button>
-            ))}
-          </div>
-
-          <div className="dv-model-list">
-            {filteredCameras.length === 0 && (
-              <div className="dv-model-empty">
-                {brandFilter ? "No cameras match your filters." : "Please select a brand to view available camera models."}
-              </div>
-            )}
-            {filteredCameras.map(cam => (
-              <ModelCard key={cam.id} camera={cam}
-                onDragStart={setDragCamera}
-                onSelect={c => setSelectedModel(prev => prev?.id === c.id ? null : c)}
-                isSelected={selectedModel?.id === cam.id}
-              />
-            ))}
-          </div>
-
-          {selectedModel && (
-            <div className="dv-cam-chip"
-              style={{ "--chip-col": TYPE_COLORS[selectedModel.type] || "#3b82f6", margin: "6px 10px 0" }}>
-              <CameraIcon type={selectedModel.type} size={15} color={TYPE_COLORS[selectedModel.type]} />
-              <div className="dv-cam-chip__info">
-                <span className="dv-cam-chip__name">{selectedModel.model}</span>
-                <span className="dv-cam-chip__meta">
-                  {selectedModel.hfov}° HFOV · {selectedModel.rangeDay}m · {selectedModel.megapixels}MP
-                </span>
-              </div>
-              <button className="dv-cam-chip__view" onClick={() => setSelectedModel(null)}>✕</button>
-            </div>
-          )}
-
-          {!selectedModel && (
-            <div className="dv-cam-selector__hint dv-cam-selector__hint--empty"
-              style={{ padding: "6px 10px 8px", borderTop: "1px solid #1e2d3e", marginTop: 4 }}>
-              Drag a card onto the canvas to place · Click to preview FOV
-            </div>
-          )}
-
-          {/* Placed cameras list */}
-          {placed.length > 0 && (
-            <div className="dv-placed-list">
-              <div className="dv-placed-list__head">
-                Placed on Layout
-                <span className="dv-library__count">{placed.length}</span>
-              </div>
-              {placed.map((p, i) => {
-                const col = TYPE_COLORS[p.camera.type] || "#3b82f6";
-                const camZone = zones.find(z => z.polygon.length >= 3 && pointInPolygon(p.x, p.y, z.polygon));
-                return (
-                  <div key={p.id}
-                    className={`dv-placed-item ${selectedIdx === i ? "dv-placed-item--active" : ""}`}
-                    onClick={() => setSelectedIdx(i)}
-                    style={{ "--col": col }}
-                  >
-                    <CameraIcon type={p.camera.type} size={14} color={col} />
-                    <span style={{ flex: 1 }}>{p.camera.model}</span>
-                    {camZone && (
-                      <span style={{ fontSize: 9, color: camZone.color, marginRight: 4 }}>
-                        ● {camZone.name}
-                      </span>
-                    )}
-                    <span className="dv-placed-item__dir">{Math.round(p.direction)}°</span>
-                    <button onClick={e => {
-                      e.stopPropagation();
-                      const u = placed.filter((_, j) => j !== i);
-                      placedRef.current = u; setPlaced(u);
-                      if (selectedIdx === i) setSelectedIdx(null); draw();
-                      apiSaveLayout({ placed: u, zones: zonesRef.current, ppm: ppmRef.current });
-                    }}>✕</button>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
         {/* ── Canvas ── */}
         <div className="dv-canvas-wrap" ref={wrapRef}
           onDragOver={e => e.preventDefault()}
@@ -1739,7 +1701,7 @@ export default function DesignerView({ onBack }) {
 
         {/* ── Spec detail panel ── */}
         {selectedModel && (
-          <div style={{ display: "flex", flexDirection: "column", width: 258, borderLeft: "0.5px solid #1e2d3e", background: "#0d1117", flexShrink: 0 }}>
+          <div style={{ display: "flex", flexDirection: "column", width: 258, borderLeft: "0.5px solid #1e2d3e", borderRight: "0.5px solid #1e2d3e", background: "#0d1117", flexShrink: 0 }}>
             <SpecPanel camera={selectedModel} onClose={() => setSelectedModel(null)} />
             <div className="dv-fov-overlay-panel">
               <div className="dv-fov-overlay__label">{selectedModel.model}</div>
@@ -1747,6 +1709,59 @@ export default function DesignerView({ onBack }) {
             </div>
           </div>
         )}
+
+        {/* ── Camera Library (right panel) ── */}
+        <div className="dv-library">
+          <div className="dv-library__head">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="13" height="13">
+              <rect x="2" y="3" width="20" height="14" rx="2" /><path d="M8 21h8M12 17v4" />
+            </svg>
+            Camera Library
+            <span className="dv-library__count">{filteredCameras.length}</span>
+          </div>
+
+          <div className="dv-library__filters">
+            <input className="dv-search" placeholder="Search models…"
+              value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
+            <div className="dv-filter-row">
+              <select className="dv-select" value={brandFilter || ""} onChange={e => setBrandFilter(e.target.value || null)}>
+                <option value="">-- Brand --</option>
+                {brands.map(b => <option key={b} value={b}>{b}</option>)}
+              </select>
+              <select className="dv-select" value={typeFilter || ""} onChange={e => setTypeFilter(e.target.value || null)}>
+                <option value="">-- Type --</option>
+                {["dome", "bullet", "ptz", "fisheye", "box", "thermal"].map(t => (
+                  <option key={t} value={t}>{TYPE_ICONS[t]} {t.charAt(0).toUpperCase() + t.slice(1)}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="dv-model-list">
+            {filteredCameras.length === 0 && (
+              <div className="dv-model-empty">
+                {brandFilter ? "No cameras match your filters." : "Please select a brand to view available camera models."}
+              </div>
+            )}
+            {filteredCameras.map(cam => (
+              <ModelCard key={cam.id} camera={cam}
+                onDragStart={setDragCamera}
+                onSelect={c => setSelectedModel(prev => prev?.id === c.id ? null : c)}
+                isSelected={selectedModel?.id === cam.id}
+              />
+            ))}
+          </div>
+
+          {/* Selected model chip removed as per request */}
+
+          {!selectedModel && (
+            <div className="dv-cam-selector__hint dv-cam-selector__hint--empty"
+              style={{ padding: "6px 10px 8px", borderTop: "1px solid #1e2d3e", marginTop: 4 }}>
+              Drag a card onto the canvas to place · Click to preview FOV
+            </div>
+          )}
+        </div>
+
       </div>
 
       {showZoneNameModal && (
@@ -1756,6 +1771,191 @@ export default function DesignerView({ onBack }) {
           existingNames={zones.map(z => z.name)}
         />
       )}
+
+      {showStats && (
+        <ProjectStatsPanel
+          placed={placed}
+          retentionDays={retentionDays}
+          setRetentionDays={setRetentionDays}
+          onClose={() => setShowStats(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+// ── Project Stats Panel ───────────────────────────────────────────────
+function ProjectStatsPanel({ placed, retentionDays, setRetentionDays, onClose }) {
+  // const [codec, setCodec] = useState("h265");
+
+  // const cameraCount = placed.length;
+
+  // const bitrates = placed.map(p =>
+  //   codec === "h264"
+  //     ? (p.camera.bitrateH264 ?? p.camera.bitrateTypical * 2 ?? 8)
+  //     : (p.camera.bitrateTypical ?? 4)
+  // );
+
+  // const totalBandwidth = bitrates.reduce((sum, b) => sum + b, 0);
+  // const avgBitrate = cameraCount > 0 ? totalBandwidth / cameraCount : 0;
+  // const totalStorageGB = (totalBandwidth * 3600 * 24 * retentionDays) / (8 * 1024);
+  // const totalStorageTB = totalStorageGB / 1024;
+  // const hardware = CctvCalc.getHardwareRecommendations(cameraCount);
+  const [codec, setCodec] = useState("h265");
+
+  const cameraCount = placed.length;
+
+  const bitrates = placed.map(p => {
+    if (codec === "h264") {
+      const h264 = p.camera.bitrateH264;
+      const fallback = p.camera.bitrateTypical != null ? p.camera.bitrateTypical * 2 : 8;
+      return h264 ?? fallback;
+    }
+    return p.camera.bitrateTypical ?? 4;
+  });
+
+  const totalBandwidth = bitrates.reduce((sum, b) => sum + b, 0);
+  const avgBitrate = cameraCount > 0 ? totalBandwidth / cameraCount : 0;
+  const totalFPS = placed.reduce((sum, p) => sum + (p.camera.fps || 25), 0);
+  const avgFPS = cameraCount > 0 ? totalFPS / cameraCount : 0;
+  const totalStorageGB = cameraCount > 0
+    ? (totalBandwidth * 3600 * 24 * retentionDays) / (8 * 1024)
+    : 0;
+  const totalStorageTB = totalStorageGB / 1024;
+  const hardware = CctvCalc.getHardwareRecommendations(cameraCount);
+
+  const typeCounts = {};
+  placed.forEach(p => {
+    const t = p.camera.type || "dome";
+    typeCounts[t] = (typeCounts[t] || 0) + 1;
+  });
+
+  const handleDownloadReport = () => {
+    const reportData = {
+      cameraCount,
+      avgBitrate,
+      avgFPS,
+      retentionDays,
+      codec: codec.toUpperCase(),
+      totalBandwidth,
+      totalStorageGB,
+      totalStorageTB,
+      dailyStoragePerCamGB: avgBitrate * 3600 * 24 / (8 * 1024),
+      dailyStorageTotalGB: totalBandwidth * 3600 * 24 / (8 * 1024),
+    };
+    const dataUrl = drawStorageReport(reportData);
+    const link = document.createElement("a");
+    link.href = dataUrl;
+    link.download = `Storage_Report_${codec.toUpperCase()}.png`;
+    link.click();
+  };
+
+  return (
+    <div className="dv-stats-overlay" onClick={onClose}>
+      <div className="dv-stats-panel" onClick={e => e.stopPropagation()}>
+        <div className="dv-stats-panel__header">
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div className="dv-stats-panel__icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="18" height="18">
+                <path d="M12 20V10M18 20V4M6 20v-4" />
+              </svg>
+            </div>
+            <div>
+              <div className="dv-stats-panel__title">Project Engineering Summary</div>
+              <div className="dv-stats-panel__sub">Automated calculations based on layout</div>
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button className="dv-stats-panel__download" onClick={handleDownloadReport} title="Download Infographic Report">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
+              </svg>
+              Download Report
+            </button>
+            <button className="dv-stats-panel__close" onClick={onClose}>✕</button>
+          </div>
+        </div>
+
+        <div className="dv-stats-panel__content">
+          <div className="dv-stats-grid">
+
+            <div className="dv-stats-card">
+              <div className="dv-stats-card__label">Total Cameras</div>
+              <div className="dv-stats-card__val">{cameraCount}</div>
+              <div className="dv-stats-card__meta">Avg {avgFPS.toFixed(0)} FPS project</div>
+              <div className="dv-stats-card__list">
+                {Object.entries(typeCounts).map(([t, count]) => (
+                  <div key={t} className="dv-stats-type">
+                    <span>{t.charAt(0).toUpperCase() + t.slice(1)}</span>
+                    <span>{count}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="dv-stats-card">
+              <div className="dv-stats-card__label">Est. Bandwidth</div>
+              <div className="dv-stats-card__val">{totalBandwidth.toFixed(1)} <small>Mbps</small></div>
+              {/* ── Codec toggle ── */}
+              <div style={{ display: "flex", gap: 4, margin: "6px 0 4px" }}>
+                {["h265", "h264"].map(c => (
+                  <button key={c} onClick={() => setCodec(c)} style={{
+                    fontSize: 9, padding: "2px 7px", borderRadius: 3,
+                    cursor: "pointer", border: "0.5px solid",
+                    background: codec === c ? "#3b82f622" : "transparent",
+                    borderColor: codec === c ? "#3b82f6" : "#2e3d55",
+                    color: codec === c ? "#3b82f6" : "#4a5568",
+                  }}>
+                    {c.toUpperCase()}
+                  </button>
+                ))}
+              </div>
+              <div className="dv-stats-card__meta">Avg {avgBitrate.toFixed(1)} Mbps/cam · from spec</div>
+            </div>
+
+            <div className="dv-stats-card">
+              <div className="dv-stats-card__label">Storage Required</div>
+              <div className="dv-stats-card__val">
+                {totalStorageTB > 1 ? totalStorageTB.toFixed(2) : totalStorageGB.toFixed(0)}
+                <small>{totalStorageTB > 1 ? " TB" : " GB"}</small>
+              </div>
+              <div className="dv-stats-card__meta" style={{ color: "#f59e0b", fontWeight: 700 }}>
+                Recommended: ≥ {Math.ceil(totalStorageTB * 1.2) || 1} TB
+              </div>
+
+              <div className="dv-stats-card__slider">
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#7a8499", marginBottom: 4 }}>
+                  <span>Retention Period</span>
+                  <span style={{ color: "#3b82f6", fontWeight: 700 }}>{retentionDays} Days</span>
+                </div>
+                <input type="range" min="1" max="90" value={retentionDays}
+                  onChange={e => setRetentionDays(Number(e.target.value))} />
+              </div>
+            </div>
+
+          </div>
+
+          <div className="dv-stats-infra">
+            <div className="dv-stats-infra__title">Recommended Infrastructure</div>
+            <div className="dv-stats-infra__row">
+              <div className="dv-stats-infra__item">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
+                  <rect x="2" y="3" width="20" height="14" rx="2" /><path d="M8 21h8M12 17v4" />
+                </svg>
+                <span>{hardware.nvr}</span>
+              </div>
+              <div className="dv-stats-infra__item">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
+                  <rect x="2" y="6" width="20" height="12" rx="2" />
+                  <circle cx="6" cy="12" r="1" /><circle cx="10" cy="12" r="1" />
+                  <circle cx="14" cy="12" r="1" /><circle cx="18" cy="12" r="1" />
+                </svg>
+                <span>{hardware.switches}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
