@@ -1,0 +1,238 @@
+.network-health {
+  padding: 0;
+  color: #f1f5f9;
+}
+
+.diagnostics-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.title-group h2 {
+  font-size: 22px;
+  font-weight: 700;
+  margin: 0;
+  background: linear-gradient(90deg, #38bdf8, #818cf8);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.title-group p {
+  font-size: 13px;
+  color: #94a3b8;
+  margin: 4px 0 0;
+}
+
+.bandwidth-summary {
+  display: flex;
+  gap: 16px;
+  background: #1e293b;
+  padding: 10px 20px;
+  border-radius: 12px;
+  border: 1px solid #334155;
+}
+
+.bw-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.bw-item.in { color: #22c55e; }
+.bw-item.out { color: #3b82f6; }
+
+.bw-item small {
+  font-size: 10px;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+.diagnostics-grid {
+  display: grid;
+  grid-template-columns: 1fr 340px;
+  gap: 20px;
+}
+
+.diag-card {
+  background: #0f172a;
+  border: 1px solid #1e293b;
+  border-radius: 16px;
+  display: flex;
+  flex-direction: column;
+}
+
+.card-header {
+  padding: 16px 20px;
+  border-bottom: 1px solid #1e293b;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.card-header h3 {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0;
+}
+
+/* ── Table Styles ────────────────────────────── */
+.device-table-container {
+  padding: 0;
+  overflow-x: auto;
+}
+
+.device-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.device-table th {
+  text-align: left;
+  padding: 12px 20px;
+  font-size: 11px;
+  text-transform: uppercase;
+  color: #64748b;
+  background: rgba(30, 41, 59, 0.5);
+}
+
+.device-table td {
+  padding: 14px 20px;
+  border-bottom: 1px solid #1e293b;
+  font-size: 13px;
+}
+
+.dev-name { font-weight: 600; color: #f8fafc; }
+.dev-ip { color: #94a3b8; font-family: monospace; }
+
+.dev-latency span {
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.dev-latency span.good { background: rgba(34, 197, 94, 0.1); color: #22c55e; }
+.dev-latency span.warn { background: rgba(245, 158, 11, 0.1); color: #f59e0b; }
+.dev-latency span.bad { background: rgba(239, 68, 68, 0.1); color: #ef4444; }
+
+.port-tag {
+  font-size: 9px;
+  padding: 2px 5px;
+  background: #1e293b;
+  color: #475569;
+  border-radius: 4px;
+  margin-right: 4px;
+  font-weight: 700;
+}
+
+.port-tag.open {
+  background: rgba(56, 189, 248, 0.1);
+  color: #38bdf8;
+}
+
+.status-pill {
+  font-size: 10px;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-weight: 600;
+}
+
+.status-pill.online { background: rgba(34, 197, 94, 0.1); color: #22c55e; }
+.status-pill.offline { background: rgba(239, 68, 68, 0.1); color: #ef4444; }
+
+/* ── Tool Styles ─────────────────────────────── */
+.tool-body {
+  padding: 20px;
+  flex: 1;
+}
+
+.tool-hint {
+  font-size: 12px;
+  color: #64748b;
+  margin-bottom: 16px;
+}
+
+.search-box {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 24px;
+}
+
+.search-box input {
+  flex: 1;
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  padding: 10px 14px;
+  color: #fff;
+  font-size: 13px;
+}
+
+.search-box button {
+  background: #3b82f6;
+  color: #fff;
+  border: none;
+  padding: 10px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.search-box button:hover { opacity: 0.9; }
+.search-box button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.result-area {
+  background: rgba(30, 41, 59, 0.5);
+  border-radius: 12px;
+  border: 1px solid #1e293b;
+  overflow: hidden;
+}
+
+.result-header {
+  padding: 8px 12px;
+  background: #1e293b;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 10px;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+.result-box {
+  padding: 16px;
+}
+
+.result-box p {
+  margin: 6px 0;
+  font-size: 13px;
+}
+
+.result-box.online { border-left: 3px solid #22c55e; }
+.result-box.offline { border-left: 3px solid #ef4444; }
+
+.info-tips {
+  padding: 20px;
+  background: rgba(30, 41, 59, 0.3);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border-top: 1px solid #1e293b;
+  border-bottom-left-radius: 16px;
+  border-bottom-right-radius: 16px;
+}
+
+.tip-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  color: #94a3b8;
+  font-size: 11px;
+}
+
+.tip-item svg { margin-top: 1px; color: #3b82f6; }
