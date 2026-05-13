@@ -1,0 +1,125 @@
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Request
+from .health import nodes_col, db, alerts_col
+from .scheduler import scheduler
+from .websocket_manager import manager
+from .metrics import get_system_metrics
+from datetime import datetime
+
+router = APIRouter(prefix="/api/infrastructure", tags=["infrastructure"])
+
+
+@router.post("/scan")
+async def trigger_scan(subnet: str = None):
+    scheduler.trigger_scan(subnet)
+    return {"message": "Scan triggered in background"}
+
+
+@router.get("/topology")
+async def get_topology():
+    nodes = list(nodes_col.find({}, {"_id": 0}))
+    edges_col = db["infrastructure_edges"]
+    edges = list(edges_col.find({}, {"_id": 0}))
+    return {"nodes": nodes, "edges": edges}
+
+
+@router.get("/health")
+async def get_health():
+    nodes = list(nodes_col.find(
+        {}, {"_id": 0, "id": 1, "ip": 1, "status": 1, "latency": 1}
+    ))
+    return nodes
+
+
+@router.get("/metrics")
+async def get_metrics():
+    """Returns system metrics: CPU, RAM, disk, GPU, uptime, last_reboot."""
+    data = await get_system_metrics()
+    return data or {}
+
+
+@router.get("/alerts")
+async def get_alerts(limit: int = 50, unacknowledged_only: bool = False):
+    """Returns recent alerts, optionally filtered to unacknowledged."""
+    query = {"acknowledged": False} if unacknowledged_only else {}
+    alerts = list(
+        alerts_col.find(query, {"_id": 0})
+        .sort("timestamp", -1)
+        .limit(limit)
+    )
+    # Serialize datetimes
+    for a in alerts:
+        if isinstance(a.get("timestamp"), datetime):
+            a["timestamp"] = a["timestamp"].isoformat()
+    return alerts
+
+
+@router.post("/alerts/{node_id}/acknowledge")
+async def acknowledge_alert(node_id: str):
+    """Mark all alerts for a node as acknowledged."""
+    result = alerts_col.update_many(
+        {"node_id": node_id, "acknowledged": False},
+        {"$set": {"acknowledged": True}}
+    )
+    return {"acknowledged": result.modified_count}
+
+
+@router.get("/bandwidth")
+async def get_bandwidth_history():
+    """Returns last 100 bandwidth + device diagnostics snapshots."""
+    diag_col = db["network_diagnostics"]
+    records = list(
+        diag_col.find({}, {"_id": 0})
+        .sort("timestamp", -1)
+        .limit(100)
+    )
+    for r in records:
+        if isinstance(r.get("timestamp"), datetime):
+            r["timestamp"] = r["timestamp"].isoformat()
+        if r.get("bandwidth") and isinstance(r["bandwidth"].get("timestamp"), datetime):
+            r["bandwidth"]["timestamp"] = r["bandwidth"]["timestamp"].isoformat()
+    return records
+
+
+@router.patch("/nodes/{node_id}")
+async def update_node(node_id: str, request: Request):
+    data = await request.json()
+    allowed_keys = ["position", "label", "manufacturer", "model"]
+    filtered_data = {k: v for k, v in data.items() if k in allowed_keys}
+    if not filtered_data:
+        return {"success": False, "message": "No valid fields to update"}
+    nodes_col.update_one({"id": node_id}, {"$set": filtered_data})
+    return {"success": True}
+
+
+@router.post("/edges")
+async def create_edge(request: Request):
+    data = await request.json()
+    edges_col = db["infrastructure_edges"]
+    existing = edges_col.find_one({"source": data["source"], "target": data["target"]})
+    if existing:
+        return {"success": False, "message": "Edge already exists"}
+    edges_col.insert_one({
+        "source": data["source"], "target": data["target"],
+        "type": data.get("type", "default"), "inferred": data.get("inferred", False)
+    })
+    return {"success": True}
+
+
+@router.delete("/edges")
+async def delete_edge(source: str, target: str):
+    edges_col = db["infrastructure_edges"]
+    edges_col.delete_one({"source": source, "target": target})
+    return {"success": True}
+
+
+@router.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    await manager.connect(websocket)
+    try:
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        manager.disconnect(websocket)
+    except Exception as e:
+        print(f"[WS] Error: {e}")
+        manager.disconnect(websocket)

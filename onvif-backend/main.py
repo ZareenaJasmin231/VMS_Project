@@ -29,6 +29,8 @@ from ome_service import register_stream
 from maps_router import router as maps_router
 from designer_router import router as designer_router
 
+from monitoring.websocket_manager import manager
+
 
 from onvif_service import (
     probe_camera,
@@ -1230,6 +1232,18 @@ async def websocket_dashboard(websocket: WebSocket):
             dashboard_clients.remove(websocket)
         print(f"📊 Dashboard WS Disconnected: {len(dashboard_clients)} remaining")
 
+
+
+@app.websocket("/api/infrastructure/ws")
+async def infrastructure_ws(websocket: WebSocket):
+    await manager.connect(websocket)
+
+    try:
+        while True:
+            await asyncio.sleep(10)
+
+    except WebSocketDisconnect:
+        manager.disconnect(websocket)
 # ------------------------------------------------------------------
 # WebSocket: Backup Status (replaces 3s polling)
 # ------------------------------------------------------------------
