@@ -22,6 +22,27 @@ async def get_topology():
     return {"nodes": nodes, "edges": edges}
 
 
+# ─── NEW: Single node detail endpoint ────────────────────────────────────────
+# Returns the full document for one node — includes stream_bitrate_mbps,
+# stream_fps, stream_resolution, codec, dropped_frames, rtsp_connected,
+# onvif_connected, recording, stream_status, stream_last_polled, etc.
+@router.get("/nodes/{node_id}")
+async def get_node(node_id: str):
+    """Return full node document by id (e.g. 'node-192-168-126-236')."""
+    node = nodes_col.find_one({"id": node_id}, {"_id": 0})
+    if not node:
+        # Try matching by IP in case node_id was passed as an IP string
+        node = nodes_col.find_one({"ip": node_id}, {"_id": 0})
+    if not node:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail=f"Node '{node_id}' not found")
+    # Serialize datetimes
+    for key, val in node.items():
+        if isinstance(val, datetime):
+            node[key] = val.isoformat()
+    return node
+
+
 @router.get("/health")
 async def get_health():
     nodes = list(nodes_col.find(
@@ -46,7 +67,6 @@ async def get_alerts(limit: int = 50, unacknowledged_only: bool = False):
         .sort("timestamp", -1)
         .limit(limit)
     )
-    # Serialize datetimes
     for a in alerts:
         if isinstance(a.get("timestamp"), datetime):
             a["timestamp"] = a["timestamp"].isoformat()

@@ -726,3 +726,4 @@
 .sidebar-content {
   overflow-y: auto;
 }
+.stream-flag.flag-unknown { background: #1f2937; color: #6b7280; border: 1px solid #374151; }

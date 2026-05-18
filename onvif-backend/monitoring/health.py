@@ -117,6 +117,7 @@ def check_all_nodes():
 
 
 def save_discovered_nodes(discovered_list):
+    cams_col = db["cameras"]
     for dev in discovered_list:
         node_id = f"node-{dev['ip'].replace('.', '-')}"
         existing = nodes_col.find_one({"id": node_id})
@@ -126,12 +127,23 @@ def save_discovered_nodes(discovered_list):
             "status": "online", "latency": dev.get("latency"),
             "last_seen": dev.get("last_seen", datetime.utcnow()), "inferred": False
         }
+        # ── FIX: copy credentials from cameras collection so stream_health
+        #         can authenticate against RTSP/ONVIF without them being None.
+        if dev["type"] == "camera":
+            cam_doc = cams_col.find_one({"ip": dev["ip"]}, {"_id": 0, "username": 1, "password": 1})
+            if cam_doc:
+                if cam_doc.get("username"):
+                    node_data["username"] = cam_doc["username"]
+                if cam_doc.get("password"):
+                    node_data["password"] = cam_doc["password"]
         if not existing:
             node_data["position"] = {"x": 100, "y": 100}
             nodes_col.insert_one(node_data)
             print(f"[HEALTH] Added new node: {node_id} ({dev['ip']})")
         else:
-            nodes_col.update_one({"id": node_id}, {"$set": node_data})
+            # Preserve credentials already stored; only overwrite if we got new ones
+            update = {k: v for k, v in node_data.items() if k not in ("username", "password") or v}
+            nodes_col.update_one({"id": node_id}, {"$set": update})
 
     try:
         _broadcast_safe({"type": "TOPOLOGY_UPDATE", "count": len(discovered_list)})

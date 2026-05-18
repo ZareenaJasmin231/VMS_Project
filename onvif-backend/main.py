@@ -156,6 +156,14 @@ app.include_router(maps_router)
 app.include_router(designer_router)
 app.include_router(infrastructure_router)
 
+# @app.on_event("startup")
+# async def startup_event():
+#     infrastructure_scheduler.start()
+    
+#     # Start Real-Time Network Diagnostics
+#     from monitoring.diagnostics import run_diagnostics_loop
+#     asyncio.create_task(run_diagnostics_loop())
+
 @app.on_event("startup")
 async def startup_event():
     infrastructure_scheduler.start()
@@ -164,6 +172,9 @@ async def startup_event():
     from monitoring.diagnostics import run_diagnostics_loop
     asyncio.create_task(run_diagnostics_loop())
 
+    # Start Camera Stream Health Poller (fills stream_fps, bitrate, resolution etc.)
+    from monitoring.stream_health import run_stream_health_loop
+    asyncio.create_task(run_stream_health_loop())
 
 
 
