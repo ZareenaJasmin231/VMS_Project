@@ -69,6 +69,7 @@ def record_uptime_snapshot(node_id: str, ip: str, status: str, latency=None):
         {"$set": update},
         upsert=True
     )
+    return update.get("last_reboot_detected") is not None
 
 
 # ── Report retrieval ──────────────────────────────────────────────────────

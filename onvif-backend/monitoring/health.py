@@ -5,6 +5,8 @@ import threading
 import asyncio
 import psutil
 from .websocket_manager import manager
+from .email_alerts import alert_device_offline, alert_unexpected_reboot
+from .uptime_tracker import record_uptime_snapshot, get_uptime_report
 
 MONGO_URI = os.environ.get("MONGO_URI", "mongodb://localhost:27017/")
 client = MongoClient(MONGO_URI)
@@ -47,6 +49,11 @@ def update_node_status(node_id, status, latency=None):
 
     nodes_col.update_one({"id": node_id}, {"$set": update_data})
 
+    # Record uptime snapshot (tracks reboots and cumulative uptime)
+    reboot_detected = record_uptime_snapshot(node_id, node.get("ip", ""), status, latency)
+    if reboot_detected:
+        alert_unexpected_reboot(node.get('model') or node.get('ip'), node.get('ip', ''))
+
     # Fire alert on transition to offline
     if previous_status and previous_status != status and status == "offline":
         alert = {
@@ -60,6 +67,10 @@ def update_node_status(node_id, status, latency=None):
             "acknowledged": False
         }
         alerts_col.insert_one(alert)
+
+        # ✅ Send email alert for device offline
+        alert_device_offline(node.get('model') or node.get('ip'), node.get('ip', ''))
+
         try:
             _broadcast_safe({
                 "type": "ALERT",

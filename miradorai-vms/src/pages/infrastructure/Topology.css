@@ -409,6 +409,22 @@
 .status--online  { color: #10b981; }
 .status--offline { color: #ef4444; }
 
+.perf-row--selected {
+  background: rgba(96, 165, 250, 0.15);
+  border-left: 2px solid #60a5fa;
+}
+
+.port-hint {
+  padding: 8px 10px;
+  background: #0d1117;
+  font-size: 9px;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border-top: 1px solid #1f2937;
+}
+
 /* ── Alerts Tab ─────────────────────────────────────────── */
 .alerts-tab { display: flex; flex-direction: column; gap: 8px; }
 

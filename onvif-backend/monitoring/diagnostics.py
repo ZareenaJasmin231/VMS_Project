@@ -3,6 +3,7 @@ import time
 import asyncio
 import os
 import platform
+import re
 from datetime import datetime
 from pymongo import MongoClient
 from .websocket_manager import manager
@@ -15,11 +16,13 @@ diagnostics_col = db["network_diagnostics"]
 
 
 async def ping_host(host):
-    """Returns latency in ms or None if unreachable."""
+    """Returns (avg_latency_ms, packet_loss_pct) or (None, 100) if unreachable."""
     if platform.system().lower() == "windows":
-        command = ["ping", "-n", "1", "-w", "1000", host]
+        # -n 5 = send 5 packets, -w 1000 = 1s timeout
+        command = ["ping", "-n", "5", "-w", "1000", host]
     else:
-        command = ["ping", "-c", "1", "-W", "1", host]
+        # -c 5 = send 5 packets, -W 1 = 1s timeout
+        command = ["ping", "-c", "5", "-W", "1", host]
 
     start = time.time()
     try:
@@ -28,14 +31,30 @@ async def ping_host(host):
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE
         )
-        await proc.wait()
+        stdout, _ = await proc.communicate()
         end = time.time()
+        output = stdout.decode("utf-8", errors="ignore")
 
-        if proc.returncode == 0:
-            return round((end - start) * 1000, 2)
-        return None
+        if proc.returncode == 0 or (platform.system().lower() == "windows" and "Reply from" in output):
+            # Parse packet loss and latency from output
+            loss = 0
+            latency = round((end - start) * 1000 / 5, 2) # rough estimate if parsing fails
+
+            if platform.system().lower() == "windows":
+                loss_match = re.search(r"\((\d+)% loss\)", output)
+                lat_match  = re.search(r"Average = (\d+)ms", output)
+                if loss_match: loss = int(loss_match.group(1))
+                if lat_match:  latency = float(lat_match.group(1))
+            else:
+                loss_match = re.search(r"(\d+)% packet loss", output)
+                lat_match  = re.search(r"avg/max/mdev = (\d+\.\d+)", output)
+                if loss_match: loss = int(loss_match.group(1))
+                if lat_match:  latency = float(lat_match.group(1))
+
+            return latency, loss
+        return None, 100
     except Exception:
-        return None
+        return None, 100
 
 
 async def check_port(host, port, timeout=1):
@@ -86,7 +105,7 @@ async def run_diagnostics_loop():
                     continue
 
                 # Run ping + port checks concurrently
-                latency, rtsp, http, onvif = await asyncio.gather(
+                (latency, packet_loss), rtsp, http, onvif = await asyncio.gather(
                     ping_host(ip),
                     check_port(ip, 554),
                     check_port(ip, 80),
@@ -97,6 +116,7 @@ async def run_diagnostics_loop():
                     "ip": ip,
                     "name": cam.get("name"),
                     "latency": latency,
+                    "packet_loss": packet_loss,
                     "ports": {
                         "rtsp": rtsp,
                         "http": http,

@@ -152,12 +152,15 @@ const SwitchPortTable = ({ ports }) => {
           <span className="port-device">{p.connected_device || '—'}</span>
         </div>
       ))}
+      <div className="port-hint">
+        <Icon type="zap" size={10}/> <i>Real-time port monitoring requires SNMPv2 support.</i>
+      </div>
     </div>
   );
 };
 
 // ─── Network Performance Table ────────────────────────────────────────────────
-const NetworkPerfTable = ({ diagnostics }) => {
+const NetworkPerfTable = ({ diagnostics, selectedId }) => {
   if (!diagnostics?.devices) return null;
   return (
     <div className="perf-table">
@@ -165,7 +168,7 @@ const NetworkPerfTable = ({ diagnostics }) => {
         <span>Device</span><span>Latency</span><span>PktLoss</span><span>RTSP</span><span>HTTP</span><span>ONVIF</span><span>Status</span>
       </div>
       {diagnostics.devices.map((d, i) => (
-        <div key={i} className="perf-table__row">
+        <div key={i} className={`perf-table__row ${selectedId === `node-${d.ip.replace(/\./g, '-')}` ? 'perf-row--selected' : ''}`}>
           <span className="perf-name">{d.name || d.ip}</span>
           <span className="perf-latency">{d.latency != null ? `${d.latency}ms` : '—'}</span>
           <span style={{ color: packetLossColor(d.packet_loss), fontSize: '10px', textAlign: 'center' }}>
@@ -310,6 +313,8 @@ export default function Topology() {
   const wsRef         = useRef(null);
   const prevUptimes   = useRef({});          // track uptime for reboot detection
   const prevBwRef     = useRef({});          // track bandwidth for spike detection
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
 
   // ── Bandwidth spike detection ──
   const checkBandwidthSpike = useCallback((bwData) => {
@@ -384,9 +389,14 @@ export default function Topology() {
     } catch (err) { console.error('Topology fetch failed:', err); }
   }, [setNodes, setEdges]);
 
-  const fetchMetrics   = useCallback(async () => {
-    try { const r = await fetch(`${API_BASE}/metrics`);   setMetrics(await r.json()); } catch {}
-  }, []);
+const fetchMetrics = useCallback(async () => {
+  try { 
+    const r = await fetch(`${API_BASE}/metrics`);
+    const data = await r.json();
+    setMetrics(data);
+    setSidebarOpen(true);  // ← add this
+  } catch {}
+}, []);
   const fetchAlerts    = useCallback(async () => {
     try { const r = await fetch(`${API_BASE}/alerts?unacknowledged_only=true`); const d = await r.json(); setAlerts(Array.isArray(d) ? d : []); } catch {}
   }, []);
@@ -475,7 +485,11 @@ export default function Topology() {
     });
   }, [setEdges]);
 
-  const handleNodeClick = useCallback((_, node) => { setSelectedNode(node); setActiveTab('details'); }, []);
+const handleNodeClick = useCallback((_, node) => { 
+  setSelectedNode(node); 
+  setActiveTab('details');
+  setSidebarOpen(true);  // ← add this
+}, []);
   const triggerScan    = async () => { setScanning(true); try { await fetch(`${API_BASE}/scan`, { method: 'POST' }); } catch {} finally { setScanning(false); } };
   const savePositions  = async () => { await Promise.all(nodes.map(n => fetch(`${API_BASE}/nodes/${n.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ position: n.position }) }))); };
   const ackAlert       = async (nodeId) => { await fetch(`${API_BASE}/alerts/${nodeId}/acknowledge`, { method: 'POST' }); setAlerts(prev => prev.filter(a => a.node_id !== nodeId)); };
@@ -584,18 +598,20 @@ export default function Topology() {
       </div>
 
       {/* ── RIGHT SIDEBAR ── */}
-      {(selectedNode || metrics) && (
+{sidebarOpen && (selectedNode || metrics) && (
         <div className="topology-sidebar">
           <div className="sidebar-header">
             <h3>{selectedNode ? deviceTypeLabel(d?.type) : 'System'}</h3>
-            <button className="close-btn" onClick={() => setSelectedNode(null)}>×</button>
+<button className="close-btn" onClick={() => { setSelectedNode(null); setSidebarOpen(false); }}>×</button>
           </div>
           <div className="sidebar-tabs">
             {selectedNode && (
               <button className={`stab ${activeTab==='details'?'stab--active':''}`} onClick={() => setActiveTab('details')}>Details</button>
             )}
             <button className={`stab ${activeTab==='network'?'stab--active':''}`} onClick={() => setActiveTab('network')}>Network</button>
-            <button className={`stab ${activeTab==='metrics'?'stab--active':''}`} onClick={() => setActiveTab('metrics')}>System</button>
+            {(!selectedNode || d?.model === 'VMS Host') && (
+              <button className={`stab ${activeTab==='metrics'?'stab--active':''}`} onClick={() => setActiveTab('metrics')}>System</button>
+            )}
             <button className={`stab ${activeTab==='alerts'?'stab--active':''}`} onClick={() => setActiveTab('alerts')}>
               Alerts {alerts.length > 0 && <span className="alert-badge">{alerts.length}</span>}
             </button>
@@ -718,7 +734,7 @@ export default function Topology() {
                 {/* Per-device latency + packet loss */}
                 <div className="perf-section">
                   <div className="section-title">Device Latency &amp; Packet Loss</div>
-                  <NetworkPerfTable diagnostics={diagnostics} />
+                  <NetworkPerfTable diagnostics={diagnostics} selectedId={selectedNode?.id} />
                   {!diagnostics && <p className="empty-msg">Waiting for diagnostics data…</p>}
                 </div>
               </div>
