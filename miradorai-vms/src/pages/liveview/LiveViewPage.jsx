@@ -476,6 +476,7 @@ function AlertsPanel({ onAlertCountUpdate }) {
 
 // ── CameraCell ────────────────────────────────────────────────────
 function CameraCell({ device, onFullscreen, alertCount, onBadgeClick }) {
+  const showRec = localStorage.getItem("miradorai_show_rec_ind") !== "false";
   return (
     <div
       className={`lv-cam ${alertCount > 0 ? "lv-cam--alert" : ""}`}
@@ -501,6 +502,12 @@ function CameraCell({ device, onFullscreen, alertCount, onBadgeClick }) {
       <div className="lv-cell__header">
         <span className="lv-live-dot" />
         <span className="lv-cell__name">{device.name}</span>
+        {showRec && (
+          <span className="lv-rec-indicator">
+            <span className="lv-rec-dot" />
+            REC
+          </span>
+        )}
         <div className="lv-cell__actions">
           <span className="lv-cell__ip">{device.ip}</span>
           <button
@@ -561,6 +568,7 @@ export default function LiveViewPage() {
   const [popupIp,      setPopupIp]      = useState(null);
   const [popupAlerts,  setPopupAlerts]  = useState([]);
   const fsRef = useRef(null);
+  const showRec = localStorage.getItem("miradorai_show_rec_ind") !== "false";
 
   // Sync devices from localStorage
   useEffect(() => {
@@ -725,6 +733,12 @@ export default function LiveViewPage() {
               <div className="lv-fullscreen-overlay__info">
                 <span className="lv-live-dot" />
                 <span className="lv-fullscreen-overlay__name">{fsDevice.name}</span>
+                {showRec && (
+                  <span className="lv-rec-indicator">
+                    <span className="lv-rec-dot" />
+                    REC
+                  </span>
+                )}
                 <span className="lv-fullscreen-overlay__ip">{fsDevice.ip}</span>
               </div>
               <button

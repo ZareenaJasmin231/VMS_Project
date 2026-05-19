@@ -177,7 +177,10 @@ export default function ClientSettingsPage() {
   const [runOnStart,     setRunOnStart]     = useState(false);
   const [showWhatsNew,   setShowWhatsNew]   = useState(true);
   const [showCamNames,   setShowCamNames]   = useState(true);
-  const [showRecInd,     setShowRecInd]     = useState(true);
+  const [showRecInd,     setShowRecInd]     = useState(() => {
+    const val = localStorage.getItem("miradorai_show_rec_ind");
+    return val !== "false";
+  });
   const [showEventInd,   setShowEventInd]   = useState(true);
   const [flashCoverage,  setFlashCoverage]  = useState(true);
   const [language,       setLanguage]       = useState("English");
@@ -238,7 +241,10 @@ export default function ClientSettingsPage() {
             <Toggle value={showCamNames} onChange={setShowCamNames} />
           </SettingRow>
           <SettingRow label="Show recording indicators in live views and maps">
-            <Toggle value={showRecInd} onChange={setShowRecInd} />
+            <Toggle value={showRecInd} onChange={(val) => {
+              setShowRecInd(val);
+              localStorage.setItem("miradorai_show_rec_ind", val ? "true" : "false");
+            }} />
           </SettingRow>
           <SettingRow label="Show event indicators in live views and maps">
             <Toggle value={showEventInd} onChange={setShowEventInd} />

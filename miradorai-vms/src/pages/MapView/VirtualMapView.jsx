@@ -158,6 +158,12 @@ function CamThumbnail({ cam, marker, index, sx, sy, isExpanded, isOnline, onExpa
       <div className="vt-thumb__bar">
         <span className={`vt-thumb__dot ${isOnline ? "vt-thumb__dot--online" : "vt-thumb__dot--offline"}`} />
         <span className="vt-thumb__name">{cam.name}</span>
+        {isOnline && localStorage.getItem("miradorai_show_rec_ind") !== "false" && (
+          <span className="vt-rec-badge">
+            <span className="vt-rec-dot" />
+            REC
+          </span>
+        )}
         <span className="vt-thumb__num">#{index + 1}</span>
         <button
           className="vt-thumb__expand"

@@ -4,6 +4,7 @@ encrypt_service.py — fixed MongoDB connection + synced recording path
 
 import os
 import io
+import re
 import time
 import secrets
 import json
@@ -30,9 +31,44 @@ _mongo_client       = MongoClient(MONGO_URI, serverSelectionTimeoutMS=10000)
 _db                 = _mongo_client["mirador-vms"]
 metadata_collection = _db["recordings"]
 
+def migrate_existing_recordings():
+    """
+    Self-healing migration: if any recording document in MongoDB has a date format
+    as its camera_id (due to the old path parsing bug), fix it by parsing the
+    correct camera_id from its file_path.
+    """
+    try:
+        date_pattern = re.compile(r'^\d{4}-\d{2}-\d{2}$')
+        incorrect_docs = list(metadata_collection.find({"camera_id": {"$regex": r'^\d{4}-\d{2}-\d{2}$'}}))
+        if incorrect_docs:
+            print(f"[ENCRYPT] 🔧 Found {len(incorrect_docs)} recordings with incorrect camera_id. Starting migration...")
+            fixed_count = 0
+            for doc in incorrect_docs:
+                file_path = doc.get("file_path", "")
+                if not file_path:
+                    continue
+                normalized = file_path.replace("\\", "/")
+                parts = normalized.split("/")
+                try:
+                    for i, part in enumerate(parts):
+                        if date_pattern.match(part) and i > 0:
+                            correct_cam_id = parts[i - 1]
+                            metadata_collection.update_one(
+                                {"_id": doc["_id"]},
+                                {"$set": {"camera_id": correct_cam_id}}
+                            )
+                            fixed_count += 1
+                            break
+                except Exception as ex:
+                    print(f"[ENCRYPT] Migration failed for document {doc.get('_id')}: {ex}")
+            print(f"[ENCRYPT] ✅ Fixed {fixed_count} existing recording documents in MongoDB.")
+    except Exception as e:
+        print(f"[ENCRYPT] ❌ Existing recordings migration failed: {e}")
+
 try:
     _mongo_client.server_info()
     print("[ENCRYPT] ✅ MongoDB connected successfully")
+    migrate_existing_recordings()
 except Exception as e:
     print(f"[ENCRYPT] ❌ MongoDB connection FAILED: {e}")
 
@@ -106,18 +142,16 @@ def _parse_path(input_path: str):
     filename = os.path.basename(input_path)
     date_dir = os.path.basename(os.path.dirname(input_path))
     
-    # New structure: IP_FOLDER / DATE / STREAM_TIMESTAMP.mp4
-    # filename is like "cam1_10-43-41.mp4"
+    # The parent directory of the date directory is always the camera_id (IP_FOLDER)
+    camera_id = os.path.basename(os.path.dirname(os.path.dirname(input_path)))
+    
     stem = filename.replace(".mp4", "").replace(".enc", "")
     
+    # If the filename contains an underscore (e.g. YYYY-MM-DD_HH-MM-SS or cameraName_HH-MM-SS),
+    # extract the time part from the last segment.
     if "_" in stem:
-        # Split from the right once to separate the timestamp
-        parts = stem.rsplit("_", 1)
-        camera_id = parts[0]
-        time_part = parts[1]
+        time_part = stem.rsplit("_", 1)[1]
     else:
-        # Fallback to old behavior
-        camera_id = os.path.basename(os.path.dirname(os.path.dirname(input_path)))
         time_part = stem
 
     return camera_id, date_dir, time_part

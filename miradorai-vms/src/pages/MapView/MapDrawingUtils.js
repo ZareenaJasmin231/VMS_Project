@@ -304,6 +304,19 @@ export function renderMapViewSnapshot(ctx, options) {
     // Sparkle
     ctx.beginPath(); ctx.arc(10.8 * S, -1.1 * S, 1.1 * S, 0, Math.PI * 2);
     ctx.fillStyle = "rgba(255,255,255,0.60)"; ctx.fill();
+
+    // Recording Indicator LED Dot (rotated with body)
+    const showRec = localStorage.getItem("miradorai_show_rec_ind") !== "false";
+    if (online && showRec) {
+      ctx.beginPath();
+      ctx.arc(-14 * S, -6 * S, 2 * S, 0, Math.PI * 2);
+      ctx.fillStyle = "#ff4d4f";
+      ctx.fill();
+      ctx.strokeStyle = "#ffffff";
+      ctx.lineWidth = 0.5;
+      ctx.stroke();
+    }
+
     ctx.restore();
 
     // Number label

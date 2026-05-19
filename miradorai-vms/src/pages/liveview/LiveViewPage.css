@@ -891,3 +891,36 @@
   font-family: monospace;
   margin-left: auto;
 }
+
+/* ── Live View Recording Indicators ── */
+.lv-rec-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(255, 77, 79, 0.12);
+  border: 1px solid rgba(255, 77, 79, 0.25);
+  padding: 1px 7px;
+  border-radius: 4px;
+  font-size: 9px;
+  font-weight: 700;
+  color: #ff4d4f;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-left: 6px;
+  backdrop-filter: blur(4px);
+}
+
+.lv-rec-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #ff4d4f;
+  box-shadow: 0 0 5px #ff4d4f;
+  animation: recPulse 1.2s ease-in-out infinite;
+  flex-shrink: 0;
+}
+
+@keyframes recPulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: 0.3; transform: scale(0.9); }
+}
