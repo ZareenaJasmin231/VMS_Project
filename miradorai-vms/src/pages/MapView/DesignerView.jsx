@@ -131,6 +131,255 @@ function pointInPolygon(px, py, polygon) {
   return inside;
 }
 
+// ── Point-in-polygon or close-to-edge/vertex helper (Boundary matching) ────────
+function pointInOrOnPolygon(px, py, polygon) {
+  if (!polygon || polygon.length < 3) return false;
+  if (pointInPolygon(px, py, polygon)) return true;
+  for (let i = 0; i < polygon.length; i++) {
+    if (Math.hypot(px - polygon[i].x, py - polygon[i].y) < 3) return true;
+  }
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const x1 = polygon[i].x, y1 = polygon[i].y;
+    const x2 = polygon[j].x, y2 = polygon[j].y;
+    const A = px - x1;
+    const B = py - y1;
+    const C = x2 - x1;
+    const D = y2 - y1;
+    const dot = A * C + B * D;
+    const lenSq = C * C + D * D;
+    let param = -1;
+    if (lenSq !== 0) param = dot / lenSq;
+    let xx, yy;
+    if (param < 0) {
+      xx = x1;
+      yy = y1;
+    } else if (param > 1) {
+      xx = x2;
+      yy = y2;
+    } else {
+      xx = x1 + param * C;
+      yy = y1 + param * D;
+    }
+    const dist = Math.hypot(px - xx, py - yy);
+    if (dist < 3) return true;
+  }
+  return false;
+}
+
+
+// ── Shoelace formula for polygon area (in square meters) ──────────────────────
+function getPolygonArea(polygon, ppm) {
+  if (!polygon || polygon.length < 3) return 0;
+  let areaPx = 0;
+  const n = polygon.length;
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    areaPx += polygon[i].x * polygon[j].y;
+    areaPx -= polygon[j].x * polygon[i].y;
+  }
+  areaPx = Math.abs(areaPx) / 2;
+  return areaPx / (ppm * ppm);
+}
+
+// ── Automation Modal Component ──────────────────────────────────────────
+// ── Automation Modal Component ──────────────────────────────────────────
+function AutomationModal({ zone, ppm, cameraDB, getCameraForType, onConfirm, onCancel }) {
+  const [selectedTypes, setSelectedTypes] = useState(["dome"]);
+  
+  // Dynamic parsing of number from zone name, or fallback to Shoelace
+  const [areaSqFtVal, setAreaSqFtVal] = useState(() => {
+    const match = zone.name.match(/\d+[,.\d]*/);
+    if (match) {
+      return match[0];
+    }
+    const areaSqm = getPolygonArea(zone.polygon, ppm);
+    return Math.round(areaSqm * 10.7639).toString();
+  });
+
+  const parsedAreaSqm = (parseFloat(areaSqFtVal.replace(/,/g, '')) / 10.7639) || 0;
+
+  // Extract actual unique types present in cameraDB
+  const uniqueTypesInDB = [...new Set(cameraDB.map(c => c.type))].filter(Boolean);
+  
+  const typeLabels = {
+    dome: "Dome Camera",
+    bullet: "Bullet Camera",
+    ptz: "PTZ (Pan-Tilt-Zoom)",
+    fisheye: "Fisheye (360°)",
+    box: "Box Camera",
+    thermal: "Thermal Camera"
+  };
+
+  const cameraTypes = uniqueTypesInDB.map(type => ({
+    type,
+    label: typeLabels[type] || (type.charAt(0).toUpperCase() + type.slice(1) + " Camera")
+  }));
+
+  // State to hold the specific user-selected model for each camera type
+  const [selectedModels, setSelectedModels] = useState(() => {
+    const initial = {};
+    uniqueTypesInDB.forEach(t => {
+      initial[t] = getCameraForType(t);
+    });
+    return initial;
+  });
+
+  const handleToggleType = (type) => {
+    setSelectedTypes(prev =>
+      prev.includes(type) ? prev.filter(t => t !== type) : [...prev, type]
+    );
+  };
+
+  const handleSubmit = () => {
+    if (selectedTypes.length === 0) {
+      alert("Please select at least one camera type.");
+      return;
+    }
+    const chosenModels = selectedTypes.map(type => selectedModels[type]).filter(Boolean);
+    onConfirm(chosenModels);
+  };
+
+  return (
+    <div className="mv-stream-overlay" onClick={onCancel}>
+      <div className="mv-zone-name-modal mv-modal--config" onClick={e => e.stopPropagation()}>
+        <div className="mv-zone-name-modal__header">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#1D9E75" strokeWidth="2" width="20" height="20">
+            <circle cx="12" cy="12" r="3" />
+            <path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
+          </svg>
+          <span>Automated Camera Coverage</span>
+        </div>
+        <p className="mv-zone-name-modal__sub" style={{ marginBottom: 12 }}>
+          Automatically place and align cameras to ensure **no blind spots** in **{zone.name}**.
+        </p>
+
+        <div style={{
+          background: "#0d1117",
+          border: "0.5px solid #2e3d55",
+          borderRadius: 8,
+          padding: "10px 12px",
+          marginBottom: 16,
+          fontSize: 12,
+        }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+            <span style={{ color: "#7a8499" }}>Zone Area (sq. ft.):</span>
+            <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+              <input
+                type="text"
+                value={areaSqFtVal}
+                onChange={e => setAreaSqFtVal(e.target.value)}
+                style={{
+                  background: "#0b0f1a",
+                  border: "0.5px solid #2e3d55",
+                  borderRadius: 4,
+                  color: "#e8edf5",
+                  fontSize: 12,
+                  fontWeight: 700,
+                  textAlign: "right",
+                  padding: "2px 6px",
+                  width: 90,
+                  outline: "none",
+                }}
+              />
+              <span style={{ color: "#4a5568", fontSize: 10 }}>sq ft</span>
+            </div>
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+            <span style={{ color: "#7a8499" }}>Metric Area:</span>
+            <span style={{ color: "#e8edf5", fontWeight: 600 }}>
+              {parsedAreaSqm.toLocaleString(undefined, { maximumFractionDigits: 1 })} m²
+            </span>
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between" }}>
+            <span style={{ color: "#7a8499" }}>Boundary Vertices:</span>
+            <span style={{ color: "#e8edf5", fontWeight: 700 }}>{zone.polygon.length} corners</span>
+          </div>
+        </div>
+
+        <div className="mv-modal__field">
+          <label className="mv-modal__label">Select Camera Types & Models ({cameraTypes.length} Available)</label>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 200, overflowY: "auto", paddingRight: 4 }}>
+            {cameraTypes.map(({ type, label }) => {
+              const modelsOfType = cameraDB.filter(c => c.type === type);
+              const selectedModel = selectedModels[type] || modelsOfType[0];
+              const isChecked = selectedTypes.includes(type);
+              return (
+                <div
+                  key={type}
+                  onClick={() => handleToggleType(type)}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 10,
+                    padding: "8px 12px",
+                    background: isChecked ? "#1D9E7514" : "#0d1117",
+                    border: isChecked ? "1px solid #1D9E75" : "1px solid #2e3d55",
+                    borderRadius: 6,
+                    cursor: "pointer",
+                    transition: "all 0.15s",
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={isChecked}
+                    onChange={() => {}} // Handled by div click
+                    style={{
+                      cursor: "pointer",
+                      accentColor: "#1D9E75",
+                    }}
+                  />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: "#e8edf5" }}>{label}</div>
+                    {modelsOfType.length > 0 ? (
+                      <select
+                        value={selectedModel?.id || ""}
+                        onClick={e => e.stopPropagation()} // Prevent toggling checkbox
+                        onChange={(e) => {
+                          const found = modelsOfType.find(m => m.id === e.target.value);
+                          if (found) {
+                            setSelectedModels(prev => ({ ...prev, [type]: found }));
+                          }
+                        }}
+                        style={{
+                          background: "#0b0f1a",
+                          border: "0.5px solid #2e3d55",
+                          borderRadius: 4,
+                          color: "#e8edf5",
+                          fontSize: 10,
+                          padding: "3px 6px",
+                          marginTop: 4,
+                          width: "100%",
+                          outline: "none",
+                          cursor: "pointer",
+                          fontFamily: "inherit"
+                        }}
+                      >
+                        {modelsOfType.map(m => (
+                          <option key={m.id} value={m.id}>
+                            {m.brand} {m.model} ({m.megapixels}MP · HFOV {m.hfov}° · {m.rangeDay}m)
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <div style={{ fontSize: 10, color: "#8b2222", marginTop: 4 }}>Not available in DB</div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="mv-zone-name-modal__row" style={{ marginTop: 20 }}>
+          <button className="mv-modal__btn mv-modal__btn--cancel" onClick={onCancel}>Cancel</button>
+          <button className="mv-modal__btn mv-modal__btn--confirm" onClick={handleSubmit}>Automate</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
 // ── CameraIcon SVG ────────────────────────────────────────────────────────────
 function CameraIcon({ type, size = 22, color }) {
   const c = color || TYPE_COLORS[type] || "#3b82f6";
@@ -582,9 +831,10 @@ function drawPlacedCamera(ctx, p, ppm, hovering, selected, zonesRef, activeZoneI
 function DvZoneSidebarItem({
   zone, placed, isActive, highlightedId,
   onSelect, onDelete, onHighlightCam, onRemoveCam, sidebarExpanded,
+  onContextMenu,
 }) {
   const camsInZone = placed.filter(
-    p => zone.polygon.length >= 3 && pointInPolygon(p.x, p.y, zone.polygon)
+    p => zone.polygon.length >= 3 && pointInOrOnPolygon(p.x, p.y, zone.polygon)
   );
 
   return (
@@ -597,6 +847,7 @@ function DvZoneSidebarItem({
     }}>
       <button
         onClick={() => onSelect(zone)}
+        onContextMenu={onContextMenu}
         title={zone.name}
         style={{
           display: "flex", alignItems: "center", gap: 6,
@@ -725,6 +976,16 @@ export default function DesignerView({ onBack }) {
   const [highlightedCamId, setHighlightedCamId] = useState(null);
   const highlightedCamIdRef = useRef(null);
   useEffect(() => { highlightedCamIdRef.current = highlightedCamId; }, [highlightedCamId]);
+
+  const [contextMenu, setContextMenu] = useState(null);
+  const [showAutomationModal, setShowAutomationModal] = useState(false);
+  const [automationZone, setAutomationZone] = useState(null);
+
+  useEffect(() => {
+    const handleGlobalClick = () => setContextMenu(null);
+    window.addEventListener("click", handleGlobalClick);
+    return () => window.removeEventListener("click", handleGlobalClick);
+  }, []);
 
   const [showHeatmap, setShowHeatmap] = useState(false);
   const [hasFloor, setHasFloor] = useState(false);
@@ -1027,6 +1288,216 @@ export default function DesignerView({ onBack }) {
     setMode("place");
   }
 
+  // ── Context Menu triggers & Automation Placement ──────────────────────────
+  const onContextMenu = useCallback(e => {
+    e.preventDefault();
+    const p = toImg(e.clientX, e.clientY);
+    const clickedZone = zonesRef.current.find(
+      z => z.polygon?.length >= 3 && pointInPolygon(p.x, p.y, z.polygon)
+    );
+    if (clickedZone) {
+      setContextMenu({
+        x: e.clientX,
+        y: e.clientY,
+        zone: clickedZone
+      });
+    } else {
+      setContextMenu(null);
+    }
+  }, []);
+
+  const onSidebarZoneContextMenu = useCallback((e, zone) => {
+    e.preventDefault();
+    setContextMenu({
+      x: e.clientX,
+      y: e.clientY,
+      zone
+    });
+  }, []);
+
+  const handleAutomateClick = (zone) => {
+    setAutomationZone(zone);
+    setShowAutomationModal(true);
+    setContextMenu(null);
+  };
+
+  const getCameraForType = useCallback((type) => {
+    const models = cameraDBRef.current.filter(c => c.type === type);
+    if (!models.length) return null;
+    return [...models].sort((a, b) => (b.megapixels || 0) - (a.megapixels || 0) || (b.rangeDay || 0) - (a.rangeDay || 0))[0];
+  }, []);
+
+  const handleAutomatePlacement = useCallback((zoneId, selectedInputs) => {
+    const zone = zonesRef.current.find(z => z.id === zoneId);
+    if (!zone) return;
+
+    const models = selectedInputs
+      .map(input => {
+        if (typeof input === "string") {
+          return getCameraForType(input);
+        }
+        return input; // Already a full camera model object
+      })
+      .filter(Boolean);
+
+    if (models.length === 0) {
+      alert("No camera models found in the database for the selected types.");
+      return;
+    }
+
+    const poly = zone.polygon;
+    const n = poly.length;
+    if (n < 3) return;
+
+    // Centroid
+    let Cx = 0, Cy = 0;
+    poly.forEach(p => { Cx += p.x; Cy += p.y; });
+    Cx /= n;
+    Cy /= n;
+
+    const newPlaced = [];
+
+    // 1. Fisheye / PTZ Center Placement
+    const fisheyeModel = models.find(m => m.type === "fisheye");
+    const ptzModel = models.find(m => m.type === "ptz");
+    const centerModel = fisheyeModel || ptzModel;
+
+    if (centerModel) {
+      newPlaced.push({
+        id: `placed_${Date.now()}_center_${Math.random().toString(36).substr(2, 5)}`,
+        camera: centerModel,
+        x: Cx,
+        y: Cy,
+        direction: 0
+      });
+    }
+
+    // 2. Corner Placement
+    const cornerModels = models.filter(m => m.type !== "fisheye" && m.type !== "ptz");
+    const placementModels = cornerModels.length > 0 ? cornerModels : models;
+
+    // Check if the room center is out of coverage range for corner cameras to avoid central blind spots
+    let centerOutOfReach = false;
+    const sampleCornerModel = placementModels[0];
+    const maxCoverageDist = sampleCornerModel.rangeDay * ppmRef.current;
+
+    poly.forEach((vertex, i) => {
+      const model = placementModels[i % placementModels.length];
+      const distToCenter = Math.hypot(Cx - vertex.x, Cy - vertex.y);
+      if (distToCenter > maxCoverageDist) {
+        centerOutOfReach = true;
+      }
+
+      // Calculate perfect interior angle bisector pointing inwards
+      const prev = poly[(i - 1 + n) % n];
+      const next = poly[(i + 1) % n];
+
+      // Vector 1 (from vertex to prev)
+      const dx1 = prev.x - vertex.x;
+      const dy1 = prev.y - vertex.y;
+      const len1 = Math.hypot(dx1, dy1) || 1;
+      const ux1 = dx1 / len1;
+      const uy1 = dy1 / len1;
+
+      // Vector 2 (from vertex to next)
+      const dx2 = next.x - vertex.x;
+      const dy2 = next.y - vertex.y;
+      const len2 = Math.hypot(dx2, dy2) || 1;
+      const ux2 = dx2 / len2;
+      const uy2 = dy2 / len2;
+
+      // Bisector vector (middle direction)
+      let bx = ux1 + ux2;
+      let by = uy1 + uy2;
+      let lenB = Math.hypot(bx, by);
+
+      // If collinear, point perpendicular to wall
+      if (lenB < 0.01) {
+        bx = -uy1;
+        by = ux1;
+        lenB = 1;
+      }
+
+      let ux = bx / lenB;
+      let uy = by / lenB;
+
+      // Ensure the bisector vector points inwards towards the centroid
+      const dotVal = ux * (Cx - vertex.x) + uy * (Cy - vertex.y);
+      if (dotVal < 0) {
+        ux = -ux;
+        uy = -uy;
+      }
+
+      const angleRad = Math.atan2(uy, ux);
+      const direction = (angleRad * 180 / Math.PI + 360) % 360;
+
+      newPlaced.push({
+        id: `placed_${Date.now()}_corner_${i}_${Math.random().toString(36).substr(2, 5)}`,
+        camera: model,
+        x: vertex.x,
+        y: vertex.y,
+        direction: direction
+      });
+
+      // 3. Edge Midpoint (to prevent blind spots on long walls)
+      const nextVertex = poly[(i + 1) % n];
+      const dist = Math.hypot(nextVertex.x - vertex.x, nextVertex.y - vertex.y);
+      // Place midpoints if the wall segment is longer than 75% of the range (highly dense wall coverage)
+      if (dist > maxCoverageDist * 0.75) {
+        const Mx = (vertex.x + nextVertex.x) / 2;
+        const My = (vertex.y + nextVertex.y) / 2;
+
+        const dx = nextVertex.x - vertex.x;
+        const dy = nextVertex.y - vertex.y;
+
+        const nx1 = -dy;
+        const ny1 = dx;
+        const dot = (Cx - Mx) * nx1 + (Cy - My) * ny1;
+
+        const nx = dot > 0 ? nx1 : -nx1;
+        const ny = dot > 0 ? ny1 : -ny1;
+
+        const angleNormal = Math.atan2(ny, nx);
+        const dirNormal = (angleNormal * 180 / Math.PI + 360) % 360;
+
+        newPlaced.push({
+          id: `placed_${Date.now()}_edge_${i}_${Math.random().toString(36).substr(2, 5)}`,
+          camera: placementModels[(i + 1) % placementModels.length],
+          x: Mx,
+          y: My,
+          direction: dirNormal
+        });
+      }
+    });
+
+    // 4. Center Fallback (if center is out of reach and no fisheye/PTZ is selected)
+    // Place a 360-degree cluster of 4 cameras at the center pointing in all directions
+    if (centerOutOfReach && !centerModel) {
+      const centerModelFallback = models.find(m => m.type === "dome" || m.type === "bullet") || models[0];
+      const directions = [0, 90, 180, 270];
+      directions.forEach((dir, idx) => {
+        newPlaced.push({
+          id: `placed_${Date.now()}_center_fallback_${idx}_${Math.random().toString(36).substr(2, 5)}`,
+          camera: centerModelFallback,
+          x: Cx,
+          y: Cy,
+          direction: dir
+        });
+      });
+    }
+
+    const outsideCameras = placedRef.current.filter(
+      p => !pointInOrOnPolygon(p.x, p.y, zone.polygon)
+    );
+
+    const updatedPlaced = [...outsideCameras, ...newPlaced];
+
+    placedRef.current = updatedPlaced;
+    setPlaced(updatedPlaced);
+    draw();
+    apiSaveLayout({ placed: updatedPlaced, zones: zonesRef.current, ppm: ppmRef.current });
+  }, [draw, getCameraForType]);
+
   // ── Mouse events ──────────────────────────────────────────────────────────
   const onMouseDown = useCallback(e => {
     if (e.button === 2) return;
@@ -1188,7 +1659,17 @@ export default function DesignerView({ onBack }) {
     const newId = highlightedCamId === camId ? null : camId;
     setHighlightedCamId(newId);
     highlightedCamIdRef.current = newId;
-    if (newId) zoomToCamera(newId);
+    if (newId) {
+      zoomToCamera(newId);
+      const idx = placedRef.current.findIndex(p => p.id === newId);
+      if (idx !== -1) {
+        setSelectedIdx(idx);
+        setSelectedModel(placedRef.current[idx].camera);
+      }
+    } else {
+      setSelectedIdx(null);
+      setSelectedModel(null);
+    }
     draw();
   }
 
@@ -1579,6 +2060,7 @@ export default function DesignerView({ onBack }) {
                 onHighlightCam={handleHighlightCam}
                 onRemoveCam={handleRemoveCamFromZone}
                 sidebarExpanded={sidebarExpanded}
+                onContextMenu={(e) => onSidebarZoneContextMenu(e, zone)}
               />
             ))}
 
@@ -1632,6 +2114,7 @@ export default function DesignerView({ onBack }) {
             onMouseMove={onMouseMove}
             onMouseUp={onMouseUp}
             onMouseLeave={onMouseUp}
+            onContextMenu={onContextMenu}
           />
 
           <HeatmapLayer
@@ -1778,6 +2261,41 @@ export default function DesignerView({ onBack }) {
           retentionDays={retentionDays}
           setRetentionDays={setRetentionDays}
           onClose={() => setShowStats(false)}
+        />
+      )}
+
+      {contextMenu && (
+        <div
+          className="dv-context-menu"
+          style={{
+            position: "fixed",
+            top: contextMenu.y,
+            left: contextMenu.x,
+            zIndex: 1000,
+          }}
+          onClick={e => e.stopPropagation()}
+        >
+          <button className="dv-ctx-item" onClick={() => handleAutomateClick(contextMenu.zone)}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14" style={{ marginRight: 6 }}>
+              <circle cx="12" cy="12" r="3" />
+              <path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
+            </svg>
+            Automate Placement
+          </button>
+        </div>
+      )}
+
+      {showAutomationModal && automationZone && (
+        <AutomationModal
+          zone={automationZone}
+          ppm={ppm}
+          cameraDB={cameraDB}
+          getCameraForType={getCameraForType}
+          onConfirm={(types) => {
+            handleAutomatePlacement(automationZone.id, types);
+            setShowAutomationModal(false);
+          }}
+          onCancel={() => setShowAutomationModal(false)}
         />
       )}
     </div>
