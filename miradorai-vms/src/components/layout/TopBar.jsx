@@ -1,5 +1,7 @@
 import { useEffect, useState, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import { NAV_CONFIG } from "../../data/navConfig";
+import { useAuth } from "../../context/AuthContext";
 import "./TopBar.css";
 
 function loadDevices() {
@@ -39,7 +41,13 @@ export default function TopBar({
   const [camCount,   setCamCount]   = useState(0);
   const [alarmCount, setAlarmCount] = useState(0);
   const [plusOpen,   setPlusOpen]   = useState(false);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
+  
   const plusRef = useRef(null);
+  const userRef = useRef(null);
 
   useEffect(() => {
     const update = () => {
@@ -52,11 +60,14 @@ export default function TopBar({
     return () => { clearInterval(interval); window.removeEventListener("storage", update); };
   }, []);
 
-  // Close plus menu on outside click
+  // Close menus on outside click
   useEffect(() => {
     const handler = (e) => {
       if (plusRef.current && !plusRef.current.contains(e.target)) {
         setPlusOpen(false);
+      }
+      if (userRef.current && !userRef.current.contains(e.target)) {
+        setUserMenuOpen(false);
       }
     };
     document.addEventListener("mousedown", handler);
@@ -142,28 +153,110 @@ export default function TopBar({
       </div>
 
       <div className="topbar__right">
-        <div className="topbar__stat">
-          <span className="topbar__stat-dot topbar__stat-dot--green" />
-          <span>{camCount} Camera{camCount !== 1 ? "s" : ""}</span>
-        </div>
-        <button
-          className={`topbar__stat topbar__stat--btn ${alarmsOpen ? "topbar__stat--active" : ""}`}
-          onClick={onAlarmsClick}>
-          <span className={`topbar__stat-dot ${alarmCount > 0 ? "topbar__stat-dot--yellow" : "topbar__stat-dot--green"}`} />
-          <span>{alarmCount} Alarm{alarmCount !== 1 ? "s" : ""}</span>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
-            style={{ width: 10, height: 10, marginLeft: 2,
-              transform: alarmsOpen ? "rotate(180deg)" : "none",
-              transition: "transform 0.2s" }}>
-            <path d="M19 9l-7 7-7-7"/>
-          </svg>
-        </button>
         <div className="topbar__divider" />
-        <div className="topbar__user">
-          <div className="topbar__avatar">A</div>
-          <span>Admin</span>
+        
+        <div className="topbar__user-wrap" ref={userRef}>
+          <div 
+            className={`topbar__user ${userMenuOpen ? "topbar__user--active" : ""}`}
+            onClick={() => setUserMenuOpen(!userMenuOpen)}
+          >
+            <div className="topbar__avatar">
+              {user?.email?.charAt(0).toUpperCase() || "A"}
+            </div>
+          </div>
+
+          {userMenuOpen && (
+            <div className="topbar__user-dropdown">
+              <div className="topbar__user-dropdown-header">
+                <div className="topbar__user-dropdown-avatar">
+                  {user?.email?.charAt(0).toUpperCase() || "A"}
+                </div>
+                <div className="topbar__user-dropdown-info">
+                  <div className="topbar__user-dropdown-name">{user?.email?.split("@")[0] || "Administrator"}</div>
+                  <div className="topbar__user-dropdown-role-row">
+                    <span className={`topbar__user-badge ${user?.role || "admin"}`}>
+                      {user?.role?.toUpperCase() || "ADMIN"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="topbar__user-dropdown-body">
+                {/* 
+                <div 
+                  className="topbar__user-dropdown-item"
+                  onClick={() => { navigate("/user-settings"); setUserMenuOpen(false); }}
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+                  </svg>
+                  <span>User Settings</span>
+                </div>
+                */}
+                
+                <div 
+                  className="topbar__user-dropdown-item"
+                  onClick={() => { navigate("/settings"); setUserMenuOpen(false); }}
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
+                  </svg>
+                  <span>Settings</span>
+                </div>
+                {user?.loginDate && (
+                  <div className="topbar__user-dropdown-meta">
+                    <div className="topbar__user-dropdown-meta-label">Last Login:</div>
+                    <div className="topbar__user-dropdown-meta-value">{user.loginDate}</div>
+                  </div>
+                )}
+              </div>
+
+              <div className="topbar__user-dropdown-footer">
+                <button 
+                  className="topbar__logout-btn"
+                  onClick={() => setShowLogoutConfirm(true)}
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/>
+                  </svg>
+                  <span>LOGOUT</span>
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
+
+      {/* Logout Confirmation Modal */}
+      {showLogoutConfirm && (
+        <div className="logout-modal-overlay">
+          <div className="logout-modal">
+            <div className="logout-modal__header">
+              <h2>Confirm Logout</h2>
+            </div>
+            <div className="logout-modal__body">
+              <p>Are you sure you want to logout?</p>
+            </div>
+            <div className="logout-modal__footer">
+              <button
+                className="logout-modal__btn logout-modal__btn--cancel"
+                onClick={() => setShowLogoutConfirm(false)}
+              >
+                Cancel
+              </button>
+              <button
+                className="logout-modal__btn logout-modal__btn--confirm"
+                onClick={() => {
+                  setShowLogoutConfirm(false);
+                  logout();
+                }}
+              >
+                Logout
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </header>
   );
 }

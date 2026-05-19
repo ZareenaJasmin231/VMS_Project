@@ -297,11 +297,6 @@ const CANVAS_H = 360;
 // ── MASK COLORS ───────────────────────────────────────────────────
 const MASK_COLORS = [
   { fill: "rgba(59,130,246,0.3)",  stroke: "#60a5fa", label: "Deep Sea" },
-  { fill: "rgba(239,68,68,0.3)",   stroke: "#f87171", label: "Critical" },
-  { fill: "rgba(16,185,129,0.3)",  stroke: "#34d399", label: "Standard" },
-  { fill: "rgba(245,158,11,0.3)",  stroke: "#fbbf24", label: "Caution"  },
-  { fill: "rgba(139,92,246,0.3)",  stroke: "#a78bfa", label: "Mystic"   },
-  { fill: "rgba(249,115,22,0.3)",  stroke: "#fb923c", label: "Warning"  },
 ];
 
 export default function MaskingSection({ device, showToast }) {
@@ -499,7 +494,6 @@ export default function MaskingSection({ device, showToast }) {
     setSelectedId(m.id);
     await saveMask(m);
     showToast(`"${m.name}" created`, "success");
-    setColorIdx(c => (c + 1) % MASK_COLORS.length);
   };
 
   const saveMask = async (mask) => {
@@ -575,22 +569,6 @@ export default function MaskingSection({ device, showToast }) {
             </button>
           </div>
 
-          <div className="mp-sep" />
-
-          {/* Color Picker */}
-          <div className="mp-tool-group mp-colors">
-            {MASK_COLORS.map((c, i) => (
-              <button
-                key={i}
-                className={`mp-color-dot ${colorIdx === i ? "active" : ""}`}
-                style={{ background: c.stroke }}
-                onClick={() => setColorIdx(i)}
-                title={c.label}
-              />
-            ))}
-          </div>
-
-          <div className="mp-sep" />
 
           {/* Draft Actions */}
           {draftPts.length > 0 && (
@@ -717,7 +695,6 @@ export default function MaskingSection({ device, showToast }) {
                 onClick={() => setSelectedId(mask.id)}
               >
                 <div className="mp-card-top">
-                  <div className="mp-card-swatch" style={{ background: col.stroke }} />
                   <input
                     className="mp-card-input"
                     value={mask.name}

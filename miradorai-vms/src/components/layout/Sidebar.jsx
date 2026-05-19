@@ -30,7 +30,6 @@ export default function Sidebar({ userRole }) {
     Client: false,
   });
   const [search, setSearch] = useState("");
-  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   const toggleCollapse = () => {
     setIsCollapsed(prev => {
@@ -42,9 +41,6 @@ export default function Sidebar({ userRole }) {
 
   const toggle = (s) => setExpanded((p) => ({ ...p, [s]: !p[s] }));
 
-  const handleLogoutClick = () => setShowLogoutConfirm(true);
-  const confirmLogout = () => { setShowLogoutConfirm(false); logout(); };
-  const cancelLogout = () => setShowLogoutConfirm(false);
 
   return (
     <aside className={`sidebar ${isCollapsed ? "sidebar--collapsed" : ""}`} aria-label="Main navigation">
@@ -174,78 +170,6 @@ export default function Sidebar({ userRole }) {
         })}
       </nav>
 
-      {/* Footer */}
-      <div className="sidebar__footer">
-        <div className="sidebar__user-info">
-          <div className="sidebar__user-avatar" title={user?.email}>
-            {user?.email?.charAt(0).toUpperCase()}
-          </div>
-          {!isCollapsed && (
-            <div className="sidebar__user-details">
-              <div className="sidebar__user-email" title={user?.email}>{user?.email}</div>
-              <div className="sidebar__user-meta">
-                <span className={`sidebar__user-badge ${user?.role}`}>
-                  {user?.role?.toUpperCase()}
-                </span>
-                {user?.loginDate && (
-                  <span className="sidebar__user-login-date">{user.loginDate}</span>
-                )}
-              </div>
-            </div>
-          )}
-        </div>
-        {!isCollapsed && (
-          <button
-            className="sidebar__logout-btn"
-            onClick={handleLogoutClick}
-            title="Logout"
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 8l4-4m0 0l-4 4m4-4v12a2 2 0 0 1-2 2h-4"/>
-            </svg>
-            <span>Logout</span>
-          </button>
-        )}
-        {isCollapsed && (
-          <button
-            className="sidebar__logout-btn-collapsed"
-            onClick={handleLogoutClick}
-            title="Logout"
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 8l4-4m0 0l-4 4m4-4v12a2 2 0 0 1-2 2h-4"/>
-            </svg>
-          </button>
-        )}
-      </div>
-
-      {/* Logout Confirmation Modal */}
-      {showLogoutConfirm && (
-        <div className="logout-modal-overlay">
-          <div className="logout-modal">
-            <div className="logout-modal__header">
-              <h2>Confirm Logout</h2>
-            </div>
-            <div className="logout-modal__body">
-              <p>Are you sure you want to logout?</p>
-            </div>
-            <div className="logout-modal__footer">
-              <button
-                className="logout-modal__btn logout-modal__btn--cancel"
-                onClick={cancelLogout}
-              >
-                Cancel
-              </button>
-              <button
-                className="logout-modal__btn logout-modal__btn--confirm"
-                onClick={confirmLogout}
-              >
-                Logout
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </aside>
   );
 }
