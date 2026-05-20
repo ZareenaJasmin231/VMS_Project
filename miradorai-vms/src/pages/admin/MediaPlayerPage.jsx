@@ -48,7 +48,7 @@ function loadDevices() {
 }
 
 export default function MediaPlayerPage() {
-  const { user } = useAuth();
+  const { user, supervisorUnlocked } = useAuth();
 
   const [cameras] = useState(loadDevices);
   const [recordingCameras, setRecordingCameras] = useState([]);
@@ -679,7 +679,7 @@ export default function MediaPlayerPage() {
         </div>
       )}
 
-      {user?.role !== "admin" ? (
+      {(user?.role !== "admin" && !supervisorUnlocked) ? (
         <div className="mp-access-denied">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" width="48" height="48">
             <rect x="3" y="11" width="18" height="11" rx="2" />

@@ -1,3 +1,8 @@
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../../context/AuthContext";
+import SupervisorModal from "./SupervisorModal";
+
 import AddDevicesPage from "../../pages/devices/AddDevicesPage";
 import CamerasPage from "../../pages/devices/CamerasPage";
 import OtherDevicesPage from "../../pages/devices/OtherDevicesPage";
@@ -43,15 +48,10 @@ import DesignerView from "../../pages/Mapview/DesignerView";
 import MaskingPage from "../../pages/devices/MaskingPage";
 
 
-
-
 // ================= PAGE MAP =================
 const MAP = {
-
   // ✅ DASHBOARD (DEFAULT PAGE)
   "dashboard": DashboardPage,
-
-  // ✅ ANALYTICS (NEW)
 
   // ================= DEVICES =================
   "add-devices": AddDevicesPage,
@@ -64,8 +64,7 @@ const MAP = {
   "ext-data": ExternalDataPage,
   "time-sync": TimeSyncPage,
   "camera-features": CameraFeaturesPage,
-    "masking": MaskingPage,
-
+  "masking": MaskingPage,
 
   // ================= STORAGE =================
   "storage-mgmt": StorageMgmtPage,
@@ -99,18 +98,81 @@ const MAP = {
   "logs": LogsPage,
   "map-view": MapViewPage,
   "infrastructure": TopologyPage,
-    "designer-view": DesignerView,
+  "designer-view": DesignerView,
   "network-health": NetworkHealthPage,
-
-
 };
 
+// Pages that require supervisor unlock for CLIENT role
+const CLIENT_SUPERVISOR_PAGES = ["media-player", "backup", "masking"];
+
+// Pages the OPERATOR role is allowed to access
+const OPERATOR_ALLOWED_PAGES = ["live-view", "add-devices", "about"];
+
+// Friendly names for the supervisor modal
+const SUPERVISOR_PAGE_NAMES = {
+  "media-player": "Playback",
+  "backup": "Backup",
+  "masking": "Privacy Masking",
+};
 
 // ================= MAIN RENDERER =================
 export default function PageRenderer({ activePage, onNavigate }) {
+  const { user, supervisorUnlocked, unlockSupervisor } = useAuth();
+  const navigate = useNavigate();
+  const role = user?.role;
+
+  const [showSupervisorModal, setShowSupervisorModal] = useState(false);
+  const [pendingPage, setPendingPage] = useState(null);
+
+  // --- Operator: hard-block any page not in their allowed list ---
+  useEffect(() => {
+    if (role === "operator" && !OPERATOR_ALLOWED_PAGES.includes(activePage)) {
+      navigate("/live-view", { replace: true });
+    }
+  }, [activePage, role, navigate]);
+
+  // --- Client: check if current page needs supervisor unlock ---
+  useEffect(() => {
+    if (role === "client" && CLIENT_SUPERVISOR_PAGES.includes(activePage) && !supervisorUnlocked) {
+      setPendingPage(activePage);
+      setShowSupervisorModal(true);
+    } else {
+      setShowSupervisorModal(false);
+      setPendingPage(null);
+    }
+  }, [activePage, role, supervisorUnlocked]);
+
+  // Handle supervisor modal success — modal already verified the password
+  const handleSupervisorSuccess = () => {
+    unlockSupervisor();
+    setShowSupervisorModal(false);
+    setPendingPage(null);
+  };
+
+  // Handle supervisor modal cancel — go back to live-view
+  const handleSupervisorCancel = () => {
+    setShowSupervisorModal(false);
+    setPendingPage(null);
+    navigate("/live-view", { replace: true });
+  };
+
+  // Render supervisor modal overlay instead of the page
+  if (showSupervisorModal && pendingPage) {
+    return (
+      <SupervisorModal
+        pageName={SUPERVISOR_PAGE_NAMES[pendingPage] || pendingPage}
+        onSuccess={handleSupervisorSuccess}
+        onCancel={handleSupervisorCancel}
+      />
+    );
+  }
+
+  // For operator, don't render a blocked page (redirect handled in useEffect)
+  if (role === "operator" && !OPERATOR_ALLOWED_PAGES.includes(activePage)) {
+    return null;
+  }
 
   // ✅ fallback to dashboard if page not found
   const Component = MAP[activePage] || DashboardPage;
-
   return <Component onNavigate={onNavigate} />;
 }

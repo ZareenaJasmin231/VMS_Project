@@ -471,3 +471,103 @@
   width: 16px !important;
   height: 16px !important;
 }
+
+/* ── Settings Toggle (expandable item) ──────────── */
+.topbar__settings-toggle {
+  cursor: pointer;
+  justify-content: space-between;
+  user-select: none;
+}
+.topbar__settings-toggle:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+.topbar__settings-toggle--open {
+  background: rgba(130, 100, 255, 0.07);
+  color: var(--text-primary);
+}
+
+.topbar__settings-chevron {
+  width: 14px;
+  height: 14px;
+  color: var(--text-muted);
+  transition: transform 0.2s ease;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+.topbar__settings-chevron--open {
+  transform: rotate(90deg);
+}
+
+/* ── Settings Submenu ───────────────────────────── */
+.topbar__settings-submenu {
+  margin: 2px 0 4px 0;
+  padding: 2px 0 2px 12px;
+  border-left: 2px solid rgba(130, 100, 255, 0.2);
+  margin-left: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  animation: slideUp 0.15s ease;
+}
+
+.topbar__settings-subitem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  width: 100%;
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  font-size: 12.5px;
+  font-family: var(--font-ui);
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.15s;
+}
+.topbar__settings-subitem:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+.topbar__settings-subitem span:first-child {
+  display: flex;
+  align-items: center;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+.topbar__settings-subitem span:first-child svg {
+  width: 15px;
+  height: 15px;
+}
+
+/* Supervisor Details special item */
+.topbar__settings-subitem--supervisor {
+  color: #a78bfa;
+}
+.topbar__settings-subitem--supervisor:hover {
+  background: rgba(130, 100, 255, 0.1);
+  color: #c4b5fd;
+}
+.topbar__settings-subitem--supervisor span:first-child {
+  color: #a78bfa;
+}
+
+.topbar__settings-divider {
+  height: 1px;
+  background: var(--border-light);
+  margin: 4px 0;
+}
+
+.topbar__supervisor-badge {
+  margin-left: auto;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  padding: 2px 5px;
+  border-radius: 3px;
+  background: rgba(130, 100, 255, 0.15);
+  color: #a78bfa;
+  border: 1px solid rgba(130, 100, 255, 0.2);
+}

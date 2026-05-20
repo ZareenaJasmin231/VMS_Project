@@ -83,21 +83,6 @@ const CORE_NAV = [
     ],
   },
 
-  // ✅ CLIENT SETTINGS
-  {
-    section: "Client",
-    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-      <circle cx="12" cy="7" r="4"/>
-    </svg>`,
-    items: [
-      { label: "Client Settings", page: "client-settings" },
-      { label: "User Settings", page: "user-settings" },
-      { label: "Profile", page: "profile" },
-    ],
-  },
-
-
 ];
 
 // ================= ADMIN ONLY NAVIGATION =================
@@ -167,26 +152,92 @@ const ADMIN_ONLY_NAV = [
     </svg>`,
   },
 
-    // ✅ ABOUT
-  {
-    section: "About",
-    page: "about",
-    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-      <circle cx="12" cy="12" r="10"/>
-      <path d="M12 16v-4M12 8h.01"/>
-    </svg>`,
-  },
-
 ];
 
 
 
+// ============================================================
+// NAV SETS per ROLE
+// ============================================================
+
+// Shared icons (re-used across role configs)
+const ICONS = {
+  liveView: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>`,
+  addDevice: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><path d="M12 8v8M8 12h8"/></svg>`,
+  cameras: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>`,
+  cameraGroups: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>`,
+  masking: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="2"/><rect x="8" y="8" width="8" height="8" rx="1"/><path d="M3 8h2M19 8h2M3 16h2M19 16h2M8 3v2M16 3v2M8 19v2M16 19v2"/></svg>`,
+  recording: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>`,
+  storage: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v6c0 1.66 4.03 3 9 3s9-1.34 9-3V5"/><path d="M3 11v6c0 1.66 4.03 3 9 3s9-1.34 9-3v-6"/></svg>`,
+  playback: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>`,
+  backup: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 16v-8M8 12l4-4 4 4"/><path d="M20.39 18.39A5 5 0 0018 9h-1.26A8 8 0 103 16.3"/></svg>`,
+  client: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`,
+  infrastructure: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" y1="6" x2="6" y2="6"/><line x1="6" y1="18" x2="6" y2="18"/><path d="M12 10v4M12 10h4M12 14h4"/></svg>`,
+  about: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>`,
+};
+
+// CLIENT nav — pages they can see in the sidebar
+// (playback/backup/masking are visible but gated by SupervisorModal in PageRenderer)
+const CLIENT_NAV = [
+  { section: "Live View",  page: "live-view",  icon: ICONS.liveView },
+  {
+    section: "Cameras",
+    icon: ICONS.cameras,
+    items: [
+      { label: "Add Device",     page: "add-devices", icon: ICONS.addDevice },
+      { label: "Camera Groups",  page: "cameras",     icon: ICONS.cameraGroups },
+    ],
+  },
+  { section: "Masking",  page: "masking",       icon: ICONS.masking },
+  {
+    section: "Recording & Events",
+    icon: ICONS.recording,
+    items: [
+      { label: "Schedules",         page: "schedules" },
+      { label: "Recording Method",  page: "rec-method" },
+      { label: "Action Rules",      page: "action-rules" },
+    ],
+  },
+  {
+    section: "Storage",
+    icon: ICONS.storage,
+    items: [
+      { label: "Management", page: "storage-mgmt" },
+    ],
+  },
+  { section: "Playback", page: "media-player",  icon: ICONS.playback },
+  { section: "Backup",   page: "backup",        icon: ICONS.backup },
+  { section: "Infrastructure", page: "infrastructure", icon: ICONS.infrastructure },
+  {
+    section: "Map View",
+    page: "map-view",
+    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>`,
+  },
+  {
+    section: "Designer View",
+    page: "designer-view",
+    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M8 8h8v8H8z"/><path d="M3 12h5M16 12h5"/></svg>`,
+  },
+];
+
+// OPERATOR nav — Live View, Add Devices, About only
+const OPERATOR_NAV = [
+  { section: "Live View",  page: "live-view",   icon: ICONS.liveView },
+  {
+    section: "Cameras",
+    icon: ICONS.cameras,
+    items: [
+      { label: "Add Device", page: "add-devices", icon: ICONS.addDevice },
+    ],
+  },
+];
+
 // ================= GET NAVIGATION CONFIG =================
 export const getNavConfig = (role = "client") => {
-  if (role === "admin") {
-    return [...CORE_NAV, ...ADMIN_ONLY_NAV];
-  }
-  return CORE_NAV;
+  if (role === "admin")    return [...CORE_NAV, ...ADMIN_ONLY_NAV];
+  if (role === "client")   return CLIENT_NAV;
+  if (role === "operator") return OPERATOR_NAV;
+  return CLIENT_NAV; // fallback
 };
 
 // ================= DEFAULT EXPORT =================

@@ -209,6 +209,13 @@ const LoginPage = () => {
                 >
                   Client
                 </button>
+                <button
+                  type="button"
+                  className={`role-option ${role === "operator" ? "active" : ""}`}
+                  onClick={() => setRole("operator")}
+                >
+                  Operator
+                </button>
               </div>
             </div>
 
@@ -371,6 +378,13 @@ const LoginPage = () => {
                   onClick={() => setRole("client")}
                 >
                   Client
+                </button>
+                <button
+                  type="button"
+                  className={`role-option ${role === "operator" ? "active" : ""}`}
+                  onClick={() => setRole("operator")}
+                >
+                  Operator
                 </button>
               </div>
             </div>

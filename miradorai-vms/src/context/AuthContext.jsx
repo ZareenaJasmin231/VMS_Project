@@ -16,6 +16,8 @@ const API_BASE = (typeof import.meta !== "undefined" && import.meta.env?.VITE_AP
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  // Supervisor unlock — reset on logout / new session
+  const [supervisorUnlocked, setSupervisorUnlocked] = useState(false);
 
   // Restore session from localStorage on mount
   useEffect(() => {
@@ -84,48 +86,43 @@ export const AuthProvider = ({ children }) => {
       return { success: false, error: "Email and password required" };
     }
 
+    const validRoles = ["admin", "client", "operator"];
+    const assignedRole = validRoles.includes(role) ? role : "client";
+
     try {
       const res = await fetch(`${API_BASE}/api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password, role }),
+        body: JSON.stringify({ email, password, role: assignedRole }),
       });
 
       const data = await res.json();
-
       if (!res.ok) {
-        return { success: false, error: data.detail || "Login failed" };
+        return { success: false, error: data.detail || data.message || "Login failed" };
       }
 
-      const userData = {
-        id:        data.user.id,
-        email:     data.user.email,
-        role:      data.user.role,
-        loginTime: new Date().toISOString(),
-        loginDate: new Date().toLocaleDateString("en-US", {
-          year:   "numeric",
-          month:  "short",
-          day:    "numeric",
-          hour:   "2-digit",
-          minute: "2-digit",
-        }),
-        sessionId: Math.random().toString(36).substring(2, 11),
-      };
-
-setUser(userData);
-localStorage.setItem("miradorai_user", JSON.stringify(userData));
-
-// 🔥 ADD THIS (IMPORTANT)
-if (data.token) {
-  localStorage.setItem("miradorai_token", data.token);
-}
-
-return { success: true };
+      setUser(data.user);
+      setSupervisorUnlocked(false);
+      localStorage.setItem("miradorai_user", JSON.stringify(data.user));
+      localStorage.setItem("miradorai_token", data.token);
+      return { success: true };
     } catch (err) {
       console.error("[AUTH] Login error:", err);
       return { success: false, error: "Cannot connect to server. Please try again." };
     }
   };
+
+  // ------------------------------------------------------------------
+  // Supervisor unlock — client role uses this to access restricted pages
+  // Password is set by admin via Settings > Supervisor Details (stored in localStorage)
+  // Falls back to "supervisor123" if admin hasn't configured one yet
+  // ------------------------------------------------------------------
+  const unlockSupervisor = () => {
+    setSupervisorUnlocked(true);
+    return { success: true };
+  };
+
+  const lockSupervisor = () => setSupervisorUnlocked(false);
 
   // ------------------------------------------------------------------
   // Forgot Password — checks email exists in MongoDB via backend
@@ -242,14 +239,16 @@ return { success: true };
   // ------------------------------------------------------------------
   // Logout
   // ------------------------------------------------------------------
- const logout = () => {
-  setUser(null);
-  localStorage.removeItem("miradorai_user");
-  localStorage.removeItem("miradorai_token"); 
-};
+  const logout = () => {
+    setUser(null);
+    setSupervisorUnlocked(false);
+    localStorage.removeItem("miradorai_user");
+    localStorage.removeItem("miradorai_token");
+  };
 
   const isAdmin        = user?.role === "admin";
   const isClient       = user?.role === "client";
+  const isOperator     = user?.role === "operator";
   const isAuthenticated = !!user;
 
   return (
@@ -260,6 +259,10 @@ return { success: true };
         isAuthenticated,
         isAdmin,
         isClient,
+        isOperator,
+        supervisorUnlocked,
+        unlockSupervisor,
+        lockSupervisor,
         login,
         signup,
         forgotPassword,
