@@ -254,6 +254,7 @@ export default function AddDevicesPage({ onNavigate }) {
   const [enrolling, setEnrolling] = useState(false);
   const [enrollMsg, setEnrollMsg] = useState("");
   const [refreshing, setRefreshing] = useState(false);
+  const [successEnrollData, setSuccessEnrollData] = useState(null);
   const [devices, setDevices] = usePersistedDevices();
   const [groups, setGroups] = usePersistedGroups();
   const [ctxMenu, setCtxMenu] = useState(null);
@@ -377,6 +378,7 @@ export default function AddDevicesPage({ onNavigate }) {
     }
 
     const targetGroup = selectedGroupId; // captured from modal context
+    const addedDevicesList = [];
 
     setDevices((prev) => {
       let next = [...prev];
@@ -418,14 +420,21 @@ export default function AddDevicesPage({ onNavigate }) {
 
         if (existingIndex !== -1) {
           next[existingIndex] = { ...next[existingIndex], ...device };
+          addedDevicesList.push(next[existingIndex]);
         } else {
           next.push(device);
+          addedDevicesList.push(device);
         }
 
         logAction("Camera added", "camera", { ip: d.ip, channel: d.channel ?? 0, source: "discovery" });
       }
 
       return next;
+    });
+
+    setSuccessEnrollData({
+      title: "Discovery Cameras Added",
+      devices: addedDevicesList
     });
   }, [setDevices, selectedGroupId]);
 
@@ -453,6 +462,30 @@ export default function AddDevicesPage({ onNavigate }) {
       probeData?.ome_stream ||
       `${ip.replace(/\./g, "_")}_cam${safeChannel}`;
 
+    const updated = {
+      id: `device-${ip}-cam${safeChannel}-${Date.now()}`,
+      type: "entrance",
+      name: cameraName || enrichedName || `Camera @ ${ip}`,
+      ip,
+      channel: safeChannel,
+      mac: discovered?.mac || probeData?.mac || "—",
+      status: probeData?.ws_url ? "Online" : "Offline",
+      manufacturer: discovered?.manufacturer || probeData?.manufacturer || "Unknown",
+      model: discovered?.model || probeData?.model || "Unknown",
+      firmware: probeData?.firmware || discovered?.firmware || "",
+      serial: probeData?.serial || discovered?.serial || "",
+      ptz: probeData?.ptz || discovered?.ptz || "No",
+      rtsp_url: probeData?.rtsp_url || probeData?.stream_uri || null,
+      ws_url: probeData?.ws_url || null,
+      stream_key: streamKey,
+      stream_status: probeData?.status || "error",
+      stream_profiles: probeData?.profiles || discovered?.profiles || [],
+      stream_count: probeData?.stream_count || discovered?.stream_count || 0,
+      physical_camera_count: probeData?.physical_camera_count || 1,
+      source: "onvif",
+      group_id: group_id || selectedGroupId,  // ✅ from modal field
+    };
+
     setDevices((prev) => {
       const existingIndex = prev.findIndex(
         (item) =>
@@ -460,33 +493,8 @@ export default function AddDevicesPage({ onNavigate }) {
           (!item.stream_key && item.ip === ip && (item.channel ?? 0) === safeChannel)
       );
 
-      const updated = {
-        id: existingIndex !== -1
-          ? prev[existingIndex].id
-          : `device-${ip}-cam${safeChannel}-${Date.now()}`,
-        type: "entrance",
-        name: cameraName || enrichedName || `Camera @ ${ip}`,
-        ip,
-        channel: safeChannel,
-        mac: discovered?.mac || probeData?.mac || "—",
-        status: probeData?.ws_url ? "Online" : "Offline",
-        manufacturer: discovered?.manufacturer || probeData?.manufacturer || "Unknown",
-        model: discovered?.model || probeData?.model || "Unknown",
-        firmware: probeData?.firmware || discovered?.firmware || "",
-        serial: probeData?.serial || discovered?.serial || "",
-        ptz: probeData?.ptz || discovered?.ptz || "No",
-        rtsp_url: probeData?.rtsp_url || probeData?.stream_uri || null,
-        ws_url: probeData?.ws_url || null,
-        stream_key: streamKey,
-        stream_status: probeData?.status || "error",
-        stream_profiles: probeData?.profiles || discovered?.profiles || [],
-        stream_count: probeData?.stream_count || discovered?.stream_count || 0,
-        physical_camera_count: probeData?.physical_camera_count || 1,
-        source: "onvif",
-        group_id: group_id || selectedGroupId,  // ✅ from modal field
-      };
-
       if (existingIndex !== -1) {
+        updated.id = prev[existingIndex].id;
         const next = [...prev];
         next[existingIndex] = { ...next[existingIndex], ...updated };
         return next;
@@ -497,6 +505,10 @@ export default function AddDevicesPage({ onNavigate }) {
     logAction("Camera added", "camera", { ip, channel: safeChannel });
     setEnrolling(false);
     setEnrollMsg("");
+    setSuccessEnrollData({
+      title: "Camera Added Successfully",
+      devices: [updated]
+    });
   };
 
   // ── handleAddStreamURLs — group_id comes from StreamURLModal field ─────────
@@ -509,6 +521,8 @@ export default function AddDevicesPage({ onNavigate }) {
     const groupId = Array.isArray(payload)
       ? selectedGroupId
       : (payload.group_id || selectedGroupId);           // ✅ from modal field
+
+    const addedEntries = [];
 
     for (let i = 0; i < urls.length; i++) {
       const url = urls[i];
@@ -532,33 +546,35 @@ export default function AddDevicesPage({ onNavigate }) {
         const streamKey = data?.ome_stream || data?.stream_key ||
           `${ip.replace(/\./g, "_")}_rtsp${i}`;
 
+        const entry = {
+          id: `device-rtsp-${streamKey}-${Date.now()}`,
+          type: "entrance",
+          name: streamName,
+          ip,
+          channel: 0,
+          mac: "—",
+          status: data?.ws_url ? "Online" : "Offline",
+          manufacturer: "Unknown",
+          model: "Unknown",
+          rtsp_url: url,
+          ws_url: data?.ws_url || null,
+          stream_key: streamKey,
+          stream_status: data?.ws_url ? "streaming" : "error",
+          stream_profiles: [],
+          stream_count: 0,
+          physical_camera_count: 1,
+          source: "rtsp",
+          group_id: groupId,                      // ✅ from modal field
+        };
+
         setDevices((prev) => {
           const existingIndex = prev.findIndex(
             (item) =>
               (item.stream_key && item.stream_key === streamKey) ||
               item.rtsp_url === url
           );
-          const entry = {
-            id: existingIndex !== -1 ? prev[existingIndex].id : `device-rtsp-${streamKey}-${Date.now()}`,
-            type: "entrance",
-            name: streamName,
-            ip,
-            channel: 0,
-            mac: "—",
-            status: data?.ws_url ? "Online" : "Offline",
-            manufacturer: "Unknown",
-            model: "Unknown",
-            rtsp_url: url,
-            ws_url: data?.ws_url || null,
-            stream_key: streamKey,
-            stream_status: data?.ws_url ? "streaming" : "error",
-            stream_profiles: [],
-            stream_count: 0,
-            physical_camera_count: 1,
-            source: "rtsp",
-            group_id: groupId,                      // ✅ from modal field
-          };
           if (existingIndex !== -1) {
+            entry.id = prev[existingIndex].id;
             const next = [...prev];
             next[existingIndex] = { ...next[existingIndex], ...entry };
             return next;
@@ -566,33 +582,43 @@ export default function AddDevicesPage({ onNavigate }) {
           return [...prev, entry];
         });
 
+        addedEntries.push(entry);
         logAction("Camera added", "camera", { ip, source: "stream_url" });
 
       } catch {
         const streamKey = `${ip.replace(/\./g, "_")}_rtsp${i}`;
+        const entry = {
+          id: `device-rtsp-${Date.now()}-${i}`,
+          type: "entrance", name: streamName, ip, channel: 0,
+          mac: "—", status: "Offline", manufacturer: "Unknown", model: "Unknown",
+          rtsp_url: url, ws_url: null, stream_key: streamKey,
+          stream_status: "error", stream_profiles: [], stream_count: 0,
+          physical_camera_count: 1, source: "rtsp",
+          group_id: groupId,                      // ✅ from modal field
+        };
         setDevices((prev) => {
           const existingIndex = prev.findIndex((item) => item.rtsp_url === url);
-          const entry = {
-            id: existingIndex !== -1 ? prev[existingIndex].id : `device-rtsp-${Date.now()}-${i}`,
-            type: "entrance", name: streamName, ip, channel: 0,
-            mac: "—", status: "Offline", manufacturer: "Unknown", model: "Unknown",
-            rtsp_url: url, ws_url: null, stream_key: streamKey,
-            stream_status: "error", stream_profiles: [], stream_count: 0,
-            physical_camera_count: 1, source: "rtsp",
-            group_id: groupId,                      // ✅ from modal field
-          };
           if (existingIndex !== -1) {
+            entry.id = prev[existingIndex].id;
             const next = [...prev];
             next[existingIndex] = { ...next[existingIndex], ...entry };
             return next;
           }
           return [...prev, entry];
         });
+        addedEntries.push(entry);
       }
     }
 
     setEnrolling(false);
     setEnrollMsg("");
+
+    if (addedEntries.length > 0) {
+      setSuccessEnrollData({
+        title: addedEntries.length === 1 ? "Camera Added Successfully" : "Cameras Added Successfully",
+        devices: addedEntries
+      });
+    }
   };
 
   // ─── Render ───────────────────────────────────────────────────────────────
@@ -815,6 +841,85 @@ export default function AddDevicesPage({ onNavigate }) {
           onStreamProfiles={() => handleStreamProfiles(ctxMenu.deviceId)}
           onClose={() => setCtxMenu(null)}
         />
+      )}
+
+      {/* Enrolling loading indicator overlay */}
+      {enrolling && (
+        <div className="enrolling-overlay">
+          <div className="enrolling-card">
+            <div className="enrolling-spinner-container">
+              <div className="enrolling-spinner"></div>
+              <div className="enrolling-pulse"></div>
+            </div>
+            <h3 className="enrolling-title">Enrolling Device</h3>
+            <p className="enrolling-msg">{enrollMsg || "Please wait while we register the camera stream..."}</p>
+          </div>
+        </div>
+      )}
+
+      {/* Success Modal Popup */}
+      {successEnrollData && (
+        <div className="modal-overlay success-modal-overlay" onClick={() => setSuccessEnrollData(null)}>
+          <div className="modal-box success-modal-box" onClick={(e) => e.stopPropagation()}>
+            <div className="success-modal-header">
+              <div className="success-icon-container">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="success-checkmark">
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+              </div>
+              <h2 className="success-modal-title">{successEnrollData.title}</h2>
+              <p className="success-modal-desc">
+                {successEnrollData.devices.length === 1 
+                  ? "The camera has been successfully registered and added to the system."
+                  : `Successfully registered and added ${successEnrollData.devices.length} camera(s) to the system.`
+                }
+              </p>
+            </div>
+            <div className="success-modal-body">
+              <div className="success-devices-list">
+                {successEnrollData.devices.map((d, index) => (
+                  <div className="success-device-card" key={index}>
+                    <div className="success-device-header">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16" className="success-device-icon" style={{color: "var(--teal)"}}>
+                        <rect x="3" y="3" width="18" height="12" rx="2" />
+                        <path d="M21 10l4 3v-6l-4 3" />
+                      </svg>
+                      <span className="success-device-name">{d.name}</span>
+                    </div>
+                    <div className="success-device-details">
+                      <div className="success-detail-row">
+                        <span className="success-detail-label">IP Address</span>
+                        <span className="success-detail-val">{d.ip}</span>
+                      </div>
+                      <div className="success-detail-row">
+                        <span className="success-detail-label">Manufacturer</span>
+                        <span className="success-detail-val">{d.manufacturer}</span>
+                      </div>
+                      <div className="success-detail-row">
+                        <span className="success-detail-label">Model</span>
+                        <span className="success-detail-val">{d.model}</span>
+                      </div>
+                      <div className="success-detail-row">
+                        <span className="success-detail-label">Group</span>
+                        <span className="success-detail-val">
+                          {d.group_id === "default" || !d.group_id 
+                            ? "Default" 
+                            : groups.find(g => g.id === d.group_id)?.name || "Default"
+                          }
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="success-modal-footer">
+              <button className="modal-btn modal-btn--save success-modal-ok-btn" onClick={() => setSuccessEnrollData(null)}>
+                OK
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

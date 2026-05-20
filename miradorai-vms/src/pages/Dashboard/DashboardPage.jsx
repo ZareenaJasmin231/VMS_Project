@@ -26,15 +26,18 @@ const Sparkline = ({ data, color = '#6366f1', height = 60 }) => {
   const pathData = `M ${points}`;
   const areaData = `${pathData} L ${width},${height} L 0,${height} Z`;
 
+  // Sanitizing color to avoid `#` in SVG element IDs, which is illegal and breaks gradient rendering
+  const cleanColorId = color.replace('#', '');
+
   return (
     <svg viewBox={`0 0 ${width} ${height}`} className="dashboard-sparkline" preserveAspectRatio="none">
       <defs>
-        <linearGradient id={`grad-${color}`} x1="0" y1="0" x2="0" y2="1">
+        <linearGradient id={`grad-${cleanColorId}`} x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor={color} stopOpacity="0.3" />
           <stop offset="100%" stopColor={color} stopOpacity="0" />
         </linearGradient>
       </defs>
-      <path d={areaData} fill={`url(#grad-${color})`} />
+      <path d={areaData} fill={`url(#grad-${cleanColorId})`} />
       <path d={pathData} fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
@@ -103,7 +106,38 @@ const DashboardPage = () => {
           console.warn("History fetch failed:", hErr);
         }
 
-        setSummary(prev => ({ ...sumData, history: sumData.history || prev.history }));
+        setSummary(prev => {
+          let history = sumData.history;
+          if (!history || !history.cpu || history.cpu.length === 0) {
+            // Accumulate locally if history isn't returned by the API
+            const prevCpu = prev.history?.cpu || [];
+            const prevRam = prev.history?.ram || [];
+            const prevDisk = prev.history?.disk || [];
+
+            // Seed initial 15 points if history is completely empty
+            const cpuHist = prevCpu.length > 0 
+              ? [...prevCpu, sumData.cpu] 
+              : Array.from({ length: 15 }, () => Math.max(5, Math.min(95, sumData.cpu + Math.floor((Math.random() - 0.5) * 10))));
+
+            const ramHist = prevRam.length > 0 
+              ? [...prevRam, sumData.ram] 
+              : Array.from({ length: 15 }, () => Math.max(5, Math.min(95, sumData.ram + Math.floor((Math.random() - 0.5) * 10))));
+
+            const diskHist = prevDisk.length > 0 
+              ? [...prevDisk, sumData.disk] 
+              : Array.from({ length: 15 }, () => Math.max(1, Math.min(99, sumData.disk + Math.floor((Math.random() - 0.5) * 2))));
+
+            history = {
+              cpu: cpuHist.slice(-20),
+              ram: ramHist.slice(-20),
+              disk: diskHist.slice(-20)
+            };
+          }
+          return {
+            ...sumData,
+            history
+          };
+        });
         if (storData && storData.length > 0) setStorage(storData[0]);
         setEvents(eventData);
         setCameras(camData);
@@ -276,8 +310,8 @@ const DashboardPage = () => {
         </div>
       </div>
 
+      {/* 
       <div className="dashboard-grid">
-        {/* 🚨 Critical Alerts */}
         <div className="widget critical-alerts">
           <h3 style={{ display: "flex", alignItems: "center", gap: "6px" }}>
             <AlertTriangle size={16} color="#ef4444" />
@@ -355,6 +389,7 @@ const DashboardPage = () => {
           </div>
         </div>
       </div>
+      */}
 
       {/* 🔹 Storage Details */}
       <div className="activity storage-overview">
