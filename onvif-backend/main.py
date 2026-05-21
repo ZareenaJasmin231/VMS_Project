@@ -32,7 +32,7 @@ from designer_router import router as designer_router
 from monitoring.websocket_manager import manager
 
 
-from onvif_service import (
+from  onvif_service import (
     probe_camera,
     set_imaging_setting,
     ptz_go_to_preset,
@@ -40,8 +40,9 @@ from onvif_service import (
     ptz_go_home,
     trigger_relay,
     move_camera_ptz,
-    pull_camera_events,
+  
 )
+from bosch_adapter import pull_bosch_events
 import rtsp_recorder as recorder
 import encrypt_service
 import psutil
@@ -1164,11 +1165,17 @@ async def websocket_events(websocket: WebSocket):
             connected_clients.remove(websocket)
 
 async def broadcast_event(event):
+    dead = []
+
     for client in connected_clients:
         try:
             await client.send_json(event)
-        except Exception as e:
-            print("[WS ERROR]", e)
+        except Exception:
+            dead.append(client)
+
+    for d in dead:
+        if d in connected_clients:
+            connected_clients.remove(d)
 log_clients = []
 
 @app.websocket("/ws/logs")
@@ -1413,40 +1420,78 @@ _analytics_tasks: dict[str, asyncio.Task] = {}
 
 async def _analytics_poll_loop(ip: str, port: int, username: str, password: str):
     print(f"[ANALYTICS] ▶ Started polling for {ip}")
+
     consecutive_failures = 0
+
     while True:
         try:
             result = await asyncio.to_thread(
-                pull_camera_events, ip, port, username, password
+                pull_bosch_events,
+                ip,
+                port,
+                username,
+                password
             )
+
             if result["success"] and result["events"]:
+
                 for ev in result["events"]:
-                    doc = {
-                        "ip":          ip,
-                        "event_type":  ev["event_type"],
-                        "topic":       ev["topic"],
-                        "utc_time":    ev["utc_time"],
-                        "raw":         ev["raw"],
-                        "received_at": datetime.utcnow(),
+
+                    # -------------------------------------------------
+                    # Bosch → Standard Alert Format for Existing UI
+                    # -------------------------------------------------
+                    bosch_alert = {
+                        "ip": ip,
+                        "serial": ip.replace(".", "_"),
+
+                        # Same format used by Axis alerts
+                        "type":        ev.get("event_type", "Object Detection"),
+
+                        "scenario":    ev.get("scenario_name", "Detect Any Object"),
+
+                        
+
+                        "status": "Active",
+                        "source": "bosch",
+
+                        "topic": ev.get("topic", ""),
+                        "raw": ev.get("raw", {}),
+
+                        "time": datetime.now().isoformat(),
+                        "received_at": datetime.now().isoformat(),
                     }
+
+                    # Save in analytics history
                     if analytics_col is not None:
-                        analytics_col.insert_one(doc)
-                    print(f"[ANALYTICS] {ip} → {ev['event_type']}")
+                        analytics_col.insert_one(bosch_alert)
+
+                    # Save in main alerts collection
+                    if watch_collection is not None:
+                        watch_collection.insert_one(bosch_alert)
+
+                    # Send live websocket alert
+                    await broadcast_event(bosch_alert)
+
+                    print(f"[BOSCH UI ALERT] {ip} → {bosch_alert['type']}")
+
                 consecutive_failures = 0
+
             elif not result["success"]:
                 consecutive_failures += 1
+
                 if consecutive_failures >= 10:
                     print(f"[ANALYTICS] ✗ Giving up on {ip} after 10 failures")
                     break
+
         except asyncio.CancelledError:
             print(f"[ANALYTICS] ⏹ Stopped for {ip}")
             break
+
         except Exception as e:
             print(f"[ANALYTICS] ❌ {ip}: {e}")
             consecutive_failures += 1
+
         await asyncio.sleep(5)
-
-
 # ------------------------------------------------------------------
 # Startup / Shutdown
 # ------------------------------------------------------------------
@@ -2876,34 +2921,43 @@ async def get_alerts(limit: int = 50):
 
     try:
         mqtt_col = _db["mqtt_logs"]
-
         docs = list(
             mqtt_col.find({}, {"_id": 0})
-            # .sort("received_at", -1)
-            .sort("_id", -1)   # 🔥 FIX
-
+            .sort("_id", -1)
             .limit(limit)
         )
 
         formatted = []
-
         for d in docs:
-            msg  = d.get("message", {})
-            data = msg.get("data", {})
-
-            formatted.append({
-                "ip":        d.get("ip"),
-                "serial":    d.get("serial"),
-                "time":      data.get("triggerTime"),
-                "scenario":  data.get("scenario"),
-                "type":      data.get("scenarioType"),
-                "human":     data.get("human"),
-                "total":     data.get("total"),
-                "class":     data.get("classTypes"),
-                "object_id": data.get("objectId"),
-                "status":    "Active",
-                "received_at": d.get("received_at"),
-            })
+            # Bosch alerts are flat (written directly by _analytics_poll_loop)
+            if d.get("source") == "bosch":
+                formatted.append({
+                    "ip":          d.get("ip"),
+                    "serial":      d.get("serial"),
+                    "time":        d.get("time"),
+                    "scenario":    d.get("scenario"),   # "Motion Detection"
+                    "type":        d.get("type"),        # "Motion"
+                    "status":      d.get("status", "Active"),
+                    "received_at": d.get("received_at"),
+                    "topic":       d.get("topic", ""),
+                })
+            else:
+                # Original MQTT/Axis nested format
+                msg  = d.get("message", {})
+                data = msg.get("data", {})
+                formatted.append({
+                    "ip":        d.get("ip"),
+                    "serial":    d.get("serial"),
+                    "time":      data.get("triggerTime"),
+                    "scenario":  data.get("scenario"),
+                    "type":      data.get("scenarioType"),
+                    "human":     data.get("human"),
+                    "total":     data.get("total"),
+                    "class":     data.get("classTypes"),
+                    "object_id": data.get("objectId"),
+                    "status":    "Active",
+                    "received_at": d.get("received_at"),
+                })
 
         return {"alerts": formatted}
 
