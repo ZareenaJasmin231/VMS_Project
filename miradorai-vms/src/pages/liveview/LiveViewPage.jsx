@@ -475,8 +475,9 @@ function AlertsPanel({ onAlertCountUpdate }) {
 }
 
 // ── CameraCell ────────────────────────────────────────────────────
-function CameraCell({ device, onFullscreen, alertCount, onBadgeClick }) {
+function CameraCell({ device, onFullscreen, alertCount, onBadgeClick, isRecording }) {
   const showRec = localStorage.getItem("miradorai_show_rec_ind") !== "false";
+  const [isLive, setIsLive] = useState(false);
   return (
     <div
       className={`lv-cam ${alertCount > 0 ? "lv-cam--alert" : ""}`}
@@ -500,13 +501,10 @@ function CameraCell({ device, onFullscreen, alertCount, onBadgeClick }) {
       )}
 
       <div className="lv-cell__header">
-        <span className="lv-live-dot" />
+        {isLive && <span className="lv-live-dot" />}
         <span className="lv-cell__name">{device.name}</span>
-        {showRec && (
-          <span className="lv-rec-indicator">
-            <span className="lv-rec-dot" />
-            REC
-          </span>
+        {isLive && showRec && isRecording && (
+          <span className="lv-rec-dot" />
         )}
         <div className="lv-cell__actions">
           <span className="lv-cell__ip">{device.ip}</span>
@@ -526,7 +524,7 @@ function CameraCell({ device, onFullscreen, alertCount, onBadgeClick }) {
       <div className="lv-cam__player" style={{ position: "relative" }}>
         {device.ws_url ? (
           <>
-            <WebRTCPlayer key={device.ws_url} serverUrl={device.ws_url} cameraId={device.id} />
+            <WebRTCPlayer key={device.ws_url} serverUrl={device.ws_url} cameraId={device.id} onConnectChange={setIsLive} />
             <MaskOverlay ip={device.ip} />
           </>
         ) : (
@@ -563,12 +561,34 @@ export default function LiveViewPage() {
   const [layout,       setLayout]       = useState("2x2");
   const [selected,     setSelected]     = useState(null);
   const [fsDevice,     setFsDevice]     = useState(null);
+  const [fsLive,       setFsLive]       = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [alertCounts,  setAlertCounts]  = useState({});
   const [popupIp,      setPopupIp]      = useState(null);
   const [popupAlerts,  setPopupAlerts]  = useState([]);
+  const [activeRecorders, setActiveRecorders] = useState([]);
   const fsRef = useRef(null);
   const showRec = localStorage.getItem("miradorai_show_rec_ind") !== "false";
+
+  // Poll active recording status from backend
+  useEffect(() => {
+    const fetchRecordingStatus = async () => {
+      try {
+        const res = await fetch(`${API}/api/recordings/status`, {
+          headers: getAuthHeaders()
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setActiveRecorders(data.active_recorders || []);
+        }
+      } catch (e) {
+        console.error("[LiveView] Recording status fetch failed:", e);
+      }
+    };
+    fetchRecordingStatus();
+    const interval = setInterval(fetchRecordingStatus, 8000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Sync devices from localStorage
   useEffect(() => {
@@ -586,7 +606,10 @@ export default function LiveViewPage() {
         document.mozFullScreenElement
       );
       setIsFullscreen(active);
-      if (!active) setFsDevice(null);
+      if (!active) {
+        setFsDevice(null);
+        setFsLive(false);
+      }
     };
     document.addEventListener("fullscreenchange",       onChange);
     document.addEventListener("webkitfullscreenchange", onChange);
@@ -643,6 +666,7 @@ export default function LiveViewPage() {
   const openFullscreen = useCallback((device, e) => {
     e.stopPropagation();
     e.preventDefault();
+    setFsLive(false);
     setFsDevice(device);
   }, []);
 
@@ -655,6 +679,7 @@ export default function LiveViewPage() {
       exit.call(document).catch(() => {});
     } else {
       setFsDevice(null);
+      setFsLive(false);
       setIsFullscreen(false);
     }
   }, []);
@@ -731,13 +756,10 @@ export default function LiveViewPage() {
           <div ref={fsRef} className="lv-fullscreen-overlay" tabIndex={-1}>
             <div className="lv-fullscreen-overlay__bar">
               <div className="lv-fullscreen-overlay__info">
-                <span className="lv-live-dot" />
+                {fsLive && <span className="lv-live-dot" />}
                 <span className="lv-fullscreen-overlay__name">{fsDevice.name}</span>
-                {showRec && (
-                  <span className="lv-rec-indicator">
-                    <span className="lv-rec-dot" />
-                    REC
-                  </span>
+                {fsLive && showRec && (activeRecorders.includes(fsDevice?.stream_key) || activeRecorders.includes(fsDevice?.ome_stream)) && (
+                  <span className="lv-rec-dot" />
                 )}
                 <span className="lv-fullscreen-overlay__ip">{fsDevice.ip}</span>
               </div>
@@ -756,7 +778,7 @@ export default function LiveViewPage() {
             <div className="lv-fullscreen-overlay__player" style={{ position: "relative" }}>
               {fsDevice.ws_url ? (
                 <>
-                  <WebRTCPlayer key={`fs-${fsDevice.ws_url}`} serverUrl={fsDevice.ws_url} cameraId={fsDevice.id} />
+                  <WebRTCPlayer key={`fs-${fsDevice.ws_url}`} serverUrl={fsDevice.ws_url} cameraId={fsDevice.id} onConnectChange={setFsLive} />
                   <MaskOverlay ip={fsDevice.ip} />
                 </>
               ) : (
@@ -808,6 +830,7 @@ export default function LiveViewPage() {
                   onFullscreen={(e) => openFullscreen(activeCams[0], e)}
                   alertCount={alertCounts[activeCams[0]?.ip] || 0}
                   onBadgeClick={() => openAlertPopup(activeCams[0].ip)}
+                  isRecording={activeCams[0] && (activeRecorders.includes(activeCams[0].stream_key) || activeRecorders.includes(activeCams[0].ome_stream))}
                 />
               </div>
               <div className="lv-grid-1plus3__side">
@@ -823,6 +846,7 @@ export default function LiveViewPage() {
                           onFullscreen={(e) => openFullscreen(activeCams[i], e)}
                           alertCount={alertCounts[activeCams[i]?.ip] || 0}
                           onBadgeClick={() => openAlertPopup(activeCams[i].ip)}
+                          isRecording={activeCams[i] && (activeRecorders.includes(activeCams[i].stream_key) || activeRecorders.includes(activeCams[i].ome_stream))}
                         />
                       : <EmptyCell />
                     }
@@ -845,6 +869,7 @@ export default function LiveViewPage() {
                         onFullscreen={(e) => openFullscreen(activeCams[i], e)}
                         alertCount={alertCounts[activeCams[i]?.ip] || 0}
                         onBadgeClick={() => openAlertPopup(activeCams[i].ip)}
+                        isRecording={activeCams[i] && (activeRecorders.includes(activeCams[i].stream_key) || activeRecorders.includes(activeCams[i].ome_stream))}
                       />
                     : <EmptyCell index={i} />
                   }

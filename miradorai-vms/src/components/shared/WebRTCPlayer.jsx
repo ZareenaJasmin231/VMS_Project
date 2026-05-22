@@ -352,7 +352,7 @@
 import { useEffect, useRef, useState, memo } from 'react';
 import { useImageConfig } from '../../hooks/useImageConfig';
 
-function WebRTCPlayer({ serverUrl, cameraId }) {
+function WebRTCPlayer({ serverUrl, cameraId, onConnectChange }) {
   const videoRef    = useRef(null);
   const pcRef       = useRef(null)
   const wsRef       = useRef(null)
@@ -362,6 +362,10 @@ function WebRTCPlayer({ serverUrl, cameraId }) {
 
   const [connected, setConnected] = useState(false)
   const [error,     setError]     = useState('')
+
+  useEffect(() => {
+    onConnectChange?.(connected);
+  }, [connected, onConnectChange]);
 
   const { cssFilter, cssTransform } = useImageConfig(cameraId);
 
@@ -430,9 +434,11 @@ function WebRTCPlayer({ serverUrl, cameraId }) {
             command:       'candidate',
             id:            peerIdRef.current,
             peer_id:       peerIdRef.current,
-            candidate:     e.candidate.candidate,
-            sdpMid:        e.candidate.sdpMid,
-            sdpMLineIndex: e.candidate.sdpMLineIndex,
+            candidate: {
+              candidate:     e.candidate.candidate,
+              sdpMid:        e.candidate.sdpMid,
+              sdpMLineIndex: e.candidate.sdpMLineIndex,
+            }
           }))
         }
       }
@@ -579,16 +585,6 @@ function WebRTCPlayer({ serverUrl, cameraId }) {
         <div style={centreStyle}>
           <span style={{ color: '#ef4444', fontSize: 20 }}>⚠</span>
           <span style={{ color: '#94a3b8', fontSize: 11 }}>{error}</span>
-        </div>
-      )}
-      {connected && (
-        <div style={{
-          position: 'absolute', top: 8, left: 8,
-          background: 'rgba(0,0,0,.6)',
-          padding: '2px 7px', borderRadius: 3,
-          fontSize: 10, color: '#22c55e', letterSpacing: 1,
-        }}>
-          ● LIVE
         </div>
       )}
     </div>

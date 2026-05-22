@@ -232,7 +232,7 @@ export default function StreamURLModal({
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <circle cx="12" cy="12" r="10"/><path d="M12 8h.01M12 12v4"/>
               </svg>
-              Enter one or more stream URLs (RTSP, RTSPS, HTTP, HTTPS). Press Enter or click Add after each URL.
+              Enter one or more stream URLs.
             </div>
 
             {/* Camera Name */}

@@ -47,6 +47,7 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
   const [groupChecked, setGroupChecked] = useState([]);
   const [showMoveModal, setShowMoveModal] = useState(false);
   const [confirmAction, setConfirmAction] = useState(null);
+  const [confirmLoading, setConfirmLoading] = useState(false);
   const [editingGroupId, setEditingGroupId] = useState(null);
   const [editingGroupName, setEditingGroupName] = useState("");
   const navigate = useNavigate();
@@ -123,7 +124,24 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
     );
   };
 
-  const handleDeleteGroupCams = () => {
+  const handleDeleteGroupCams = async () => {
+    const camsToRemove = cameras.filter(c => groupChecked.includes(c.id));
+    for (const cam of camsToRemove) {
+      try {
+        const ip  = encodeURIComponent(cam.ip);
+        const token = localStorage.getItem("miradorai_token");
+        const res = await fetch(`${API_BASE}/api/cameras/by-ip/${ip}/delete`, { 
+          method: "DELETE",
+          headers: { "Authorization": "Bearer " + (token || "") }
+        });
+        const data = res.ok ? await res.json() : null;
+        console.log("✅ Deleted from DB:", data);
+        logAction("Camera deleted", "camera", { ip: cam.ip });
+      } catch (err) {
+        console.error("❌ Delete failed:", err);
+      }
+    }
+
     const updated = cameras.filter(c => !groupChecked.includes(c.id));
     setCameras(updated);
     saveDevices(updated);
@@ -134,6 +152,19 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
         cameras: selectedGroup.cameras.filter(c => !groupChecked.includes(c.id)),
       };
       setSelectedGroup(updatedGroup.cameras.length > 0 ? updatedGroup : null);
+    }
+  };
+
+  const handleExecuteConfirm = async () => {
+    if (!confirmAction) return;
+    setConfirmLoading(true);
+    try {
+      await confirmAction.onConfirm();
+    } catch (err) {
+      console.error("Error executing confirm action:", err);
+    } finally {
+      setConfirmLoading(false);
+      setConfirmAction(null);
     }
   };
 
@@ -542,10 +573,7 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
                       setConfirmAction({
                         title: "Delete Cameras",
                         message: `Are you sure you want to delete ${groupChecked.length} selected camera(s)?`,
-                        onConfirm: () => {
-                          handleDeleteGroupCams();
-                          setConfirmAction(null);
-                        }
+                        onConfirm: handleDeleteGroupCams
                       });
                     }}
                   >
@@ -580,10 +608,7 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
             onClick={() => setConfirmAction({
               title: "Remove Groups",
               message: `Are you sure you want to remove the ${checked.length} selected group(s)? All cameras within them will also be deleted.`,
-              onConfirm: () => {
-                handleRemoveGroups();
-                setConfirmAction(null);
-              }
+              onConfirm: handleRemoveGroups
             })}
           >
             {checked.length > 1 ? `Remove Groups (${checked.length})` : "Remove Group"}
@@ -773,23 +798,48 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
 
       {/* ── Confirmation Modal ── */}
       {confirmAction && (
-        <div className="ec-overlay" onClick={() => setConfirmAction(null)}>
+        <div className="ec-overlay" onClick={confirmLoading ? null : () => setConfirmAction(null)}>
           <div className="ec-modal" onClick={(e) => e.stopPropagation()} style={{ width: 340 }}>
             <div className="ec-titlebar">
               <span className="ec-title">{confirmAction.title}</span>
               <div className="ec-titlebar-actions">
-                <button className="ec-title-btn" onClick={() => setConfirmAction(null)} title="Close">✕</button>
+                {!confirmLoading && (
+                  <button className="ec-title-btn" onClick={() => setConfirmAction(null)} title="Close">✕</button>
+                )}
               </div>
             </div>
             <div className="ec-body">
-              <p className="ec-auth-desc" style={{ marginBottom: 0 }}>
-                {confirmAction.message}
-              </p>
+              {confirmLoading ? (
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "16px", padding: "20px 0" }}>
+                  <div className="deleting-spinner"></div>
+                  <p style={{ margin: 0, fontSize: "14px", fontWeight: "600", color: "var(--text-secondary)" }}>
+                    Deleting...
+                  </p>
+                </div>
+              ) : (
+                <p className="ec-auth-desc" style={{ marginBottom: 0 }}>
+                  {confirmAction.message}
+                </p>
+              )}
             </div>
             <div className="ec-footer">
-              <div className="ec-footer-right" style={{ width: "100%", justifyContent: "flex-end" }}>
-                <button className="ec-btn ec-btn--cancel" onClick={() => setConfirmAction(null)}>Cancel</button>
-                <button className="ec-btn ec-btn--danger" onClick={confirmAction.onConfirm}>Confirm</button>
+              <div className="ec-footer-right" style={{ width: "100%", justifyContent: "flex-end", gap: "10px" }}>
+                <button 
+                  className="ec-btn ec-btn--cancel" 
+                  onClick={() => setConfirmAction(null)}
+                  disabled={confirmLoading}
+                  style={{ opacity: confirmLoading ? 0.5 : 1 }}
+                >
+                  Cancel
+                </button>
+                <button 
+                  className="ec-btn ec-btn--danger" 
+                  onClick={handleExecuteConfirm}
+                  disabled={confirmLoading}
+                  style={{ opacity: confirmLoading ? 0.7 : 1 }}
+                >
+                  {confirmLoading ? "Deleting..." : "Confirm"}
+                </button>
               </div>
             </div>
           </div>

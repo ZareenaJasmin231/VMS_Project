@@ -2,6 +2,13 @@ import React, { useEffect, useRef, useState, useCallback } from "react";
 import "./VirtualMapView.css";
 import WebRTCPlayer from "../../components/shared/WebRTCPlayer";
 
+const API = import.meta.env.VITE_API_URL || "http://192.168.126.8:8000";
+
+function getAuthHeaders() {
+  const token = localStorage.getItem("miradorai_token") || localStorage.getItem("token") || "";
+  return token ? { "Authorization": "Bearer " + token } : {};
+}
+
 /**
  * VirtualMapView
  * ─────────────────────────────────────────────────────────────────
@@ -40,6 +47,26 @@ export default function VirtualMapView({
 }) {
   const [, forceUpdate] = useState(0);
   const rafRef = useRef(null);
+  const [activeRecorders, setActiveRecorders] = useState([]);
+
+  useEffect(() => {
+    const fetchRecordingStatus = async () => {
+      try {
+        const res = await fetch(`${API}/api/recordings/status`, {
+          headers: getAuthHeaders()
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setActiveRecorders(data.active_recorders || []);
+        }
+      } catch (e) {
+        console.error("[VirtualMapView] Recording status fetch failed:", e);
+      }
+    };
+    fetchRecordingStatus();
+    const interval = setInterval(fetchRecordingStatus, 8000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Re-position thumbnails whenever map pans/zooms
   // Parent calls this via the ref returned below
@@ -81,6 +108,7 @@ export default function VirtualMapView({
         const isExpanded = expandedCamId === cam.id;
         const isOnline   = cam.status === "online";
 
+        const isRecording = activeRecorders.includes(cam.stream_key) || activeRecorders.includes(cam.ome_stream) || activeRecorders.includes(cam.id);
         return (
           <CamThumbnail
             key={cam.id}
@@ -91,6 +119,7 @@ export default function VirtualMapView({
             sy={sy}
             isExpanded={isExpanded}
             isOnline={isOnline}
+            isRecording={isRecording}
             onExpand={() => onExpand(cam.id)}
             onClose={onClose}
           />
@@ -115,9 +144,10 @@ export default function VirtualMapView({
 }
 
 // ── Single camera thumbnail pinned to map position ────────────────
-function CamThumbnail({ cam, marker, index, sx, sy, isExpanded, isOnline, onExpand, onClose }) {
+function CamThumbnail({ cam, marker, index, sx, sy, isExpanded, isOnline, isRecording, onExpand, onClose }) {
   const THUMB_W = 160;
   const THUMB_H = 90;
+  const [thumbLive, setThumbLive] = useState(false);
 
   // Position thumbnail so its bottom-centre aligns with the camera dot
   const left = sx - THUMB_W / 2;
@@ -142,6 +172,7 @@ function CamThumbnail({ cam, marker, index, sx, sy, isExpanded, isOnline, onExpa
             cameraId={cam.id}
             muted
             autoPlay
+            onConnectChange={setThumbLive}
           />
         </div>
       ) : (
@@ -156,13 +187,10 @@ function CamThumbnail({ cam, marker, index, sx, sy, isExpanded, isOnline, onExpa
 
       {/* Header bar */}
       <div className="vt-thumb__bar">
-        <span className={`vt-thumb__dot ${isOnline ? "vt-thumb__dot--online" : "vt-thumb__dot--offline"}`} />
+        <span className={`vt-thumb__dot ${thumbLive ? "vt-thumb__dot--online" : "vt-thumb__dot--offline"}`} />
         <span className="vt-thumb__name">{cam.name}</span>
-        {isOnline && localStorage.getItem("miradorai_show_rec_ind") !== "false" && (
-          <span className="vt-rec-badge">
-            <span className="vt-rec-dot" />
-            REC
-          </span>
+        {thumbLive && localStorage.getItem("miradorai_show_rec_ind") !== "false" && isRecording && (
+          <span className="vt-rec-dot" />
         )}
         <span className="vt-thumb__num">#{index + 1}</span>
         <button

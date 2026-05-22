@@ -1,142 +1,368 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import SearchBar from "../../components/shared/SearchBar";
 import "./Schedules.css";
 
+// ── Toast Notification ────────────────────────────────────────────
+const TOAST_DURATION = 3500;
+
+function Toast({ message, subtitle, type = "success", onClose }) {
+  const [exiting, setExiting] = useState(false);
+
+  const dismiss = useCallback(() => {
+    setExiting(true);
+    setTimeout(onClose, 350);
+  }, [onClose]);
+
+  useEffect(() => {
+    const t = setTimeout(dismiss, TOAST_DURATION);
+    return () => clearTimeout(t);
+  }, [dismiss]);
+
+  const configs = {
+    success: {
+      label: "Success",
+      gradient: "linear-gradient(135deg, #00c48c 0%, #00a878 100%)",
+      glow: "rgba(0, 196, 140, 0.35)",
+      bar: "#00e6b8",
+      icon: (
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+          <circle cx="12" cy="12" r="12" fill="rgba(0,196,140,0.2)" />
+          <circle cx="12" cy="12" r="11" stroke="#00d4aa" strokeWidth="1.5" fill="none" />
+          <polyline points="7 12.5 10.5 16 17 9" stroke="#00d4aa" strokeWidth="2.2"
+            strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      ),
+    },
+    error: {
+      label: "Error",
+      gradient: "linear-gradient(135deg, #ff5555 0%, #cc3333 100%)",
+      glow: "rgba(255, 85, 85, 0.35)",
+      bar: "#ff6b6b",
+      icon: (
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+          <circle cx="12" cy="12" r="12" fill="rgba(255,85,85,0.2)" />
+          <circle cx="12" cy="12" r="11" stroke="#ff5555" strokeWidth="1.5" fill="none" />
+          <line x1="8" y1="8" x2="16" y2="16" stroke="#ff5555" strokeWidth="2.2" strokeLinecap="round" />
+          <line x1="16" y1="8" x2="8" y2="16" stroke="#ff5555" strokeWidth="2.2" strokeLinecap="round" />
+        </svg>
+      ),
+    },
+  };
+
+  const cfg = configs[type] || configs.success;
+
+  return (
+    <div className={`toast-v2${exiting ? " toast-v2--exit" : ""}`}>
+      {/* Left accent bar */}
+      <div className="toast-v2__accent" style={{ background: cfg.gradient }} />
+
+      {/* Icon */}
+      <div className="toast-v2__icon">{cfg.icon}</div>
+
+      {/* Text */}
+      <div className="toast-v2__body">
+        <span className="toast-v2__label">{cfg.label}</span>
+        <span className="toast-v2__msg">{message}</span>
+        {subtitle && <span className="toast-v2__sub">{subtitle}</span>}
+      </div>
+
+      {/* Close */}
+      <button className="toast-v2__close" onClick={dismiss} title="Dismiss">
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+          <line x1="1" y1="1" x2="11" y2="11" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+          <line x1="11" y1="1" x2="1" y2="11" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+        </svg>
+      </button>
+
+      {/* Progress bar */}
+      <div
+        className="toast-v2__progress"
+        style={{ "--toast-duration": `${TOAST_DURATION}ms`, "--toast-bar-color": cfg.bar }}
+      />
+    </div>
+  );
+}
+
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 const TOTAL_SLOTS = 24 * 12; // 5-min intervals
-const HOUR_LABELS = ["00:00", "03:00", "06:00", "09:00", "12:00", "15:00", "18:00", "21:00", "00:00"];
-const HOUR_LABEL_POSITIONS = [0, 3, 6, 9, 12, 15, 18, 21, 24];
 
 const API_HOST = window.location.hostname;
 const BACKEND = `http://${API_HOST}:8000`;
 
+// ── Helpers ───────────────────────────────────────────────────────
 function slotToTime(slot) {
   const h = Math.floor(slot / 12);
   const m = (slot % 12) * 5;
   return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`;
 }
 
-function getRanges(mask) {
-  const ranges = [];
-  let start = null;
-  if (!mask) return "Always Off";
-  for (let i = 0; i < mask.length; i++) {
-    if (mask[i] && start === null) start = i;
-    if (!mask[i] && start !== null) {
-      ranges.push(`${slotToTime(start)} - ${slotToTime(i)}`);
-      start = null;
-    }
-  }
-  if (start !== null) ranges.push(`${slotToTime(start)} - 24:00`);
-  return ranges.length ? ranges.join(", ") : "Always Off";
+function timeToMinutes(t) {
+  if (!t) return 0;
+  const [h, m] = t.split(":").map(Number);
+  return h * 60 + (m || 0);
 }
 
-function findContiguousRange(mask, slot) {
-  if (!mask || !mask[slot]) return null;
-  let start = slot;
-  while (start > 0 && mask[start - 1]) start--;
-  let end = slot;
-  while (end < mask.length - 1 && mask[end + 1]) end++;
-  return `${slotToTime(start)} - ${slotToTime(end + 1 === 288 ? 288 : end + 1)}`;
+
+
+/** Convert a day's boolean mask to { from, to, enabled } */
+function maskToDayRange(mask) {
+  if (!mask) return { from: "08:00", to: "18:00", enabled: false };
+  let start = null;
+  let end = null;
+  for (let i = 0; i < mask.length; i++) {
+    if (mask[i] && start === null) start = i;
+    if (!mask[i] && start !== null && end === null) { end = i; break; }
+  }
+  if (start === null) return { from: "08:00", to: "18:00", enabled: false };
+  const endSlot = end !== null ? end : mask.length;
+  return { from: slotToTime(start), to: slotToTime(endSlot), enabled: true };
+}
+
+/** Convert { from, to } back to boolean mask */
+function dayRangeToMask(from, to) {
+  const mask = new Array(TOTAL_SLOTS).fill(false);
+  const fromMins = timeToMinutes(from);
+  const toMins   = timeToMinutes(to);
+  if (toMins <= fromMins) return mask;
+  for (let i = 0; i < TOTAL_SLOTS; i++) {
+    const slotMins = i * 5;
+    if (slotMins >= fromMins && slotMins < toMins) mask[i] = true;
+  }
+  return mask;
+}
+
+function getRangeLabel(mask) {
+  const { from, to, enabled } = maskToDayRange(mask);
+  return enabled ? `${from} – ${to}` : "Always Off";
 }
 
 function makeEmptyWeek() {
   return Object.fromEntries(DAYS.map((d) => [d, new Array(TOTAL_SLOTS).fill(false)]));
 }
 
-const INITIAL_SCHEDULES = [
-  { id: 1, name: "Office Hours", week: makeEmptyWeek(), exceptions: [] },
-  {
-    id: 2,
-    name: "Weekends",
-    week: (() => {
-      const w = makeEmptyWeek();
-      for (let s = 12; s < 84; s++) w["Monday"][s] = true;
-      return w;
-    })(),
-    exceptions: [],
-  },
-];
+// ── Time Input (manual HH:MM entry with fixed colon) ───────────────────
+function TimeInput({ value, onChange, label, disabled = false }) {
+  const [hRaw, setHRaw] = useState(value ? value.split(":")[0] : "00");
+  const [mRaw, setMRaw] = useState(value ? value.split(":")[1] : "00");
+  const hRef = useRef(null);
+  const mRef = useRef(null);
 
-// ── Week Grid ────────────────────────────────────────────────────
-function WeekGrid({ week, onChange }) {
-  const dragging  = useRef(false);
-  const dragValue = useRef(true);
+  useEffect(() => {
+    if (value) {
+      setHRaw(value.split(":")[0]);
+      setMRaw(value.split(":")[1]);
+    }
+  }, [value]);
 
-  const toggle = useCallback(
-    (day, slot, val) => {
-      const next = { ...week, [day]: [...week[day]] };
-      next[day][slot] = val;
-      onChange(next);
-    },
-    [week, onChange]
-  );
+  const commit = (e) => {
+    // Prevent commit if we are just moving focus between hours and minutes
+    if (e && (e.relatedTarget === hRef.current || e.relatedTarget === mRef.current)) {
+      return;
+    }
 
-  const [hoverInfo, setHoverInfo] = useState(null);
+    let h = parseInt(hRaw, 10);
+    let m = parseInt(mRaw, 10);
 
-  const handleMouseDown  = (day, slot) => { 
-    dragging.current = true; 
-    dragValue.current = !week[day][slot]; 
-    toggle(day, slot, dragValue.current); 
+    if (isNaN(h)) h = value ? parseInt(value.split(":")[0], 10) : 0;
+    if (isNaN(m)) m = value ? parseInt(value.split(":")[1], 10) : 0;
+
+    if (h > 24) h = 24;
+    if (m > 59) m = 59;
+
+    const formatted = `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`;
+    setHRaw(formatted.split(":")[0]);
+    setMRaw(formatted.split(":")[1]);
+    if (formatted !== value) {
+      onChange(formatted);
+    }
   };
-  const handleMouseEnter = (day, slot) => { 
-    setHoverInfo({ day, slot });
-    if (dragging.current) toggle(day, slot, dragValue.current); 
+
+  const handleHChange = (e) => {
+    const val = e.target.value.replace(/\D/g, "");
+    setHRaw(val);
+    if (val.length === 2) {
+      mRef.current?.focus();
+    }
   };
-  const handleMouseUp    = () => { dragging.current = false; };
-  const handleMouseLeave = () => { setHoverInfo(null); dragging.current = false; };
+
+  const handleMChange = (e) => {
+    setMRaw(e.target.value.replace(/\D/g, ""));
+  };
+
+  const handleKeyDown = (e, field) => {
+    if (e.key === "Enter") {
+      e.target.blur();
+    }
+    if (e.key === "Backspace" && field === "m" && mRaw === "") {
+      hRef.current?.focus();
+    }
+  };
 
   return (
-    <div className="week-grid" onMouseUp={handleMouseUp} onMouseLeave={handleMouseLeave}>
-      {hoverInfo && (
-        <div className="wg-tooltip">
-          {hoverInfo.day}: {findContiguousRange(week[hoverInfo.day], hoverInfo.slot) || slotToTime(hoverInfo.slot)}
-        </div>
-      )}
-      {/* Hour label row */}
-      <div className="wg-label-row">
-        <div className="wg-day-label" />
-        <div className="wg-hours-track">
-          {HOUR_LABEL_POSITIONS.map((h, i) => (
-            <span key={i} className="wg-hour-label" style={{ left: `${(h / 24) * 100}%` }}>
-              {HOUR_LABELS[i]}
-            </span>
-          ))}
-        </div>
+    <div className={`time-input-wrap${disabled ? " time-input-wrap--disabled" : ""}`} title={label}>
+      <input
+        ref={hRef}
+        className="ti-part"
+        type="text"
+        value={hRaw}
+        placeholder="HH"
+        disabled={disabled}
+        onChange={handleHChange}
+        onBlur={commit}
+        onKeyDown={(e) => handleKeyDown(e, "h")}
+        maxLength={2}
+      />
+      <span className="ti-sep">:</span>
+      <input
+        ref={mRef}
+        className="ti-part"
+        type="text"
+        value={mRaw}
+        placeholder="MM"
+        disabled={disabled}
+        onChange={handleMChange}
+        onBlur={commit}
+        onKeyDown={(e) => handleKeyDown(e, "m")}
+        maxLength={2}
+      />
+    </div>
+  );
+}
+
+// ── Day Bar (visual bar on the right) ────────────────────────────
+function DayBar({ from, to, enabled }) {
+  const fromPct = (timeToMinutes(from) / (24 * 60)) * 100;
+  const toPct   = (timeToMinutes(to)   / (24 * 60)) * 100;
+  const width   = Math.max(0, toPct - fromPct);
+
+  const HOUR_TICKS = [0, 3, 6, 9, 12, 15, 18, 21, 24];
+
+  return (
+    <div className="day-bar-wrap">
+      <div className="day-bar-track">
+        {HOUR_TICKS.map((h) => (
+          <div
+            key={h}
+            className={`day-bar-tick${h % 6 === 0 ? " major" : ""}`}
+            style={{ left: `${(h / 24) * 100}%` }}
+          />
+        ))}
+        {enabled && width > 0 && (
+          <div
+            className="day-bar-fill"
+            style={{ left: `${fromPct}%`, width: `${width}%` }}
+            title={`${from} – ${to}`}
+          />
+        )}
+      </div>
+      <div className="day-bar-labels">
+        {HOUR_TICKS.map((h) => (
+          <span
+            key={h}
+            className="day-bar-label"
+            style={{ left: `${(h / 24) * 100}%` }}
+          >
+            {h.toString().padStart(2, "0")}:00
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Week Grid ─────────────────────────────────────────────────────
+function WeekGrid({ week, onChange }) {
+  const getDayRanges = useCallback(() =>
+    Object.fromEntries(DAYS.map((d) => [d, maskToDayRange(week[d])])),
+    [week]
+  );
+
+  const [ranges, setRanges] = useState(getDayRanges);
+
+  useEffect(() => { setRanges(getDayRanges()); }, [getDayRanges]);
+
+  const updateDay = (day, field, value) => {
+    setRanges((prev) => {
+      const updated = { ...prev, [day]: { ...prev[day], [field]: value } };
+      const { from, to, enabled } = updated[day];
+      const newWeek = { ...week, [day]: enabled ? dayRangeToMask(from, to) : new Array(TOTAL_SLOTS).fill(false) };
+      onChange(newWeek);
+      return updated;
+    });
+  };
+
+  const toggleEnabled = (day) => {
+    setRanges((prev) => {
+      const wasEnabled = prev[day].enabled;
+      const existingFrom = prev[day].from && prev[day].from !== "00:00" ? prev[day].from : "08:00";
+      const existingTo   = prev[day].to   && prev[day].to   !== "00:00" ? prev[day].to   : "18:00";
+      const updated = {
+        ...prev,
+        [day]: { ...prev[day], enabled: !wasEnabled, from: existingFrom, to: existingTo },
+      };
+      const { from, to, enabled } = updated[day];
+      const newWeek = { ...week, [day]: enabled ? dayRangeToMask(from, to) : new Array(TOTAL_SLOTS).fill(false) };
+      onChange(newWeek);
+      return updated;
+    });
+  };
+
+  return (
+    <div className="week-grid-v2">
+      {/* Header */}
+      <div className="wgv2-header">
+        <div className="wgv2-col-day">Day</div>
+        <div className="wgv2-col-from">From</div>
+        <div className="wgv2-col-to">To</div>
+        <div className="wgv2-col-bar">Timeline (24 h)</div>
       </div>
 
-      {/* Day rows */}
-      {DAYS.map((day) => (
-        <div className="wg-row-wrap" key={day}>
-          <div className="wg-row">
-            <div className="wg-day-label">{day}</div>
-            <div className="wg-track">
-              {week[day].map((on, s) => (
-                <div
-                  key={s}
-                  className={`wg-slot${on ? " on" : ""}`}
-                  onMouseDown={() => handleMouseDown(day, s)}
-                  onMouseEnter={() => handleMouseEnter(day, s)}
+      {DAYS.map((day) => {
+        const r = ranges[day] || { from: "08:00", to: "18:00", enabled: false };
+        return (
+          <div key={day} className={`wgv2-row${r.enabled ? " wgv2-row--active" : ""}`}>
+
+            {/* Day checkbox + label */}
+            <div className="wgv2-col-day">
+              <label className="wgv2-day-toggle">
+                <input
+                  type="checkbox"
+                  className="wgv2-checkbox"
+                  checked={r.enabled}
+                  onChange={() => toggleEnabled(day)}
                 />
-              ))}
-              {Array.from({ length: 25 }, (_, h) => (
-                <div
-                  key={h}
-                  className={`wg-tick${h % 3 === 0 ? " major" : ""}`}
-                  style={{ left: `${(h / 24) * 100}%` }}
-                />
-              ))}
+                <span className="wgv2-checkmark" />
+                <span className="wgv2-day-name">{day}</span>
+              </label>
+            </div>
+
+            {/* From input — always visible, disabled when day is off */}
+            <div className="wgv2-col-from">
+              <TimeInput
+                label="From"
+                value={r.from}
+                disabled={!r.enabled}
+                onChange={(v) => updateDay(day, "from", v)}
+              />
+            </div>
+
+            {/* To input — always visible, disabled when day is off */}
+            <div className="wgv2-col-to">
+              <TimeInput
+                label="To"
+                value={r.to}
+                disabled={!r.enabled}
+                onChange={(v) => updateDay(day, "to", v)}
+              />
+            </div>
+
+            {/* Visual bar */}
+            <div className="wgv2-col-bar">
+              <DayBar from={r.from} to={r.to} enabled={r.enabled} />
             </div>
           </div>
-          <div className="wg-range-summary">
-            <strong>{day} Ranges:</strong> {getRanges(week[day])}
-          </div>
-        </div>
-      ))}
-
-      <p className="wg-hint">
-        Hold Ctrl to select 5 minute intervals. To copy and paste day schedules, use right click.
-      </p>
+        );
+      })}
     </div>
   );
 }
@@ -157,12 +383,13 @@ function ExceptionCalendar({ exceptions, onChange }) {
   const daysInMonth = getDaysInMonth(viewYear, viewMonth);
   const firstDay    = getFirstDayOfMonth(viewYear, viewMonth);
 
-  const isException = (d) => exceptions.some((e) => e.getFullYear() === viewYear && e.getMonth() === viewMonth && e.getDate() === d);
+  const toDate = (e) => (e instanceof Date ? e : new Date(e));
+  const isException = (d) => exceptions.some((e) => { const dt = toDate(e); return dt.getFullYear() === viewYear && dt.getMonth() === viewMonth && dt.getDate() === d; });
   const isToday     = (d) => today.getFullYear() === viewYear && today.getMonth() === viewMonth && today.getDate() === d;
 
   const toggleDay = (d) => {
     const date = new Date(viewYear, viewMonth, d);
-    if (isException(d)) onChange(exceptions.filter((e) => !(e.getFullYear() === viewYear && e.getMonth() === viewMonth && e.getDate() === d)));
+    if (isException(d)) onChange(exceptions.filter((e) => { const dt = toDate(e); return !(dt.getFullYear() === viewYear && dt.getMonth() === viewMonth && dt.getDate() === d); }));
     else onChange([...exceptions, date]);
   };
 
@@ -199,15 +426,18 @@ export default function Schedules() {
   const [filter,         setFilter]         = useState("");
   const [showExceptions, setShowExceptions] = useState(false);
   const [loading,        setLoading]        = useState(false);
+  const [toast,          setToast]          = useState(null);
 
-  useEffect(() => {
-    fetchSchedules();
+  const showToast = useCallback((message, subtitle = "", type = "success") => {
+    setToast({ message, subtitle, type, key: Date.now() });
   }, []);
+
+  useEffect(() => { fetchSchedules(); }, []);
 
   const fetchSchedules = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${BACKEND}/api/storage/schedules`);
+      const res  = await fetch(`${BACKEND}/api/storage/schedules`);
       const data = await res.json();
       setSchedules(data);
     } catch (err) { console.error(err); }
@@ -225,11 +455,17 @@ export default function Schedules() {
 
   const remove = async () => {
     if (!selectedId) return;
+    const target = schedules.find((s) => s.id === selectedId);
     try {
       await fetch(`${BACKEND}/api/storage/schedules/${selectedId}`, { method: "DELETE" });
+    } catch (err) { console.error(err); }
+    finally {
       setSchedules((prev) => prev.filter((s) => s.id !== selectedId));
       setSelectedId(null);
-    } catch (err) { console.error(err); }
+      if (target) {
+        showToast("Schedule Removed", `"${target.name}" was successfully deleted.`);
+      }
+    }
   };
 
   const updateSelected = (patch) =>
@@ -242,16 +478,23 @@ export default function Schedules() {
           <h1 className="page-title">Schedules</h1>
           <p className="page-desc">Define weekly schedules and exceptions for recording and event triggers.</p>
         </div>
-        <SearchBar
-          value={filter}
-          onChange={setFilter}
-          placeholder="Filter schedules..."
-        />
+        <SearchBar value={filter} onChange={setFilter} placeholder="Filter schedules..." />
       </div>
+
+      {/* In-UI Toast */}
+      {toast && (
+        <Toast
+          key={toast.key}
+          message={toast.message}
+          subtitle={toast.subtitle}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
+      )}
 
       <div className="app-content">
         {/* Schedule list table */}
-        <div className="sch-table-wrap card">
+        <div className="sch-table-wrap">
           <table className="m-table">
             <thead>
               <tr>
@@ -264,12 +507,12 @@ export default function Schedules() {
                 <tr
                   key={s.id}
                   className={`m-table__row ${selectedId === s.id ? "m-table__row--selected" : ""}`}
-                  onClick={() => { setSelectedId(s.id); setShowExceptions(false); }}
+                  onClick={() => setSelectedId(s.id)}
                 >
                   <td className="m-table__primary">{s.name}</td>
                   <td>
                     <span className={`m-badge ${s.status === "active" ? "m-badge--teal" : "m-badge--purple"}`}>
-                      {s.status || "Active"}
+                      {s.status === "active" ? "Active" : "Inactive"}
                     </span>
                   </td>
                 </tr>
@@ -285,47 +528,24 @@ export default function Schedules() {
 
         {selected && (
           <div className="sch-detail card">
-            <div className="sch-tabs">
-              <button className={`sch-tab${!showExceptions ? " active" : ""}`} onClick={() => setShowExceptions(false)}>
-                Week schedule
-              </button>
-              <button className={`sch-tab${showExceptions ? " active" : ""}`} onClick={() => setShowExceptions(true)}>
-                Schedule exceptions
-              </button>
-            </div>
-
-            <div className="sch-detail-body">
-              {!showExceptions ? (
-                <>
-                  <div className="sch-name-row">
-                    <label>Name:</label>
-                    <input
-                      className="ec-input"
-                      value={selected.name}
-                      onChange={(e) => updateSelected({ name: e.target.value })}
-                    />
-                  </div>
-                  <h3 className="week-title">Week schedule</h3>
-                  <WeekGrid week={selected.week} onChange={(week) => updateSelected({ week })} />
-                </>
-              ) : (
-                <div className="sch-exceptions">
-                  <div className="exc-header">
-                    <h3 className="exc-title">Schedule exceptions</h3>
-                    <div className="exc-btns">
-                      <button className="m-btn m-btn--elevated" onClick={() => {}}>Add...</button>
-                      <button className="m-btn m-btn--elevated" disabled>Remove...</button>
-                    </div>
-                  </div>
-                  <ExceptionCalendar
-                    exceptions={selected.exceptions}
-                    onChange={(exceptions) => updateSelected({ exceptions })}
-                  />
-                  <p className="exc-note">
-                    Exceptions are dates or date ranges when the schedule is different from the normal weekly routine.
-                  </p>
-                </div>
-              )}
+            <div className="sch-detail-body" style={{ marginTop: '8px' }}>
+              <div className="sch-name-row">
+                <label>Name:</label>
+                <input
+                  className="ec-input"
+                  value={selected.name}
+                  onChange={(e) => updateSelected({ name: e.target.value })}
+                />
+                <button 
+                  className="m-btn m-btn--elevated" 
+                  style={{ marginLeft: "auto" }}
+                  onClick={() => setShowExceptions(true)}
+                >
+                  Schedule Exceptions
+                </button>
+              </div>
+              <h3 className="week-title">Week schedule</h3>
+              <WeekGrid week={selected.week} onChange={(week) => updateSelected({ week })} />
 
               <div className="sch-apply-row">
                 <button
@@ -335,18 +555,21 @@ export default function Schedules() {
                     setLoading(true);
                     try {
                       const readableRanges = {};
-                      DAYS.forEach(d => {
-                        readableRanges[d] = getRanges(selected.week[d]);
-                      });
+                      DAYS.forEach((d) => { readableRanges[d] = getRangeLabel(selected.week[d]); });
                       const payload = { ...selected, ranges: readableRanges };
                       await fetch(`${BACKEND}/api/storage/schedules`, {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify(payload),
                       });
-                      alert("Schedule saved successfully!");
                     } catch (err) { console.error(err); }
-                    finally { setLoading(false); }
+                    finally {
+                      setLoading(false);
+                      showToast(
+                        "Schedule Applied",
+                        `"${selected.name}" has been saved and is now active.`
+                      );
+                    }
                   }}
                 >
                   {loading ? "Saving..." : "Apply"}
@@ -355,6 +578,33 @@ export default function Schedules() {
             </div>
           </div>
         )}
+      </div>
+
+      {/* Side Panel Overlay & Drawer */}
+      <div className={`exc-sp-overlay ${showExceptions ? "visible" : ""}`} onClick={() => setShowExceptions(false)} />
+      <div className={`exc-side-panel ${showExceptions ? "open" : ""}`}>
+        <div className="exc-sp-header">
+          <h3>Exceptions: {selected?.name}</h3>
+          <button className="exc-sp-close" onClick={() => setShowExceptions(false)}>
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <line x1="1" y1="1" x2="13" y2="13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+              <line x1="13" y1="1" x2="1" y2="13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+            </svg>
+          </button>
+        </div>
+        <div className="exc-sp-body">
+          {selected && (
+            <>
+              <ExceptionCalendar
+                exceptions={selected.exceptions}
+                onChange={(exceptions) => updateSelected({ exceptions })}
+              />
+              <p className="exc-note" style={{ marginTop: "16px", color: "var(--text-secondary)", fontSize: "12.5px", lineHeight: "1.4" }}>
+                Select specific dates as exceptions. On these selected days, no recordings or scheduled events will take place.
+              </p>
+            </>
+          )}
+        </div>
       </div>
     </div>
   );

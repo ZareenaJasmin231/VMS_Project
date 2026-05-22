@@ -1020,3 +1020,17 @@ html, body, #root {
   font-size: 11px;
   color: #64748b;
 }
+
+/* ── Deleting / Danger Spinner ── */
+.deleting-spinner {
+  width: 48px;
+  height: 48px;
+  border: 3px solid rgba(239, 68, 68, 0.1);
+  border-top-color: var(--red, #ef4444);
+  border-radius: 50%;
+  animation: enrollingSpin 1s linear infinite;
+}
+
+@keyframes enrollingSpin {
+  to { transform: rotate(360deg); }
+}

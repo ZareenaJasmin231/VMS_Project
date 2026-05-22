@@ -529,7 +529,7 @@ export default function DiscoveryModal({
             <div className="dm-cred-body">
 
               <p className="dm-cred-hint">
-                Enter ONVIF credentials for each camera. Leave blank if no authentication is required.
+                Enter credentials for each camera. Leave blank if no authentication is required.
               </p>
 
               <div className="dm-cred-list">

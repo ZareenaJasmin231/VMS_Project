@@ -590,11 +590,11 @@
 }
 
 .vt-rec-dot {
-  width: 4px;
-  height: 4px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
   background: #ff4d4f;
-  box-shadow: 0 0 4px #ff4d4f;
+  box-shadow: 0 0 7px #ff4d4f;
   animation: recPulse 1.2s ease-in-out infinite;
   flex-shrink: 0;
 }

@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import CameraThumb from "../../components/shared/CameraThumb";
 import SearchBar from "../../components/shared/SearchBar";
 import StatusBadge from "../../components/shared/StatusBadge";
+import WebRTCPlayer from "../../components/shared/WebRTCPlayer";
 import ManualSearchModal from "./ManualSearchModal";
 import StreamURLModal from "./StreamURLModal";
 import DiscoveryModal from "../../components/shared/DiscoveryModal";
@@ -229,7 +230,89 @@ function EditDeviceModal({ device, groups, onClose, onSave }) {
   );
 }
 
+// ─── Remove Device Modal ──────────────────────────────────────────────────────
+function RemoveDeviceModal({ device, onClose, onConfirm }) {
+  const [isRemoving, setIsRemoving] = useState(false);
+
+  const handleConfirm = async () => {
+    setIsRemoving(true);
+    await onConfirm(device.id);
+    setIsRemoving(false);
+    onClose();
+  };
+
+  return (
+    <div className="modal-overlay" onClick={isRemoving ? null : onClose}>
+      <div className="modal-box" onClick={(e) => e.stopPropagation()} style={{ maxWidth: "400px" }}>
+        <div className="modal-header">
+          <h2 className="modal-title" style={{ color: "var(--red, #ef4444)", display: "flex", alignItems: "center", gap: "8px" }}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="18" height="18" style={{ flexShrink: 0 }}>
+              <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+              <line x1="12" y1="9" x2="12" y2="13" />
+              <line x1="12" y1="17" x2="12.01" y2="17" />
+            </svg>
+            Remove Device
+          </h2>
+          {!isRemoving && (
+            <button className="modal-close" onClick={onClose}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16">
+                <path d="M18 6L6 18M6 6l12 12" />
+              </svg>
+            </button>
+          )}
+        </div>
+        <div className="modal-body" style={{ padding: "20px" }}>
+          {isRemoving ? (
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "16px", padding: "20px 0" }}>
+              <div className="deleting-spinner"></div>
+              <p style={{ margin: 0, fontSize: "14px", fontWeight: "600", color: "var(--text-secondary)" }}>
+                Removing device...
+              </p>
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+              <p style={{ margin: 0, fontSize: "14px", color: "var(--text-secondary)", lineHeight: "1.5" }}>
+                Are you sure you want to remove <strong>{device.name || device.ip}</strong> from the system?
+              </p>
+              <p style={{ margin: 0, fontSize: "12px", color: "var(--text-muted)", lineHeight: "1.4" }}>
+                This action will permanently delete the device registration, stream configuration, and active stream feeds.
+              </p>
+            </div>
+          )}
+        </div>
+        <div className="modal-footer" style={{ justifyContent: "flex-end", gap: "10px" }}>
+          <button 
+            className="modal-btn modal-btn--cancel" 
+            onClick={onClose} 
+            disabled={isRemoving}
+            style={{ opacity: isRemoving ? 0.5 : 1 }}
+          >
+            Cancel
+          </button>
+          <button 
+            className="modal-btn" 
+            onClick={handleConfirm} 
+            disabled={isRemoving}
+            style={{ 
+              background: "var(--red, #ef4444)", 
+              borderColor: "transparent", 
+              color: "#fff",
+              opacity: isRemoving ? 0.7 : 1,
+              display: "flex",
+              alignItems: "center",
+              gap: "8px"
+            }}
+          >
+            {isRemoving ? "Removing..." : "Confirm Remove"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
+
 export default function AddDevicesPage({ onNavigate }) {
   const [filter, setFilter] = useState("");
   const [activeGroup, setActiveGroup] = useState("all");
@@ -259,12 +342,62 @@ export default function AddDevicesPage({ onNavigate }) {
   const [groups, setGroups] = usePersistedGroups();
   const [ctxMenu, setCtxMenu] = useState(null);
   const [editDevice, setEditDevice] = useState(null);
+  const [deviceToRemove, setDeviceToRemove] = useState(null);
   const [showCreateGroup, setShowCreateGroup] = useState(false);
+  const [previewDevice, setPreviewDevice] = useState(null);
 
 
   // selectedGroupId is owned here but only mutated/read through modals (FIX 1).
   const [selectedGroupId, setSelectedGroupId] = useState("default");
   const { logAction } = useActivityLogger();
+
+  // Capture snapshot when live preview plays
+  useEffect(() => {
+    if (!previewDevice || !previewDevice.ws_url) return;
+
+    let intervalId;
+    let attempts = 0;
+
+    const captureFrame = () => {
+      const video = document.querySelector(".modal-body video");
+      if (video && video.readyState >= 2 && video.videoWidth > 0) {
+        try {
+          const canvas = document.createElement("canvas");
+          canvas.width = 160;
+          canvas.height = 117;
+          const ctx = canvas.getContext("2d");
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+          const dataUrl = canvas.toDataURL("image/jpeg", 0.7);
+
+          // Update devices state - automatically persists to localStorage!
+          setDevices((prev) =>
+            prev.map((d) =>
+              String(d.id) === String(previewDevice.id)
+                ? { ...d, thumbnail: dataUrl }
+                : d
+            )
+          );
+          
+          console.log(`[SNAPSHOT] Successfully captured live frame for camera ID: ${previewDevice.id}`);
+          clearInterval(intervalId);
+        } catch (e) {
+          console.error("Failed to capture video frame:", e);
+        }
+      }
+
+      attempts++;
+      if (attempts > 30) { // Stop polling after 15 seconds
+        clearInterval(intervalId);
+      }
+    };
+
+    // Check every 500ms for active video stream to capture a fresh frame
+    intervalId = setInterval(captureFrame, 500);
+
+    return () => {
+      clearInterval(intervalId);
+    };
+  }, [previewDevice, setDevices]);
 
   // ── Smart modal openers — pre-select active group (FIX 5) ────────────────
   const openManualSearch = () => {
@@ -344,7 +477,7 @@ export default function AddDevicesPage({ onNavigate }) {
     setDevices((prev) => prev.map((d) => d.id === updated.id ? updated : d));
   }, [setDevices]);
 
-  const handleRemoveDevice = useCallback(async (deviceId) => {
+  const performRemoveDevice = useCallback(async (deviceId) => {
     const device = devices.find((d) => d.id === deviceId);
     if (!device) return;
     try {
@@ -357,6 +490,11 @@ export default function AddDevicesPage({ onNavigate }) {
     }
     setDevices((prev) => prev.filter((d) => d.id !== deviceId));
   }, [devices, setDevices]);
+
+  const handleRemoveDevice = useCallback((deviceId) => {
+    const device = devices.find((d) => d.id === deviceId);
+    if (device) setDeviceToRemove(device);
+  }, [devices]);
 
   const handleStreamProfiles = useCallback((deviceId) => {
     localStorage.setItem("miradorai_selected_camera_id", String(deviceId));
@@ -728,7 +866,34 @@ export default function AddDevicesPage({ onNavigate }) {
                       className="m-table__row"
                       onContextMenu={(e) => handleRowContextMenu(e, d.id)}
                     >
-                      <td><CameraThumb type={d.type} /></td>
+                      <td
+                        onClick={() => setPreviewDevice(d)}
+                        style={{ cursor: "pointer" }}
+                        title="Click to play live preview"
+                      >
+                        <div className="thumb-container">
+                          {d.thumbnail ? (
+                            <img
+                              src={d.thumbnail}
+                              alt={d.name}
+                              style={{
+                                width: "100%",
+                                height: "100%",
+                                objectFit: "cover",
+                                display: "block",
+                                borderRadius: "inherit"
+                              }}
+                            />
+                          ) : (
+                            <CameraThumb type={d.type} />
+                          )}
+                          <div className="thumb-play-overlay">
+                            <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18">
+                              <path d="M8 5v14l11-7z" />
+                            </svg>
+                          </div>
+                        </div>
+                      </td>
                       <td className="m-table__primary">
                         <div className="add-dev__name-cell">
                           {d.name}
@@ -826,6 +991,13 @@ export default function AddDevicesPage({ onNavigate }) {
           onSave={handleSaveDevice}
         />
       )}
+      {deviceToRemove && (
+        <RemoveDeviceModal
+          device={deviceToRemove}
+          onClose={() => setDeviceToRemove(null)}
+          onConfirm={performRemoveDevice}
+        />
+      )}
       {showCreateGroup && (
         <CreateGroupModal
           onClose={() => setShowCreateGroup(false)}
@@ -917,6 +1089,51 @@ export default function AddDevicesPage({ onNavigate }) {
               <button className="modal-btn modal-btn--save success-modal-ok-btn" onClick={() => setSuccessEnrollData(null)}>
                 OK
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Live Preview Modal */}
+      {previewDevice && (
+        <div className="modal-overlay" onClick={() => setPreviewDevice(null)}>
+          <div className="modal-box" onClick={(e) => e.stopPropagation()} style={{ maxWidth: "720px", width: "100%", padding: 0 }}>
+            <div className="modal-header" style={{ padding: "16px 20px", borderBottom: "1px solid var(--border-light)" }}>
+              <h2 className="modal-title" style={{ display: "flex", alignItems: "center", gap: "8px", color: "var(--teal)" }}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="18" height="18" style={{ flexShrink: 0 }}>
+                  <path d="M23 7l-7 5 7 5V7z" />
+                  <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
+                </svg>
+                {previewDevice.name || "Live Camera Stream"}
+              </h2>
+              <button className="modal-close" onClick={() => setPreviewDevice(null)}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16">
+                  <path d="M18 6L6 18M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="modal-body" style={{ padding: "20px", background: "#090b0e" }}>
+              {previewDevice.ws_url ? (
+                <div style={{ position: "relative", width: "100%", aspectRatio: "16/9", borderRadius: "8px", overflow: "hidden", border: "1px solid var(--border-light)" }}>
+                  <WebRTCPlayer serverUrl={previewDevice.ws_url} cameraId={previewDevice.id} />
+                </div>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "12px", minHeight: "260px", color: "var(--text-secondary)" }}>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" width="48" height="48" style={{ color: "var(--red, #ef4444)" }}>
+                    <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                    <line x1="12" y1="9" x2="12" y2="13" />
+                    <line x1="12" y1="17" x2="12.01" y2="17" />
+                  </svg>
+                  <p style={{ margin: 0, fontSize: "15px", fontWeight: "600" }}>Live stream not configured</p>
+                  <p style={{ margin: 0, fontSize: "13px", color: "var(--text-muted)", textAlign: "center" }}>
+                    This camera does not have an active WebRTC stream registered yet.
+                  </p>
+                </div>
+              )}
+              <div style={{ marginTop: "14px", display: "flex", justifyContent: "space-between", fontSize: "12px", color: "var(--text-muted)" }}>
+                <span>IP Address: <strong>{previewDevice.ip}</strong></span>
+                <span>Status: <strong style={{ color: previewDevice.stream_status === "streaming" ? "var(--teal)" : "var(--text-muted)" }}>{previewDevice.stream_status || "offline"}</strong></span>
+              </div>
             </div>
           </div>
         </div>

@@ -911,11 +911,11 @@
 }
 
 .lv-rec-dot {
-  width: 5px;
-  height: 5px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
   background: #ff4d4f;
-  box-shadow: 0 0 5px #ff4d4f;
+  box-shadow: 0 0 6px #ff4d4f;
   animation: recPulse 1.2s ease-in-out infinite;
   flex-shrink: 0;
 }
