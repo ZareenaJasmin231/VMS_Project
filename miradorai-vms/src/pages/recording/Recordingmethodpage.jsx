@@ -101,16 +101,30 @@ export default function RecordingMethodPage() {
         }
       } catch (e) { console.warn("[RM] Backend fetch failed", e); }
 
-      const data = backendData.map((s, idx) => {
-        const matchingLocal = localDevices.find(d => d.ip === s.ip && d.ome_stream === s.ome_stream);
+      const combinedDevices = localDevices.map((localCam, idx) => {
+        const backendCam = backendData.find(b => b.ip === localCam.ip);
+        if (backendCam) {
+          return {
+            ...localCam,
+            ...backendCam,
+            group_id: localCam.group_id || backendCam.group_id || "default",
+            ome_stream: backendCam.ome_stream || localCam.ome_stream || (localCam.ip ? `${localCam.ip.replace(/\./g, "_")}_cam${localCam.channel || 0}` : `cam_${localCam.id || idx}`),
+          };
+        }
         return {
-          ...s,
-          group_id: s.group_id || matchingLocal?.group_id || "default",
-          ome_stream: s.ome_stream || (s.ip ? `${s.ip.replace(/\./g, "_")}_cam${s.channel || 0}` : `cam_${s.id || idx}`),
+          ...localCam,
+          group_id: localCam.group_id || "default",
+          ome_stream: localCam.ome_stream || (localCam.ip ? `${localCam.ip.replace(/\./g, "_")}_cam${localCam.channel || 0}` : `cam_${localCam.id || idx}`),
         };
       });
 
-      const finalData = data.length > 0 ? data : localDevices;
+      const backendOnly = backendData.filter(b => !localDevices.some(l => l.ip === b.ip)).map((b, idx) => ({
+        ...b,
+        group_id: b.group_id || "default",
+        ome_stream: b.ome_stream || (b.ip ? `${b.ip.replace(/\./g, "_")}_cam${b.channel || 0}` : `cam_${b.id || idx}`),
+      }));
+
+      const finalData = [...combinedDevices, ...backendOnly];
       setDevices(finalData);
 
       const initialSettings = {};

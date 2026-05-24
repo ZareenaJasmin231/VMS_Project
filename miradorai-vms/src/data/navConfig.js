@@ -72,15 +72,13 @@ const CORE_NAV = [
 
   // ✅ STORAGE
   {
-    section: "Storage",
+    section: "Storage Management",
+    page: "storage-mgmt",
     icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
       <ellipse cx="12" cy="5" rx="9" ry="3"/>
       <path d="M3 5v6c0 1.66 4.03 3 9 3s9-1.34 9-3V5"/>
       <path d="M3 11v6c0 1.66 4.03 3 9 3s9-1.34 9-3v-6"/>
     </svg>`,
-    items: [
-      { label: "Management", page: "storage-mgmt" },
-    ],
   },
 
 ];
@@ -198,13 +196,7 @@ const CLIENT_NAV = [
       { label: "Action Rules",      page: "action-rules" },
     ],
   },
-  {
-    section: "Storage",
-    icon: ICONS.storage,
-    items: [
-      { label: "Management", page: "storage-mgmt" },
-    ],
-  },
+  { section: "Storage Management", page: "storage-mgmt", icon: ICONS.storage },
   { section: "Playback", page: "media-player",  icon: ICONS.playback },
   { section: "Backup",   page: "backup",        icon: ICONS.backup },
   { section: "Infrastructure", page: "infrastructure", icon: ICONS.infrastructure },

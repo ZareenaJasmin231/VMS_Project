@@ -155,6 +155,35 @@ const css = `
   }
   .sum-btn--primary:hover:not(:disabled) { background: #2563eb; }
   .sum-btn:disabled { opacity: .35; cursor: not-allowed; }
+  .sum-ui-alert {
+    background: rgba(239, 68, 68, 0.08);
+    border: 1px solid rgba(239, 68, 68, 0.25);
+    color: #f87171;
+    padding: 10px 14px;
+    border-radius: 8px;
+    font-size: 12px;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    animation: sumAlertFadeIn 0.2s ease;
+    margin-bottom: 4px;
+  }
+  @keyframes sumAlertFadeIn {
+    from { opacity: 0; transform: translateY(-6px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .sum-ui-alert-icon {
+    flex-shrink: 0; color: #ef4444; margin-top: 1px;
+  }
+  .sum-ui-alert-text {
+    flex: 1; line-height: 1.5;
+  }
+  .sum-ui-alert-close {
+    background: none; border: none; cursor: pointer;
+    color: #6b7a99; font-size: 14px; line-height: 1; padding: 2px;
+    transition: color 0.15s;
+  }
+  .sum-ui-alert-close:hover { color: #f87171; }
 `;
 
 function validateURL(url) {
@@ -172,6 +201,7 @@ export default function StreamURLModal({
   const [input, setInput]           = useState("");
   const [urls, setUrls]             = useState([]);
   const [error, setError]           = useState("");
+  const [alertMsg, setAlertMsg]     = useState("");
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef(null);
 
@@ -186,12 +216,21 @@ export default function StreamURLModal({
   }, []);
 
   const handleAdd = () => {
-    if (!input.trim()) { setError("Please enter a stream URL"); return; }
-    if (!validateURL(input)) { setError("URL must start with rtsp://, rtsps://, http://, or https://"); return; }
+    if (!input.trim()) {
+      setError("Please enter a stream URL");
+      setAlertMsg("Stream URL is a mandatory field. Please enter a valid URL!");
+      return;
+    }
+    if (!validateURL(input)) {
+      setError("URL must start with rtsp://, rtsps://, http://, or https://");
+      setAlertMsg("Stream URL is a mandatory field. Please enter a valid URL! (must start with rtsp://, rtsps://, http://, or https://)");
+      return;
+    }
     if (urls.includes(input.trim())) { setError("This URL is already added"); return; }
     setUrls((s) => [...s, input.trim()]);
     setInput("");
     setError("");
+    setAlertMsg("");
   };
 
   const handleRemove = (url) => setUrls((s) => s.filter((u) => u !== url));
@@ -226,14 +265,19 @@ export default function StreamURLModal({
 
           {/* Body */}
           <div className="sum-body">
+            {alertMsg && (
+              <div className="sum-ui-alert">
+                <svg className="sum-ui-alert-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                  <line x1="12" y1="9" x2="12" y2="13" />
+                  <line x1="12" y1="17" x2="12.01" y2="17" />
+                </svg>
+                <div className="sum-ui-alert-text">{alertMsg}</div>
+                <button className="sum-ui-alert-close" onClick={() => setAlertMsg("")}>✕</button>
+              </div>
+            )}
 
-            {/* Info */}
-            <div className="sum-desc">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <circle cx="12" cy="12" r="10"/><path d="M12 8h.01M12 12v4"/>
-              </svg>
-              Enter one or more stream URLs.
-            </div>
+
 
             {/* Camera Name */}
             <div className="sum-field">
@@ -286,7 +330,7 @@ export default function StreamURLModal({
 
             {/* Input + Add */}
             <div className="sum-field">
-              <label className="sum-label">Stream URL</label>
+              <label className="sum-label">Stream URL <span style={{ color: "#f87171", marginLeft: "2px" }}>*</span></label>
               <div className="sum-add-row">
                 <input
                   className={`sum-input ${error ? "error" : ""}`}
@@ -327,7 +371,22 @@ export default function StreamURLModal({
           {/* Footer */}
           <div className="sum-footer">
             <button className="sum-btn sum-btn--ghost" onClick={onClose}>Cancel</button>
-            <button className="sum-btn sum-btn--primary" onClick={handleSubmit} disabled={urls.length === 0}>
+            <button
+              className="sum-btn sum-btn--primary"
+              onClick={() => {
+                if (urls.length === 0) {
+                  if (input.trim()) {
+                    setAlertMsg("Please click the '+ Add' button to add your entered Stream URL first!");
+                  } else {
+                    setAlertMsg("Stream URL is a mandatory field. Please enter and add at least one Stream URL!");
+                  }
+                  setError("Add at least one stream URL");
+                  return;
+                }
+                setAlertMsg("");
+                handleSubmit();
+              }}
+            >
               Add {urls.length > 0 ? `${urls.length} ` : ""}Stream{urls.length > 1 ? "s" : ""}
             </button>
           </div>

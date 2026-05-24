@@ -415,9 +415,6 @@ function AlertsPanel({ onAlertCountUpdate }) {
                   <span className="lv-alert-card__serial">
                     {alert.serial || "Unknown"}
                   </span>
-                  <span className={`lv-alert-card__badge ${isActive ? "lv-alert-card__badge--on" : "lv-alert-card__badge--off"}`}>
-                    {isActive ? "● Active" : "○ Inactive"}
-                  </span>
                 </div>
 
                 <div className="lv-alert-card__row">

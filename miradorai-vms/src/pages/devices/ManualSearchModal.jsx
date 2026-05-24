@@ -258,6 +258,36 @@ const css = `
   .msm-channel-check.filled svg { display: block; }
 
   .msm-error-msg { font-size: 11px; color: #f87171; margin-top: -8px; }
+
+  .msm-ui-alert {
+    background: rgba(239, 68, 68, 0.08);
+    border: 1px solid rgba(239, 68, 68, 0.25);
+    color: #f87171;
+    padding: 10px 14px;
+    border-radius: 8px;
+    font-size: 12px;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    animation: alertFadeIn 0.2s ease;
+    margin-bottom: 4px;
+  }
+  @keyframes alertFadeIn {
+    from { opacity: 0; transform: translateY(-6px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .msm-ui-alert-icon {
+    flex-shrink: 0; color: #ef4444; margin-top: 1px;
+  }
+  .msm-ui-alert-text {
+    flex: 1; line-height: 1.5;
+  }
+  .msm-ui-alert-close {
+    background: none; border: none; cursor: pointer;
+    color: #6b7a99; font-size: 14px; line-height: 1; padding: 2px;
+    transition: color 0.15s;
+  }
+  .msm-ui-alert-close:hover { color: #f87171; }
 `;
 
 const PROFILE_TAGS = ["main", "sub", "extra"];
@@ -317,6 +347,7 @@ export default function ManualSearchModal({
   const [discovered, setDiscovered] = useState(null);
   const [detectedPort, setDetectedPort] = useState(null);
   const [errors, setErrors] = useState({});
+  const [alertMsg, setAlertMsg] = useState("");
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef(null);
 
@@ -370,7 +401,30 @@ export default function ManualSearchModal({
 
   const handleProbe = async () => {
     const e = validate();
-    if (Object.keys(e).length) { setErrors(e); return; }
+    if (!ip) {
+      setAlertMsg("IP Address is a mandatory field. Please enter a valid IP address!");
+      setErrors({ ...e, ip: "IP address is required" });
+      return;
+    }
+    if (e.ip) {
+      setAlertMsg("IP Address is a mandatory field. Please enter a valid IP address!");
+      setErrors(e);
+      return;
+    }
+    if (!user.trim()) {
+      setAlertMsg("Username is a mandatory field. Please enter the camera's ONVIF username!");
+      setErrors({ user: "Username is required" });
+      return;
+    }
+    if (!pass.trim()) {
+      setAlertMsg("Password is a mandatory field. Please enter the camera's ONVIF password!");
+      setErrors({ pass: "Password is required" });
+      return;
+    }
+    if (Object.keys(e).length) {
+      setErrors(e);
+      return;
+    }
     setErrors({});
     setProbe("probing");
     setDiscovered(null);
@@ -392,7 +446,7 @@ export default function ManualSearchModal({
           username: user,
           password: pass,
           group_id: selectedGroupId,
-          save_to_db: false // ✅ Explicitly set to false for discovery probe
+          save_to_db: false 
         }),
         signal: controller.signal,
       });
@@ -400,7 +454,7 @@ export default function ManualSearchModal({
 
       const json = await res.json();
       if (!res.ok) {
-        alert(json.detail || "Camera limit exceeded");
+        setAlertMsg(json.detail || "Camera limit exceeded");
         setProbe("fail");
         setErrors({ ip: json.detail || "Camera limit exceeded" });
         return;
@@ -564,6 +618,17 @@ export default function ManualSearchModal({
 
           {/* Body */}
           <div className="msm-body">
+            {alertMsg && (
+              <div className="msm-ui-alert">
+                <svg className="msm-ui-alert-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                  <line x1="12" y1="9" x2="12" y2="13" />
+                  <line x1="12" y1="17" x2="12.01" y2="17" />
+                </svg>
+                <div className="msm-ui-alert-text">{alertMsg}</div>
+                <button className="msm-ui-alert-close" onClick={() => setAlertMsg("")}>✕</button>
+              </div>
+            )}
 
             {/* Camera Name */}
             <div className="msm-field">
@@ -619,7 +684,7 @@ export default function ManualSearchModal({
             {/* IP + Port */}
             <div className="msm-row">
               <div className="msm-field">
-                <label className="msm-label">IP Address</label>
+                <label className="msm-label">IP Address <span style={{ color: "#f87171", marginLeft: "2px" }}>*</span></label>
                 <input
                   tabIndex={2}
                   className={`msm-input ${errors.ip ? "error" : ""}`}
@@ -651,28 +716,35 @@ export default function ManualSearchModal({
             </div>
 
             {/* Credentials */}
-            <div className="msm-divider">ONVIF Credentials</div>
+            <div className="msm-divider">Credentials</div>
             <div className="msm-row">
               <div className="msm-field">
-                <label className="msm-label">Username</label>
+                <label className="msm-label">Username <span style={{ color: "#f87171", marginLeft: "2px" }}>*</span></label>
                 <input
                   tabIndex={4}
-                  className="msm-input"
+                  className={`msm-input ${errors.user ? "error" : ""}`}
                   placeholder="admin"
                   value={user}
-                  onChange={(e) => setUser(e.target.value)}
+                  onChange={(e) => {
+                    setUser(e.target.value);
+                    setErrors((s) => ({ ...s, user: "" }));
+                  }}
                 />
+                {errors.user && <span className="msm-error-msg">{errors.user}</span>}
               </div>
               <div className="msm-field">
-                <label className="msm-label">Password</label>
+                <label className="msm-label">Password <span style={{ color: "#f87171", marginLeft: "2px" }}>*</span></label>
                 <div className="msm-password-wrapper">
                   <input
                     tabIndex={5}
-                    className="msm-input msm-password-input"
+                    className={`msm-input msm-password-input ${errors.pass ? "error" : ""}`}
                     type={showPassword ? "text" : "password"}
                     placeholder="••••••••"
                     value={pass}
-                    onChange={(e) => setPass(e.target.value)}
+                    onChange={(e) => {
+                      setPass(e.target.value);
+                      setErrors((s) => ({ ...s, pass: "" }));
+                    }}
                     onKeyDown={handlePasswordKeyDown}
                   />
                   <button
@@ -695,6 +767,7 @@ export default function ManualSearchModal({
                     )}
                   </button>
                 </div>
+                {errors.pass && <span className="msm-error-msg">{errors.pass}</span>}
               </div>
             </div>
 
@@ -820,7 +893,26 @@ export default function ManualSearchModal({
             <button
               tabIndex={7}
               className="msm-btn msm-btn--probe"
-              onClick={mode === "onvif" ? handleProbe : handleDirectUrl}
+              onClick={() => {
+                if (!ip) {
+                  setAlertMsg("IP Address is a mandatory field. Please enter a valid IP address!");
+                  return;
+                }
+                if (!port) {
+                  setAlertMsg("Port is required.");
+                  return;
+                }
+                if (!user.trim()) {
+                  setAlertMsg("Username is a mandatory field. Please enter the camera's ONVIF username!");
+                  return;
+                }
+                if (!pass.trim()) {
+                  setAlertMsg("Password is a mandatory field. Please enter the camera's ONVIF password!");
+                  return;
+                }
+                setAlertMsg("");
+                mode === "onvif" ? handleProbe() : handleDirectUrl();
+              }}
               disabled={probe === "probing"}
             >
               {probe === "probing" ? "Probing…" : "Probe via ONVIF"}
@@ -828,8 +920,18 @@ export default function ManualSearchModal({
             <button
               tabIndex={8}
               className="msm-btn msm-btn--enroll"
-              onClick={handleEnroll}
-              disabled={probe !== "success" || (channelList.length > 1 && !selectedChannel)}
+              onClick={() => {
+                if (probe !== "success") {
+                  setAlertMsg("Please probe and verify the camera connection successfully before enrolling!");
+                  return;
+                }
+                if (channelList.length > 1 && !selectedChannel) {
+                  setAlertMsg("Please select a camera from the list below!");
+                  return;
+                }
+                setAlertMsg("");
+                handleEnroll();
+              }}
             >
               {channelList.length > 1 && !selectedChannel ? "Select a Camera" : "Enroll Camera"}
             </button>

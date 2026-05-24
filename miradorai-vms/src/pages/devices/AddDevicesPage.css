@@ -113,6 +113,36 @@
 .modal-btn--save { background: var(--teal, #10b981); border: 1px solid transparent; color: #fff; }
 .modal-btn--save:hover { background: #0d9e6e; }
 
+.modal-ui-alert {
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  color: #f87171;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 12px;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  animation: modalAlertFadeIn 0.2s ease;
+  margin-bottom: 12px;
+}
+@keyframes modalAlertFadeIn {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.modal-ui-alert-icon {
+  flex-shrink: 0; color: #ef4444; margin-top: 1px;
+}
+.modal-ui-alert-text {
+  flex: 1; line-height: 1.5;
+}
+.modal-ui-alert-close {
+  background: none; border: none; cursor: pointer;
+  color: #6b7a99; font-size: 14px; line-height: 1; padding: 2px;
+  transition: color 0.15s;
+}
+.modal-ui-alert-close:hover { color: #f87171; }
+
 /* ── Empty State ──────────────────────────────── */
 .add-dev__empty {
   display: flex;

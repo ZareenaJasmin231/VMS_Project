@@ -26,7 +26,6 @@ export default function Sidebar({ userRole }) {
   const [expanded, setExpanded] = useState({
     Cameras: true,
     "Recording & Events": false,
-    Storage: false,
     Client: false,
   });
   const [search, setSearch] = useState("");

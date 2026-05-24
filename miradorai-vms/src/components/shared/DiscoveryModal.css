@@ -82,6 +82,36 @@
   min-height: 0; /* critical — lets flex child scroll instead of growing */
 }
 
+.dm-ui-alert {
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  color: #f87171;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 12px;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  animation: dmAlertFadeIn 0.2s ease;
+  margin: 12px 20px 4px;
+}
+@keyframes dmAlertFadeIn {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.dm-ui-alert-icon {
+  flex-shrink: 0; color: #ef4444; margin-top: 1px;
+}
+.dm-ui-alert-text {
+  flex: 1; line-height: 1.5;
+}
+.dm-ui-alert-close {
+  background: none; border: none; cursor: pointer;
+  color: #6b7a99; font-size: 14px; line-height: 1; padding: 2px;
+  transition: color 0.15s;
+}
+.dm-ui-alert-close:hover { color: #f87171; }
+
 /* ── Center layout (empty / scanning) ── */
 .dm-center {
   display: flex;
