@@ -1,156 +1,267 @@
 """
 bosch_adapter.py
 ────────────────
-Bosch camera analytics via ONVIF PullPoint subscription.
+Bosch ONVIF PullPoint analytics adapter.
 
-Pulls motion, line-crossing, intrusion, and tamper events from
-Bosch cameras and returns them in the same normalized dict format
-that the Axis/ONVIF poll loop already uses.
-
-KEY FIX: Maintains a persistent subscription per camera IP so events
-accumulate between polls rather than being lost on every reconnect.
-
-Requirements:
-    pip install onvif-zeep
-
-Usage (called from main.py):
-    from bosch_adapter import pull_bosch_events
-    result = pull_bosch_events(ip, port, username, password)
+Key insight from debug:
+- Topic._value_1 is None (zeep couldn't deserialize it)
+- The actual topic text lives in the raw XML of the notification
+- Message._value_1 is a raw lxml Element with UtcTime, PropertyOperation,
+  Source/Data SimpleItems
+- We must parse both from lxml directly
 """
 
 from __future__ import annotations
 import traceback
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 
-# ── ONVIF topic → human-readable event type map ──────────────────────────────
-TOPIC_MAP: dict[str, str] = {
-    "tns1:VideoAnalytics/Motion/MotionAlarm":              "Motion",
-    "tns1:VideoAnalytics/MotionDetection":                 "Motion",
-    "tns1:VideoAnalytics/ObjectInField":                   "Intrusion",
-    "tns1:VideoAnalytics/LineCrossing":                    "LineCrossing",
-    "tns1:VideoAnalytics/TamperDetection":                 "Tamper",
-    "tns1:RuleEngine/MotionDetector/Motion":               "Motion",
-    "tns1:RuleEngine/FieldDetector/ObjectsInside":         "Intrusion",
-    "tns1:RuleEngine/LineDetector/Crossed":                "LineCrossing",
-    "tns1:RuleEngine/TamperDetector/Tamper":               "Tamper",
-    "tns1:VideoSource/MotionAlarm":                        "Motion",
-    # Bosch-specific topics
-    "tns1:RuleEngine/MyRuleDetector":                      "Motion",
-    "tns1:VideoAnalytics/":                                "Motion",
-    "tns1:Device/Trigger":                                 "Motion",
+from lxml import etree
+
+# ── XML namespaces ─────────────────────────────────────────────────────────────
+NS_SCHEMA = "http://www.onvif.org/ver10/schema"
+NS_TOPICS = "http://www.onvif.org/ver10/topics"
+NS_WSNT   = "http://docs.oasis-open.org/wsn/b-2"
+
+NS = {
+    "tt":   NS_SCHEMA,
+    "tns1": NS_TOPICS,
+    "wsnt": NS_WSNT,
 }
 
-# ── Persistent subscription cache keyed by IP ─────────────────────────────────
-# Stores: { ip: { "pullpoint": <service>, "expires_at": datetime } }
+# ── Topic → event type ─────────────────────────────────────────────────────────
+TOPIC_MAP: dict[str, str] = {
+    "Motion":         "Motion",
+    "MotionAlarm":    "Motion",
+    "MotionDetect":   "Motion",
+    "ObjectInField":  "Intrusion",
+    "LineCrossing":   "LineCrossing",
+    "TamperDetect":   "Tamper",
+    "Tamper":         "Tamper",
+    "FieldDetector":  "Intrusion",
+    "LineDetector":   "LineCrossing",
+    "MyRuleDetector": "Motion",
+    "Trigger":        "Motion",
+}
+
+# ── Subscription cache ─────────────────────────────────────────────────────────
 _subscriptions: dict[str, dict] = {}
+_SUB_LIFETIME   = 120   # seconds; renew 20 s early
+_TIMEOUT_PROBES = ["PT0S", "PT1S", "PT5S"]
 
-# Subscription lifetime — renew 60s before expiry
-_SUB_LIFETIME_SECONDS = 300   # PT5M
+_DEBUG_TOPIC = True   # set False once topic parsing is confirmed working
 
 
-def _topic_str(topic_obj: Any) -> str:
-    if topic_obj is None:
-        return ""
-    if isinstance(topic_obj, str):
-        return topic_obj.strip()
-    if hasattr(topic_obj, "_value_1"):
-        return str(topic_obj._value_1).strip()
-    return str(topic_obj).strip()
+def _safe_str(v: Any) -> str:
+    if v is None:       return ""
+    if isinstance(v, str): return v
+    if hasattr(v, "_value_1"): return str(v._value_1) if v._value_1 else ""
+    return str(v)
 
 
 def _map_event_type(topic: str) -> str:
     for key, label in TOPIC_MAP.items():
-        if key in topic:
+        if key.lower() in topic.lower():
             return label
     parts = topic.replace("//", "/").rstrip("/").split("/")
     return parts[-1] if parts else "Unknown"
 
 
-def _safe_str(value: Any) -> str:
-    if value is None:
-        return ""
-    if isinstance(value, str):
-        return value
-    if hasattr(value, "_value_1"):
-        return str(value._value_1)
-    return str(value)
+# ── Topic extraction ───────────────────────────────────────────────────────────
 
-
-def _get_or_create_subscription(
-    ip: str,
-    port: int,
-    username: str,
-    password: str,
-    timeout_seconds: int,
-) -> tuple[Any, Any]:
+def _extract_topic_from_notif(notif_obj: Any) -> str:
     """
-    Return (pullpoint_service, event_service) reusing a cached subscription
-    when still valid, or creating a fresh one otherwise.
+    Bosch stores the topic in the raw XML of the notification wrapper.
+    zeep wraps it as notif.Topic with _value_1=None and the real data
+    in an internal XML buffer. We serialise the zeep object to XML and
+    parse the <wsnt:Topic> element directly.
     """
-    from onvif import ONVIFCamera
-
-    cached = _subscriptions.get(ip)
-    now = datetime.utcnow()
-
-    # Check if cached subscription is still fresh (with 60s safety margin)
-    if cached and cached["expires_at"] > now:
-        return cached["pullpoint"], cached["event_service"]
-
-    # ── Create a new subscription ──────────────────────────────────────────
-    print(f"[BOSCH] 🔗 Creating new PullPoint subscription for {ip}")
-
-    cam = ONVIFCamera(ip, port, username, password)
-    event_service = cam.create_events_service()
-
-    lifetime = _SUB_LIFETIME_SECONDS
+    # Strategy 1: try zeep's _value_1 as string
     try:
-        subscription = event_service.CreatePullPointSubscription(
-            {"InitialTerminationTime": f"PT{lifetime}S"}
-        )
-    except Exception:
-        subscription = event_service.CreatePullPointSubscription({})
+        tw = getattr(notif_obj, "Topic", None)
+        if tw is not None:
+            v1 = getattr(tw, "_value_1", None)
+            if isinstance(v1, str) and v1.strip():
+                return v1.strip()
+            # v1 might be an lxml Element
+            if hasattr(v1, "tag"):
+                text = (v1.text or "").strip()
+                if text:
+                    return text
+                # topic may be in the element's serialised text
+                raw = etree.tostring(v1, encoding="unicode")
+                if _DEBUG_TOPIC:
+                    print(f"[BOSCH TOPIC EL] {raw!r}")
+                return raw.strip()
+    except Exception as e:
+        if _DEBUG_TOPIC:
+            print(f"[BOSCH TOPIC] strategy1 error: {e}")
 
-    pullpoint = cam.create_pullpoint_service()
-
-    # Point the pullpoint service at the subscription's address if provided
+    # Strategy 2: serialise the full notification with zeep and parse wsnt:Topic
     try:
-        addr = subscription.SubscriptionReference.Address
-        if addr:
-            addr_str = _safe_str(addr)
-            if addr_str:
-                pullpoint._client._binding_options["address"] = addr_str
-                print(f"[BOSCH] {ip} → subscription address: {addr_str}")
+        import zeep.helpers
+        d = zeep.helpers.serialize_object(notif_obj)
+        # d['Topic']['_value_1'] is still None for Bosch
+        # but the internal zeep client may expose the raw element via __values__
+        topic_obj = notif_obj.Topic
+        if hasattr(topic_obj, "__values__"):
+            for k, v in topic_obj.__values__.items():
+                if v and isinstance(v, str) and v.strip():
+                    return v.strip()
+    except Exception as e:
+        if _DEBUG_TOPIC:
+            print(f"[BOSCH TOPIC] strategy2 error: {e}")
+
+    # Strategy 3: use zeep's _raw_elements if available
+    try:
+        topic_obj = notif_obj.Topic
+        raw_elems = getattr(topic_obj, "_raw_elements", None)
+        if raw_elems:
+            for el in raw_elems:
+                text = (el.text or "").strip()
+                if text:
+                    return text
     except Exception:
         pass
 
-    expires_at = datetime(
-        now.year, now.month, now.day,
-        now.hour, now.minute, now.second
-    )
-    from datetime import timedelta
-    expires_at = now + timedelta(seconds=lifetime - 60)  # renew 60s early
+    # Strategy 4: walk _attr_1 on the Topic wrapper
+    try:
+        tw = getattr(notif_obj, "Topic", None)
+        if tw:
+            attr1 = getattr(tw, "_attr_1", {}) or {}
+            for k, v in attr1.items():
+                s = _safe_str(v)
+                if s.strip():
+                    return s.strip()
+    except Exception:
+        pass
 
-    _subscriptions[ip] = {
-        "pullpoint":     pullpoint,
-        "event_service": event_service,
-        "expires_at":    expires_at,
-        "cam":           cam,
+    return ""
+
+
+# ── Message element parsing ────────────────────────────────────────────────────
+
+def _parse_message_element(notif_obj: Any) -> dict:
+    """
+    Parse the lxml Element at notif.Message._value_1.
+    Returns {utc_time, property_operation, items}.
+    """
+    result = {
+        "utc_time":           datetime.utcnow().isoformat(),
+        "property_operation": "",
+        "items":              {},
     }
 
-    return pullpoint, event_service
+    try:
+        msg_wrapper = getattr(notif_obj, "Message", None)
+        if msg_wrapper is None:
+            return result
+
+        msg_el = getattr(msg_wrapper, "_value_1", None)
+        if msg_el is None or not hasattr(msg_el, "tag"):
+            return result
+
+        # UtcTime and PropertyOperation are attributes on the Message element
+        utc = msg_el.get("UtcTime") or msg_el.get("utcTime")
+        if utc:
+            result["utc_time"] = utc.strip()
+
+        op = msg_el.get("PropertyOperation") or msg_el.get("propertyOperation", "")
+        result["property_operation"] = op.strip()
+
+        # SimpleItems inside <tt:Source> and <tt:Data>
+        for section in ("Source", "Data"):
+            sec_el = msg_el.find(f"{{{NS_SCHEMA}}}{section}")
+            if sec_el is None:
+                sec_el = msg_el.find(section)
+            if sec_el is not None:
+                for item in sec_el:
+                    name  = item.get("Name",  "")
+                    value = item.get("Value", "")
+                    if name:
+                        result["items"][name] = value
+
+    except Exception as e:
+        print(f"[BOSCH] ⚠ _parse_message_element: {e}")
+
+    return result
 
 
-def _invalidate_subscription(ip: str) -> None:
-    """Remove a cached subscription so the next call creates a fresh one."""
-    if ip in _subscriptions:
+# ── Subscription management ────────────────────────────────────────────────────
+
+def _create_subscription(ip: str, port: int, username: str, password: str) -> dict:
+    from onvif import ONVIFCamera
+
+    print(f"[BOSCH] 🔗 Creating PullPoint subscription for {ip}")
+    cam           = ONVIFCamera(ip, port, username, password)
+    event_service = cam.create_events_service()
+
+    try:
+        sub = event_service.CreatePullPointSubscription(
+            {"InitialTerminationTime": f"PT{_SUB_LIFETIME}S"}
+        )
+    except Exception:
         try:
-            _subscriptions[ip]["event_service"].Unsubscribe({})
-        except Exception:
-            pass
-        del _subscriptions[ip]
-        print(f"[BOSCH] 🗑  Invalidated subscription for {ip}")
+            sub = event_service.CreatePullPointSubscription({})
+        except Exception as e:
+            raise RuntimeError(f"Cannot subscribe: {e}") from e
 
+    pullpoint = cam.create_pullpoint_service()
+
+    try:
+        addr = _safe_str(sub.SubscriptionReference.Address)
+        if addr:
+            pullpoint._client._binding_options["address"] = addr
+            print(f"[BOSCH] {ip} → sub addr: {addr}")
+    except Exception:
+        pass
+
+    # Probe working timeout
+    working = "PT0S"
+    for t in _TIMEOUT_PROBES:
+        try:
+            pullpoint.PullMessages({"MessageLimit": 1, "Timeout": t})
+            working = t
+            print(f"[BOSCH] {ip} → working Timeout: {t}")
+            break
+        except Exception as e:
+            if "argument value invalid" in str(e).lower():
+                continue
+            break
+
+    now = datetime.utcnow()
+    return {
+        "pullpoint":       pullpoint,
+        "event_service":   event_service,
+        "cam":             cam,
+        "working_timeout": working,
+        "expires_at":      now + timedelta(seconds=_SUB_LIFETIME - 20),
+    }
+
+
+def _get_subscription(ip: str, port: int, username: str, password: str) -> dict:
+    c = _subscriptions.get(ip)
+    if c and datetime.utcnow() < c["expires_at"]:
+        return c
+    if c:
+        try: c["event_service"].Unsubscribe({})
+        except Exception: pass
+        del _subscriptions[ip]
+    entry = _create_subscription(ip, port, username, password)
+    _subscriptions[ip] = entry
+    return entry
+
+
+def _invalidate(ip: str) -> None:
+    if ip not in _subscriptions:
+        return
+    try: _subscriptions[ip]["event_service"].Unsubscribe({})
+    except Exception: pass
+    del _subscriptions[ip]
+    print(f"[BOSCH] 🗑  Cleared subscription for {ip}")
+
+
+# ── Public API ─────────────────────────────────────────────────────────────────
 
 def pull_bosch_events(
     ip: str,
@@ -160,134 +271,130 @@ def pull_bosch_events(
     timeout_seconds: int = 5,
     max_messages: int = 50,
 ) -> dict:
-    """
-    Pull pending ONVIF events from a Bosch camera using a persistent
-    PullPoint subscription.
-
-    Returns
-    -------
-    {
-        "success": bool,
-        "events":  list[dict],
-        "error":   str | None,
-    }
-    """
     try:
-        from onvif import ONVIFCamera   # onvif-zeep package
+        from onvif import ONVIFCamera  # noqa
     except ImportError:
-        return {
-            "success": False,
-            "events":  [],
-            "error":   "onvif-zeep not installed — run: pip install onvif-zeep",
-        }
+        return {"success": False, "events": [],
+                "error": "onvif-zeep not installed"}
 
     events: list[dict] = []
 
-    try:
-        pullpoint, event_service = _get_or_create_subscription(
-            ip, port, username, password, timeout_seconds
-        )
+    for attempt in range(2):
+        try:
+            sub       = _get_subscription(ip, port, username, password)
+            pp        = sub["pullpoint"]
+            working_t = sub["working_timeout"]
+            response  = pp.PullMessages({"MessageLimit": max_messages, "Timeout": working_t})
+            break
+        except Exception as e:
+            print(f"[BOSCH] ⚠ PullMessages failed for {ip} (attempt {attempt+1}): {e}")
+            _invalidate(ip)
+            if attempt == 1:
+                return {"success": False, "events": [], "error": str(e)}
 
-        # ── Pull messages ──────────────────────────────────────────────
-        pull_request = {
-            "MessageLimit": max_messages,
-            "Timeout":      f"PT{timeout_seconds}S",
+    notifications = getattr(response, "NotificationMessage", []) or []
+
+    if not notifications:
+        print(f"[BOSCH] {ip} reachable, no events currently")
+        return {"success": True, "events": [], "error": None}
+
+    print(f"[BOSCH] {ip} → {len(notifications)} raw notification(s)")
+
+    for notif in notifications:
+        topic  = _extract_topic_from_notif(notif)
+        parsed = _parse_message_element(notif)
+
+        prop_op = parsed["property_operation"].lower()
+        items   = parsed["items"]
+        utc_time = parsed["utc_time"]
+
+        
+        print("""
+        ================ BOSCH ANALYTICS EVENT ================
+        TOPIC        : {}
+        OPERATION    : {}
+        ITEMS        : {}
+        =======================================================
+        """.format(topic, prop_op, items))
+
+
+
+        # # Skip baseline snapshots
+        # if prop_op == "initialized":
+        #     continue
+
+        # # Skip pure profile/noise events with no meaningful value
+        # if not items or list(items.keys()) == ["Profile"]:
+        #     continue
+
+        # # Skip "off" states
+        # state = items.get("State", items.get("Value", items.get("LogicalState", ""))).lower()
+        # if state in ("false", "0", "inactive", "no", "off"):
+        #     continue
+
+        # Infer event type from topic, or fall back to items
+        # ── REPLACE this entire block in pull_bosch_events ──────────────
+
+# ── State filtering ──────────────────────────────────────────
+        state = items.get(
+            "State",
+            items.get("Value", items.get("LogicalState", ""))
+        ).lower().strip()
+
+        status = items.get("Status", "").strip()
+
+        # Skip initialized snapshots
+        if prop_op == "initialized":
+            continue
+
+        # Skip empty items
+        if not items:
+            continue
+
+        # Skip Profile/Status junk (no real state)
+        if "Profile" in items and not status:
+            continue
+
+        # Skip relay/input noise
+        if "RelayToken" in items or "InputToken" in items:
+            continue
+
+        # Skip OFF states
+        if state in ("false", "0", "inactive", "no", "off", ""):
+            continue
+
+        # ── Event type mapping ───────────────────────────────────────
+        # Since Bosch EVA always sends ConcreteSet, use Source number
+        # to distinguish rules (Source='1' = rule 1, Source='2' = rule 2)
+        source_num = items.get("Source", "1")
+
+        # Map Source number to your configured scenarios
+        # Source 1 = first VCA rule = "Detect any object" (Intrusion)
+        SOURCE_MAP = {
+            "1": ("Object Detection", "Detect Any Object"),
+            "2": ("LineCrossing",     "Line Crossing"),
+            "3": ("Tamper",           "Tamper Detection"),
         }
 
-        try:
-            response = pullpoint.PullMessages(pull_request)
-        except Exception as pull_err:
-            # Subscription likely expired — invalidate and retry once
-            print(f"[BOSCH] ⚠ PullMessages failed for {ip}: {pull_err} — re-subscribing")
-            _invalidate_subscription(ip)
-            pullpoint, event_service = _get_or_create_subscription(
-                ip, port, username, password, timeout_seconds
-            )
-            response = pullpoint.PullMessages(pull_request)
+        event_type, scenario_name = SOURCE_MAP.get(
+            source_num,
+            ("Motion", "VCA Motion")
+        )
 
-        notifications = getattr(response, "NotificationMessage", []) or []
+        raw = {"topic": topic or "unknown", **items}
 
-        # ── Log raw notification count for debugging ───────────────────
-        if notifications:
-            print(f"[BOSCH] {ip} → {len(notifications)} raw notification(s)")
-        else:
-            print(f"[BOSCH] {ip} reachable, no events currently")
+        events.append({
+            "event_type":    event_type,
+            "scenario_name": scenario_name,
+            "topic":         topic or "unknown",
+            "utc_time":      utc_time,
+            "source":        "bosch",
+            "raw":           raw,
+        })
 
-        # ── Normalise each notification ────────────────────────────────
-        for notif in notifications:
-            topic = _topic_str(getattr(notif, "Topic", None))
+    if events:
+        print(f"[BOSCH] ✅ {ip} → {len(events)} actionable event(s)")
+    else:
+        print(f"[BOSCH] {ip} → notifications received but all filtered out")
 
-            # UTC time: prefer Message.UtcTime
-            utc_time = datetime.utcnow().isoformat()
-            try:
-                msg = getattr(notif, "Message", None)
-                if msg:
-                    msg_inner = getattr(msg, "Message", msg)
-                    t = getattr(msg_inner, "UtcTime", None)
-                    if t:
-                        utc_time = t.isoformat() if hasattr(t, "isoformat") else str(t)
-            except Exception:
-                pass
-
-            # Extract SimpleItem key-value pairs from Source + Data
-            raw: dict[str, Any] = {"topic": topic}
-            try:
-                msg      = getattr(notif, "Message", None)
-                msg_body = getattr(msg, "Message", msg) if msg else None
-                if msg_body:
-                    for section_name in ("Source", "Data"):
-                        section = getattr(msg_body, section_name, None)
-                        if section:
-                            for item in (getattr(section, "SimpleItem", []) or []):
-                                key = _safe_str(getattr(item, "Name",  ""))
-                                val = _safe_str(getattr(item, "Value", ""))
-                                if key:
-                                    raw[key] = val
-            except Exception:
-                pass
-
-            # Also log the PropertyOperation (Changed / Initialized / Deleted)
-            try:
-                msg = getattr(notif, "Message", None)
-                if msg:
-                    msg_inner = getattr(msg, "Message", msg)
-                    op = getattr(msg_inner, "PropertyOperation", None)
-                    if op:
-                        raw["PropertyOperation"] = _safe_str(op)
-            except Exception:
-                pass
-
-            event_type = _map_event_type(topic)
-
-            # ── Only emit events where something actually happened ─────
-            # Bosch sends "Initialized" notifications on subscription start
-            # (current state snapshot). We want only "Changed" = real triggers.
-            prop_op = raw.get("PropertyOperation", "").lower()
-            if prop_op == "initialized":
-                # Skip snapshot/baseline events
-                continue
-
-            # For Value-based motion topics, only emit when Value is True/1
-            value = raw.get("Value", "").lower()
-            if value in ("false", "0", "inactive", "no"):
-                continue
-
-            events.append({
-                "event_type": event_type,
-                "topic":      topic,
-                "utc_time":   utc_time,
-                "source":     "bosch",
-                "raw":        raw,
-            })
-
-        if events:
-            print(f"[BOSCH] ✅ {ip} → {len(events)} actionable event(s)")
-
-        return {"success": True, "events": events, "error": None}
-
-    except Exception as exc:
-        tb = traceback.format_exc()
-        print(f"[BOSCH] ❌ {ip}: {exc}\n{tb}")
-        # Invalidate the cached subscription on any hard error
-        _invalidate_subscription(ip)
-        return {"success": False, "events": [], "error": str(exc)}
+    return {"success": True, "events": events, "error": None}

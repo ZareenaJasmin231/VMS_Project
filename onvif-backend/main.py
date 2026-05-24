@@ -1711,10 +1711,21 @@ def auth_login(req: LoginRequest, request: Request):
     if users_col is None:
         raise HTTPException(status_code=500, detail="Database not connected")
     user = users_col.find_one({"email": req.email})
+
+
+
     if not user:
         raise HTTPException(status_code=401, detail="Invalid email or password")
     if not pwd_context.verify(req.password, user["password"]):
         raise HTTPException(status_code=401, detail="Invalid email or password")
+    
+    if user.get("role") != req.role:
+        actual_role = user.get("role", "unknown").capitalize()
+        attempted_role = req.role.capitalize()
+        raise HTTPException(status_code=403, detail=f"Account registered as {actual_role}. Cannot login as {attempted_role}.")  
+
+
+
     if auth_logs_col is not None:
         try:
             auth_logs_col.insert_one({

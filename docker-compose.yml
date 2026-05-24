@@ -75,6 +75,7 @@ services:
       - OME_PORT=${OME_WEBRTC_PORT}
       - OME_HOST_IP=${HOST_IP}
       - HOST_SUBNET=192.168.126
+      - DISCOVERY_TIMEOUT_MS=800
       - OME_WS_PORT=${OME_WEBRTC_PORT}
       - MONGO_URI=mongodb://mongo:${MONGO_PORT}/
       - MQTT_BROKER=mosquitto
