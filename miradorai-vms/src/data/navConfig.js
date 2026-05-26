@@ -56,6 +56,17 @@ const CORE_NAV = [
       <path d="M3 8h2M19 8h2M3 16h2M19 16h2M8 3v2M16 3v2M8 19v2M16 19v2"/>
     </svg>`,
   },
+
+    // ✅ FORENSIC SEARCH
+  {
+    section: "Forensic Search",
+    page: "forensic-search",
+    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+      <circle cx="11" cy="11" r="8"/>
+      <path d="m21 21-4.35-4.35"/>
+      <path d="M11 8v6M8 11h6"/>
+    </svg>`,
+  },
   // ✅ RECORDING & EVENTS
   {
     section: "Recording & Events",
@@ -165,6 +176,8 @@ const ICONS = {
   cameras: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>`,
   cameraGroups: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>`,
   masking: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="2"/><rect x="8" y="8" width="8" height="8" rx="1"/><path d="M3 8h2M19 8h2M3 16h2M19 16h2M8 3v2M16 3v2M8 19v2M16 19v2"/></svg>`,
+  forensicSearch: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/><path d="M11 8v6M8 11h6"/></svg>`,
+
   recording: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>`,
   storage: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v6c0 1.66 4.03 3 9 3s9-1.34 9-3V5"/><path d="M3 11v6c0 1.66 4.03 3 9 3s9-1.34 9-3v-6"/></svg>`,
   playback: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>`,
@@ -196,6 +209,8 @@ const CLIENT_NAV = [
       { label: "Action Rules",      page: "action-rules" },
     ],
   },
+  { section: "Forensic Search", page: "forensic-search", icon: ICONS.forensicSearch },
+
   { section: "Storage Management", page: "storage-mgmt", icon: ICONS.storage },
   { section: "Playback", page: "media-player",  icon: ICONS.playback },
   { section: "Backup",   page: "backup",        icon: ICONS.backup },
@@ -218,9 +233,9 @@ const OPERATOR_NAV = [
   {
     section: "Cameras",
     icon: ICONS.cameras,
-    items: [
-      { label: "Add Device", page: "add-devices", icon: ICONS.addDevice },
-    ],
+    // items: [
+    //   { label: "Add Device", page: "add-devices", icon: ICONS.addDevice },
+    // ],
   },
 ];
 

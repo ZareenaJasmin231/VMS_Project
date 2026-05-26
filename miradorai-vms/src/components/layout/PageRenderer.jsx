@@ -46,6 +46,8 @@ import TopologyPage from "../../pages/infrastructure/Topology";
 import NetworkHealthPage from "../../pages/diagnostics/NetworkHealthPage";
 import DesignerView from "../../pages/Mapview/DesignerView";
 import MaskingPage from "../../pages/devices/MaskingPage";
+import ForensicSearchPage from "../../pages/forensic/ForensicSearchPage";
+
 
 
 // ================= PAGE MAP =================
@@ -88,6 +90,9 @@ const MAP = {
   // ================= SERVICES =================
   "firmware-upgrade": FirmwareUpgradePage,
   "smartsearch-settings": SmartSearchSettingsPage,
+  "forensic-search": ForensicSearchPage,
+
+
 
   // ================= LIVE =================
   "live-view": LiveViewPage,
