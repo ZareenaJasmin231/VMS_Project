@@ -30,6 +30,8 @@ from maps_router import router as maps_router
 from designer_router import router as designer_router
 
 from monitoring.websocket_manager import manager
+from forensic_api import forensic_router
+
 
 
 from  onvif_service import (
@@ -156,6 +158,8 @@ app.include_router(camera_analytics_router)
 app.include_router(maps_router)
 app.include_router(designer_router)
 app.include_router(infrastructure_router)
+app.include_router(forensic_router)
+
 
 # @app.on_event("startup")
 # async def startup_event():
@@ -547,7 +551,7 @@ async def webrtc_proxy(stream_key: str, request: Request):
         print(f"[WHIP] ❌ Proxy error for {stream_key}: {e}")
         raise HTTPException(status_code=502, detail=str(e))
 
-@app.get("/api/event-playback", dependencies=[Depends(verify_token)])
+@app.get("/api/event-playback")
 def event_playback(ip: str, time: str):
     """
     Return a 20-second clip centred on the alert trigger time (+-10 s).
@@ -828,8 +832,50 @@ def event_playback(ip: str, time: str):
                 media_type="application/json",
                 headers={"Access-Control-Allow-Origin": "*"},
             )
+# ── 9. Save clip as encrypted .enc ───────────────────────────
+        event_clips_col = _db["event_clips"]
 
-        # ── 9. Return the clip ────────────────────────────────────────
+        # Build save path: /recording/event_clips/<ip>/<date>/<ip>_<timestamp>.enc
+        clips_base  = os.path.join(recorder.get_recordings_dir(), "event_clips")
+        ip_folder   = ip.strip().replace(".", "_")
+        clip_date   = alert_local_date                        # e.g. 2026-05-26
+        clip_ts     = alert_dt.strftime("%H-%M-%S")           # e.g. 22-03-05
+        clip_dir    = os.path.join(clips_base, ip_folder, clip_date)
+        os.makedirs(clip_dir, exist_ok=True)
+
+        clip_filename = f"{ip_folder}_{clip_ts}.enc"
+        clip_enc_path = os.path.join(clip_dir, clip_filename)
+
+        # Re-encrypt using the same AES key as recordings
+        already_saved = os.path.exists(clip_enc_path)
+        if not already_saved:
+            try:
+                with open(output_path, "rb") as f:
+                    raw_mp4 = f.read()
+                encrypted_clip = encrypt_service._aes_encrypt(raw_mp4)
+                with open(clip_enc_path, "wb") as f:
+                    f.write(encrypted_clip)
+                print(f"[CLIP] ✅ Saved encrypted clip: {clip_enc_path}")
+
+                # Index in MongoDB
+                event_clips_col.update_one(
+                    {"ip": ip, "time": time},
+                    {"$set": {
+                        "ip":         ip,
+                        "time":       time,
+                        "date":       clip_date,
+                        "file_path":  clip_enc_path.replace("\\", "/"),
+                        "saved_at":   datetime.utcnow(),
+                        "size_bytes": len(encrypted_clip),
+                    }},
+                    upsert=True
+                )
+            except Exception as save_err:
+                print(f"[CLIP] ⚠ Auto-save failed (non-fatal): {save_err}")
+        else:
+            print(f"[CLIP] ℹ Clip already exists: {clip_enc_path}")
+
+        # ── 10. Read clip and return ──────────────────────────────────
         with open(output_path, "rb") as f:
             clip_data = f.read()
         try:
@@ -851,7 +897,9 @@ def event_playback(ip: str, time: str):
                 "Access-Control-Allow-Origin":   "*",
                 "Access-Control-Allow-Methods":  "GET, OPTIONS",
                 "Access-Control-Allow-Headers":  "*",
-                "Access-Control-Expose-Headers": "Content-Length, Content-Type",
+                "Access-Control-Expose-Headers": "Content-Length, Content-Type, X-Server-IP, X-Camera-IP",
+                "X-Server-IP": HOST_IP,
+                "X-Camera-IP": ip,
             },
         )
 
@@ -3014,7 +3062,162 @@ def get_license():
         "status":      "ok",
         "max_cameras": data["max_cameras"],
     }
+# ------------------------------------------------------------------
+# Event Clips — list, play, manual save
+# ------------------------------------------------------------------
 
+@app.get("/api/event-clips", dependencies=[Depends(verify_token)])
+def list_event_clips(ip: str = None, limit: int = 50):
+    """List all saved event clips, optionally filtered by IP."""
+    event_clips_col = _db["event_clips"]
+    query = {}
+    if ip:
+        query["ip"] = ip
+    docs = list(
+        event_clips_col.find(query, {"_id": 0})
+        .sort("saved_at", -1)
+        .limit(limit)
+    )
+    for d in docs:
+        if "saved_at" in d and hasattr(d["saved_at"], "isoformat"):
+            d["saved_at"] = d["saved_at"].isoformat()
+    return {"clips": docs}
+
+
+@app.get("/api/event-clip/play", dependencies=[Depends(verify_token)])
+def play_event_clip(ip: str, time: str):
+    """Decrypt and stream a saved event clip."""
+    event_clips_col = _db["event_clips"]
+
+    doc = event_clips_col.find_one({"ip": ip, "time": time})
+    if not doc:
+        return Response(
+            content=b'{"error":"Clip not found"}',
+            status_code=404,
+            media_type="application/json",
+            headers={"Access-Control-Allow-Origin": "*"},
+        )
+
+    enc_path = doc.get("file_path", "")
+    if not os.path.exists(enc_path):
+        return Response(
+            content=b'{"error":"Clip file missing on disk"}',
+            status_code=404,
+            media_type="application/json",
+            headers={"Access-Control-Allow-Origin": "*"},
+        )
+
+    try:
+        decrypted = b""
+        for chunk in encrypt_service.decrypt_file_stream(enc_path):
+            decrypted += chunk
+    except Exception as e:
+        return Response(
+            content=f'{{"error":"Decryption failed: {str(e)}"}}'.encode(),
+            status_code=500,
+            media_type="application/json",
+            headers={"Access-Control-Allow-Origin": "*"},
+        )
+
+    return Response(
+        content=decrypted,
+        media_type="video/mp4",
+        headers={
+            "Content-Type":        "video/mp4",
+            "Content-Length":      str(len(decrypted)),
+            "Content-Disposition": "inline",
+            "Accept-Ranges":       "bytes",
+            "Cache-Control":       "no-store",
+            "Access-Control-Allow-Origin":   "*",
+            "Access-Control-Allow-Methods":  "GET, OPTIONS",
+            "Access-Control-Allow-Headers":  "*",
+            "Access-Control-Expose-Headers": "Content-Length, Content-Type",
+        },
+    )
+
+
+@app.post("/api/event-clip/save", dependencies=[Depends(verify_token)])
+async def manual_save_clip(request: Request):
+    """
+    Manual save — called from UI Save button.
+    Body: { "ip": "...", "time": "..." }
+    Triggers event-playback internally and saves the clip.
+    """
+    body = await request.json()
+    ip   = body.get("ip")
+    time_str = body.get("time")
+
+    if not ip or not time_str:
+        raise HTTPException(status_code=400, detail="ip and time required")
+
+    event_clips_col = _db["event_clips"]
+
+    # Check if already saved
+    existing = event_clips_col.find_one({"ip": ip, "time": time_str})
+    if existing and os.path.exists(existing.get("file_path", "")):
+        return {"success": True, "message": "Already saved", "already_existed": True}
+
+    # Re-use the playback logic to get the clip bytes, then save
+    from datetime import datetime as dt
+    import re as _re
+
+    try:
+        # Parse time
+        t = time_str.strip()
+        if " " in t:
+            t = t.replace(" ", "+")
+        t = _re.sub(r"([+-])(\d{2})(\d{2})$", r"\1\2:\3", t)
+        try:
+            alert_dt = dt.fromisoformat(t)
+        except ValueError:
+            t_clean  = _re.sub(r"[+-]\d{2}:\d{2}$", "", t).rstrip("Z").strip()
+            alert_dt = dt.fromisoformat(t_clean)
+
+        clip_date  = alert_dt.strftime("%Y-%m-%d")
+        clip_ts    = alert_dt.strftime("%H-%M-%S")
+        ip_folder  = ip.strip().replace(".", "_")
+        clips_base = os.path.join(recorder.get_recordings_dir(), "event_clips")
+        clip_dir   = os.path.join(clips_base, ip_folder, clip_date)
+        os.makedirs(clip_dir, exist_ok=True)
+
+        clip_enc_path = os.path.join(clip_dir, f"{ip_folder}_{clip_ts}.enc")
+
+        # Call event_playback internally to get the raw mp4 bytes
+        # We do this by calling the function directly
+        resp = event_playback(ip=ip, time=time_str)
+
+        if resp.status_code != 200:
+            raise HTTPException(status_code=404, detail="Recording not found for this alert")
+
+        raw_mp4 = resp.body
+
+        # Encrypt and save
+        encrypted_clip = encrypt_service._aes_encrypt(raw_mp4)
+        with open(clip_enc_path, "wb") as f:
+            f.write(encrypted_clip)
+
+        event_clips_col.update_one(
+            {"ip": ip, "time": time_str},
+            {"$set": {
+                "ip":         ip,
+                "time":       time_str,
+                "date":       clip_date,
+                "file_path":  clip_enc_path.replace("\\", "/"),
+                "saved_at":   dt.utcnow(),
+                "size_bytes": len(encrypted_clip),
+            }},
+            upsert=True
+        )
+
+        print(f"[CLIP] ✅ Manually saved: {clip_enc_path}")
+        return {"success": True, "message": "Clip saved", "file": clip_enc_path}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Save failed: {str(e)}")
 
 # ------------------------------------------------------------------
 # Register features router last (routes are defined above)

@@ -137,7 +137,7 @@ def save_discovered_nodes(discovered_list):
                 if cam_doc.get("password"):
                     node_data["password"] = cam_doc["password"]
         if not existing:
-            node_data["position"] = {"x": 100, "y": 100}
+            node_data["position"] = None
             nodes_col.insert_one(node_data)
             print(f"[HEALTH] Added new node: {node_id} ({dev['ip']})")
         else:
@@ -156,6 +156,15 @@ def seed_topology_from_cameras():
     ✅ FIX: VMS dedup now strictly by model='VMS Host' — prevents duplicates on IP change.
     ✅ NEW: Persists uptime + last_reboot to VMS node for frontend display.
     """
+    # Purge any existing web_device entries and their edges from database
+    nodes_col.delete_many({"type": "web_device"})
+    db["infrastructure_edges"].delete_many({
+        "$or": [
+            {"source": {"$regex": ".*web-device.*"}},
+            {"target": {"$regex": ".*web-device.*"}}
+        ]
+    })
+
     from .scanner import scanner
     cams_col = db["cameras"]
     cameras = list(cams_col.find({}))

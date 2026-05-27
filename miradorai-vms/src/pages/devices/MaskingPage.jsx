@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import MaskingSection from "./MaskingSection";
 import "./MaskingPage.css";
 
@@ -7,8 +7,16 @@ const API = import.meta.env.VITE_API_URL;
 export default function MaskingPage() {
   const [cameras, setCameras] = useState([]);
   const [selectedCam, setSelectedCam] = useState(null);
+  const [maskCounts, setMaskCounts] = useState({});
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState(null);
+
+  const handleMasksChange = useCallback((ip, count) => {
+    setMaskCounts(prev => {
+      if (prev[ip] === count) return prev;
+      return { ...prev, [ip]: count };
+    });
+  }, []);
 
   useEffect(() => {
     // Load devices from localStorage
@@ -25,6 +33,29 @@ export default function MaskingPage() {
     } else if (devs.length > 0) {
       setSelectedCam(devs[0]);
     }
+
+    // Fetch initial mask counts for all cameras in parallel
+    const fetchAllCounts = async () => {
+      const counts = {};
+      await Promise.all(
+        devs.map(async (cam) => {
+          try {
+            const res = await fetch(`${API}/api/masks/${encodeURIComponent(cam.ip)}`);
+            const data = await res.json();
+            counts[cam.ip] = data.masks ? data.masks.length : 0;
+          } catch (e) {
+            console.error(`[MASKS] Failed to fetch count for ${cam.ip}:`, e);
+            counts[cam.ip] = 0;
+          }
+        })
+      );
+      setMaskCounts(counts);
+    };
+
+    if (devs.length > 0) {
+      fetchAllCounts();
+    }
+
     setLoading(false);
   }, []);
 
@@ -65,7 +96,11 @@ export default function MaskingPage() {
             </div>
             
             <div className="mp-content">
-              <MaskingSection device={selectedCam} showToast={showToast} />
+              <MaskingSection 
+                device={selectedCam} 
+                showToast={showToast} 
+                onMasksChange={handleMasksChange}
+              />
             </div>
           </div>
         ) : (
@@ -88,19 +123,27 @@ export default function MaskingPage() {
           <span className="mp-badge">{cameras.length}</span>
         </div>
         <div className="mp-sidebar-list">
-          {cameras.map(cam => (
-            <button
-              key={cam.id}
-              className={`mp-cam-btn ${selectedCam?.id === cam.id ? "active" : ""}`}
-              onClick={() => handleCamSelect(cam)}
-            >
-              <div className="mp-cam-info">
-                <div className="mp-cam-name">{cam.name || "Unnamed"}</div>
-                <div className="mp-cam-ip">{cam.ip}</div>
-              </div>
-              {selectedCam?.id === cam.id && <div className="mp-active-bar" />}
-            </button>
-          ))}
+          {cameras.map(cam => {
+            const count = maskCounts[cam.ip] || 0;
+            return (
+              <button
+                key={cam.id}
+                className={`mp-cam-btn ${selectedCam?.id === cam.id ? "active" : ""}`}
+                onClick={() => handleCamSelect(cam)}
+              >
+                <div className="mp-cam-info">
+                  <div className="mp-cam-name">{cam.name || "Unnamed"}</div>
+                  <div className="mp-cam-ip">{cam.ip}</div>
+                </div>
+                {count > 0 && (
+                  <span className="mp-cam-mask-badge">
+                    {count} {count === 1 ? "mask" : "masks"}
+                  </span>
+                )}
+                {selectedCam?.id === cam.id && <div className="mp-active-bar" />}
+              </button>
+            );
+          })}
           {cameras.length === 0 && (
             <div className="mp-sidebar-empty">No cameras found.</div>
           )}

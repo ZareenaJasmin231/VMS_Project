@@ -132,6 +132,23 @@ async def delete_edge(source: str, target: str):
     return {"success": True}
 
 
+@router.post("/reset")
+async def reset_topology():
+    """Resets all node positions to None (unplaced) and deletes all edges."""
+    nodes_col.update_many({}, {"$set": {"position": None}})
+    edges_col = db["infrastructure_edges"]
+    edges_col.delete_many({})
+    return {"success": True}
+
+
+@router.post("/edges/clear")
+async def clear_edges():
+    """Deletes all edges (connections) in the topology."""
+    edges_col = db["infrastructure_edges"]
+    edges_col.delete_many({})
+    return {"success": True}
+
+
 @router.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     await manager.connect(websocket)

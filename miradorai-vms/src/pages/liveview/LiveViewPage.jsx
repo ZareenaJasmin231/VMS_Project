@@ -14,11 +14,13 @@ function loadDevices() {
   catch { return []; }
 }
 
-const LAYOUTS = [
-  { id: "1x1", label: "1×1", cols: 1, icon: "▣" },
-  { id: "2x2", label: "2×2", cols: 2, icon: "⊞" },
-  { id: "3x3", label: "3×3", cols: 3, icon: "⊟" },
-  { id: "1+3", label: "1+3", cols: "1+3", icon: "▤" },
+const GRID_OPTIONS = [
+  { id: "2x2", label: "2x2 Grid", rows: 2, cols: 2 },
+  { id: "2x3", label: "2x3 Grid", rows: 2, cols: 3 },
+  { id: "3x2", label: "3x2 Grid", rows: 3, cols: 2 },
+  { id: "3x3", label: "3x3 Grid", rows: 3, cols: 3 },
+  { id: "3x4", label: "3x4 Grid", rows: 3, cols: 4 },
+  { id: "4x4", label: "4x4 Grid", rows: 4, cols: 4 }
 ];
 
 const MASK_CANVAS_W = 640;
@@ -114,46 +116,47 @@ function MaskOverlay({ ip }) {
 }
 
 // ── AlertPopup ────────────────────────────────────────────────────
+// ── AlertPopup ────────────────────────────────────────────────────
 function AlertPopup({ ip, alerts, onClose }) {
   const [playingAlert, setPlayingAlert] = useState(null);
   const [videoUrl,     setVideoUrl]     = useState(null);
   const [videoLoading, setVideoLoading] = useState(false);
   const [videoError,   setVideoError]   = useState(null);
- 
+  const [saveStatus,   setSaveStatus]   = useState({}); // { [alertKey]: "saving"|"saved"|"error" }
+
   // Revoke blob URL when it changes or on unmount
   useEffect(() => {
     return () => {
       if (videoUrl) URL.revokeObjectURL(videoUrl);
     };
   }, [videoUrl]);
- 
+
+  const alertKey = (alert) =>
+    `${(alert.ip || ip)}_${alert.time || alert.received_at}`;
+
   const handleView = async (alert) => {
-    // Revoke any previous blob URL before creating a new one
     if (videoUrl) {
       URL.revokeObjectURL(videoUrl);
       setVideoUrl(null);
     }
- 
     setPlayingAlert(alert);
     setVideoError(null);
     setVideoLoading(true);
- 
+
     try {
       const time = alert.time || alert.received_at;
       if (!time) throw new Error("Alert has no timestamp");
- 
-      // Normalise IP: strip underscores so the backend query matches
+
       const normIp = (ip || "").replace(/_/g, ".");
- 
+
       const url =
         `${API}/api/event-playback` +
         `?ip=${encodeURIComponent(normIp)}` +
         `&time=${encodeURIComponent(time)}`;
- 
+
       const res = await fetch(url, { headers: getAuthHeaders() });
- 
+
       if (!res.ok) {
-        // Try to parse JSON error, fall back to status text
         let errMsg = `Server error ${res.status}`;
         const ct = res.headers.get("content-type") || "";
         if (ct.includes("application/json")) {
@@ -163,13 +166,13 @@ function AlertPopup({ ip, alerts, onClose }) {
         }
         throw new Error(errMsg);
       }
- 
+
       const blob = await res.blob();
       if (!blob || blob.size === 0) throw new Error("Server returned an empty video");
- 
+
       const blobUrl = URL.createObjectURL(blob);
       setVideoUrl(blobUrl);
- 
+
     } catch (e) {
       console.error("[AlertPopup] playback error:", e);
       setVideoError(e.message || "Playback failed");
@@ -177,7 +180,41 @@ function AlertPopup({ ip, alerts, onClose }) {
       setVideoLoading(false);
     }
   };
- 
+
+  // ── Manual Save ───────────────────────────────────────────────
+  const handleSave = async (alert) => {
+    const key     = alertKey(alert);
+    const normIp  = (alert.ip || ip || "").replace(/_/g, ".");
+    const time    = alert.time || alert.received_at;
+
+    if (!time) return;
+    if (saveStatus[key] === "saving" || saveStatus[key] === "saved") return;
+
+    setSaveStatus(prev => ({ ...prev, [key]: "saving" }));
+
+    try {
+      const res = await fetch(`${API}/api/event-clip/save`, {
+        method:  "POST",
+        headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
+        body:    JSON.stringify({ ip: normIp, time }),
+      });
+
+      if (!res.ok) {
+        const e = await res.json().catch(() => ({}));
+        throw new Error(e.detail || `Save failed (${res.status})`);
+      }
+
+      setSaveStatus(prev => ({ ...prev, [key]: "saved" }));
+    } catch (e) {
+      console.error("[AlertPopup] save error:", e);
+      setSaveStatus(prev => ({ ...prev, [key]: "error" }));
+      // Reset error after 3s so user can retry
+      setTimeout(() => {
+        setSaveStatus(prev => ({ ...prev, [key]: undefined }));
+      }, 3000);
+    }
+  };
+
   const handleBack = () => {
     if (videoUrl) {
       URL.revokeObjectURL(videoUrl);
@@ -186,11 +223,11 @@ function AlertPopup({ ip, alerts, onClose }) {
     setPlayingAlert(null);
     setVideoError(null);
   };
- 
+
   return (
     <div className="alp-overlay" onClick={onClose}>
       <div className="alp-modal" onClick={(e) => e.stopPropagation()}>
- 
+
         {/* Header */}
         <div className="alp-header">
           <div className="alp-header__left">
@@ -210,18 +247,18 @@ function AlertPopup({ ip, alerts, onClose }) {
           </div>
           <button className="alp-close-btn" onClick={onClose}>✕</button>
         </div>
- 
+
         {/* ── Video Player View ── */}
         {playingAlert && (
           <div className="alp-player-area">
- 
+
             {videoLoading && (
               <div className="alp-video-state">
                 <div className="alp-spinner" />
                 <span>Loading clip&hellip; (decrypting ±10 s around alert)</span>
               </div>
             )}
- 
+
             {videoError && !videoLoading && (
               <div className="alp-video-state alp-video-state--error">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" width="32" height="32">
@@ -231,8 +268,7 @@ function AlertPopup({ ip, alerts, onClose }) {
                 <span>{videoError}</span>
               </div>
             )}
- 
-            {/* key={videoUrl} forces React to remount <video> on every new clip  */}
+
             {videoUrl && !videoLoading && (
               <video
                 key={videoUrl}
@@ -244,7 +280,49 @@ function AlertPopup({ ip, alerts, onClose }) {
                 style={{ width: "100%", display: "block", background: "#000" }}
               />
             )}
- 
+
+            {/* Save button shown once video is playing */}
+            {videoUrl && !videoLoading && (() => {
+              const key    = alertKey(playingAlert);
+              const status = saveStatus[key];
+              return (
+                <div style={{ display: "flex", justifyContent: "flex-end", padding: "8px 0 0" }}>
+                  <button
+                    className={`alp-save-btn alp-save-btn--${status || "idle"}`}
+                    onClick={() => handleSave(playingAlert)}
+                    disabled={status === "saving" || status === "saved"}
+                    title="Save encrypted clip to server"
+                  >
+                    {status === "saving" && (
+                      <>
+                        <div className="alp-spinner alp-spinner--sm" />
+                        Saving…
+                      </>
+                    )}
+                    {status === "saved" && (
+                      <>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="13" height="13">
+                          <polyline points="20 6 9 17 4 12"/>
+                        </svg>
+                        Saved
+                      </>
+                    )}
+                    {status === "error" && "⚠ Retry"}
+                    {!status && (
+                      <>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="13" height="13">
+                          <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/>
+                          <polyline points="17 21 17 13 7 13 7 21"/>
+                          <polyline points="7 3 7 8 15 8"/>
+                        </svg>
+                        Save Clip
+                      </>
+                    )}
+                  </button>
+                </div>
+              );
+            })()}
+
             <div className="alp-playback-meta">
               <span className="alp-meta-chip">{playingAlert.type || "—"}</span>
               <span className="alp-meta-chip">{playingAlert.scenario || "—"}</span>
@@ -256,40 +334,67 @@ function AlertPopup({ ip, alerts, onClose }) {
             </div>
           </div>
         )}
- 
+
         {/* ── Alert List View ── */}
         {!playingAlert && (
           <div className="alp-list">
             {alerts.length === 0 ? (
               <div className="alp-empty">No alerts for this camera</div>
             ) : (
-              alerts.map((alert, i) => (
-                <div key={i} className="alp-row">
-                  <div className="alp-row__info">
-                    <span className="alp-row__type">{alert.type || "Unknown"}</span>
-                    <span className="alp-row__scenario">{alert.scenario || "—"}</span>
-                    <span className="alp-row__time">
-                      {alert.time
-                        ? alert.time.split("T")[1]?.split("+")[0]
-                        : alert.received_at}
-                    </span>
+              alerts.map((alert, i) => {
+                const key    = alertKey(alert);
+                const status = saveStatus[key];
+                return (
+                  <div key={i} className="alp-row">
+                    <div className="alp-row__info">
+                      <span className="alp-row__type">{alert.type || "Unknown"}</span>
+                      <span className="alp-row__scenario">{alert.scenario || "—"}</span>
+                      <span className="alp-row__time">
+                        {alert.time
+                          ? alert.time.split("T")[1]?.split("+")[0]
+                          : alert.received_at}
+                      </span>
+                    </div>
+                    <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+                      {/* Save button in list row */}
+                      <button
+                        className={`alp-save-btn alp-save-btn--sm alp-save-btn--${status || "idle"}`}
+                        onClick={() => handleSave(alert)}
+                        disabled={status === "saving" || status === "saved"}
+                        title="Save encrypted clip"
+                      >
+                        {status === "saving" && <div className="alp-spinner alp-spinner--sm" />}
+                        {status === "saved"  && (
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="11" height="11">
+                            <polyline points="20 6 9 17 4 12"/>
+                          </svg>
+                        )}
+                        {status === "error"  && "⚠"}
+                        {!status && (
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="11" height="11">
+                            <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/>
+                            <polyline points="17 21 17 13 7 13 7 21"/>
+                          </svg>
+                        )}
+                      </button>
+                      <button
+                        className="alp-view-btn"
+                        onClick={() => handleView(alert)}
+                        title="Play ±10 s around this alert"
+                      >
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
+                          <polygon points="5 3 19 12 5 21 5 3"/>
+                        </svg>
+                        View
+                      </button>
+                    </div>
                   </div>
-                  <button
-                    className="alp-view-btn"
-                    onClick={() => handleView(alert)}
-                    title="Play ±10 s around this alert"
-                  >
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
-                      <polygon points="5 3 19 12 5 21 5 3"/>
-                    </svg>
-                    View
-                  </button>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
         )}
- 
+
       </div>
     </div>
   );
@@ -555,7 +660,11 @@ function EmptyCell() {
 // ── LiveViewPage ──────────────────────────────────────────────────
 export default function LiveViewPage() {
   const [devices,      setDevices]      = useState(loadDevices);
-  const [layout,       setLayout]       = useState("2x2");
+  const [layout,       setLayout]       = useState("2x2"); // Default layout is 2x2 Grid
+  const [currentPage,  setCurrentPage]  = useState(1);
+  const [gridDropdownOpen, setGridDropdownOpen] = useState(false);
+  const [gridFullscreen, setGridFullscreen] = useState(false);
+
   const [selected,     setSelected]     = useState(null);
   const [fsDevice,     setFsDevice]     = useState(null);
   const [fsLive,       setFsLive]       = useState(false);
@@ -564,8 +673,44 @@ export default function LiveViewPage() {
   const [popupIp,      setPopupIp]      = useState(null);
   const [popupAlerts,  setPopupAlerts]  = useState([]);
   const [activeRecorders, setActiveRecorders] = useState([]);
+  
   const fsRef = useRef(null);
+  const dropdownRef = useRef(null);
+  const gridAreaRef = useRef(null);
   const showRec = localStorage.getItem("miradorai_show_rec_ind") !== "false";
+
+  // Handle clicking outside of dropdown
+  useEffect(() => {
+    const handler = (e) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        setGridDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  // Grid native fullscreen toggler
+  const toggleGridFullscreen = () => {
+    if (!gridAreaRef.current) return;
+    if (!document.fullscreenElement) {
+      gridAreaRef.current.requestFullscreen?.()
+        .then(() => setGridFullscreen(true))
+        .catch(err => console.error("Error going fullscreen:", err));
+    } else {
+      document.exitFullscreen?.()
+        .then(() => setGridFullscreen(false))
+        .catch(err => console.error("Error exiting fullscreen:", err));
+    }
+  };
+
+  useEffect(() => {
+    const handleFsChange = () => {
+      setGridFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener("fullscreenchange", handleFsChange);
+    return () => document.removeEventListener("fullscreenchange", handleFsChange);
+  }, []);
 
   // Poll active recording status from backend
   useEffect(() => {
@@ -594,7 +739,7 @@ export default function LiveViewPage() {
     return () => window.removeEventListener("storage", update);
   }, []);
 
-  // Fullscreen change listener
+  // Fullscreen change listener for single camera fsDevice
   useEffect(() => {
     const onChange = () => {
       const active = !!(
@@ -708,8 +853,27 @@ export default function LiveViewPage() {
   const activeCams    = devices.filter((d) => d.enabled !== false);
   const onlineCams    = activeCams.filter((d) => d.ws_url);
   const disabledCount = devices.length - activeCams.length;
-  const cols          = layout === "1x1" ? 1 : layout === "2x2" ? 2 : layout === "3x3" ? 3 : 2;
-  const is1plus3      = layout === "1+3";
+
+  const currentGridOption = GRID_OPTIONS.find(o => o.id === layout) || GRID_OPTIONS[3]; // Default to 3x3
+  const rows = currentGridOption.rows;
+  const cols = currentGridOption.cols;
+  const gridSize = rows * cols;
+
+  const totalPages = Math.max(1, Math.ceil(activeCams.length / gridSize));
+  
+  // Bound currentPage
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [totalPages, currentPage]);
+
+  const pageCams = activeCams.slice((currentPage - 1) * gridSize, currentPage * gridSize);
+
+  const handleLayoutChange = (layoutId) => {
+    setLayout(layoutId);
+    setCurrentPage(1);
+  };
 
   return (
     <div className="lv-page">
@@ -729,19 +893,68 @@ export default function LiveViewPage() {
             )}
           </div>
         </div>
-        <div className="lv-toolbar__right">
-          <div className="lv-layouts">
-            {LAYOUTS.map((l) => (
-              <button
-                key={l.id}
-                className={`lv-layout-btn ${layout === l.id ? "lv-layout-btn--active" : ""}`}
-                title={l.label}
-                onClick={() => setLayout(l.id)}
-              >
-                {l.icon}
-              </button>
-            ))}
+        <div className="lv-toolbar__right" style={{ gap: "10px" }}>
+          {/* Custom Grid Dropdown Selector */}
+          <div className="lv-grid-dropdown-container" ref={dropdownRef}>
+            <button
+              className={`lv-grid-dropdown-trigger ${gridDropdownOpen ? "active" : ""}`}
+              onClick={() => setGridDropdownOpen(!gridDropdownOpen)}
+              type="button"
+            >
+              <svg className="lv-grid-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
+                <rect x="3" y="3" width="7" height="7" />
+                <rect x="14" y="3" width="7" height="7" />
+                <rect x="14" y="14" width="7" height="7" />
+                <rect x="3" y="14" width="7" height="7" />
+              </svg>
+              <span>{currentGridOption.label}</span>
+              <svg className={`lv-chevron-icon ${gridDropdownOpen ? "open" : ""}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="10" height="10">
+                <path d="M6 9l6 6 6-6" />
+              </svg>
+            </button>
+
+            {gridDropdownOpen && (
+              <div className="lv-grid-dropdown-menu">
+                {GRID_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.id}
+                    className={`lv-grid-dropdown-item ${layout === opt.id ? "selected" : ""}`}
+                    onClick={() => {
+                      handleLayoutChange(opt.id);
+                      setGridDropdownOpen(false);
+                    }}
+                    type="button"
+                  >
+                    <span className="lv-grid-dropdown-item-label">{opt.label}</span>
+                    {layout === opt.id && (
+                      <svg className="lv-check-icon" viewBox="0 0 24 24" fill="none" stroke="var(--teal)" strokeWidth="3" width="12" height="12">
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
+
+          {/* Fullscreen Toggle Button */}
+          <button
+            className={`lv-fullscreen-toggle-btn ${gridFullscreen ? "active" : ""}`}
+            onClick={toggleGridFullscreen}
+            title={gridFullscreen ? "Exit Fullscreen" : "Fullscreen Grid"}
+            type="button"
+          >
+            {gridFullscreen ? (
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
+                <path d="M4 14h6v6M20 10h-6V4M14 10l7-7M10 14l-7 7" />
+              </svg>
+            ) : (
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
+                <path d="M8 3H5a2 2 0 00-2 2v3M21 8V5a2 2 0 00-2-2h-3M3 16v3a2 2 0 002 2h3M16 21h3a2 2 0 002-2v-3" />
+              </svg>
+            )}
+            <span>Fullscreen</span>
+          </button>
         </div>
       </div>
 
@@ -792,7 +1005,7 @@ export default function LiveViewPage() {
         )}
 
         {/* ── Camera grid ── */}
-        <div className="lv-grid-area">
+        <div className="lv-grid-area" ref={gridAreaRef}>
           {devices.length === 0 ? (
             <div className="lv-empty">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="0.8" width="64" height="64">
@@ -816,63 +1029,66 @@ export default function LiveViewPage() {
               </p>
             </div>
 
-          ) : is1plus3 ? (
-            <div className="lv-grid-1plus3">
-              <div
-                className={`lv-cell lv-cell--main ${selected === 0 ? "lv-cell--selected" : ""}`}
-                onClick={() => setSelected(selected === 0 ? null : 0)}
-              >
-                <CameraCell
-                  device={activeCams[0]}
-                  onFullscreen={(e) => openFullscreen(activeCams[0], e)}
-                  alertCount={alertCounts[activeCams[0]?.ip] || 0}
-                  onBadgeClick={() => openAlertPopup(activeCams[0].ip)}
-                  isRecording={activeCams[0] && (activeRecorders.includes(activeCams[0].stream_key) || activeRecorders.includes(activeCams[0].ome_stream))}
-                />
-              </div>
-              <div className="lv-grid-1plus3__side">
-                {[1, 2, 3].map((i) => (
-                  <div
-                    key={i}
-                    className={`lv-cell ${selected === i ? "lv-cell--selected" : ""}`}
-                    onClick={() => setSelected(selected === i ? null : i)}
-                  >
-                    {activeCams[i]
-                      ? <CameraCell
-                          device={activeCams[i]}
-                          onFullscreen={(e) => openFullscreen(activeCams[i], e)}
-                          alertCount={alertCounts[activeCams[i]?.ip] || 0}
-                          onBadgeClick={() => openAlertPopup(activeCams[i].ip)}
-                          isRecording={activeCams[i] && (activeRecorders.includes(activeCams[i].stream_key) || activeRecorders.includes(activeCams[i].ome_stream))}
-                        />
-                      : <EmptyCell />
-                    }
-                  </div>
-                ))}
-              </div>
-            </div>
-
           ) : (
-            <div className="lv-grid" style={{ "--cols": cols }}>
-              {Array.from({ length: cols * cols }).map((_, i) => (
-                <div
-                  key={i}
-                  className={`lv-cell ${selected === i ? "lv-cell--selected" : ""}`}
-                  onClick={() => setSelected(selected === i ? null : i)}
-                >
-                  {activeCams[i]
-                    ? <CameraCell
-                        device={activeCams[i]}
-                        onFullscreen={(e) => openFullscreen(activeCams[i], e)}
-                        alertCount={alertCounts[activeCams[i]?.ip] || 0}
-                        onBadgeClick={() => openAlertPopup(activeCams[i].ip)}
-                        isRecording={activeCams[i] && (activeRecorders.includes(activeCams[i].stream_key) || activeRecorders.includes(activeCams[i].ome_stream))}
-                      />
-                    : <EmptyCell index={i} />
-                  }
+            <>
+              <div
+                className="lv-grid"
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: `repeat(${cols}, 1fr)`,
+                  gridTemplateRows: `repeat(${rows}, 1fr)`,
+                  gap: "1px"
+                }}
+              >
+                {Array.from({ length: gridSize }).map((_, i) => {
+                  const cam = pageCams[i];
+                  const absIndex = (currentPage - 1) * gridSize + i;
+                  return (
+                    <div
+                      key={i}
+                      className={`lv-cell ${selected === absIndex ? "lv-cell--selected" : ""}`}
+                      onClick={() => setSelected(selected === absIndex ? null : absIndex)}
+                    >
+                      {cam
+                        ? <CameraCell
+                            device={cam}
+                            onFullscreen={(e) => openFullscreen(cam, e)}
+                            alertCount={alertCounts[cam?.ip] || 0}
+                            onBadgeClick={() => openAlertPopup(cam.ip)}
+                            isRecording={cam && (activeRecorders.includes(cam.stream_key) || activeRecorders.includes(cam.ome_stream))}
+                          />
+                        : <EmptyCell index={i} />
+                      }
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Pagination Bar */}
+              {activeCams.length > 0 && (
+                <div className="lv-pagination">
+                  <button
+                    className="lv-page-btn"
+                    disabled={currentPage === 1}
+                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                    type="button"
+                  >
+                    &lt; Prev
+                  </button>
+                  <span className="lv-page-info">
+                    {currentPage} / {totalPages}
+                  </span>
+                  <button
+                    className="lv-page-btn"
+                    disabled={currentPage === totalPages}
+                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                    type="button"
+                  >
+                    Next &gt;
+                  </button>
                 </div>
-              ))}
-            </div>
+              )}
+            </>
           )}
         </div>
 

@@ -6,8 +6,8 @@ import ReactFlow, {
 import 'reactflow/dist/style.css';
 import './Topology.css';
 
-const API_BASE = `http://${window.location.hostname}:8000/api/infrastructure`;
-const WS_URL   = `ws://${window.location.hostname}:8000/api/infrastructure/ws`;
+const API_BASE = `http://${window.location.hostname}:80/api/infrastructure`;
+const WS_URL   = `ws://${window.location.hostname}:80/api/infrastructure/ws`;
 
 const BW_SPIKE_THRESHOLD_MBPS = 80;
 
@@ -90,9 +90,43 @@ const deviceTypeLabel = (type) => ({
 // ─── Custom Topology Node ─────────────────────────────────────────────────────
 const CustomNode = ({ data }) => (
   <div className={`topo-node topo-node--${data.status} topo-node-type--${data.type}`}
-       style={{ borderColor: statusColor(data.status) }}>
+       style={{ borderColor: statusColor(data.status), position: 'relative' }}>
     <Handle type="target" position={Position.Top} style={{ background: '#555' }} />
-    <div className="topo-node__pulse" style={{ backgroundColor: statusColor(data.status) }} />
+    
+    {/* Remove button */}
+    {data.onRemove && (
+      <button 
+        onClick={(e) => {
+          e.stopPropagation(); // Prevent opening node sidebar details
+          data.onRemove();
+        }}
+        style={{
+          position: 'absolute',
+          top: -7,
+          right: -7,
+          background: '#ef4444',
+          border: '1px solid #7f1d1d',
+          color: '#fff',
+          borderRadius: '50%',
+          width: 17,
+          height: 17,
+          fontSize: 10,
+          fontWeight: 700,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          cursor: 'pointer',
+          boxShadow: '0 2px 4px rgba(0,0,0,0.3)',
+          zIndex: 1000,
+          transition: 'all 0.1s'
+        }}
+        title="Remove from Canvas"
+      >
+        ×
+      </button>
+    )}
+
+    <div className="topo-node__pulse" style={{ backgroundColor: statusColor(data.status), marginRight: data.onRemove ? 10 : 0 }} />
     <div className="topo-node__header">
       <div className="topo-node__icon-wrapper"><Icon type={data.type} /></div>
       <div className="topo-node__title">
@@ -595,6 +629,7 @@ const PoEPanel = ({ d }) => {
 export default function Topology() {
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+  const [scannedNodes, setScannedNodes]   = useState([]); // Store ALL scanned nodes from backend!
   const [scanning, setScanning]         = useState(false);
   const [selectedNode, setSelectedNode] = useState(null);
   const [metrics, setMetrics]           = useState(null);
@@ -656,7 +691,7 @@ export default function Topology() {
       if (nodeData) {
         setDeviceLiveData(nodeData);
         setNodes(nds => nds.map(n =>
-          n.id === node.id ? { ...n, data: { ...n.data, ...nodeData } } : n
+          n.id === node.id ? { ...n, data: { ...n.data, ...nodeData, onRemove: n.data.onRemove } } : n
         ));
       }
     } catch (err) {
@@ -705,6 +740,31 @@ export default function Topology() {
     prevUptimes.current[nodeId] = newData.uptime;
   }, []);
 
+  // ─── Canvas Removal Action ────────────────────────────────────────────────
+  const removeNodeFromCanvas = useCallback(async (nodeId) => {
+    try {
+      await fetch(`${API_BASE}/nodes/${nodeId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ position: null })
+      });
+      
+      // Clear connected edges
+      const connectedEdges = edges.filter(e => e.source === nodeId || e.target === nodeId);
+      await Promise.all(connectedEdges.map(e => 
+        fetch(`${API_BASE}/edges?source=${e.source}&target=${e.target}`, {
+          method: 'DELETE'
+        })
+      ));
+
+      setNodes(nds => nds.filter(n => n.id !== nodeId));
+      setEdges(eds => eds.filter(e => e.source !== nodeId && e.target !== nodeId));
+      setScannedNodes(snd => snd.map(n => n.id === nodeId ? { ...n, position: null } : n));
+    } catch (err) {
+      console.error("Failed to remove node from canvas:", err);
+    }
+  }, [edges, setNodes, setEdges]);
+
   const fetchTopology = useCallback(async () => {
     try {
       const res  = await fetch(`${API_BASE}/topology`);
@@ -712,19 +772,29 @@ export default function Topology() {
       if (!data?.nodes) return;
 
       const seen = new Map();
-      data.nodes.forEach(n => seen.set(n.id, n));
+      data.nodes.forEach(n => {
+        if (n.type !== 'web_device') {
+          seen.set(n.id, n);
+        }
+      });
       const uniqueNodes = Array.from(seen.values());
 
-      const reactNodes = uniqueNodes.map(n => ({
+      setScannedNodes(uniqueNodes);
+
+      const placedNodes = uniqueNodes.filter(n => n.position && typeof n.position.x === 'number' && typeof n.position.y === 'number');
+
+      const reactNodes = placedNodes.map(n => ({
         id: n.id,
         type: 'custom',
-        _hasPosition: !!(n.position && n.position.x !== 100 && n.position.y !== 100),
-        position: n.position || { x: 0, y: 0 },
-        data: { ...n }
+        _hasPosition: true,
+        position: n.position,
+        data: { 
+          ...n, 
+          onRemove: () => removeNodeFromCanvas(n.id)
+        }
       }));
 
-      const laid = autoLayout(reactNodes);
-      setNodes(laid);
+      setNodes(reactNodes);
 
       const edgeSeen = new Set();
       const uniqueEdges = (data.edges || []).filter(e => {
@@ -734,14 +804,56 @@ export default function Topology() {
         return true;
       });
 
+      // setEdges(uniqueEdges.map((e, idx) => ({
+      //   id: `e-${idx}`, source: e.source, target: e.target,
+      //   animated: e.inferred, label: e.port_label || '',
+      //   style: { stroke: e.inferred ? '#6366f1' : '#4b5563' },
+      //   markerEnd: { type: MarkerType.ArrowClosed, color: '#4b5563' }
+      // })));
+
       setEdges(uniqueEdges.map((e, idx) => ({
         id: `e-${idx}`, source: e.source, target: e.target,
         animated: e.inferred, label: e.port_label || '',
         style: { stroke: e.inferred ? '#6366f1' : '#4b5563' },
         markerEnd: { type: MarkerType.ArrowClosed, color: '#4b5563' }
       })));
+      setEdges(uniqueEdges.map((e, idx) => {
+        const targetNode = uniqueNodes.find(n => n.id === e.target);
+        const targetType = targetNode?.type;
+        
+        let strokeColor = '#818cf8'; // Neon Indigo default
+        let strokeWidth = 2;
+        
+        if (targetType === 'camera') {
+          strokeColor = '#10b981'; // Neon Green
+        } else if (targetType === 'server' || targetType === 'nvr') {
+          strokeColor = '#3b82f6'; // Neon Blue
+          strokeWidth = 2.5;
+        } else if (targetType === 'switch' || targetType === 'poe-switch' || targetType === 'core-switch') {
+          strokeColor = '#f59e0b'; // Neon Amber
+          strokeWidth = 2.5;
+        }
+
+        return {
+          id: `e-${idx}`, 
+          source: e.source, 
+          target: e.target,
+          animated: true, // Make ALL lines animated and alive!
+          label: e.port_label || '',
+          type: 'smoothstep', // Clean orthogonal step layout
+          style: { 
+            stroke: strokeColor, 
+            strokeWidth: strokeWidth,
+            filter: `drop-shadow(0px 0px 3px ${strokeColor}66)` // Neon glowing drop-shadow
+          },
+          markerEnd: { 
+            type: MarkerType.ArrowClosed, 
+            color: strokeColor 
+          }
+        };
+      }));
     } catch (err) { console.error('Topology fetch failed:', err); }
-  }, [setNodes, setEdges]);
+  }, [setNodes, setEdges, removeNodeFromCanvas]);
 
   const fetchMetrics = useCallback(async () => {
     try {
@@ -795,8 +907,11 @@ export default function Topology() {
               timestamp: new Date().toISOString(), ip: msg.data.ip || msg.id
             }, ...prev]);
           }
+          setScannedNodes(snd => snd.map(n =>
+            n.id === msg.id ? { ...n, ...msg.data } : n
+          ));
           setNodes(nds => nds.map(n =>
-            n.id === msg.id ? { ...n, data: { ...n.data, ...msg.data } } : n
+            n.id === msg.id ? { ...n, data: { ...n.data, ...msg.data, onRemove: n.data.onRemove } } : n
           ));
           setDeviceLiveData(prev => {
             if (prev && msg.id === prev.id) return { ...prev, ...msg.data };
@@ -839,12 +954,47 @@ export default function Topology() {
   }, []);
 
   const onConnect = useCallback((params) => {
-    setEdges(eds => addEdge({ ...params, id: `e-${Date.now()}` }, eds));
+    // setEdges(eds => addEdge({ ...params, id: `e-${Date.now()}` }, eds));
+        const targetNode = scannedNodes.find(n => n.id === params.target);
+    const targetType = targetNode?.type;
+    
+    let strokeColor = '#818cf8'; // Neon Indigo default
+    let strokeWidth = 2;
+    
+    if (targetType === 'camera') {
+      strokeColor = '#10b981'; // Neon Green
+    } else if (targetType === 'server' || targetType === 'nvr') {
+      strokeColor = '#3b82f6'; // Neon Blue
+      strokeWidth = 2.5;
+    } else if (targetType === 'switch' || targetType === 'poe-switch' || targetType === 'core-switch') {
+      strokeColor = '#f59e0b'; // Neon Amber
+      strokeWidth = 2.5;
+    }
+
+    const customEdge = {
+      ...params,
+      id: `e-${Date.now()}`,
+      animated: true,
+      type: 'smoothstep',
+      style: { 
+        stroke: strokeColor, 
+        strokeWidth: strokeWidth,
+        filter: `drop-shadow(0px 0px 3px ${strokeColor}66)`
+      },
+      markerEnd: { 
+        type: MarkerType.ArrowClosed, 
+        color: strokeColor 
+      }
+    };
+
+    setEdges(eds => addEdge(customEdge, eds));
     fetch(`${API_BASE}/edges`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ source: params.source, target: params.target })
     });
-  }, [setEdges]);
+  // }, [setEdges]);
+    }, [setEdges, scannedNodes]);
+
 
   const handleNodeClick = useCallback((_, node) => {
     setSelectedNode(node);
@@ -875,6 +1025,7 @@ export default function Topology() {
   const ackAlert      = async (nodeId) => { await fetch(`${API_BASE}/alerts/${nodeId}/acknowledge`, { method: 'POST' }); setAlerts(prev => prev.filter(a => a.node_id !== nodeId)); };
   const onDragStart   = (e, nd) => { e.dataTransfer.setData('application/reactflow', JSON.stringify(nd)); e.dataTransfer.effectAllowed = 'move'; };
   const onDragOver    = useCallback((e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }, []);
+  
   const onDrop        = useCallback((e) => {
     e.preventDefault();
     const raw = e.dataTransfer.getData('application/reactflow');
@@ -883,21 +1034,242 @@ export default function Topology() {
     if (nodes.find(n => n.id === nd.id)) return;
     const bounds   = e.target.getBoundingClientRect();
     const position = { x: e.clientX - bounds.left, y: e.clientY - bounds.top };
-    setNodes(nds => nds.concat({ id: nd.id, type: 'custom', position, data: nd }));
+    setNodes(nds => nds.concat({ 
+      id: nd.id, 
+      type: 'custom', 
+      position, 
+      data: { 
+        ...nd, 
+        onRemove: () => removeNodeFromCanvas(nd.id) 
+      } 
+    }));
+    setScannedNodes(snd => snd.map(n => n.id === nd.id ? { ...n, position } : n));
     fetch(`${API_BASE}/nodes/${nd.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ position }) });
-  }, [nodes, setNodes]);
+  }, [nodes, setNodes, removeNodeFromCanvas]);
+
+  // ─── Topology Template Design Actions ─────────────────────────────────────
+  const placeAllDevices = useCallback(async () => {
+    if (scannedNodes.length === 0) return;
+    setScanning(true);
+    try {
+      const gap = 180;
+      const cols = Math.ceil(Math.sqrt(scannedNodes.length));
+      await Promise.all(
+        scannedNodes.map((node, idx) => {
+          const row = Math.floor(idx / cols);
+          const col = idx % cols;
+          return fetch(`${API_BASE}/nodes/${node.id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              position: {
+                x: 100 + col * gap,
+                y: 100 + row * gap
+              }
+            })
+          });
+        })
+      );
+      await fetchTopology();
+    } catch (err) {
+      console.error("Failed to place all devices:", err);
+    } finally {
+      setScanning(false);
+    }
+  }, [scannedNodes, fetchTopology]);
+
+  const resetWorkspace = useCallback(async () => {
+    if (!window.confirm("Are you sure you want to clear the canvas? This will remove all devices from the topology and delete all links.")) {
+      return;
+    }
+    setScanning(true);
+    try {
+      await fetch(`${API_BASE}/reset`, { method: 'POST' });
+      await fetchTopology();
+      setSelectedNode(null);
+      setSidebarOpen(false);
+    } catch (err) {
+      console.error("Failed to reset workspace:", err);
+    } finally {
+      setScanning(false);
+    }
+  }, [fetchTopology]);
+
+  const applyTopologyTemplate = useCallback(async (templateType) => {
+    let nodesToArrange = nodes.map(n => n.data);
+    if (nodesToArrange.length === 0) {
+      if (scannedNodes.length === 0) {
+        alert("No scanned devices available. Please scan the network first.");
+        return;
+      }
+      nodesToArrange = scannedNodes;
+    }
+
+    const N = nodesToArrange.length;
+    if (N === 0) return;
+
+    if (!window.confirm(`Applying ${templateType.toUpperCase()} topology will auto-arrange nodes and regenerate connections. Do you want to proceed?`)) {
+      return;
+    }
+
+    setScanning(true);
+
+    try {
+      const newPositions = {};
+      const newEdges = [];
+
+      if (templateType === 'star') {
+        let hub = nodesToArrange.find(n => n.type === 'core-switch') ||
+                  nodesToArrange.find(n => n.type === 'switch' || n.type === 'poe-switch') ||
+                  nodesToArrange.find(n => n.type === 'server') ||
+                  nodesToArrange[0];
+        
+        const hubId = hub.id;
+        newPositions[hubId] = { x: 400, y: 300 };
+
+        const spokes = nodesToArrange.filter(n => n.id !== hubId);
+        const numSpokes = spokes.length;
+
+        spokes.forEach((spoke, idx) => {
+          const angle = (idx * 2 * Math.PI) / numSpokes;
+          newPositions[spoke.id] = {
+            x: Math.round(400 + 260 * Math.cos(angle)),
+            y: Math.round(300 + 260 * Math.sin(angle))
+          };
+          newEdges.push({ source: hubId, target: spoke.id, type: 'default', inferred: false });
+        });
+      } else if (templateType === 'ring') {
+        nodesToArrange.forEach((node, idx) => {
+          const angle = (idx * 2 * Math.PI) / N;
+          newPositions[node.id] = {
+            x: Math.round(400 + 250 * Math.cos(angle)),
+            y: Math.round(300 + 250 * Math.sin(angle))
+          };
+          const nextNode = nodesToArrange[(idx + 1) % N];
+          newEdges.push({ source: node.id, target: nextNode.id, type: 'default', inferred: false });
+        });
+      } else if (templateType === 'bus') {
+        const gap = 180;
+        const startX = 400 - ((N - 1) * gap) / 2;
+        nodesToArrange.forEach((node, idx) => {
+          newPositions[node.id] = {
+            x: Math.round(startX + idx * gap),
+            y: 300
+          };
+          if (idx < N - 1) {
+            const nextNode = nodesToArrange[idx + 1];
+            newEdges.push({ source: node.id, target: nextNode.id, type: 'default', inferred: false });
+          }
+        });
+      } else if (templateType === 'mesh') {
+        nodesToArrange.forEach((node, idx) => {
+          const angle = (idx * 2 * Math.PI) / N;
+          newPositions[node.id] = {
+            x: Math.round(400 + 250 * Math.cos(angle)),
+            y: Math.round(300 + 250 * Math.sin(angle))
+          };
+        });
+        for (let i = 0; i < N; i++) {
+          for (let j = i + 1; j < N; j++) {
+            newEdges.push({
+              source: nodesToArrange[i].id,
+              target: nodesToArrange[j].id,
+              type: 'default',
+              inferred: false
+            });
+          }
+        }
+      } else if (templateType === 'tree') {
+        const byTier = {};
+        nodesToArrange.forEach(n => {
+          const tier = DEVICE_TIER[n.type] ?? 3;
+          (byTier[tier] = byTier[tier] || []).push(n);
+        });
+
+        Object.entries(byTier).forEach(([tier, tierNodes]) => {
+          const y = TIER_Y[+tier] ?? (TIER_Y[3] + (+tier - 3) * V_GAP);
+          const startX = 400 - ((tierNodes.length - 1) * H_GAP) / 2;
+          tierNodes.forEach((n, i) => {
+            newPositions[n.id] = { x: Math.round(startX + i * H_GAP), y };
+          });
+        });
+
+        const cores = byTier[0] || [];
+        const switches = byTier[1] || [];
+        const endpoints = byTier[2] || [];
+        const cameras = byTier[3] || [];
+
+        if (cores.length > 0 && switches.length > 0) {
+          switches.forEach((sw, idx) => {
+            const core = cores[idx % cores.length];
+            newEdges.push({ source: core.id, target: sw.id, type: 'default', inferred: true });
+          });
+        }
+        if (switches.length > 0 && endpoints.length > 0) {
+          endpoints.forEach((ep, idx) => {
+            const sw = switches[idx % switches.length];
+            newEdges.push({ source: sw.id, target: ep.id, type: 'default', inferred: true });
+          });
+        } else if (cores.length > 0 && endpoints.length > 0) {
+          endpoints.forEach((ep, idx) => {
+            const core = cores[idx % cores.length];
+            newEdges.push({ source: core.id, target: ep.id, type: 'default', inferred: true });
+          });
+        }
+        if (endpoints.length > 0 && cameras.length > 0) {
+          cameras.forEach((cam, idx) => {
+            const ep = endpoints[idx % endpoints.length];
+            newEdges.push({ source: ep.id, target: cam.id, type: 'default', inferred: true });
+          });
+        } else if (switches.length > 0 && cameras.length > 0) {
+          cameras.forEach((cam, idx) => {
+            const sw = switches[idx % switches.length];
+            newEdges.push({ source: sw.id, target: cam.id, type: 'default', inferred: true });
+          });
+        }
+      }
+
+      await fetch(`${API_BASE}/edges/clear`, { method: 'POST' });
+
+      await Promise.all(
+        Object.entries(newPositions).map(([id, pos]) =>
+          fetch(`${API_BASE}/nodes/${id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ position: pos })
+          })
+        )
+      );
+
+      await Promise.all(
+        newEdges.map(edge =>
+          fetch(`${API_BASE}/edges`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ source: edge.source, target: edge.target, inferred: edge.inferred })
+          })
+        )
+      );
+
+      await fetchTopology();
+    } catch (err) {
+      console.error("Failed to generate topology template:", err);
+    } finally {
+      setScanning(false);
+    }
+  }, [nodes, scannedNodes, fetchTopology]);
 
   const sentHistory   = bwHistory.map(b => b?.sent_kbps || 0);
   const recvHistory   = bwHistory.map(b => b?.recv_kbps || 0);
   const latestBw      = bwHistory[bwHistory.length - 1] || {};
-  const onlineCount   = nodes.filter(n => n.data?.status === 'online').length;
-  const offlineCount  = nodes.filter(n => n.data?.status === 'offline').length;
-  const degradedCount = nodes.filter(n => n.data?.status === 'degraded').length;
+  const onlineCount   = scannedNodes.filter(n => n.status === 'online').length;
+  const offlineCount  = scannedNodes.filter(n => n.status === 'offline').length;
+  const degradedCount = scannedNodes.filter(n => n.status === 'degraded').length;
 
   // Device type counts for filter buttons
   const DEVICE_TYPES = ['camera', 'server', 'nvr', 'switch', 'poe-switch', 'core-switch'];
-  const nodesByType = nodes.reduce((acc, n) => {
-    const t = n.data.type || 'other';
+  const nodesByType = scannedNodes.reduce((acc, n) => {
+    const t = n.type || 'other';
     if (!acc[t]) acc[t] = [];
     acc[t].push(n);
     return acc;
@@ -1051,26 +1423,57 @@ export default function Topology() {
         </div>
 
         <div className="library-content">
-          {nodes.length === 0 && <p className="empty-msg">No devices. Run a scan.</p>}
-          {nodes
+          {scannedNodes.length === 0 && <p className="empty-msg">No devices. Run a scan.</p>}
+          {scannedNodes
             .filter(node => {
-              if (statusFilter && node.data?.status !== statusFilter) return false;
-              if (typeFilter   && node.data?.type   !== typeFilter)   return false;
+              if (statusFilter && node.status !== statusFilter) return false;
+              if (typeFilter   && node.type   !== typeFilter)   return false;
               return true;
             })
-            .map(node => (
-              <div key={node.id}
-                className={`library-item status--${node.data.status}`}
-                draggable onDragStart={e => onDragStart(e, node.data)}
-                onClick={() => handleNodeClick(null, node)}>
-                <div className="item-icon"><Icon type={node.data.type} /></div>
-                <div className="item-info">
-                  <span className="item-ip">{node.data.ip}</span>
-                  <span className="item-mdl">{deviceTypeLabel(node.data.type)}</span>
+            .map(node => {
+              const isPlaced = nodes.some(n => n.id === node.id);
+              return (
+                <div key={node.id}
+                  className={`library-item status--${node.status}`}
+                  draggable={!isPlaced}
+                  onDragStart={e => !isPlaced && onDragStart(e, node)}
+                  onClick={() => {
+                    const pseudoNode = nodes.find(n => n.id === node.id) || { id: node.id, data: node };
+                    handleNodeClick(null, pseudoNode);
+                  }}
+                  style={{
+                    opacity: isPlaced ? 0.65 : 1,
+                    cursor: isPlaced ? 'pointer' : 'grab',
+                    borderRight: isPlaced ? '3px solid #10b981' : 'none',
+                    background: isPlaced ? 'rgba(16, 185, 129, 0.03)' : 'transparent',
+                    marginBottom: 4,
+                    borderRadius: 6,
+                    transition: 'all 0.15s'
+                  }}
+                >
+                  <div className="item-icon"><Icon type={node.type} /></div>
+                  <div className="item-info">
+                    <span className="item-ip">{node.ip}</span>
+                    <span className="item-mdl" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                      {deviceTypeLabel(node.type)}
+                      {isPlaced && (
+                        <span style={{
+                          color: '#10b981',
+                          fontSize: 8,
+                          fontWeight: 700,
+                          background: 'rgba(16,185,129,0.15)',
+                          padding: '1px 4px',
+                          borderRadius: 4
+                        }}>
+                          PLACED
+                        </span>
+                      )}
+                    </span>
+                  </div>
+                  <span className="item-dot" style={{ background: statusColor(node.status) }} />
                 </div>
-                <span className="item-dot" style={{ background: statusColor(node.data.status) }} />
-              </div>
-            ))}
+              );
+            })}
         </div>
       </div>
 
@@ -1085,11 +1488,60 @@ export default function Topology() {
           <Controls />
           <MiniMap nodeStrokeWidth={3} zoomable pannable maskColor="rgba(0,0,0,0.1)" />
 
-          <Panel position="top-left" className="topo-panel">
-            <button className="topo-btn topo-btn--primary" onClick={triggerScan} disabled={scanning}>
-              {scanning ? 'Scanning…' : 'Scan Network'}
-            </button>
-            <button className="topo-btn" onClick={savePositions}>Save Layout</button>
+          <Panel position="top-left" className="topo-panel" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {/* Main network commands */}
+            <div style={{
+              display: 'flex',
+              gap: 8,
+              background: 'rgba(17, 24, 39, 0.95)',
+              padding: '6px 10px',
+              borderRadius: 10,
+              border: '1px solid #1f2937',
+              backdropFilter: 'blur(8px)'
+            }}>
+              <button className="topo-btn topo-btn--primary" onClick={triggerScan} disabled={scanning}>
+                {scanning ? 'Scanning…' : 'Scan Network'}
+              </button>
+              <button className="topo-btn" onClick={placeAllDevices} disabled={scanning || scannedNodes.length === 0}>
+                Place All
+              </button>
+              <button className="topo-btn" style={{ color: '#ef4444' }} onClick={resetWorkspace} disabled={scanning}>
+                Clear Canvas
+              </button>
+            </div>
+
+            {/* Topology templates design toolbar */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              background: 'rgba(17, 24, 39, 0.95)',
+              padding: '6px 12px',
+              borderRadius: 10,
+              border: '1px solid #1f2937',
+              backdropFilter: 'blur(8px)',
+              flexWrap: 'wrap'
+            }}>
+              <span style={{ fontSize: 9, fontWeight: 700, color: '#9ca3af', letterSpacing: '0.05em', marginRight: 4 }}>
+                TEMPLATES:
+              </span>
+              <button className="topo-btn topo-btn--small" style={{ fontSize: 11, padding: '3px 8px' }} onClick={() => applyTopologyTemplate('star')} title="Generate Star Topology">
+                ★ Star
+              </button>
+              <button className="topo-btn topo-btn--small" style={{ fontSize: 11, padding: '3px 8px' }} onClick={() => applyTopologyTemplate('ring')} title="Generate Ring Topology">
+                ◯ Ring
+              </button>
+              <button className="topo-btn topo-btn--small" style={{ fontSize: 11, padding: '3px 8px' }} onClick={() => applyTopologyTemplate('bus')} title="Generate Bus Topology">
+                ▬ Bus
+              </button>
+              <button className="topo-btn topo-btn--small" style={{ fontSize: 11, padding: '3px 8px' }} onClick={() => applyTopologyTemplate('mesh')} title="Generate Mesh Topology">
+                🕸 Mesh
+              </button>
+              <button className="topo-btn topo-btn--small" style={{ fontSize: 11, padding: '3px 8px' }} onClick={() => applyTopologyTemplate('tree')} title="Generate Hierarchical Tree">
+                🌲 Hierarchical
+              </button>
+            </div>
+
             {/* Active filter indicator on canvas */}
             {(statusFilter || typeFilter) && (
               <div style={{
@@ -1103,6 +1555,7 @@ export default function Topology() {
                 color: '#818cf8',
                 fontSize: 11,
                 fontWeight: 600,
+                alignSelf: 'flex-start'
               }}>
                 <span>
                   {statusFilter
@@ -1165,6 +1618,53 @@ export default function Topology() {
                 <div className="detail-row">
                   <label>Status</label>
                   <span className={`status-pill ${d.status || 'offline'}`}>{(d.status || 'offline').toUpperCase()}</span>
+                </div>
+
+                {/* Canvas Staging Controls */}
+                <div style={{ marginTop: 12, marginBottom: 12 }}>
+                  {nodes.some(n => n.id === d.id) ? (
+                    <button
+                      className="topo-btn"
+                      style={{
+                        width: '100%',
+                        background: 'rgba(239, 68, 68, 0.1)',
+                        border: '1px solid rgba(239, 68, 68, 0.3)',
+                        color: '#f87171',
+                        justifyContent: 'center'
+                      }}
+                      onClick={() => removeNodeFromCanvas(d.id)}
+                    >
+                      <Icon type="x" size={12} /> Remove from Canvas
+                    </button>
+                  ) : (
+                    <button
+                      className="topo-btn topo-btn--primary"
+                      style={{
+                        width: '100%',
+                        justifyContent: 'center'
+                      }}
+                      onClick={() => {
+                        const defaultPos = { x: 300, y: 200 };
+                        setNodes(nds => nds.concat({
+                          id: d.id,
+                          type: 'custom',
+                          position: defaultPos,
+                          data: { 
+                            ...d, 
+                            onRemove: () => removeNodeFromCanvas(d.id) 
+                          }
+                        }));
+                        setScannedNodes(snd => snd.map(n => n.id === d.id ? { ...n, position: defaultPos } : n));
+                        fetch(`${API_BASE}/nodes/${d.id}`, {
+                          method: 'PATCH',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ position: defaultPos })
+                        });
+                      }}
+                    >
+                      <Icon type="check" size={12} /> Place on Canvas
+                    </button>
+                  )}
                 </div>
 
                 <div className="section-title" style={{ marginTop: 12 }}>🖥️ Uptime &amp; Reboot</div>

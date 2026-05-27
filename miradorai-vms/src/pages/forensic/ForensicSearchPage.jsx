@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import "./ForensicSearchPage.css";
 
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
+const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:80";
 
 const DEFAULT_CAMERAS = [
   { id: "entrance_dome_1",  name: "Entrance Dome 1",    type: "dome"   },

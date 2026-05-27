@@ -1232,5 +1232,320 @@
 .dv-automate-coverage-row select { flex:1; font-size:11px; padding:5px 8px; border-radius:6px; border:0.5px solid #2e3d55; background:#0d1117; color:#c9d1d9; }
 .dv-automate-footer { display:flex; gap:8px; justify-content:flex-end; padding:12px 18px; border-top:0.5px solid #1e2d3e; }
 .dv-automate-cancel { padding:7px 16px; border-radius:6px; border:0.5px solid #2e3d55; background:none; color:#7a8499; font-size:12px; cursor:pointer; }
-.dv-automate-run { padding:7px 18px; border-radius:6px; border:none; background:#7c3aed; color:#fff; font-size:12px; font-weight:600; cursor:pointer; }
+.dv-automate-run { padding:7px 18px; border-radius:6px; border:none; background:#7c3aed; color:#fff; font-size:12px; font-weight:600; cursor:pointer; }*/
 .dv-automate-run:hover { background:#6d28d9; } */ 
+
+/* ── Floating DORI Legend Overlay ── */
+.dv-dori-legend {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  background: rgba(13, 20, 32, 0.88);
+  border: 1px solid rgba(168, 85, 247, 0.28);
+  border-radius: 10px;
+  padding: 10px 14px;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(10px);
+  z-index: 50;
+  min-width: 195px;
+  user-select: none;
+  pointer-events: none;
+  animation: dv-fade-in 0.2s ease-out;
+}
+
+.dv-dori-legend__title {
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #c084fc;
+  border-bottom: 0.5px solid rgba(255, 255, 255, 0.08);
+  padding-bottom: 6px;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+}
+
+.dv-dori-legend__items {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.dv-dori-legend__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dv-dori-legend__color {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  box-shadow: 0 0 4px currentColor;
+}
+
+.dv-dori-legend__label {
+  font-size: 10.5px;
+  color: #cbd5e1;
+}
+
+.dv-dori-legend__label strong {
+  font-weight: 700;
+  color: #ffffff;
+}
+
+/* ── Live Scale Bar Overlay ── */
+.dv-scale-bar-overlay {
+  position: absolute;
+  bottom: 14px;
+  right: 14px;
+  background: rgba(13, 20, 32, 0.72);
+  border: 0.5px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  padding: 5px 10px;
+  backdrop-filter: blur(8px);
+  z-index: 50;
+  pointer-events: none;
+  user-select: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.dv-scale-bar-text {
+  font-size: 9.5px;
+  font-weight: 700;
+  color: #94a3b8;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  margin-bottom: 3px;
+  letter-spacing: 0.02em;
+}
+
+.dv-scale-bar-line {
+  height: 4px;
+  border-left: 1.5px solid #94a3b8;
+  border-right: 1.5px solid #94a3b8;
+  border-bottom: 1.5px solid #94a3b8;
+  transition: width 0.15s ease-out;
+}
+
+/* Varifocal zoom slider visual polish */
+.dv-selected-bar__zoom input[type="range"] {
+  appearance: none;
+  -webkit-appearance: none;
+  background: rgba(255, 255, 255, 0.15) !important;
+  border-radius: 2px;
+  outline: none;
+}
+
+.dv-selected-bar__zoom input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #a855f7;
+  cursor: pointer;
+  box-shadow: 0 0 8px rgba(168, 85, 247, 0.8);
+  transition: transform 0.1s ease;
+}
+
+.dv-selected-bar__zoom input[type="range"]::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+}
+
+/* ── Bill of Materials (BOM) Table & Container Styles ── */
+.dv-bom-container {
+  color: #cbd5e1;
+  font-family: inherit;
+}
+
+.dv-bom-table-wrapper {
+  background: #0d1117;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+.dv-bom-table th {
+  padding: 10px 12px;
+  background: #0f172a;
+  border-bottom: 1.5px solid #1e2d3e !important;
+  color: #94a3b8;
+  font-weight: 700;
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.dv-bom-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid #1e2d3e;
+  vertical-align: middle;
+  font-variant-numeric: tabular-nums;
+}
+
+.dv-bom-table tr:last-child td {
+  border-bottom: none;
+}
+
+/* ── Print Media Style Adjustments ── */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  
+  /* Only print the stats panel and its content */
+  .dv-stats-overlay,
+  .dv-stats-panel,
+  .dv-stats-panel * {
+    visibility: visible;
+  }
+
+  .dv-stats-overlay {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    height: auto !important;
+    background: white !important;
+    color: black !important;
+    display: block !important;
+    padding: 0 !important;
+    z-index: 99999 !important;
+  }
+
+  .dv-stats-panel {
+    border: none !important;
+    box-shadow: none !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    background: white !important;
+    color: black !important;
+    position: relative !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  .dv-stats-panel__header {
+    background: transparent !important;
+    border-bottom: 2px solid #cbd5e1 !important;
+    color: black !important;
+    padding: 10px 0 !important;
+  }
+
+  .dv-stats-panel__title {
+    color: black !important;
+    font-size: 18px !important;
+  }
+
+  .dv-stats-panel__sub {
+    color: #475569 !important;
+  }
+
+  /* Hide print buttons and tabs during print */
+  .dv-stats-panel__download,
+  .dv-stats-panel__close,
+  button,
+  input[type="range"] {
+    display: none !important;
+  }
+
+  /* Hide tab bar container */
+  div[style*="borderBottom"][style*="background"] {
+    display: none !important;
+  }
+
+  /* Force light theme on printed text */
+  .dv-bom-container * {
+    color: black !important;
+  }
+
+  .dv-bom-table-wrapper {
+    border: 1px solid #cbd5e1 !important;
+    background: white !important;
+  }
+
+  .dv-bom-table {
+    color: black !important;
+  }
+
+  .dv-bom-table th {
+    background: #f1f5f9 !important;
+    color: black !important;
+    border-bottom: 2px solid #cbd5e1 !important;
+  }
+
+  .dv-bom-table td {
+    border-bottom: 1px solid #e2e8f0 !important;
+    color: black !important;
+  }
+
+  .dv-bom-table tr {
+    background: transparent !important;
+  }
+
+  .dv-stats-panel__content {
+    padding: 20px 0 !important;
+    max-height: none !important;
+    overflow-y: visible !important;
+  }
+
+  /* Infrastructure and summary styling for prints */
+  div[style*="gridTemplateColumns"] {
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: 15px !important;
+  }
+
+  div[style*="background"] {
+    background: #f8fafc !important;
+    border: 1px solid #cbd5e1 !important;
+    padding: 12px !important;
+  }
+
+  span[style*="color"] {
+    color: #475569 !important;
+  }
+
+  span[style*="color*#f8fafc"] {
+    color: black !important;
+  }
+  /* Style editable number inputs as clean plain text on print */
+  .dv-bom-input {
+    border: none !important;
+    background: transparent !important;
+    color: black !important;
+    padding: 0 !important;
+    text-align: right !important;
+    width: auto !important;
+    font-size: 11px !important;
+    font-family: monospace !important;
+    outline: none !important;
+    appearance: none !important;
+    -moz-appearance: textfield !important;
+    -webkit-appearance: none !important;
+  }
+  
+  .dv-bom-input::-webkit-outer-spin-button,
+  .dv-bom-input::-webkit-inner-spin-button {
+    -webkit-appearance: none !important;
+    margin: 0 !important;
+  }
+}
+
+/* BOM table number input adjustments (Screen Mode) */
+.dv-bom-input::-webkit-outer-spin-button,
+.dv-bom-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.dv-bom-input {
+  -moz-appearance: textfield;
+  transition: all 0.15s ease;
+}
+.dv-bom-input:focus {
+  border-color: #a855f7 !important;
+  box-shadow: 0 0 0 2px rgba(168, 85, 247, 0.3) !important;
+
+} 

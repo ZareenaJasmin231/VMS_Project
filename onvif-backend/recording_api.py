@@ -29,7 +29,7 @@ import shutil
 import tempfile
 import zipfile
 from datetime import datetime, timedelta
-from fastapi import APIRouter, HTTPException, Query, UploadFile, File, BackgroundTasks, Depends
+from fastapi import APIRouter, HTTPException, Query, UploadFile, File, BackgroundTasks, Depends, Request
 from jwt_auth import verify_token
 from fastapi.responses import StreamingResponse, FileResponse, Response
 from pydantic import BaseModel
@@ -250,17 +250,38 @@ def _load_key() -> bytes:
     return result
 
 def decrypt_bytes(raw: bytes) -> io.BytesIO:
-    """Decrypt AES-256-CBC encrypted bytes and return a BytesIO of the plaintext."""
+    """Decrypt AES-256 encrypted bytes and return a BytesIO of the plaintext."""
     if not raw or len(raw) <= 16:
         raise ValueError("Encrypted payload must be larger than 16 bytes")
     key        = _load_key()
-    iv         = raw[:16]
-    ciphertext = raw[16:]
-    cipher     = Cipher(algorithms.AES(key), modes.CBC(iv), backend=default_backend())
-    dec        = cipher.decryptor()
-    padded     = dec.update(ciphertext) + dec.finalize()
-    unpadder   = padding.PKCS7(128).unpadder()
-    data       = unpadder.update(padded) + unpadder.finalize()
+    
+    is_ctr = raw.startswith(b'CTR\x00')
+    if is_ctr:
+        iv = raw[4:20]
+        ciphertext = raw[20:]
+        cipher = Cipher(algorithms.AES(key), modes.CTR(iv), backend=default_backend())
+        decryptor = cipher.decryptor()
+        data = decryptor.update(ciphertext) + decryptor.finalize()
+    else:
+        iv         = raw[:16]
+        ciphertext = raw[16:]
+        
+        # Resilient handling for truncated files (e.g. stopped mid-block or aborted transfers)
+        extra = len(ciphertext) % 16
+        if extra != 0:
+            ciphertext = ciphertext[:-extra]
+
+        cipher     = Cipher(algorithms.AES(key), modes.CBC(iv), backend=default_backend())
+        dec        = cipher.decryptor()
+        padded     = dec.update(ciphertext) + dec.finalize()
+        
+        try:
+            unpadder   = padding.PKCS7(128).unpadder()
+            data       = unpadder.update(padded) + unpadder.finalize()
+        except Exception:
+            # Fall back to using raw decrypted bytes if padding is invalid (common on truncated files)
+            data       = padded
+            
     _validate_mp4(data)   # ← catch wrong-key silently-corrupt output early
     return io.BytesIO(data)
 
@@ -283,11 +304,19 @@ def decrypt_stream(file_path: str):
 
     key = _load_key()
     with open(file_path, "rb") as f:
-        iv = f.read(16)
-        if not iv or len(iv) < 16:
-            return
+        header = f.read(4)
+        is_ctr = header == b'CTR\x00'
         
-        cipher = Cipher(algorithms.AES(key), modes.CBC(iv), backend=default_backend())
+        if is_ctr:
+            iv = f.read(16)
+            cipher = Cipher(algorithms.AES(key), modes.CTR(iv), backend=default_backend())
+        else:
+            f.seek(0)
+            iv = f.read(16)
+            if not iv or len(iv) < 16:
+                return
+            cipher = Cipher(algorithms.AES(key), modes.CBC(iv), backend=default_backend())
+            
         dec = cipher.decryptor()
         
         while True:
@@ -313,13 +342,22 @@ def _decrypt_bytes(encrypted_bytes: bytes) -> io.BytesIO:
         raise HTTPException(status_code=400, detail="Invalid encrypted file (too small).")
 
     try:
-        iv         = encrypted_bytes[:16]
-        ciphertext = encrypted_bytes[16:]
-        cipher     = Cipher(algorithms.AES(key), modes.CBC(iv), backend=default_backend())
-        dec        = cipher.decryptor()
-        padded     = dec.update(ciphertext) + dec.finalize()
-        unpadder   = padding.PKCS7(128).unpadder()
-        data       = unpadder.update(padded) + unpadder.finalize()
+        is_ctr = encrypted_bytes.startswith(b'CTR\x00')
+        if is_ctr:
+            iv = encrypted_bytes[4:20]
+            ciphertext = encrypted_bytes[20:]
+            cipher = Cipher(algorithms.AES(key), modes.CTR(iv), backend=default_backend())
+            dec = cipher.decryptor()
+            data = dec.update(ciphertext) + dec.finalize()
+        else:
+            iv         = encrypted_bytes[:16]
+            ciphertext = encrypted_bytes[16:]
+            cipher     = Cipher(algorithms.AES(key), modes.CBC(iv), backend=default_backend())
+            dec        = cipher.decryptor()
+            padded     = dec.update(ciphertext) + dec.finalize()
+            unpadder   = padding.PKCS7(128).unpadder()
+            data       = unpadder.update(padded) + unpadder.finalize()
+            
         _validate_mp4(data)   # ← catch wrong-key silently-corrupt output early
         return io.BytesIO(data)
     except HTTPException:
@@ -691,8 +729,27 @@ def recorder_status():
         "display_path":     _container_to_display_path(rec_dir),
     }
 
+def _parse_range_header(range_header: str, file_size: int):
+    if not range_header or not range_header.startswith("bytes="):
+        return 0, max(0, file_size - 1)
+    
+    try:
+        ranges = range_header.replace("bytes=", "").split("-")
+        start_str = ranges[0].strip() if len(ranges) > 0 else ""
+        end_str = ranges[1].strip() if len(ranges) > 1 else ""
+        
+        start = int(start_str) if start_str else 0
+        end = int(end_str) if end_str else file_size - 1
+        
+        start = max(0, start)
+        end = min(file_size - 1, end)
+        return start, end
+    except Exception:
+        return 0, max(0, file_size - 1)
+
 @recording_router.get("/play")
 def play_recording(
+    request: Request,
     camera_id:  str = Query(...),
     date:       str = Query(...),
     start_time: str = Query(...),
@@ -711,18 +768,92 @@ def play_recording(
         raise HTTPException(status_code=404, detail=f"Encrypted file missing: {enc_path}")
 
     try:
-        file_size = os.path.getsize(enc_path) - 16
-        return StreamingResponse(
-            decrypt_stream(enc_path),
-            media_type="video/mp4",
-            headers={
-                "Content-Length": str(file_size),
-                "Accept-Ranges":  "bytes",
-                "Cache-Control":  "no-store",
-                **_CORS_HEADERS,
+        key = _load_key()
+        
+        # Determine if it's CTR or CBC
+        with open(enc_path, "rb") as f:
+            header = f.read(4)
+            is_ctr = header == b'CTR\x00'
+            
+        if is_ctr:
+            # For CTR, we can serve it dynamically without reading the whole file!
+            file_size_on_disk = os.path.getsize(enc_path)
+            # 20 bytes is the header + iv
+            real_file_size = file_size_on_disk - 20 
+            
+            range_header = request.headers.get("range")
+            start_byte, end_byte = _parse_range_header(range_header, real_file_size)
+            chunk_size = end_byte - start_byte + 1
+            
+            def stream_ctr():
+                with open(enc_path, "rb") as f:
+                    f.seek(4)
+                    iv = f.read(16)
+                    # For AES-CTR, calculate new IV based on block offset
+                    block_index = start_byte // 16
+                    new_iv_int = int.from_bytes(iv, 'big') + block_index
+                    new_iv = new_iv_int.to_bytes(16, 'big')
+                    cipher = Cipher(algorithms.AES(key), modes.CTR(new_iv), backend=default_backend())
+                    decryptor = cipher.decryptor()
+                    
+                    # Read the partial block if start_byte is not aligned
+                    offset_in_block = start_byte % 16
+                    if offset_in_block != 0:
+                        f.seek(20 + start_byte - offset_in_block)
+                        discard_chunk = f.read(offset_in_block)
+                        decryptor.update(discard_chunk) # push cipher state forward
+                        
+                    # Seek to actual start byte
+                    f.seek(20 + start_byte)
+                    bytes_remaining = chunk_size
+                    while bytes_remaining > 0:
+                        to_read = min(128 * 1024, bytes_remaining)
+                        chunk = f.read(to_read)
+                        if not chunk:
+                            break
+                        yield decryptor.update(chunk)
+                        bytes_remaining -= len(chunk)
+            
+            headers = {
+                "Content-Range": f"bytes {start_byte}-{end_byte}/{real_file_size}",
+                "Accept-Ranges": "bytes",
+                "Content-Length": str(chunk_size),
+                "Content-Type": "video/mp4",
+                "Cache-Control": "no-store",
+                **_CORS_HEADERS
             }
-        )
+            status_code = 206 if range_header else 200
+            return StreamingResponse(stream_ctr(), status_code=status_code, headers=headers)
+            
+        else:
+            # Fallback for CBC: Decrypt the whole file into memory first, then slice
+            stream = _decrypt(enc_path)
+            data = stream.getvalue()
+            real_file_size = len(data)
+            
+            range_header = request.headers.get("range")
+            start_byte, end_byte = _parse_range_header(range_header, real_file_size)
+            chunk_size = end_byte - start_byte + 1
+            
+            headers = {
+                "Content-Range": f"bytes {start_byte}-{end_byte}/{real_file_size}",
+                "Accept-Ranges": "bytes",
+                "Content-Length": str(chunk_size),
+                "Content-Type": "video/mp4",
+                "Cache-Control": "no-store",
+                **_CORS_HEADERS
+            }
+            status_code = 206 if range_header else 200
+            return Response(
+                content=data[start_byte:end_byte + 1],
+                status_code=status_code,
+                headers=headers
+            )
+            
     except Exception as e:
+        with open("/recordings/error_log.txt", "w") as f:
+            import traceback
+            f.write(traceback.format_exc())
         print(f"[PLAY] ❌ {enc_path}: {e}")
         raise HTTPException(status_code=500, detail=f"Decryption failed: {e}")
 

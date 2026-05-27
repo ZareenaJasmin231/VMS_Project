@@ -19,7 +19,12 @@ const ORIGIN_OFFSET  = 1.5 * S;   // 0.93 — matches MapCanvas and fixed drawPl
 export function insideCone(px, py, marker) {
   const fovAngle  = marker.fovAngle  || 60;
   const direction = marker.direction || 0;
-  const fovLen    = fovAngle * 2.2 + 40;
+  
+  // Use real physical range in meters scaled by map PPM if available, else fallback to standard formula
+  const fovLen = (marker.rangeDay && marker.ppm)
+    ? (marker.rangeDay * marker.ppm)
+    : (fovAngle * 2.2 + 40);
+
   const angle     = direction * (Math.PI / 180);
 
   // ★ Same origin as MapCanvas AND fixed drawPlacedCamera

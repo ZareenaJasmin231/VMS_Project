@@ -12,7 +12,7 @@ export const useAuth = () => {
 
 // Change this to your backend URL if different
 const API_BASE = (typeof import.meta !== "undefined" && import.meta.env?.VITE_API_URL)
-  || "http://localhost:8000";
+  || "http://localhost:80";
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [isLoading, setIsLoading] = useState(true);

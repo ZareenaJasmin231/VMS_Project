@@ -131,11 +131,10 @@ MASTER_KEY = load_video_key()
 
 def _aes_encrypt(data: bytes) -> bytes:
     iv     = secrets.token_bytes(16)
-    cipher = Cipher(algorithms.AES(MASTER_KEY), modes.CBC(iv), backend=default_backend())
+    cipher = Cipher(algorithms.AES(MASTER_KEY), modes.CTR(iv), backend=default_backend())
     enc    = cipher.encryptor()
-    padder = padding.PKCS7(128).padder()
-    padded = padder.update(data) + padder.finalize()
-    return iv + enc.update(padded) + enc.finalize()
+    # CTR mode does not require padding
+    return b'CTR\x00' + iv + enc.update(data) + enc.finalize()
 
 
 def _parse_path(input_path: str):
@@ -250,19 +249,30 @@ _stop_event = threading.Event()
 # ------------------------------------------------------------------
 def decrypt_bytes_to_io(raw_bytes: bytes) -> io.BytesIO:
     """
-    Decrypt AES-256-CBC encrypted bytes and return a BytesIO of the MP4 payload.
-    IMPORTANT: MASTER_KEY is loaded once at module start WITHOUT .strip() so it
-    matches exactly what recording_api._load_key() reads from the same key file.
+    Decrypt AES-256 encrypted bytes and return a BytesIO of the MP4 payload.
+    Supports both legacy CBC and new CTR formats.
     """
     if not raw_bytes or len(raw_bytes) <= 16:
         raise ValueError("Encrypted payload must be larger than 16 bytes")
-    iv         = raw_bytes[:16]
-    ciphertext = raw_bytes[16:]
-    cipher     = Cipher(algorithms.AES(MASTER_KEY), modes.CBC(iv), backend=default_backend())
-    decryptor  = cipher.decryptor()
-    padded_data = decryptor.update(ciphertext) + decryptor.finalize()
-    unpadder    = padding.PKCS7(128).unpadder()
-    data        = unpadder.update(padded_data) + unpadder.finalize()
+        
+    is_ctr = raw_bytes.startswith(b'CTR\x00')
+    
+    if is_ctr:
+        iv = raw_bytes[4:20]
+        ciphertext = raw_bytes[20:]
+        cipher = Cipher(algorithms.AES(MASTER_KEY), modes.CTR(iv), backend=default_backend())
+        decryptor = cipher.decryptor()
+        data = decryptor.update(ciphertext) + decryptor.finalize()
+    else:
+        # Legacy CBC
+        iv         = raw_bytes[:16]
+        ciphertext = raw_bytes[16:]
+        cipher     = Cipher(algorithms.AES(MASTER_KEY), modes.CBC(iv), backend=default_backend())
+        decryptor  = cipher.decryptor()
+        padded_data = decryptor.update(ciphertext) + decryptor.finalize()
+        unpadder    = padding.PKCS7(128).unpadder()
+        data        = unpadder.update(padded_data) + unpadder.finalize()
+        
     # Validate the output is a real MP4 (catches wrong-key silent corruption)
     if len(data) < 12 or data[4:8] not in (b'ftyp', b'moov', b'mdat', b'free', b'skip', b'wide'):
         raise ValueError(
@@ -290,10 +300,20 @@ def decrypt_file_stream(input_path: str):
     if not os.path.exists(input_path):
         return
     with open(input_path, "rb") as f:
-        iv = f.read(16)
-        if not iv or len(iv) < 16:
-            return
-        cipher = Cipher(algorithms.AES(MASTER_KEY), modes.CBC(iv), backend=default_backend())
+        header = f.read(4)
+        is_ctr = header == b'CTR\x00'
+        
+        if is_ctr:
+            iv = f.read(16)
+            cipher = Cipher(algorithms.AES(MASTER_KEY), modes.CTR(iv), backend=default_backend())
+        else:
+            # It's CBC, the 4 bytes were part of IV. Seek back and read 16 bytes.
+            f.seek(0)
+            iv = f.read(16)
+            if not iv or len(iv) < 16:
+                return
+            cipher = Cipher(algorithms.AES(MASTER_KEY), modes.CBC(iv), backend=default_backend())
+            
         dec = cipher.decryptor()
         while True:
             chunk = f.read(128 * 1024)

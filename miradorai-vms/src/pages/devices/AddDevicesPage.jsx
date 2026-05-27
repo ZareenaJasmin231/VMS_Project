@@ -8,6 +8,7 @@ import StreamURLModal from "./StreamURLModal";
 import DiscoveryModal from "../../components/shared/DiscoveryModal";
 import CreateGroupModal from "./CreateGroupModal";
 import "./AddDevicesPage.css";
+import "./CamerasPage.css";
 import useActivityLogger from "../../hooks/useActivityLogger";
 
 
@@ -242,26 +243,17 @@ function RemoveDeviceModal({ device, onClose, onConfirm }) {
   };
 
   return (
-    <div className="modal-overlay" onClick={isRemoving ? null : onClose}>
-      <div className="modal-box" onClick={(e) => e.stopPropagation()} style={{ maxWidth: "400px" }}>
-        <div className="modal-header">
-          <h2 className="modal-title" style={{ color: "var(--red, #ef4444)", display: "flex", alignItems: "center", gap: "8px" }}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="18" height="18" style={{ flexShrink: 0 }}>
-              <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
-              <line x1="12" y1="9" x2="12" y2="13" />
-              <line x1="12" y1="17" x2="12.01" y2="17" />
-            </svg>
-            Remove Device
-          </h2>
-          {!isRemoving && (
-            <button className="modal-close" onClick={onClose}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16">
-                <path d="M18 6L6 18M6 6l12 12" />
-              </svg>
-            </button>
-          )}
+    <div className="ec-overlay" onClick={isRemoving ? null : onClose}>
+      <div className="ec-modal" onClick={(e) => e.stopPropagation()} style={{ width: 340 }}>
+        <div className="ec-titlebar">
+          <span className="ec-title">Remove Device</span>
+          <div className="ec-titlebar-actions">
+            {!isRemoving && (
+              <button className="ec-title-btn" onClick={onClose} title="Close">✕</button>
+            )}
+          </div>
         </div>
-        <div className="modal-body" style={{ padding: "20px" }}>
+        <div className="ec-body">
           {isRemoving ? (
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "16px", padding: "20px 0" }}>
               <div className="deleting-spinner"></div>
@@ -270,41 +262,30 @@ function RemoveDeviceModal({ device, onClose, onConfirm }) {
               </p>
             </div>
           ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-              <p style={{ margin: 0, fontSize: "14px", color: "var(--text-secondary)", lineHeight: "1.5" }}>
-                Are you sure you want to remove <strong>{device.name || device.ip}</strong> from the system?
-              </p>
-              <p style={{ margin: 0, fontSize: "12px", color: "var(--text-muted)", lineHeight: "1.4" }}>
-                This action will permanently delete the device registration, stream configuration, and active stream feeds.
-              </p>
-            </div>
+            <p className="ec-auth-desc" style={{ marginBottom: 0 }}>
+              Are you sure you want to remove <strong>{device.name || device.ip}</strong> from the system?
+            </p>
           )}
         </div>
-        <div className="modal-footer" style={{ justifyContent: "flex-end", gap: "10px" }}>
-          <button 
-            className="modal-btn modal-btn--cancel" 
-            onClick={onClose} 
-            disabled={isRemoving}
-            style={{ opacity: isRemoving ? 0.5 : 1 }}
-          >
-            Cancel
-          </button>
-          <button 
-            className="modal-btn" 
-            onClick={handleConfirm} 
-            disabled={isRemoving}
-            style={{ 
-              background: "var(--red, #ef4444)", 
-              borderColor: "transparent", 
-              color: "#fff",
-              opacity: isRemoving ? 0.7 : 1,
-              display: "flex",
-              alignItems: "center",
-              gap: "8px"
-            }}
-          >
-            {isRemoving ? "Removing..." : "Confirm Remove"}
-          </button>
+        <div className="ec-footer">
+          <div className="ec-footer-right" style={{ width: "100%", justifyContent: "flex-end", gap: "10px" }}>
+            <button 
+              className="ec-btn ec-btn--cancel" 
+              onClick={onClose} 
+              disabled={isRemoving}
+              style={{ opacity: isRemoving ? 0.5 : 1 }}
+            >
+              Cancel
+            </button>
+            <button 
+              className="ec-btn ec-btn--danger" 
+              onClick={handleConfirm} 
+              disabled={isRemoving}
+              style={{ opacity: isRemoving ? 0.7 : 1 }}
+            >
+              {isRemoving ? "Removing..." : "Confirm"}
+            </button>
+          </div>
         </div>
       </div>
     </div>

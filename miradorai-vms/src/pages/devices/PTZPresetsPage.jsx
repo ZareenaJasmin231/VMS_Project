@@ -11,7 +11,7 @@ function loadDevices() {
   } catch { return []; }
 }
 
-const PTZ_API = "http://localhost:8000";
+const PTZ_API = "http://localhost:80";
 
 async function sendPTZMove(device, pan, tilt, zoom) {
   if (!device?.ip) return;

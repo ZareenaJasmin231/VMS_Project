@@ -67,6 +67,8 @@
   padding: 16px;
   border-radius: var(--radius-md);
   border: 1px solid var(--border);
+  overflow: visible !important;
+  z-index: 20;
 }
 
 .log-filter-group {
@@ -95,6 +97,21 @@
 
 .log-input:focus {
   border-color: var(--teal);
+}
+
+.log-input[type="datetime-local"] {
+  min-width: 210px;
+}
+
+.log-input::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+  opacity: 0.5;
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+}
+
+.log-input::-webkit-calendar-picker-indicator:hover {
+  opacity: 0.85;
 }
 
 .log-btn-primary {
@@ -258,4 +275,92 @@
   word-break: break-word;
   max-height: 80px;
   overflow-y: auto;
+}
+
+/* Custom Category Dropdown Styles */
+.logs-custom-select {
+  position: relative;
+  min-width: 160px;
+}
+
+.logs-select-btn {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  font-family: inherit;
+  font-size: 13px;
+  outline: none;
+  min-width: 160px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+  height: 37px; /* matches the date time inputs perfectly */
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.logs-select-btn:hover {
+  background: var(--bg-hover);
+}
+
+.logs-select-btn:focus {
+  border-color: var(--teal);
+}
+
+.logs-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+  z-index: 999;
+  padding: 6px;
+  list-style: none;
+  margin: 0;
+  max-height: 250px;
+  overflow-y: auto;
+}
+
+.logs-dropdown-menu::-webkit-scrollbar {
+  width: 6px;
+}
+
+.logs-dropdown-menu::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.logs-dropdown-menu::-webkit-scrollbar-thumb {
+  background: var(--border-light);
+  border-radius: 3px;
+}
+
+.logs-dropdown-menu::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+.logs-dropdown-item {
+  padding: 8px 12px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  transition: all 0.15s;
+}
+
+.logs-dropdown-item:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.logs-dropdown-item.active {
+  background: var(--teal-subtle);
+  color: var(--teal);
+  font-weight: 600;
 }

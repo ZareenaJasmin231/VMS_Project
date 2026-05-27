@@ -9,7 +9,7 @@ window.fetch = async (...args) => {
   let [resource, config] = args;
 
   // Apply only to API calls
-  if (typeof resource === 'string' && (resource.includes('8000') || resource.includes('/api/'))) {
+  if (typeof resource === 'string' && (resource.includes(':80') || resource.includes('/api/'))) {
     const token = localStorage.getItem('miradorai_token');
     if (token) {
       config = config || {};

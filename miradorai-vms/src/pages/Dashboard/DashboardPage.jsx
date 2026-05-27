@@ -10,7 +10,7 @@ import {
   Cpu,
   MemoryStick
 } from "lucide-react";
-const API_BASE = "http://localhost:8000";
+const API_BASE = "http://localhost:80";
 
 const Sparkline = ({ data, color = '#6366f1', height = 60 }) => {
   if (!data || data.length < 2) return <div style={{ height }} />;

@@ -1,4 +1,4 @@
-const API = "http://192.168.126.200:8000";
+const API = "http://192.168.126.200:80";
 
 function getAuthHeaders() {
   const t = localStorage.getItem("miradorai_token") || "";

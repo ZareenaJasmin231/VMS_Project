@@ -3,7 +3,7 @@ import { useAuth } from "../../context/AuthContext";
 import { useImageConfig } from "../../hooks/useImageConfig";
 import "./MediaPlayerPage.css";
 
-const STREAM_API = "http://localhost:8000";
+const STREAM_API = "http://localhost:80";
 
 function getToken() {
   return (

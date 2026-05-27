@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState, useCallback } from "react";
 import "./VirtualMapView.css";
 import WebRTCPlayer from "../../components/shared/WebRTCPlayer";
 
-const API = import.meta.env.VITE_API_URL || "http://192.168.126.8:8000";
+const API = import.meta.env.VITE_API_URL || "http://192.168.126.8:80";
 
 function getAuthHeaders() {
   const token = localStorage.getItem("miradorai_token") || localStorage.getItem("token") || "";
@@ -214,7 +214,7 @@ function ExpandedFeed({ cam, marker, onClose }) {
   useEffect(() => {
     if (tab !== "alerts") return;
     setLA(true);
-    const API = "http://192.168.126.200:8000";
+    const API = "http://192.168.126.200:80";
     const token = localStorage.getItem("miradorai_token") || localStorage.getItem("token") || "";
     fetch(`${API}/api/alerts?camera_ip=${cam.ip}&limit=50`, {
       headers: token ? { Authorization: `Bearer ${token}` } : {},

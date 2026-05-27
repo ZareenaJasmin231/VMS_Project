@@ -5,7 +5,7 @@ import { useAuth } from "../../context/AuthContext";
 import "./TopBar.css";
 
 const API_BASE = (typeof import.meta !== "undefined" && import.meta.env?.VITE_API_URL)
-  || "http://localhost:8000";
+  || "http://localhost:80";
 
 function loadDevices() {
   try { return JSON.parse(localStorage.getItem("miradorai_devices") || "[]"); }

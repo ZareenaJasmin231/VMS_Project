@@ -1,17 +1,56 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import "./LogsPage.css";
 
 const API_BASE = import.meta.env.VITE_API_URL;
 const WS_BASE = import.meta.env.VITE_WS_URL;
+const formatLocalDatetime = (date) => {
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+};
+
+const getInitialFromDate = () => {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return formatLocalDatetime(d);
+};
+
+const getInitialToDate = () => {
+  const d = new Date();
+  return formatLocalDatetime(d);
+};
+
 export default function LogsPage() {
   const [activeTab, setActiveTab] = useState("ui");
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [fromDate, setFromDate] = useState("");
-  const [toDate, setToDate] = useState("");
+  const [fromDate, setFromDate] = useState(getInitialFromDate());
+  const [toDate, setToDate] = useState(getInitialToDate());
   const [category, setCategory] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const logsPerPage = 15;
+
+  const [categoryDropdownOpen, setCategoryDropdownOpen] = useState(false);
+  const categoryDropdownRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (categoryDropdownRef.current && !categoryDropdownRef.current.contains(e.target)) {
+        setCategoryDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const categoryMap = {
+    "": "All Categories",
+    "auth": "Auth",
+    "navigation": "Navigation",
+    "devices": "Devices",
+    "settings": "Settings",
+    "system": "System",
+    "recording": "Recording"
+  };
 
   const fetchLogs = async () => {
     setLoading(true);
@@ -19,14 +58,12 @@ export default function LogsPage() {
     try {
       const queryParams = new URLSearchParams();
       if (fromDate) {
-        const [y, m, d] = fromDate.split("-");
-        const startOfDay = new Date(y, m - 1, d, 0, 0, 0, 0);
-        queryParams.append("from_date", startOfDay.toISOString());
+        const localDate = new Date(fromDate);
+        queryParams.append("from_date", localDate.toISOString());
       }
       if (toDate) {
-        const [y, m, d] = toDate.split("-");
-        const endOfDay = new Date(y, m - 1, d, 23, 59, 59, 999);
-        queryParams.append("to_date", endOfDay.toISOString());
+        const localDate = new Date(toDate);
+        queryParams.append("to_date", localDate.toISOString());
       }
       if (activeTab === "ui" && category) {
         queryParams.append("category", category);
@@ -96,39 +133,54 @@ export default function LogsPage() {
 
       <div className="logs-filters card">
         <div className="log-filter-group">
-          <label>From Date</label>
+          <label>From Date & Time</label>
           <input 
-            type="date" 
+            type="datetime-local" 
             className="log-input" 
             value={fromDate}
             onChange={(e) => setFromDate(e.target.value)}
           />
         </div>
         <div className="log-filter-group">
-          <label>To Date</label>
+          <label>To Date & Time</label>
           <input 
-            type="date" 
+            type="datetime-local" 
             className="log-input" 
             value={toDate}
             onChange={(e) => setToDate(e.target.value)}
           />
         </div>
         {activeTab === "ui" && (
-          <div className="log-filter-group">
+          <div className="log-filter-group" ref={categoryDropdownRef}>
             <label>Category</label>
-            <select 
-              className="log-input"
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-            >
-              <option value="">All Categories</option>
-              <option value="auth">Auth</option>
-              <option value="navigation">Navigation</option>
-              <option value="devices">Devices</option>
-              <option value="settings">Settings</option>
-              <option value="system">System</option>
-              <option value="recording">Recording</option>
-            </select>
+            <div className="logs-custom-select">
+              <button
+                type="button"
+                className="logs-select-btn"
+                onClick={() => setCategoryDropdownOpen(!categoryDropdownOpen)}
+              >
+                <span>{categoryMap[category]}</span>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: categoryDropdownOpen ? "rotate(180deg)" : "rotate(0)", transition: "transform .2s", color: "var(--text-secondary)" }}>
+                  <path d="M6 9l6 6 6-6"/>
+                </svg>
+              </button>
+              {categoryDropdownOpen && (
+                <ul className="logs-dropdown-menu">
+                  {Object.entries(categoryMap).map(([val, label]) => (
+                    <li
+                      key={val}
+                      className={`logs-dropdown-item ${category === val ? "active" : ""}`}
+                      onClick={() => {
+                        setCategory(val);
+                        setCategoryDropdownOpen(false);
+                      }}
+                    >
+                      {label}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
           </div>
         )}
         <button className="log-btn-primary" onClick={fetchLogs}>Apply Filters</button>

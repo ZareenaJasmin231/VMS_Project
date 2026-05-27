@@ -148,20 +148,8 @@ def _record_loop(
           f"{' (with mask filter)' if vf_filter else ''}")
 
     while not stop_event.is_set():
-        camera_time = None
-        if camera_data and camera_data.get("ip"):
-            camera_time = get_camera_system_time(
-                camera_data.get("ip", ""),
-                int(camera_data.get("port", 80)),
-                camera_data.get("username", ""),
-                camera_data.get("password", ""),
-            )
-            if camera_time is None:
-                print(f"[RECORDER] ⚠ Camera time unavailable for {stream_name} — using host clock")
-            else:
-                print(f"[RECORDER] ℹ Using camera time for {stream_name}: {camera_time.isoformat()}")
-
-        now = camera_time if camera_time is not None else datetime.now()
+        # Always use host system clock for proper syncage with saved time
+        now = datetime.now()
 
         # ── Check Schedule ──────────────────────────────────────────
         # If schedule is OFF, wait and poll.
@@ -267,6 +255,71 @@ def update_camera_data(stream_name: str, patch: dict):
     if stream_name in _camera_data:
         _camera_data[stream_name].update(patch)
         print(f"[RECORDER] 📝 Updated metadata for {stream_name}: {patch}")
+# _segmenters:  dict[str, subprocess.Popen] = {}
+
+
+# def start_segmenter(stream_name: str, rtsp_url: str, vf_filter: str = ""):
+#     """Start background rolling segmenter for instant 10s playback clips."""
+#     try:
+#         temp_dir = os.path.join(get_recordings_dir(), "temp_segments", stream_name)
+#         # Clear out any stale segments from previous runs to ensure fresh buffer
+#         import shutil
+#         if os.path.exists(temp_dir):
+#             shutil.rmtree(temp_dir)
+#         os.makedirs(temp_dir, exist_ok=True)
+
+#         if vf_filter:
+#             cmd = [
+#                 FFMPEG_BIN, "-y",
+#                 "-loglevel", "error",
+#                 "-rtsp_transport", "tcp",
+#                 "-i", rtsp_url,
+#                 "-vf", vf_filter,
+#                 "-c:v", "libx264",
+#                 "-preset", "ultrafast",
+#                 "-crf", "28",
+#                 "-an",
+#                 "-f", "segment",
+#                 "-segment_time", "2",
+#                 "-segment_wrap", "10",
+#                 "-segment_list", os.path.join(temp_dir, "playlist.m3u8"),
+#                 os.path.join(temp_dir, "seg_%03d.ts")
+#             ]
+#         else:
+#             cmd = [
+#                 FFMPEG_BIN, "-y",
+#                 "-loglevel", "error",
+#                 "-rtsp_transport", "tcp",
+#                 "-i", rtsp_url,
+#                 "-c", "copy",
+#                 "-an",
+#                 "-f", "segment",
+#                 "-segment_time", "2",
+#                 "-segment_wrap", "10",
+#                 "-segment_list", os.path.join(temp_dir, "playlist.m3u8"),
+#                 os.path.join(temp_dir, "seg_%03d.ts")
+#             ]
+
+#         proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+#         _segmenters[stream_name] = proc
+#         print(f"[RECORDER] 🔄 Rolling segmenter started for {stream_name}")
+#     except Exception as e:
+#         print(f"[RECORDER] ❌ Failed to start segmenter for {stream_name}: {e}")
+
+
+# def stop_segmenter(stream_name: str):
+#     """Stop the background rolling segmenter."""
+#     if stream_name in _segmenters:
+#         proc = _segmenters.pop(stream_name)
+#         try:
+#             proc.terminate()
+#             proc.wait(timeout=5)
+#         except Exception:
+#             try:
+#                 proc.kill()
+#             except Exception:
+#                 pass
+#         print(f"[RECORDER] ⏹ Stopped segmenter for {stream_name}")       
 
 
 def start_camera(
@@ -301,10 +354,11 @@ def start_camera(
     _camera_data[stream_name] = camera_data or {}
     t.start()
     print(f"[RECORDER] 🎥 Started: {stream_name} → {get_recordings_dir()}")
-
-
+    # # Start the parallel unencrypted rolling segmenter
+    # start_segmenter(stream_name, rtsp_url, vf_filter)
 def stop_camera(stream_name: str):
     """Stop recording a single camera."""
+    # stop_segmenter(stream_name)
     if stream_name in _stop_flags:
         _stop_flags[stream_name].set()
         if stream_name in _recorders:

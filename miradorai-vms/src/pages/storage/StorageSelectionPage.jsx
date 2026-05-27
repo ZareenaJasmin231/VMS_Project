@@ -17,7 +17,7 @@ export default function StorageSelectionPage() {
   const [failover, setFailover]   = useState(false);
 
   const fetchData = () => {
-    fetch("http://localhost:8000/api/storage/selection")
+    fetch("http://localhost:80/api/storage/selection")
       .then(r => r.json())
       .then(data => {
         setRows(data.map((cam, i) => ({
@@ -53,7 +53,7 @@ export default function StorageSelectionPage() {
     const sel = rows.find(r => r.id === selected)?.raw;
     if (!sel) return;
     setSaving(true);
-    await fetch("http://localhost:8000/api/storage/selection", {
+    await fetch("http://localhost:80/api/storage/selection", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

@@ -299,18 +299,26 @@ const MASK_COLORS = [
   { fill: "rgba(59,130,246,0.3)",  stroke: "#60a5fa", label: "Deep Sea" },
 ];
 
-export default function MaskingSection({ device, showToast }) {
+export default function MaskingSection({ device, showToast, onMasksChange }) {
   const canvasRef = useRef(null);
   const dragRef = useRef({ active: false, maskId: null, ptIdx: null });
   const wsUrl = device?.ws_url || null;
 
   const [masks, setMasks] = useState([]);
+  const [savedMasks, setSavedMasks] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
   const [mode, setMode] = useState("draw"); // "draw" | "select"
   const [draftPts, setDraftPts] = useState([]);
   const [colorIdx, setColorIdx] = useState(0);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
+
+  // Propagate masks count to parent
+  useEffect(() => {
+    if (onMasksChange) {
+      onMasksChange(device.ip, masks.length);
+    }
+  }, [masks.length, device.ip, onMasksChange]);
 
   // Load masks
   useEffect(() => {
@@ -319,7 +327,9 @@ export default function MaskingSection({ device, showToast }) {
       try {
         const res = await fetch(`${API}/api/masks/${encodeURIComponent(device.ip)}`);
         const data = await res.json();
-        setMasks(data.masks || []);
+        const loadedMasks = data.masks || [];
+        setMasks(loadedMasks);
+        setSavedMasks(loadedMasks);
       } catch (e) {
         console.error("[MASKS] Load failed:", e);
       }
@@ -479,51 +489,33 @@ export default function MaskingSection({ device, showToast }) {
     ));
   };
 
-  const handlePointerUp = async () => {
+  const handlePointerUp = () => {
     if (!dragRef.current.active) return;
     dragRef.current.active = false;
-    const mask = masks.find(m => m.id === dragRef.current.maskId);
-    if (mask) await saveMask(mask);
   };
 
-  const finalizeMask = async () => {
+  const finalizeMask = () => {
     if (draftPts.length < 3) { showToast("Need at least 3 points", "error"); setDraftPts([]); return; }
     const m = { id: `mask_${Date.now()}`, name: `Region ${masks.length + 1}`, points: draftPts, color_idx: colorIdx, enabled: true };
     setDraftPts([]);
     setMasks(p => [...p, m]);
     setSelectedId(m.id);
-    await saveMask(m);
-    showToast(`"${m.name}" created`, "success");
+    showToast(`"${m.name}" created locally`, "success");
   };
 
-  const saveMask = async (mask) => {
-    setSaving(true);
-    try {
-      await fetch(`${API}/api/masks/${encodeURIComponent(device.ip)}`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mask }),
-      });
-    } catch (e) { showToast("Save failed", "error"); }
-    setSaving(false);
-  };
-
-  const deleteMask = async (id) => {
+  const deleteMask = (id) => {
     setMasks(p => p.filter(m => m.id !== id));
     if (selectedId === id) setSelectedId(null);
-    try {
-      await fetch(`${API}/api/masks/${encodeURIComponent(device.ip)}/${id}`, { method: "DELETE" });
-      showToast("Region deleted", "success");
-    } catch { showToast("Delete failed", "error"); }
+    showToast("Region deleted locally", "success");
   };
 
-  const toggleMask = async (id) => {
+  const toggleMask = (id) => {
     const updated = masks.map(m => m.id === id ? { ...m, enabled: !m.enabled } : m);
     setMasks(updated);
-    await saveMask(updated.find(m => m.id === id));
   };
 
   const renameMask = (id, name) => setMasks(p => p.map(m => m.id === id ? { ...m, name } : m));
-  const commitRename = async (id) => { const m = masks.find(m => m.id === id); if (m) await saveMask(m); };
+  const commitRename = (id) => {};
 
   const saveAll = async () => {
     setSaving(true);
@@ -532,6 +524,7 @@ export default function MaskingSection({ device, showToast }) {
         method: "PUT", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ masks }),
       });
+      setSavedMasks(masks);
       showToast("All regions synchronized", "success");
     } catch { showToast("Save failed", "error"); }
     setSaving(false);
@@ -548,6 +541,7 @@ export default function MaskingSection({ device, showToast }) {
 
   const enabledCount = masks.filter(m => m.enabled).length;
   const totalVertices = masks.reduce((s, m) => s + (m.points?.length || 0), 0);
+  const hasChanges = JSON.stringify(masks) !== JSON.stringify(savedMasks);
 
   return (
     <>
@@ -589,11 +583,7 @@ export default function MaskingSection({ device, showToast }) {
             </div>
           )}
 
-          {masks.length > 0 && draftPts.length === 0 && (
-            <button className="mp-tool-btn success" onClick={saveAll}>
-              Save All
-            </button>
-          )}
+
 
           <div className="mp-toolbar-hint">
             {mode === "draw"
@@ -670,11 +660,28 @@ export default function MaskingSection({ device, showToast }) {
       {/* Regions List */}
       <div className="mp-list-head">
         <h3 className="mp-list-title">Defined Regions ({masks.length})</h3>
-        {selectedId && (
-          <button className="mp-tool-btn danger" style={{ height: 26, fontSize: 11 }} onClick={() => deleteMask(selectedId)}>
-            Delete Selected
-          </button>
-        )}
+        <div style={{ display: 'flex', gap: '8px' }}>
+          {masks.length > 0 && draftPts.length === 0 && (
+            <button 
+              className="mp-tool-btn success" 
+              style={{ 
+                height: 26, 
+                fontSize: 11, 
+                opacity: hasChanges ? 1 : 0.5,
+                cursor: hasChanges ? "pointer" : "not-allowed"
+              }} 
+              onClick={saveAll}
+              disabled={!hasChanges}
+            >
+              {hasChanges ? "Save All *" : "Save All"}
+            </button>
+          )}
+          {selectedId && (
+            <button className="mp-tool-btn danger" style={{ height: 26, fontSize: 11 }} onClick={() => deleteMask(selectedId)}>
+              Delete Selected
+            </button>
+          )}
+        </div>
       </div>
 
       {loading ? (
@@ -713,7 +720,6 @@ export default function MaskingSection({ device, showToast }) {
                 </div>
                 <div className="mp-card-meta">
                   <span>{mask.points?.length} vertices · {mask.enabled ? "Active" : "Disabled"}</span>
-                  <button className="mp-card-del" onClick={e => { e.stopPropagation(); deleteMask(mask.id); }}>Delete</button>
                 </div>
               </div>
             );

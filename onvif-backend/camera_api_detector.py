@@ -42,7 +42,7 @@ BRAND_PROBES = {
             {"url": "/ISAPI/System/status",             "expect_any": ["DeviceStatus"]},
         ],
         "auth": "digest",            # Hikvision requires Digest auth
-        "ports": [80, 443, 8000],
+        "ports": [80, 443, 80],
         "endpoints": {
             # System
             "device_info":      "/ISAPI/System/deviceInfo",

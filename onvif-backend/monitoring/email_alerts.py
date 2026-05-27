@@ -112,7 +112,7 @@ def alert_device_offline(device_name: str, ip: str):
 
 
 def alert_nvr_unreachable(device_name: str, ip: str):
-    """Fired when the NVR management port (8000) becomes unreachable."""
+    """Fired when the NVR management port (80) becomes unreachable."""
     _send_email(
         subject=f"🟠 NVR Unreachable: {device_name} ({ip})",
         html_body=_base_template(
@@ -121,7 +121,7 @@ def alert_nvr_unreachable(device_name: str, ip: str):
             rows=[
                 ("Device", device_name),
                 ("IP Address", ip),
-                ("Port", "8000 (NVR management)"),
+                ("Port", "80 (NVR management)"),
                 ("Status", "<span style='color:#f97316'>UNREACHABLE</span>"),
                 ("Time", _ts()),
                 ("Action", "Verify NVR service is running on the device."),

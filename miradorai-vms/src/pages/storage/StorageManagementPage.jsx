@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import SearchBar from "../../components/shared/SearchBar";
 import "./StorageManagementPage.css";
 
-const BACKEND = "http://localhost:8000";
+const BACKEND = "http://localhost:80";
 
 // ── Path helpers ────────────────────────────────────────────────────────────
 // The backend always works with Linux container paths (/recordings/...).
@@ -54,6 +54,7 @@ export default function StorageManagementPage() {
   // folder stores the DISPLAY path (D:\REC\...) shown in the input box
   const [folder, setFolder]             = useState("");
   const [allocated, setAllocated]       = useState(352);
+  const [allocError, setAllocError]     = useState("");
   const [allocWarning, setAllocWarning] = useState("");
   const [addModal, setAddModal]         = useState(false);
   const [newPath, setNewPath]           = useState("");
@@ -141,13 +142,20 @@ export default function StorageManagementPage() {
   const handleAllocChange = (newVal) => {
     if (!sel) return;
     if (newVal < sel.used) {
-      setAllocWarning(
+      setAllocError(
         `Cannot reduce to ${newVal} GB — disk already has ${sel.used} GB of recordings. ` +
         `Delete older recordings first, then reduce the allocation.`
       );
-      return;
+      setAllocWarning("");
+    } else if (newVal - sel.used <= 0.2) {
+      setAllocError("");
+      setAllocWarning(
+        `Warning: Remaining free space under allocation will be less than 200 MB. Please allocate more space.`
+      );
+    } else {
+      setAllocError("");
+      setAllocWarning("");
     }
-    setAllocWarning("");
     setAllocated(newVal);
   };
 
@@ -191,7 +199,12 @@ export default function StorageManagementPage() {
 
   // ── Apply: convert display path → container path, send to backend ─────────
   const handleApply = async () => {
-    if (allocWarning) return;
+    if (allocError) return;
+
+    // Warning before 200 MB (0.2 GB) remaining space check:
+    if (sel && (allocated - sel.used <= 0.2)) {
+      alert("⚠️ Warning: Remaining free space under the allocation limit is less than 200 MB! Please increase the allocation to ensure uninterrupted recording.");
+    }
 
     const displayInput  = folder.trim();
     const containerPath = toContainerPath(displayInput);
@@ -220,7 +233,7 @@ export default function StorageManagementPage() {
       if (res.ok) {
         // Use the display_path the backend echoes back, or derive it ourselves
         const newDisplay = json.display_path || toDisplayPath(json.recording_path || containerPath);
-        setApplyMsg(`✅ ${json.message || "Recording path updated to: " + newDisplay}`);
+        setApplyMsg(`✅ ${json.message || "Settings updated and saved successfully!"}`);
 
         // Update the displayed row
         if (selected !== null) {
@@ -232,11 +245,15 @@ export default function StorageManagementPage() {
                     location:       newDisplay,
                     container_path: json.recording_path || containerPath,
                     display:        newDisplay,
+                    allocated:      allocated, // Sync local state allocated value!
                   }
                 : r
             )
           );
           setFolder(newDisplay);
+          
+          // Re-fetch storage options to refresh free/used calculations!
+          fetchStorage();
         }
       } else {
         setApplyMsg(`❌ ${json.detail || "Failed to apply settings."}`);
@@ -319,13 +336,13 @@ export default function StorageManagementPage() {
 
       <div className="sm-table-actions">
         <button className="sm-btn" disabled={selected === null} onClick={handleRemove}>Remove</button>
-        <button className="sm-btn sm-btn--primary" onClick={() => setAddModal(true)}>Add…</button>
       </div>
 
       {sel && (
         <div className="sm-bottom">
 
-          <div className="sm-overview card">
+          {/* Card 1: Overview & Total Capacity */}
+          <div className="sm-card card">
             <div className="sm-panel-title">Overview</div>
 
             <div className="sm-legend">
@@ -338,12 +355,20 @@ export default function StorageManagementPage() {
             </div>
             <div className="sm-legend">
               <span className="sm-legend-dot sm-legend-dot--other" />
-              <span>Other data:</span>
+              <span>Other data: <strong>{Math.max(0, sel.total - sel.used - sel.free).toFixed(0)} GB</strong></span>
             </div>
-            <div className="sm-legend">
-              <span style={{ width: 12 }} />
-              <span>Total capacity: <strong>{sel.total} GB</strong></span>
+
+            <div className="sm-divider" style={{ marginTop: "auto" }} />
+
+            <div className="sm-field-row" style={{ marginTop: 8 }}>
+              <span style={{ fontWeight: 600, color: "var(--text-primary)", fontSize: "14px" }}>Total Capacity:</span>
+              <strong style={{ marginLeft: "auto", fontSize: "16px", color: "var(--teal)" }}>{sel.total} GB</strong>
             </div>
+          </div>
+
+          {/* Card 2: Disk Usage & Space Allocation */}
+          <div className="sm-card card">
+            <div className="sm-panel-title">Disk Usage</div>
 
             <div className="sm-usage-label">DISK USAGE</div>
             <div className="sm-usage-track">
@@ -356,7 +381,7 @@ export default function StorageManagementPage() {
             <div className="sm-divider" />
 
             <div className="sm-field-row">
-              <label>Allocated:</label>
+              <label style={{ fontWeight: 600, fontSize: "14px" }}>Allocated Limit:</label>
             </div>
             <div className="sm-slider-row">
               <input
@@ -370,65 +395,83 @@ export default function StorageManagementPage() {
               <span className="sm-slider-val">{allocated} GB</span>
             </div>
 
-            {allocWarning && (
-              <div className="sm-alloc-warning">
+            {allocError && (
+              <div className="sm-alloc-warning" style={{ background: "rgba(239, 68, 68, 0.12)", borderColor: "#ef4444" }}>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
                   <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
                   <line x1="12" y1="9" x2="12" y2="13"/>
                   <line x1="12" y1="17" x2="12.01" y2="17"/>
                 </svg>
-                {allocWarning}
+                <span style={{ color: "#fca5a5" }}>{allocError}</span>
               </div>
             )}
 
-            <div className="sm-divider" />
+            {allocWarning && (
+              <div className="sm-alloc-warning" style={{ background: "rgba(245, 158, 11, 0.12)", borderColor: "#f59e0b" }}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
+                  <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+                  <line x1="12" y1="9" x2="12" y2="13"/>
+                  <line x1="12" y1="17" x2="12.01" y2="17"/>
+                </svg>
+                <span style={{ color: "#fde047" }}>{allocWarning}</span>
+              </div>
+            )}
 
-            <div className="sm-field-row">
-              <label>Status:</label>
+            <div className="sm-field-row" style={{ justifyContent: "flex-end", marginTop: "auto", paddingTop: 10 }}>
+              <button
+                className="sm-btn sm-btn--primary"
+                disabled={!!allocError}
+                onClick={handleApply}
+                style={{ width: "100%" }}
+              >
+                Save Allocation
+              </button>
+            </div>
+          </div>
+
+          {/* Card 3: Status to Apply */}
+          <div className="sm-card card">
+            <div className="sm-panel-title">Status to Apply</div>
+
+            <div className="sm-field-row" style={{ marginBottom: 6 }}>
+              <label style={{ fontWeight: 600, fontSize: "14px" }}>Status:</label>
               <span className={`sm-status ${usedPct >= 90 ? "sm-status--warn" : "sm-status--ok"}`}>
                 {sel.status}
               </span>
             </div>
 
+            <div className="sm-divider" />
+
             <div className="sm-field-row">
-              <label>Folder for new recordings:</label>
+              <label style={{ fontWeight: 600, fontSize: "14px" }}>Folder for new recordings:</label>
             </div>
 
-            {/*
-              The input shows the Windows-friendly path (D:\REC\...) for readability.
-              On Apply, toContainerPath() converts it back to /recordings/... before
-              sending to the backend. The backend further sanitizes and persists the
-              container path, so D:\ paths can never reach ffmpeg.
-            */}
             <div className="sm-folder-row">
-             <input
-  type="text"
-  value={folder}
-  onChange={(e) => setFolder(e.target.value)}
-  placeholder="Enter storage path (e.g., D:\REC or D:\MyFolder)"
-  className="sm-input"
-/>
+              <input
+                type="text"
+                value={folder}
+                onChange={(e) => setFolder(e.target.value)}
+                placeholder="Enter storage path (e.g., D:\REC or D:\MyFolder)"
+                className="sm-input"
+              />
             </div>
-            <div style={{ fontSize: "0.72rem", color: "var(--text-muted, #888)", marginTop: 4 }}>
-              Type a Windows path like <code>D:\REC\site-A</code> or a container path like{" "}
-              <code>/recordings/site-A</code>. Both are accepted — the path is automatically
-              converted to the correct format inside the container.
+            <div style={{ fontSize: "12px", color: "var(--text-muted, #888)", marginTop: 2, lineHeight: 1.3 }}>
+              Windows path <code>D:\REC\site-A</code> or container path <code>/recordings/site-A</code> are both automatically converted.
             </div>
 
             {applyMsg && <div className="sm-apply-msg">{applyMsg}</div>}
 
-            <div className="sm-field-row" style={{ justifyContent: "flex-end", marginTop: 8 }}>
+            <div className="sm-field-row" style={{ justifyContent: "flex-end", marginTop: "auto", paddingTop: 10 }}>
               <button
                 className="sm-btn sm-btn--primary"
-                disabled={!!allocWarning}
+                disabled={!!allocError}
                 onClick={handleApply}
+                style={{ width: "100%" }}
               >
-                Apply
+                Save Path
               </button>
             </div>
           </div>
-
-          
 
         </div>
       )}

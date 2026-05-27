@@ -87,6 +87,9 @@ class NetworkScanner:
             manufacturer = mfr
             model = mdl
 
+        if device_type == "web_device":
+            return None
+
         return {
             "ip": ip,
             "type": device_type,
