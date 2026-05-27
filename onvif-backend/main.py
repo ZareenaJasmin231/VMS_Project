@@ -552,24 +552,21 @@ async def webrtc_proxy(stream_key: str, request: Request):
         raise HTTPException(status_code=502, detail=str(e))
 
 @app.get("/api/event-playback")
-def event_playback(ip: str, time: str):
+def event_playback(ip: str, time: str, stream: int = 0):
     """
-    Return a 20-second clip centred on the alert trigger time (+-10 s).
-
-    Recordings are 5-minute chunks saved in LOCAL camera time.
-    If the nearest chunk's start_time is more than CHUNK_SECONDS away from
-    the alert, the alert falls in a gap (chunk not yet indexed) — in that
-    case we scan the filesystem directly as a fallback.
+    stream=0 (default): returns JSON with clipUrl
+    stream=1: returns video/mp4 bytes directly (used by <video src="...">)
     """
     import re, tempfile, subprocess, os
     from datetime import datetime, timezone, timedelta
 
-    CHUNK_SECONDS = 300   # must match rtsp_recorder.py CHUNK_SECONDS
+    CHUNK_SECONDS = 300
 
     try:
         print("\n========== ALERT PLAYBACK ==========")
         print("IP   :", ip)
         print("TIME :", time)
+        print("STREAM:", stream)
 
         # ── 1. Parse timestamp ────────────────────────────────────────
         t = time.strip()
@@ -583,14 +580,12 @@ def event_playback(ip: str, time: str):
             t_clean  = re.sub(r"[+-]\d{2}:\d{2}$", "", t).rstrip("Z").strip()
             alert_dt = datetime.fromisoformat(t_clean)
 
-        # LOCAL time — recordings filenames use local time
         alert_local_hms  = alert_dt.strftime("%H-%M-%S")
         alert_local_date = alert_dt.strftime("%Y-%m-%d")
         alert_local_secs = (
             alert_dt.hour * 3600 + alert_dt.minute * 60 + alert_dt.second
         )
 
-        # UTC fallback
         if alert_dt.tzinfo is not None:
             alert_utc = alert_dt.astimezone(timezone.utc).replace(tzinfo=None)
         else:
@@ -630,22 +625,17 @@ def event_playback(ip: str, time: str):
 
         doc = find_best_chunk_db(alert_local_date, alert_local_hms)
 
-        # Fallback previous day
         if not doc:
             prev = (alert_dt - timedelta(days=1)).strftime("%Y-%m-%d")
             doc  = find_best_chunk_db(prev, "23-59-59")
 
-        # UTC fallback
         if not doc:
             doc = find_best_chunk_db(
                 alert_utc.strftime("%Y-%m-%d"),
                 alert_utc.strftime("%H-%M-%S"),
             )
 
-        # ── 4. Validate the chunk actually covers the alert ───────────
-        # If the chunk start is more than CHUNK_SECONDS before the alert,
-        # the alert is in a LATER chunk that may not be indexed in DB yet.
-        # Fall back to scanning the filesystem directly.
+        # ── 4. Validate chunk ─────────────────────────────────────────
         enc_path = None
 
         if doc:
@@ -656,24 +646,21 @@ def event_playback(ip: str, time: str):
                 elapsed     = alert_local_secs - chunk_secs
                 print(f"DB chunk    : {doc['start_time']}  elapsed={elapsed:.0f}s")
 
-                if elapsed <= CHUNK_SECONDS + 30:   # +30s grace for overlap
+                if elapsed <= CHUNK_SECONDS + 30:
                     enc_path = doc.get("file_path", "").replace("\\", "/")
                     print(f"DB chunk OK : {enc_path}")
                 else:
                     print(f"DB chunk too old ({elapsed:.0f}s > {CHUNK_SECONDS}s) — scanning filesystem")
-                    doc = None   # force filesystem scan
+                    doc = None
             except Exception as e:
                 print(f"Elapsed calc error: {e}")
 
         # ── 5. Filesystem fallback ────────────────────────────────────
-        # Walk the recording dir and find the .enc file whose timestamp
-        # is closest to (and <= ) the alert local time.
         if not enc_path:
             rec_dir   = recorder.get_recordings_dir()
             best_file = None
             best_diff = None
 
-            # Search all cam folders that match the IP prefix
             for cam_folder in os.listdir(rec_dir):
                 if not cam_folder.startswith(ip_prefix):
                     continue
@@ -683,7 +670,7 @@ def event_playback(ip: str, time: str):
                 for fname in os.listdir(date_dir):
                     if not fname.endswith(".enc"):
                         continue
-                    stem = fname.replace(".enc", "")   # e.g. "16-55-00"
+                    stem = fname.replace(".enc", "")
                     try:
                         fparts = re.split(r"[-:]", stem)
                         fh, fm, fs = int(fparts[0]), int(fparts[1]), int(fparts[2])
@@ -699,7 +686,6 @@ def event_playback(ip: str, time: str):
 
             if best_file:
                 enc_path = best_file
-                # Recalculate elapsed for the FS-found file
                 stem     = os.path.basename(best_file).replace(".enc", "")
                 fparts   = re.split(r"[-:]", stem)
                 fh, fm, fs = int(fparts[0]), int(fparts[1]), int(fparts[2])
@@ -728,7 +714,6 @@ def event_playback(ip: str, time: str):
             )
 
         # ── 6. Seek offset ────────────────────────────────────────────
-        # elapsed was set either in step 4 or step 5
         BEFORE   = 10
         AFTER    = 10
         offset   = max(0.0, elapsed - BEFORE)
@@ -736,7 +721,7 @@ def event_playback(ip: str, time: str):
 
         print(f"Seek        : offset={offset:.1f}s  duration={duration}s")
 
-        # ── 7. Decrypt .enc into memory ───────────────────────────────
+        # ── 7. Decrypt ────────────────────────────────────────────────
         try:
             decrypted_bytes = b""
             for chunk in encrypt_service.decrypt_file_stream(enc_path):
@@ -799,8 +784,6 @@ def event_playback(ip: str, time: str):
                   f"{stderr_data.decode(errors='replace')[-300:]}")
 
         if not os.path.exists(output_path) or os.path.getsize(output_path) < 500:
-            # If ffmpeg failed it might be because the offset is near the end
-            # of the chunk. Try with offset=0 to return whatever we have.
             print("[PLAYBACK] Retrying ffmpeg with offset=0")
             ffmpeg_cmd2 = [
                 "ffmpeg", "-y",
@@ -832,21 +815,20 @@ def event_playback(ip: str, time: str):
                 media_type="application/json",
                 headers={"Access-Control-Allow-Origin": "*"},
             )
-# ── 9. Save clip as encrypted .enc ───────────────────────────
+
+        # ── 9. Save clip as encrypted .enc ────────────────────────────
         event_clips_col = _db["event_clips"]
 
-        # Build save path: /recording/event_clips/<ip>/<date>/<ip>_<timestamp>.enc
-        clips_base  = os.path.join(recorder.get_recordings_dir(), "event_clips")
-        ip_folder   = ip.strip().replace(".", "_")
-        clip_date   = alert_local_date                        # e.g. 2026-05-26
-        clip_ts     = alert_dt.strftime("%H-%M-%S")           # e.g. 22-03-05
-        clip_dir    = os.path.join(clips_base, ip_folder, clip_date)
+        clips_base    = os.path.join(recorder.get_recordings_dir(), "event_clips")
+        ip_folder     = ip.strip().replace(".", "_")
+        clip_date     = alert_local_date
+        clip_ts       = alert_dt.strftime("%H-%M-%S")
+        clip_dir      = os.path.join(clips_base, ip_folder, clip_date)
         os.makedirs(clip_dir, exist_ok=True)
 
         clip_filename = f"{ip_folder}_{clip_ts}.enc"
         clip_enc_path = os.path.join(clip_dir, clip_filename)
 
-        # Re-encrypt using the same AES key as recordings
         already_saved = os.path.exists(clip_enc_path)
         if not already_saved:
             try:
@@ -857,7 +839,6 @@ def event_playback(ip: str, time: str):
                     f.write(encrypted_clip)
                 print(f"[CLIP] ✅ Saved encrypted clip: {clip_enc_path}")
 
-                # Index in MongoDB
                 event_clips_col.update_one(
                     {"ip": ip, "time": time},
                     {"$set": {
@@ -866,7 +847,7 @@ def event_playback(ip: str, time: str):
                         "date":       clip_date,
                         "file_path":  clip_enc_path.replace("\\", "/"),
                         "saved_at":   datetime.utcnow(),
-                        "size_bytes": len(encrypted_clip),
+                        "size_bytes": os.path.getsize(clip_enc_path),
                     }},
                     upsert=True
                 )
@@ -875,278 +856,64 @@ def event_playback(ip: str, time: str):
         else:
             print(f"[CLIP] ℹ Clip already exists: {clip_enc_path}")
 
-        # ── 10. Read clip and return ──────────────────────────────────
-        with open(output_path, "rb") as f:
-            clip_data = f.read()
+        # ── 10. Return URL or video bytes based on stream param ───────
+        # stream=1 → return video bytes directly (for <video src="...">)
+        # stream=0 → return JSON with clip_url (default, for other team)
+        if stream == 1:
+            # Return video bytes directly
+            with open(output_path, "rb") as f:
+                clip_data = f.read()
+            try:
+                os.remove(output_path)
+            except Exception:
+                pass
+
+            print(f"[STREAM=1] Returning video bytes: {len(clip_data):,} bytes")
+
+            return Response(
+                content=clip_data,
+                media_type="video/mp4",
+                headers={
+                    "Content-Type":        "video/mp4",
+                    "Content-Length":      str(len(clip_data)),
+                    "Content-Disposition": "inline",
+                    "Accept-Ranges":       "bytes",
+                    "Cache-Control":       "no-store",
+                    "Access-Control-Allow-Origin":   "*",
+                    "Access-Control-Allow-Methods":  "GET, OPTIONS",
+                    "Access-Control-Allow-Headers":  "*",
+                    "Access-Control-Expose-Headers": "Content-Length, Content-Type, X-Server-IP, X-Camera-IP",
+                    "X-Server-IP": "192.168.126.200",
+                    "X-Camera-IP": ip,
+                },
+            )
+
+        # stream=0 → return JSON with playable URL
         try:
             os.remove(output_path)
         except Exception:
             pass
 
-        print(f"Returning clip: {len(clip_data):,} bytes")
-
-        return Response(
-            content=clip_data,
-            media_type="video/mp4",
-            headers={
-                "Content-Type":        "video/mp4",
-                "Content-Length":      str(len(clip_data)),
-                "Content-Disposition": "inline",
-                "Accept-Ranges":       "bytes",
-                "Cache-Control":       "no-store",
-                "Access-Control-Allow-Origin":   "*",
-                "Access-Control-Allow-Methods":  "GET, OPTIONS",
-                "Access-Control-Allow-Headers":  "*",
-                "Access-Control-Expose-Headers": "Content-Length, Content-Type, X-Server-IP, X-Camera-IP",
-                "X-Server-IP": HOST_IP,
-                "X-Camera-IP": ip,
-            },
-        )
-
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        return Response(
-            content=f'{{"error":"{str(e)}"}}'.encode(),
-            status_code=500,
-            media_type="application/json",
-            headers={"Access-Control-Allow-Origin": "*"},
-        )   
-        
-        """
-    Return a 20-second clip centred on the alert trigger time (+-10 s).
-
-    KEY FIX: recordings are saved using LOCAL camera time (HH-MM-SS), not UTC.
-    So we must search MongoDB using the LOCAL time from the alert timestamp,
-    not the UTC-converted time.
-    """
-    import re, tempfile, subprocess
-    from datetime import datetime, timezone, timedelta
-
-    try:
-        print("\n========== ALERT PLAYBACK ==========")
-        print("IP   :", ip)
-        print("TIME :", time)
-
-        # 1. Parse the ISO timestamp - keep BOTH local and UTC
-        t = time.strip()
-        if " " in t:
-            t = t.replace(" ", "+")
-        # Fix "+0530" to "+05:30"
-        t = re.sub(r"([+-])(\d{2})(\d{2})$", r"\1\2:\3", t)
-
-        try:
-            alert_dt = datetime.fromisoformat(t)
-        except ValueError:
-            t_clean  = re.sub(r"[+-]\d{2}:\d{2}$", "", t).rstrip("Z").strip()
-            alert_dt = datetime.fromisoformat(t_clean)
-
-        # LOCAL time - this is what the camera uses for filenames/recordings
-        alert_local_hms  = alert_dt.strftime("%H-%M-%S")   # e.g. "16-18-18"
-        alert_local_date = alert_dt.strftime("%Y-%m-%d")    # e.g. "2026-05-05"
-
-        # UTC time (for fallback only)
-        if alert_dt.tzinfo is not None:
-            alert_utc = alert_dt.astimezone(timezone.utc).replace(tzinfo=None)
-        else:
-            alert_utc = alert_dt
-
-        print(f"Alert local : {alert_local_date} {alert_local_hms}")
-        print(f"Alert UTC   : {alert_utc.isoformat()}")
-
-        # 2. Build candidate camera_id list
-        # Covers: 192_168_126_234 (single-channel)
-        # and:    192_168_126_234_cam0, _cam1, _abc123 (multi-channel)
-        ip_prefix = ip.strip().replace(".", "_")
-        recordings_col = _db["recordings"]
-
-        all_cam_ids = recordings_col.distinct(
-            "camera_id",
-            {"camera_id": {"$regex": f"^{re.escape(ip_prefix)}"}}
-        )
-        if not all_cam_ids:
-            all_cam_ids = [ip_prefix, ip.strip()]
-
-        print(f"Candidate camera_ids: {all_cam_ids}")
-
-        # 3. Find the best chunk using LOCAL date + time
-        def find_best_chunk(date_str, hms_str):
-            best = None
-            for cam_id in all_cam_ids:
-                candidate = recordings_col.find_one(
-                    {
-                        "camera_id":  cam_id,
-                        "date":       date_str,
-                        "start_time": {"$lte": hms_str},
-                    },
-                    sort=[("start_time", -1)],
+        clipUrl = (
+                    f"http://192.168.126.200/api/event-playback"
+                    f"?ip={urllib.parse.quote(ip)}"
+                    f"&time={urllib.parse.quote(time)}"
+                    f"&stream=1"
                 )
-                if candidate:
-                    if best is None or candidate["start_time"] > best["start_time"]:
-                        best = candidate
-            return best
 
-        doc = find_best_chunk(alert_local_date, alert_local_hms)
-
-        # Fallback: previous calendar day (alert near midnight)
-        if not doc:
-            prev_date = (alert_dt - timedelta(days=1)).strftime("%Y-%m-%d")
-            doc = find_best_chunk(prev_date, "23-59-59")
-
-        # Last resort: try UTC date/time
-        if not doc:
-            doc = find_best_chunk(
-                alert_utc.strftime("%Y-%m-%d"),
-                alert_utc.strftime("%H-%M-%S"),
-            )
-
-        if not doc:
-            msg = (
-                f"No recording chunk found. "
-                f"Searched camera_ids={all_cam_ids}, "
-                f"local={alert_local_date} {alert_local_hms}"
-            )
-            print(f"[PLAYBACK] ERROR: {msg}")
-            return Response(
-                content=f'{{"error":"{msg}"}}'.encode(),
-                status_code=404,
-                media_type="application/json",
-                headers={"Access-Control-Allow-Origin": "*"},
-            )
-
-        enc_path = doc.get("file_path", "").replace("\\", "/")
-        print(f"Found chunk : camera_id={doc['camera_id']}  "
-              f"start_time={doc['start_time']}  file={enc_path}")
-
-        if not enc_path or not os.path.exists(enc_path):
-            return Response(
-                content=f'{{"error":"Encrypted file not found on disk: {enc_path}"}}'.encode(),
-                status_code=404,
-                media_type="application/json",
-                headers={"Access-Control-Allow-Origin": "*"},
-            )
-
-        # 4. Calculate seek offset using LOCAL times only (no UTC conversion needed)
-        try:
-            parts = re.split(r"[-:]", doc["start_time"])
-            h, m, s = int(parts[0]), int(parts[1]), int(parts[2])
-            chunk_local_secs = h * 3600 + m * 60 + s
-
-            ah, am, as_ = [int(x) for x in re.split(r"[-:]", alert_local_hms)]
-            alert_local_secs = ah * 3600 + am * 60 + as_
-
-            elapsed = alert_local_secs - chunk_local_secs
-            if elapsed < 0:
-                elapsed = 0.0
-        except Exception as e:
-            print(f"[PLAYBACK] offset calc error: {e} - defaulting to 0")
-            elapsed = 0.0
-
-        BEFORE   = 10
-        AFTER    = 10
-        offset   = max(0.0, elapsed - BEFORE)
-        duration = BEFORE + AFTER   # 20 s total
-
-        print(f"elapsed={elapsed:.1f}s  seek={offset:.1f}s  duration={duration}s")
-
-        # 5. Decrypt the entire .enc file into memory
-        try:
-            decrypted_bytes = b""
-            for chunk in encrypt_service.decrypt_file_stream(enc_path):
-                decrypted_bytes += chunk
-        except Exception as dec_err:
-            print(f"[PLAYBACK] Decryption failed: {dec_err}")
-            return Response(
-                content=f'{{"error":"Decryption failed: {str(dec_err)}"}}'.encode(),
-                status_code=500,
-                media_type="application/json",
-                headers={"Access-Control-Allow-Origin": "*"},
-            )
-
-        if len(decrypted_bytes) < 1000:
-            return Response(
-                content=b'{"error":"Decrypted file is empty - key mismatch?"}',
-                status_code=500,
-                media_type="application/json",
-                headers={"Access-Control-Allow-Origin": "*"},
-            )
-
-        print(f"Decrypted  : {len(decrypted_bytes):,} bytes")
-
-        # 6. Extract the +-10 s clip via ffmpeg (stdin pipe)
-        output_path = tempfile.mktemp(suffix=".mp4")
-        ffmpeg_cmd = [
-            "ffmpeg", "-y",
-            "-i",      "pipe:0",
-            "-ss",     str(offset),
-            "-t",      str(duration),
-            "-c:v",    "libx264",
-            "-preset", "ultrafast",
-            "-crf",    "23",
-            "-an",
-            "-movflags", "+faststart",
-            output_path,
-        ]
-
-        proc = subprocess.Popen(
-            ffmpeg_cmd,
-            stdin=subprocess.PIPE,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.PIPE,
-        )
-
-        try:
-            _, stderr_data = proc.communicate(input=decrypted_bytes, timeout=60)
-        except subprocess.TimeoutExpired:
-            proc.kill()
-            proc.communicate()
-            return Response(
-                content=b'{"error":"ffmpeg timed out"}',
-                status_code=500,
-                media_type="application/json",
-                headers={"Access-Control-Allow-Origin": "*"},
-            )
-
-        if proc.returncode != 0:
-            err = stderr_data.decode(errors="replace")[-400:]
-            print(f"[PLAYBACK] ffmpeg rc={proc.returncode}: {err}")
-
-        if not os.path.exists(output_path) or os.path.getsize(output_path) < 500:
-            err = stderr_data.decode(errors="replace")[-300:] if stderr_data else "unknown"
-            print(f"[PLAYBACK] No usable output: {err}")
-            return Response(
-                content=b'{"error":"Failed to extract clip - offset may be out of range"}',
-                status_code=500,
-                media_type="application/json",
-                headers={"Access-Control-Allow-Origin": "*"},
-            )
-
-        # 7. Read and return the clip
-        with open(output_path, "rb") as f:
-            clip_data = f.read()
-        try:
-            os.remove(output_path)
-        except Exception:
-            pass
-
-        print(f"Returning clip: {len(clip_data):,} bytes")
+        print(f"[STREAM=0] Returning JSON with clipUrl: {clipUrl}")
 
         return Response(
-            content=clip_data,
-            media_type="video/mp4",
-            headers={
-                "Content-Type":        "video/mp4",
-                "Content-Length":      str(len(clip_data)),
-                "Content-Disposition": "inline",
-                "Accept-Ranges":       "bytes",
-                "Cache-Control":       "no-store",
-                "Access-Control-Allow-Origin":   "*",
-                "Access-Control-Allow-Methods":  "GET, OPTIONS",
-                "Access-Control-Allow-Headers":  "*",
-                "Access-Control-Expose-Headers": "Content-Length, Content-Type",
-            },
-        )
-
+                    content=json.dumps({
+                        "clipUrl": clipUrl,
+                    }).encode(),
+                    media_type="application/json",
+                    headers={
+                        "Access-Control-Allow-Origin":  "*",
+                        "Access-Control-Allow-Methods": "GET, OPTIONS",
+                        "Access-Control-Allow-Headers": "*",
+                    },
+                )
     except Exception as e:
         import traceback
         traceback.print_exc()
@@ -1156,6 +923,7 @@ def event_playback(ip: str, time: str):
             media_type="application/json",
             headers={"Access-Control-Allow-Origin": "*"},
         )
+
 async def system_health_collector():
     while True:
         try:

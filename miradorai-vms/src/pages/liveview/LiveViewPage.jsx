@@ -134,7 +134,7 @@ function AlertPopup({ ip, alerts, onClose }) {
   const alertKey = (alert) =>
     `${(alert.ip || ip)}_${alert.time || alert.received_at}`;
 
-  const handleView = async (alert) => {
+const handleView = async (alert) => {
     if (videoUrl) {
       URL.revokeObjectURL(videoUrl);
       setVideoUrl(null);
@@ -149,6 +149,7 @@ function AlertPopup({ ip, alerts, onClose }) {
 
       const normIp = (ip || "").replace(/_/g, ".");
 
+      // Step 1 — call event-playback (no stream param) → get JSON with clip_url
       const url =
         `${API}/api/event-playback` +
         `?ip=${encodeURIComponent(normIp)}` +
@@ -158,16 +159,21 @@ function AlertPopup({ ip, alerts, onClose }) {
 
       if (!res.ok) {
         let errMsg = `Server error ${res.status}`;
-        const ct = res.headers.get("content-type") || "";
-        if (ct.includes("application/json")) {
-          try { const e = await res.json(); errMsg = e.error || errMsg; } catch {}
-        } else {
-          errMsg = `Playback failed (${res.status} ${res.statusText})`;
-        }
+        try { const e = await res.json(); errMsg = e.error || errMsg; } catch {}
         throw new Error(errMsg);
       }
 
-      const blob = await res.blob();
+      const data = await res.json();
+      if (!data.clipUrl) throw new Error("No clip URL returned from server");
+
+      // Step 2 — fetch the actual video bytes using clip_url (stream=1)
+      const videoRes = await fetch(data.clipUrl, { headers: getAuthHeaders() });
+
+      if (!videoRes.ok) {
+        throw new Error(`Video fetch failed (${videoRes.status})`);
+      }
+
+      const blob = await videoRes.blob();
       if (!blob || blob.size === 0) throw new Error("Server returned an empty video");
 
       const blobUrl = URL.createObjectURL(blob);
@@ -180,7 +186,6 @@ function AlertPopup({ ip, alerts, onClose }) {
       setVideoLoading(false);
     }
   };
-
   // ── Manual Save ───────────────────────────────────────────────
   const handleSave = async (alert) => {
     const key     = alertKey(alert);
