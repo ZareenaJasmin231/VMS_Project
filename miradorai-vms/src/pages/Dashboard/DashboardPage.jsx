@@ -115,16 +115,16 @@ const DashboardPage = () => {
             const prevDisk = prev.history?.disk || [];
 
             // Seed initial 15 points if history is completely empty
-            const cpuHist = prevCpu.length > 0 
-              ? [...prevCpu, sumData.cpu] 
+            const cpuHist = prevCpu.length > 0
+              ? [...prevCpu, sumData.cpu]
               : Array.from({ length: 15 }, () => Math.max(5, Math.min(95, sumData.cpu + Math.floor((Math.random() - 0.5) * 10))));
 
-            const ramHist = prevRam.length > 0 
-              ? [...prevRam, sumData.ram] 
+            const ramHist = prevRam.length > 0
+              ? [...prevRam, sumData.ram]
               : Array.from({ length: 15 }, () => Math.max(5, Math.min(95, sumData.ram + Math.floor((Math.random() - 0.5) * 10))));
 
-            const diskHist = prevDisk.length > 0 
-              ? [...prevDisk, sumData.disk] 
+            const diskHist = prevDisk.length > 0
+              ? [...prevDisk, sumData.disk]
               : Array.from({ length: 15 }, () => Math.max(1, Math.min(99, sumData.disk + Math.floor((Math.random() - 0.5) * 2))));
 
             history = {
@@ -256,8 +256,8 @@ const DashboardPage = () => {
         {stats.map((item, index) => (
           <div className="card" key={index}>
             <div className={`icon ${index === 0 ? "blue" :
-                index === 1 ? "green" :
-                  index === 2 ? "red" : "orange"
+              index === 1 ? "green" :
+                index === 2 ? "red" : "orange"
               }`}>
               {item.icon}
             </div>

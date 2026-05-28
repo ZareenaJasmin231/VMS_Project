@@ -89,6 +89,11 @@ const TOTAL_SLOTS = 24 * 12; // 5-min intervals
 const API_HOST = window.location.hostname;
 const BACKEND = `http://${API_HOST}:80`;
 
+function getAuthHeaders() {
+  const token = localStorage.getItem("miradorai_token");
+  return token ? { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" } : { "Content-Type": "application/json" };
+}
+
 // ── Helpers ───────────────────────────────────────────────────────
 function slotToTime(slot) {
   const h = Math.floor(slot / 12);
@@ -133,7 +138,7 @@ function dayRangeToMask(from, to) {
 
 function getRangeLabel(mask) {
   const { from, to, enabled } = maskToDayRange(mask);
-  return enabled ? `${from} – ${to}` : "Always Off";
+  return enabled ? `${from} - ${to}` : "Always Off";
 }
 
 function makeEmptyWeek() {
@@ -282,29 +287,27 @@ function WeekGrid({ week, onChange }) {
   useEffect(() => { setRanges(getDayRanges()); }, [getDayRanges]);
 
   const updateDay = (day, field, value) => {
-    setRanges((prev) => {
-      const updated = { ...prev, [day]: { ...prev[day], [field]: value } };
-      const { from, to, enabled } = updated[day];
-      const newWeek = { ...week, [day]: enabled ? dayRangeToMask(from, to) : new Array(TOTAL_SLOTS).fill(false) };
-      onChange(newWeek);
-      return updated;
-    });
+    const updatedDayObj = { ...ranges[day], [field]: value };
+    const updatedRanges = { ...ranges, [day]: updatedDayObj };
+    setRanges(updatedRanges);
+
+    const { from, to, enabled } = updatedDayObj;
+    const newWeek = { ...week, [day]: enabled ? dayRangeToMask(from, to) : new Array(TOTAL_SLOTS).fill(false) };
+    onChange(newWeek);
   };
 
   const toggleEnabled = (day) => {
-    setRanges((prev) => {
-      const wasEnabled = prev[day].enabled;
-      const existingFrom = prev[day].from && prev[day].from !== "00:00" ? prev[day].from : "08:00";
-      const existingTo   = prev[day].to   && prev[day].to   !== "00:00" ? prev[day].to   : "18:00";
-      const updated = {
-        ...prev,
-        [day]: { ...prev[day], enabled: !wasEnabled, from: existingFrom, to: existingTo },
-      };
-      const { from, to, enabled } = updated[day];
-      const newWeek = { ...week, [day]: enabled ? dayRangeToMask(from, to) : new Array(TOTAL_SLOTS).fill(false) };
-      onChange(newWeek);
-      return updated;
-    });
+    const wasEnabled = ranges[day].enabled;
+    const existingFrom = ranges[day].from && ranges[day].from !== "00:00" ? ranges[day].from : "08:00";
+    const existingTo   = ranges[day].to   && ranges[day].to   !== "00:00" ? ranges[day].to   : "18:00";
+    
+    const updatedDayObj = { ...ranges[day], enabled: !wasEnabled, from: existingFrom, to: existingTo };
+    const updatedRanges = { ...ranges, [day]: updatedDayObj };
+    setRanges(updatedRanges);
+
+    const { from, to, enabled } = updatedDayObj;
+    const newWeek = { ...week, [day]: enabled ? dayRangeToMask(from, to) : new Array(TOTAL_SLOTS).fill(false) };
+    onChange(newWeek);
   };
 
   return (
@@ -437,9 +440,11 @@ export default function Schedules() {
   const fetchSchedules = async () => {
     setLoading(true);
     try {
-      const res  = await fetch(`${BACKEND}/api/storage/schedules`);
+      const res  = await fetch(`${BACKEND}/api/storage/schedules`, {
+        headers: getAuthHeaders()
+      });
       const data = await res.json();
-      setSchedules(data);
+      setSchedules(Array.isArray(data) ? data : []);
     } catch (err) { console.error(err); }
     finally { setLoading(false); }
   };
@@ -457,7 +462,10 @@ export default function Schedules() {
     if (!selectedId) return;
     const target = schedules.find((s) => s.id === selectedId);
     try {
-      await fetch(`${BACKEND}/api/storage/schedules/${selectedId}`, { method: "DELETE" });
+      await fetch(`${BACKEND}/api/storage/schedules/${selectedId}`, { 
+        method: "DELETE",
+        headers: getAuthHeaders()
+      });
     } catch (err) { console.error(err); }
     finally {
       setSchedules((prev) => prev.filter((s) => s.id !== selectedId));
@@ -559,7 +567,7 @@ export default function Schedules() {
                       const payload = { ...selected, ranges: readableRanges };
                       await fetch(`${BACKEND}/api/storage/schedules`, {
                         method: "POST",
-                        headers: { "Content-Type": "application/json" },
+                        headers: getAuthHeaders(),
                         body: JSON.stringify(payload),
                       });
                     } catch (err) { console.error(err); }

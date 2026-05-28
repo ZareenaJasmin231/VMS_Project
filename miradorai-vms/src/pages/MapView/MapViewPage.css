@@ -1712,4 +1712,558 @@
   max-width: 160px;
   opacity: 1;
 }
+
+/* ── Modern UI Redesign Overrides ── */
+
+/* 1. Categorized Spacing in Toolbar */
+.mv-toolbar {
+  padding: 12px 18px;
+  background: rgba(13, 17, 23, 0.7);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(46, 61, 85, 0.4);
+}
+
+.mv-toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mv-toolbar-divider {
+  width: 1px;
+  height: 20px;
+  background: rgba(46, 61, 85, 0.4);
+  margin: 0 12px;
+}
+
+.mv-toolbar-pill-group {
+  display: flex;
+  background: rgba(13, 17, 23, 0.9);
+  padding: 3px;
+  border-radius: 99px;
+  border: 1px solid rgba(46, 61, 85, 0.5);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.mv-tbtn--pill {
+  border: none !important;
+  background: transparent !important;
+  color: rgba(255, 255, 255, 0.75) !important;
+  padding: 5px 14px !important;
+  font-size: 11.5px !important;
+  font-weight: 600 !important;
+  border-radius: 99px !important;
+  transition: all 0.2s ease !important;
+}
+
+.mv-tbtn--pill:hover {
+  color: #fff !important;
+  background: rgba(255, 255, 255, 0.05) !important;
+}
+
+.mv-tbtn--pill-active {
+  background: rgba(24, 95, 165, 0.15) !important;
+  border: 1.5px solid #185FA5 !important;
+  color: #5aabf0 !important;
+  box-shadow: 0 0 10px rgba(24, 95, 165, 0.25) !important;
+}
+
+.mv-toolbar .mv-tbtn.mv-tbtn--clear,
+.mv-tbtn--clear {
+  border-color: rgba(239, 68, 68, 0.25) !important;
+  color: #ef4444 !important;
+  background: rgba(239, 68, 68, 0.05) !important;
+}
+.mv-tbtn--clear:hover {
+  background: rgba(239, 68, 68, 0.15) !important;
+}
+
+.mv-tbtn--success {
+  border-color: #10b98150 !important;
+  background: #10b98122 !important;
+  color: #10b981 !important;
+}
+
+.mv-toolbar .mv-tbtn.mv-tbtn--danger-outline,
+.mv-tbtn--danger-outline {
+  border-color: #ef444450 !important;
+  background: #ef444415 !important;
+  color: #ef4444 !important;
+}
+
+/* ── Fallback high contrast style for standard toolbar buttons ── */
+.mv-toolbar .mv-tbtn {
+  color: rgba(255, 255, 255, 0.85) !important;
+  border-color: rgba(46, 61, 85, 0.8) !important;
+  background: rgba(13, 17, 23, 0.8) !important;
+}
+.mv-toolbar .mv-tbtn:hover {
+  color: #fff !important;
+  background: rgba(24, 95, 165, 0.1) !important;
+  border-color: #185FA5 !important;
+}
+
+/* 2. Floating Circular Floor HUD */
+.mv-floor-hud {
+  position: absolute;
+  left: 20px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: rgba(22, 28, 40, 0.75);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(46, 61, 85, 0.5);
+  border-radius: 99px;
+  padding: 16px 8px;
+  align-items: center;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+
+.mv-floor-hud__label {
+  font-size: 8px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #5aabf0;
+  margin-bottom: 4px;
+}
+
+.mv-floor-hud-btn {
+  position: relative;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: rgba(30, 39, 56, 0.9) !important;
+  border: 1.5px solid rgba(255, 255, 255, 0.25) !important;
+  color: rgba(255, 255, 255, 0.9) !important;
+  font-weight: 700;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.mv-floor-hud-btn:hover {
+  background: rgba(24, 95, 165, 0.15);
+  border-color: #185FA5;
+  color: #5aabf0;
+}
+
+.mv-floor-hud-btn--active {
+  background: #185FA5;
+  border-color: #185FA5;
+  color: #fff;
+  box-shadow: 0 0 12px rgba(24, 95, 165, 0.6);
+}
+
+.mv-floor-hud-btn__badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  background: #ef4444;
+  color: white;
+  font-size: 8.5px;
+  font-weight: 800;
+  padding: 1px 4px;
+  border-radius: 99px;
+  border: 1.5px solid #161c28;
+}
+
+.mv-floor-hud-btn__del {
+  position: absolute;
+  bottom: -4px;
+  right: -4px;
+  background: #ef444422;
+  color: #ef4444;
+  border: 1px solid #ef444440;
+  font-size: 8px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+}
+
+.mv-floor-hud-btn:hover .mv-floor-hud-btn__del {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.mv-floor-hud-btn__del:hover {
+  background: #ef4444;
+  color: #fff;
+}
+
+.mv-floor-hud-btn--add {
+  border-style: dashed;
+  color: #1d9e75;
+  border-color: rgba(29, 158, 117, 0.4);
+}
+
+.mv-floor-hud-btn--add:hover {
+  background: rgba(29, 158, 117, 0.15);
+  border-color: #1d9e75;
+  color: #fff;
+}
+
+/* 3. Slide-out Tabbed Right Inspector Drawer */
+.mv-inspector {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 48px;
+  background: rgba(22, 28, 40, 0.65);
+  backdrop-filter: blur(12px);
+  border-left: 1px solid rgba(46, 61, 85, 0.4);
+  z-index: 10;
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: -8px 0 32px rgba(0, 0, 0, 0.4);
+  overflow: visible;
+}
+
+.mv-inspector--expanded {
+  width: 265px;
+}
+
+.mv-inspector-toggle {
+  position: absolute;
+  left: -28px;
+  top: 24px;
+  background: rgba(22, 28, 40, 0.9);
+  border: 1px solid rgba(46, 61, 85, 0.6);
+  border-right: none;
+  border-radius: 8px 0 0 8px;
+  color: rgba(255, 255, 255, 0.75);
+  width: 28px;
+  height: 84px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 11;
+  box-shadow: -4px 4px 12px rgba(0, 0, 0, 0.3);
+  transition: all 0.2s ease;
+  padding: 6px 0;
+}
+
+.mv-inspector-toggle__text {
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  writing-mode: vertical-lr;
+  margin-top: 5px;
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.mv-inspector-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 265px;
+  overflow: hidden;
+}
+
+.mv-inspector-tabs {
+  display: flex;
+  background: rgba(13, 17, 23, 0.7);
+  border-bottom: 1px solid rgba(46, 61, 85, 0.5);
+  padding: 8px 12px;
+  gap: 8px;
+}
+
+.mv-inspector-tab {
+  flex: 1;
+  background: transparent;
+  border: 1px solid transparent;
+  color: rgba(255, 255, 255, 0.8) !important;
+  padding: 6px 0;
+  border-radius: 6px;
+  font-size: 11.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.mv-inspector-tab:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.mv-inspector-tab--active {
+  background: rgba(24, 95, 165, 0.15) !important;
+  border-color: #185FA5 !important;
+  color: #5aabf0 !important;
+  border: 1px solid #185FA5 !important;
+}
+
+.mv-inspector-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 16px;
+}
+
+.mv-inspector-flow {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.mv-inspector-section-title {
+  font-size: 10.5px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #5aabf0 !important;
+  margin-bottom: 12px;
+}
+
+/* High Contrast legibility for camera items inside the inspector flow */
+.mv-inspector-content .mv-cam-name {
+  color: #ffffff !important;
+  font-weight: 600;
+}
+.mv-inspector-content .mv-cam-ip {
+  color: rgba(255, 255, 255, 0.6) !important;
+}
+.mv-inspector-content .mv-cam-item {
+  border-bottom: 0.5px solid rgba(46, 61, 85, 0.45);
+}
+.mv-inspector-content .mv-cam-item--placed {
+  opacity: 0.55;
+}
+
+.mv-cam-list, .mv-zone-scroller, .mv-legend-scroller {
+  flex: 1;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.mv-inspector-legend {
+  display: flex;
+  flex-direction: column;
+  max-height: 250px;
+  margin-top: auto;
+}
+
+/* Custom mini scrollbar for inspector panels */
+.mv-cam-list::-webkit-scrollbar,
+.mv-zone-scroller::-webkit-scrollbar,
+.mv-legend-scroller::-webkit-scrollbar {
+  width: 4px;
+}
+.mv-cam-list::-webkit-scrollbar-thumb,
+.mv-zone-scroller::-webkit-scrollbar-thumb,
+.mv-legend-scroller::-webkit-scrollbar-thumb {
+  background: rgba(46, 61, 85, 0.6);
+  border-radius: 99px;
+}
+
+/* 4. Glassmorphic HUD Zoom Controls */
+.mv-zoom-hud {
+  position: absolute;
+  right: 285px;
+  bottom: 20px;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  background: rgba(22, 28, 40, 0.75);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(46, 61, 85, 0.5);
+  border-radius: 8px;
+  padding: 4px 6px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  transition: right 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.mv-inspector:not(.mv-inspector--expanded) ~ .mv-zoom-hud {
+  right: 68px;
+}
+
+.mv-zoom-hud-btn {
+  background: transparent;
+  border: none;
+  color: #7a8499;
+  font-size: 15px;
+  font-weight: 600;
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.15s ease;
+}
+
+.mv-zoom-hud-btn:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: #fff;
+}
+
+.mv-zoom-hud-pct {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #e8edf5;
+  padding: 0 8px;
+  min-width: 44px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.mv-zoom-hud-divider {
+  width: 1px;
+  height: 14px;
+  background: rgba(46, 61, 85, 0.5);
+  margin: 0 4px;
+}
+
+.mv-zoom-hud-btn--fit {
+  font-size: 10.5px !important;
+  font-weight: 700 !important;
+  text-transform: uppercase;
+  color: #5aabf0 !important;
+  padding: 0 6px !important;
+  width: auto !important;
+}
+
+/* 5. Custom Sidebar Overrides */
+.mv-floor-sidebar {
+  display: none !important; /* Hide old legacy fixed sidebar */
+}
+
+.mv-zoom-bar {
+  display: none !important; /* Hide old zoom controls inside sidebar */
+}
+
+/* 6. Unified Hover, Active, and Focus Button States to match active tab Cameras (5) */
+.mv-tbtn:hover,
+.mv-tbtn:active,
+.mv-tbtn:focus,
+.mv-tbtn--pill:hover,
+.mv-tbtn--pill:active,
+.mv-tbtn--export:hover,
+.mv-tbtn--export:active,
+.mv-tbtn--success:hover,
+.mv-tbtn--success:active,
+.mv-floor-hud-btn:hover,
+.mv-floor-hud-btn:active,
+.mv-toolbar .mv-tbtn:hover,
+.mv-toolbar .mv-tbtn:active,
+.mv-toolbar .mv-tbtn:focus {
+  background: rgba(24, 95, 165, 0.15) !important;
+  border: 1.5px solid #185FA5 !important;
+  color: #5aabf0 !important;
+  font-weight: 600 !important;
+  outline: none !important;
+}
+
+/* Premium Red Danger Hover States */
+.mv-tbtn--clear:hover,
+.mv-tbtn--clear:active,
+.mv-tbtn--clear:focus,
+.mv-tbtn--danger-outline:hover,
+.mv-tbtn--danger-outline:active,
+.mv-tbtn--danger-outline:focus {
+  background: rgba(239, 68, 68, 0.15) !important;
+  border: 1.5px solid #ef4444 !important;
+  color: #f87171 !important;
+  font-weight: 600 !important;
+  outline: none !important;
+}
+
+.mv-toolbar .mv-tbtn--active,
+.mv-toolbar .mv-tbtn--pill-active,
+.mv-toolbar .mv-floor-hud-btn--active,
+.mv-tbtn--active,
+.mv-tbtn--pill-active,
+.mv-floor-hud-btn--active,
+.mv-tbtn--active:active,
+.mv-tbtn--pill-active:active,
+.mv-floor-hud-btn--active:active {
+  background: rgba(24, 95, 165, 0.15) !important;
+  border: 1.5px solid #185FA5 !important;
+  color: #5aabf0 !important;
+  font-weight: 600 !important;
+  box-shadow: 0 0 10px rgba(24, 95, 165, 0.25) !important;
+  outline: none !important;
+}
+
+.mv-inspector-close-btn:hover {
+  color: #fff !important;
+  background: rgba(255, 255, 255, 0.08) !important;
+}
+
+.mv-inspector-toggle:hover,
+.mv-inspector-toggle:active {
+  background: rgba(24, 95, 165, 0.15) !important;
+  border-color: #185FA5 !important;
+  border-right: none !important;
+  color: #5aabf0 !important;
+}
+
+.mv-inspector-toggle:hover .mv-inspector-toggle__text,
+.mv-inspector-toggle:active .mv-inspector-toggle__text {
+  color: #5aabf0 !important;
+}
+/* 7. Ensure zone name, counts, chevrons, and actions are visible inside the right inspector panel */
+.mv-inspector-content .mv-zone-header-btn__name {
+  max-width: none !important;
+  opacity: 1 !important;
+  color: #ffffff !important;
+  font-weight: 600 !important;
+}
+
+.mv-inspector-content .mv-zone-header-btn__count {
+  max-width: none !important;
+  opacity: 1 !important;
+}
+
+.mv-inspector-content .mv-zone-chevron {
+  max-width: none !important;
+  opacity: 1 !important;
+}
+
+.mv-inspector-content .mv-zone-header-btn:hover .mv-zone-btn__delete {
+  opacity: 1 !important;
+  max-width: 24px !important;
+  color: #f87171 !important;
+}
+
+/* Ensure nested camera lists in a zone are visible in the right side bar */
+.mv-inspector-content .mv-zone-cam-list {
+  max-width: none !important;
+  opacity: 1 !important;
+  overflow: visible !important;
+}
+
+.mv-inspector-content .mv-zone-cam-empty {
+  max-width: none !important;
+  opacity: 1 !important;
+  overflow: visible !important;
+}
+
+.mv-inspector-content .mv-zone-cam-item__name {
+  color: rgba(255, 255, 255, 0.8) !important;
+}
+
+.mv-inspector-content .mv-zone-cam-item:hover .mv-zone-cam-item__name {
+  color: #ffffff !important;
+}
+
+
  

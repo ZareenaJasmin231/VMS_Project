@@ -286,6 +286,150 @@ export const MASKING_CSS = `
   height: 100%;
   object-fit: cover;
 }
+
+/* ── Premium Modal Popup ── */
+.mp-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(4px);
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: mpFadeIn 0.2s ease;
+}
+
+.mp-modal {
+  background: #0f141c;
+  border: 1px solid rgba(20, 184, 166, 0.2);
+  box-shadow: 0 20px 40px rgba(0,0,0,0.5), 0 0 30px rgba(20, 184, 166, 0.1);
+  border-radius: 16px;
+  width: 420px;
+  max-width: 90vw;
+  overflow: hidden;
+  animation: mpScaleIn 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes mpFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes mpScaleIn {
+  from { transform: scale(0.9); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+.mp-modal-header {
+  padding: 16px 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.mp-modal-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #fff;
+  margin: 0;
+  letter-spacing: -0.2px;
+}
+
+.mp-modal-close {
+  background: transparent;
+  border: none;
+  color: rgba(255,255,255,0.4);
+  font-size: 14px;
+  cursor: pointer;
+  padding: 4px;
+  transition: color 0.15s;
+}
+
+.mp-modal-close:hover {
+  color: var(--teal);
+}
+
+.mp-modal-body {
+  padding: 20px;
+}
+
+.mp-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mp-form-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+}
+
+.mp-form-input {
+  background: var(--bg-base);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  color: #fff;
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.mp-form-input:focus {
+  border-color: var(--teal);
+  box-shadow: 0 0 0 2px rgba(20, 184, 166, 0.15);
+}
+
+.mp-modal-footer {
+  padding: 14px 20px;
+  background: rgba(255,255,255,0.01);
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.mp-btn-cancel {
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.1);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 8px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.mp-btn-cancel:hover {
+  background: rgba(255,255,255,0.1);
+  color: #fff;
+}
+
+.mp-btn-save {
+  background: var(--teal);
+  border: none;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 8px 18px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 4px 12px rgba(20, 184, 166, 0.25);
+}
+
+.mp-btn-save:hover {
+  background: var(--teal-dim);
+  box-shadow: 0 6px 16px rgba(20, 184, 166, 0.4);
+}
 `;
 import { useState, useEffect, useRef, useCallback } from "react";
 import WebRTCPlayer from "../../components/shared/WebRTCPlayer";
@@ -312,6 +456,11 @@ export default function MaskingSection({ device, showToast, onMasksChange }) {
   const [colorIdx, setColorIdx] = useState(0);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
+
+  // Popup Modal States
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [pendingPts, setPendingPts] = useState(null);
+  const [newMaskName, setNewMaskName] = useState("");
 
   // Propagate masks count to parent
   useEffect(() => {
@@ -459,6 +608,46 @@ export default function MaskingSection({ device, showToast, onMasksChange }) {
     return [Math.round((cx - r.left) * sx), Math.round((cy - r.top) * sy)];
   };
 
+  const promptCreateMask = (points) => {
+    setPendingPts(points);
+    setNewMaskName(`Region ${masks.length + 1}`);
+    setShowCreateModal(true);
+  };
+
+  const handleSaveModal = async () => {
+    if (!pendingPts) return;
+    const m = {
+      id: `mask_${Date.now()}`,
+      name: newMaskName.trim() || `Region ${masks.length + 1}`,
+      points: pendingPts,
+      color_idx: colorIdx,
+      enabled: true
+    };
+    const updatedMasks = [...masks, m];
+    setSaving(true);
+    try {
+      const res = await fetch(`${API}/api/masks/${encodeURIComponent(device.ip)}/all`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ masks: updatedMasks }),
+      });
+      if (res.ok) {
+        setMasks(updatedMasks);
+        setSavedMasks(updatedMasks);
+        setSelectedId(m.id);
+        showToast(`"${m.name}" saved successfully`, "success");
+      } else {
+        throw new Error("Save failed");
+      }
+    } catch {
+      showToast("Save failed", "error");
+    } finally {
+      setSaving(false);
+      setShowCreateModal(false);
+      setPendingPts(null);
+    }
+  };
+
   const handlePointerDown = (e) => {
     const [x, y] = getXY(e);
     if (mode === "select") {
@@ -476,7 +665,14 @@ export default function MaskingSection({ device, showToast, onMasksChange }) {
         const [fx, fy] = draftPts[0];
         if (Math.hypot(fx - x, fy - y) < 14) { finalizeMask(); return; }
       }
-      setDraftPts(p => [...p, [x, y]]);
+      
+      const newPts = [...draftPts, [x, y]];
+      if (newPts.length === 4) {
+        setDraftPts([]);
+        promptCreateMask(newPts);
+      } else {
+        setDraftPts(newPts);
+      }
     }
   };
 
@@ -496,38 +692,79 @@ export default function MaskingSection({ device, showToast, onMasksChange }) {
 
   const finalizeMask = () => {
     if (draftPts.length < 3) { showToast("Need at least 3 points", "error"); setDraftPts([]); return; }
-    const m = { id: `mask_${Date.now()}`, name: `Region ${masks.length + 1}`, points: draftPts, color_idx: colorIdx, enabled: true };
+    const pts = draftPts;
     setDraftPts([]);
-    setMasks(p => [...p, m]);
-    setSelectedId(m.id);
-    showToast(`"${m.name}" created locally`, "success");
+    promptCreateMask(pts);
   };
 
-  const deleteMask = (id) => {
-    setMasks(p => p.filter(m => m.id !== id));
-    if (selectedId === id) setSelectedId(null);
-    showToast("Region deleted locally", "success");
+  const deleteMask = async (id) => {
+    const updatedMasks = masks.filter(m => m.id !== id);
+    setSaving(true);
+    try {
+      const res = await fetch(`${API}/api/masks/${encodeURIComponent(device.ip)}/all`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ masks: updatedMasks }),
+      });
+      if (res.ok) {
+        setMasks(updatedMasks);
+        setSavedMasks(updatedMasks);
+        showToast("Region deleted successfully", "success");
+      } else {
+        throw new Error("Delete failed");
+      }
+    } catch {
+      showToast("Delete failed", "error");
+    } finally {
+      setSaving(false);
+      if (selectedId === id) setSelectedId(null);
+    }
   };
 
-  const toggleMask = (id) => {
-    const updated = masks.map(m => m.id === id ? { ...m, enabled: !m.enabled } : m);
-    setMasks(updated);
+  const toggleMask = async (id) => {
+    const updatedMasks = masks.map(m => m.id === id ? { ...m, enabled: !m.enabled } : m);
+    setSaving(true);
+    try {
+      const res = await fetch(`${API}/api/masks/${encodeURIComponent(device.ip)}/all`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ masks: updatedMasks }),
+      });
+      if (res.ok) {
+        setMasks(updatedMasks);
+        setSavedMasks(updatedMasks);
+        showToast("Region status updated", "success");
+      } else {
+        throw new Error("Update failed");
+      }
+    } catch {
+      showToast("Update failed", "error");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const renameMask = (id, name) => setMasks(p => p.map(m => m.id === id ? { ...m, name } : m));
-  const commitRename = (id) => {};
-
-  const saveAll = async () => {
+  
+  const commitRename = async (id) => {
     setSaving(true);
     try {
-      await fetch(`${API}/api/masks/${encodeURIComponent(device.ip)}/all`, {
-        method: "PUT", headers: { "Content-Type": "application/json" },
+      const res = await fetch(`${API}/api/masks/${encodeURIComponent(device.ip)}/all`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ masks }),
       });
-      setSavedMasks(masks);
-      showToast("All regions synchronized", "success");
-    } catch { showToast("Save failed", "error"); }
-    setSaving(false);
+      if (res.ok) {
+        setSavedMasks(masks);
+        showToast("Region renamed successfully", "success");
+      } else {
+        throw new Error("Rename failed");
+      }
+    } catch {
+      showToast("Rename failed", "error");
+    } finally {
+      setSaving(false);
+    }
   };
 
   function pip([px, py], pts = []) {
@@ -661,21 +898,6 @@ export default function MaskingSection({ device, showToast, onMasksChange }) {
       <div className="mp-list-head">
         <h3 className="mp-list-title">Defined Regions ({masks.length})</h3>
         <div style={{ display: 'flex', gap: '8px' }}>
-          {masks.length > 0 && draftPts.length === 0 && (
-            <button 
-              className="mp-tool-btn success" 
-              style={{ 
-                height: 26, 
-                fontSize: 11, 
-                opacity: hasChanges ? 1 : 0.5,
-                cursor: hasChanges ? "pointer" : "not-allowed"
-              }} 
-              onClick={saveAll}
-              disabled={!hasChanges}
-            >
-              {hasChanges ? "Save All *" : "Save All"}
-            </button>
-          )}
           {selectedId && (
             <button className="mp-tool-btn danger" style={{ height: 26, fontSize: 11 }} onClick={() => deleteMask(selectedId)}>
               Delete Selected
@@ -724,6 +946,38 @@ export default function MaskingSection({ device, showToast, onMasksChange }) {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {showCreateModal && (
+        <div className="mp-modal-overlay">
+          <div className="mp-modal">
+            <div className="mp-modal-header">
+              <h3 className="mp-modal-title">Create Privacy Mask</h3>
+              <button className="mp-modal-close" onClick={() => { setShowCreateModal(false); setPendingPts(null); }}>✕</button>
+            </div>
+            <div className="mp-modal-body">
+              <div className="mp-form-group">
+                <label className="mp-form-label">Region Name</label>
+                <input
+                  type="text"
+                  className="mp-form-input"
+                  placeholder="e.g., Cash Counter, Entry Door"
+                  value={newMaskName}
+                  onChange={e => setNewMaskName(e.target.value)}
+                  autoFocus
+                />
+              </div>
+            </div>
+            <div className="mp-modal-footer">
+              <button className="mp-btn-cancel" onClick={() => { setShowCreateModal(false); setPendingPts(null); }}>
+                Cancel
+              </button>
+              <button className="mp-btn-save" onClick={handleSaveModal}>
+                Save Region
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

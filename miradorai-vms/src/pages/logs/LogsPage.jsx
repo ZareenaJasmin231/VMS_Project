@@ -188,7 +188,7 @@ export default function LogsPage() {
 
       <div className="logs-table-container">
         {loading ? (
-          <div className="loading-spinner">Loading logs...</div>
+          <div className="logs-loading-text">Loading....</div>
         ) : logs.length === 0 ? (
           <div className="empty-logs">No logs found for the selected criteria.</div>
         ) : (

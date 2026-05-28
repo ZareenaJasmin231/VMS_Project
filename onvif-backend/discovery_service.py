@@ -440,7 +440,7 @@ def discover_onvif_devices(timeout: int = 5) -> list:
 # ─────────────────────────────────────────────────────────────────────────────
 
 def discover_onvif_devices_simple(
-    timeout_ms:  int = 500,
+    timeout_ms:  int = 800,
     username:    str = "",
     password:    str = "",
     max_workers: int = 100,
@@ -448,48 +448,52 @@ def discover_onvif_devices_simple(
     discovered_devices: dict[str, dict] = {}
     lock = threading.Lock()
 
-    subnet = get_local_subnet()
-    # Only ONVIF management ports — 554 checked separately as camera gate
-    ports = [80, 8080, 8081, 8888, 8000, 8899, 37777, 5000]
-
-    print(f"[DISCOVERY] Scanning {subnet}.1-254 on ports {ports} "
-          f"(timeout={timeout_ms}ms, workers={max_workers})...")
-
-    scan_targets = [
-        (f"{subnet}.{i}", port)
-        for i in range(1, 255)
-        for port in ports
-    ]
-
+    # ── Try host proxy first (fixes Docker Desktop Windows NAT issue) ──────
     open_ips: dict[str, int] = {}
+    try:
+        import urllib.request, json as _json
+        with urllib.request.urlopen("http://host.docker.internal:19999", timeout=90) as r:
+            ips = _json.loads(r.read()).get("ips", [])
+        if ips:
+            open_ips = {ip: 554 for ip in ips}
+            print(f"[DISCOVERY] Host proxy found {len(open_ips)} IPs: {list(open_ips)}")
+    except Exception as e:
+        print(f"[DISCOVERY] Host proxy failed ({e}) — falling back to container scan")
 
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        futures = {
-            executor.submit(_check_port, ip, port, timeout_ms): (ip, port)
-            for ip, port in scan_targets
-        }
-        for future in as_completed(futures):
-            result = future.result()
-            if result:
-                ip, port = result
-                with lock:
-                    if ip not in open_ips:
-                        open_ips[ip] = port
-                        print(f"[DISCOVERY] Open port {ip}:{port}")
+    # ── Fallback: scan from inside container (works on Linux host) ──────────
+    if not open_ips:
+        subnet = get_local_subnet()
+        ports  = [554, 80, 8080, 8081, 8888, 8000, 8899, 37777, 5000]
+        print(f"[DISCOVERY] Scanning {subnet}.1-254 on ports {ports} "
+              f"(timeout={timeout_ms}ms, workers={max_workers})...")
+        scan_targets = [
+            (f"{subnet}.{i}", port)
+            for i in range(1, 255)
+            for port in ports
+        ]
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = {
+                executor.submit(_check_port, ip, port, timeout_ms): (ip, port)
+                for ip, port in scan_targets
+            }
+            for future in as_completed(futures):
+                result = future.result()
+                if result:
+                    ip, port = result
+                    with lock:
+                        if ip not in open_ips:
+                            open_ips[ip] = port
+                            print(f"[DISCOVERY] Open port {ip}:{port}")
 
     print(f"[DISCOVERY] Port scan done — {len(open_ips)} hosts found")
-
     if not open_ips:
         return []
 
+    # ── Everything below is UNCHANGED from your original ───────────────────
     def probe_and_classify(ip: str, port: int):
-        # probe_onvif_device does RTSP 554 gate + all ONVIF validation
         device_info = probe_onvif_device(ip, port, username, password)
         if device_info:
             return ip, device_info
-
-        # RTSP 554 was closed and ONVIF failed —
-        # try HTTP fingerprint as absolute last resort
         device_type, manufacturer, model = _classify_device(ip, port)
         if device_type == "camera":
             fallback = {
@@ -504,7 +508,6 @@ def discover_onvif_devices_simple(
             }
             print(f"[DISCOVERY] ✓ Fingerprint-only camera at {ip}:{port}")
             return ip, fallback
-
         print(f"[DISCOVERY] ✗ {ip} — not a camera (type={device_type})")
         return ip, None
 
@@ -524,14 +527,13 @@ def discover_onvif_devices_simple(
 
     return list(discovered_devices.values())
 
-
 # ─────────────────────────────────────────────────────────────────────────────
 # Entry point
 # ─────────────────────────────────────────────────────────────────────────────
 
 def discover_all(
     ws_timeout:      int = 4,
-    scan_timeout_ms: int = 150,
+    scan_timeout_ms: int = 800,
     username:        str = "",
     password:        str = "",
 ) -> list:

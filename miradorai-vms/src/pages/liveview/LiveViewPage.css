@@ -439,8 +439,9 @@
   flex-shrink: 0;
 }
 .lv-alerts-panel--collapsed {
-  width: 32px;
-  min-width: 32px;
+  width: 0 !important;
+  min-width: 0 !important;
+  border-left: none !important;
 }
 
 /* Header */
@@ -797,10 +798,10 @@
 }
 
 .alp-row__time {
-  font-size: 10px;
-  color: rgba(255,255,255,0.3);
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.6);
   font-family: monospace;
-  margin-top: 1px;
+  margin-top: 2px;
 }
 
 .alp-view-btn {
@@ -886,8 +887,8 @@
 }
 
 .alp-meta-time {
-  font-size: 10px;
-  color: rgba(255,255,255,0.3);
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.6);
   font-family: monospace;
   margin-left: auto;
 }
@@ -1071,7 +1072,7 @@
   align-items: center;
   justify-content: center;
   gap: 16px;
-  padding: 12px 24px;
+  padding: 5px 24px;
   background: var(--bg-surface);
   border-top: 1px solid var(--border);
   flex-shrink: 0;
@@ -1083,15 +1084,15 @@
   background: var(--bg-elevated);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  padding: 6px 16px;
+  padding: 4px 12px;
   color: var(--text-secondary);
   font-family: var(--font-ui);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s ease;
   user-select: none;
-  min-width: 70px;
+  min-width: 60px;
 }
 
 .lv-page-btn:hover:not(:disabled) {
@@ -1166,4 +1167,49 @@
   width:        12px;
   height:       12px;
   border-width: 2px;
+}
+
+/* Alerts Toggle Bell Button */
+.lv-alerts-toggle-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 6px 10px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.lv-alerts-toggle-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  border-color: var(--border-light);
+}
+
+.lv-alerts-toggle-btn.active {
+  background: var(--teal-subtle);
+  color: var(--teal);
+  border-color: var(--teal-dim);
+}
+
+.lv-alerts-bell-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  background: #E24B4A;
+  color: #fff;
+  font-size: 8px;
+  font-weight: 700;
+  border-radius: 999px;
+  min-width: 13px;
+  height: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 3px;
+  box-shadow: 0 1px 4px rgba(226, 75, 74, 0.4);
 }

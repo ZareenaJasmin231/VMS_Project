@@ -2,9 +2,11 @@ import { useEffect, useState } from "react";
 import logoImg from "../../assets/logo.jpg";
 import "./SplashScreen.css";
 
-const NAME = "MIRADOR VMS";
-
-export default function SplashScreen({ onDone }) {
+export default function SplashScreen({ 
+  onDone, 
+  title = "MIRADOR VMS", 
+  subtitle = "VIDEO MANAGEMENT SYSTEM" 
+}) {
   const [phase, setPhase] = useState("idle"); // idle → logo → text → line → exit
 
   useEffect(() => {
@@ -34,20 +36,20 @@ export default function SplashScreen({ onDone }) {
 
         {/* Letter by letter name */}
         <div className="splash__name">
-          {NAME.split("").map((ch, i) => (
+          {title.split("").map((ch, i) => (
             <span
               key={i}
               className={`splash__letter ${phase === "text" || phase === "line" || phase === "exit" ? "splash__letter--in" : ""}`}
               style={{ transitionDelay: `${i * 0.07}s` }}
             >
-              {ch}
+              {ch === " " ? "\u00A0" : ch}
             </span>
           ))}
         </div>
 
         {/* Sub text */}
         <div className={`splash__sub ${phase === "text" || phase === "line" || phase === "exit" ? "splash__sub--in" : ""}`}>
-          VIDEO MANAGEMENT SYSTEM
+          {subtitle}
         </div>
 
         {/* Line draw */}

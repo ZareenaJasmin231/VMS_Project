@@ -3,8 +3,8 @@ import SearchBar from "../../components/shared/SearchBar";
 
 import "./Recordingmethodpage.css";
 
-const STREAM_API = `http://${window.location.hostname}:8000`;
-const BACKEND = `http://${window.location.hostname}:8000`;
+const STREAM_API = `http://${window.location.hostname}:80`;
+const BACKEND = `http://${window.location.hostname}:80`;
 
 const DEFAULT_CONTINUOUS = {
   enabled: true,

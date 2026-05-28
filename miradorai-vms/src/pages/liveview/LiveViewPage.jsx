@@ -405,16 +405,20 @@ const handleView = async (alert) => {
   );
 }
 // ── AlertsPanel ───────────────────────────────────────────────────
-function AlertsPanel({ onAlertCountUpdate }) {
+function AlertsPanel({ onAlertCountUpdate, onTotalAlertCountChange, isOpen }) {
   const [alerts,  setAlerts]  = useState([]);
   const [loading, setLoading] = useState(true);
   const wsRef = useRef(null);
 
   const normalizeIp = (ip) => (ip || "").replace(/_/g, ".");
 
+  useEffect(() => {
+    onTotalAlertCountChange?.(alerts.length);
+  }, [alerts, onTotalAlertCountChange]);
+
   const fetchAlerts = useCallback(async () => {
     try {
-      const res  = await fetch(`${API}/api/alerts?limit=50`, {
+      const res  = await fetch(`${API}/api/alerts?limit=1000`, {
         headers: getAuthHeaders()
       });
       const data = await res.json();
@@ -483,7 +487,7 @@ function AlertsPanel({ onAlertCountUpdate }) {
   }, []);
 
   return (
-    <div className="lv-alerts-panel">
+    <div className={`lv-alerts-panel ${!isOpen ? "lv-alerts-panel--collapsed" : ""}`}>
 
       {/* Header */}
       <div className="lv-alerts-panel__header">
@@ -678,6 +682,8 @@ export default function LiveViewPage() {
   const [popupIp,      setPopupIp]      = useState(null);
   const [popupAlerts,  setPopupAlerts]  = useState([]);
   const [activeRecorders, setActiveRecorders] = useState([]);
+  const [alertsPanelOpen, setAlertsPanelOpen] = useState(true);
+  const [totalAlertsCount, setTotalAlertsCount] = useState(0);
   
   const fsRef = useRef(null);
   const dropdownRef = useRef(null);
@@ -772,7 +778,7 @@ export default function LiveViewPage() {
   useEffect(() => {
     const loadInitialCounts = async () => {
       try {
-        const res  = await fetch(`${API}/api/alerts?limit=50`, {
+        const res  = await fetch(`${API}/api/alerts?limit=1000`, {
           headers: getAuthHeaders()
         });
         const data = await res.json();
@@ -834,7 +840,7 @@ export default function LiveViewPage() {
   // ── Open alert popup for a specific camera IP ─────────────────
   const openAlertPopup = useCallback(async (ip) => {
     try {
-      const res  = await fetch(`${API}/api/alerts?limit=50`, {
+      const res  = await fetch(`${API}/api/alerts?limit=1000`, {
         headers: getAuthHeaders()
       });
       const data = await res.json();
@@ -959,6 +965,23 @@ export default function LiveViewPage() {
               </svg>
             )}
             <span>Fullscreen</span>
+          </button>
+
+          {/* Alerts Toggle Bell Button */}
+          <button
+            className={`lv-alerts-toggle-btn ${alertsPanelOpen ? "active" : ""}`}
+            onClick={() => setAlertsPanelOpen(!alertsPanelOpen)}
+            title={alertsPanelOpen ? "Hide Alerts Panel" : "Show Alerts Panel"}
+            type="button"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" width="14" height="14">
+              <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0" />
+            </svg>
+            {totalAlertsCount > 0 && (
+              <span className="lv-alerts-bell-badge">
+                {totalAlertsCount}
+              </span>
+            )}
           </button>
         </div>
       </div>
@@ -1098,7 +1121,11 @@ export default function LiveViewPage() {
         </div>
 
         {/* ── Alerts panel ── */}
-        <AlertsPanel onAlertCountUpdate={setAlertCounts} />
+        <AlertsPanel
+          onAlertCountUpdate={setAlertCounts}
+          onTotalAlertCountChange={setTotalAlertsCount}
+          isOpen={alertsPanelOpen}
+        />
 
       </div>
 

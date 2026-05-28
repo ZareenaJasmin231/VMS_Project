@@ -7,6 +7,7 @@ import PageRenderer from "./components/layout/PageRenderer";
 import SplashScreen from "./components/layout/SplashScreen";
 import AlarmsPanel from "./components/layout/AlarmsPanel";
 import LoginPage from "./pages/auth/LoginPage";
+import AiAnalyticsPage from "./pages/analytics/AiAnalyticsPage";
 import useActivityLogger from "./hooks/useActivityLogger"; // ✅ FIXED
 import "./styles/global.css";
 
@@ -33,6 +34,20 @@ function AppContent() {
 
   if (!isAuthenticated) {
     return <LoginPage />;
+  }
+
+  if (activePage === "ai-analytics") {
+    return (
+      <>
+        {showSplash && <SplashScreen onDone={handleSplashDone} />}
+        <div
+          className="app-root"
+          style={{ opacity: appVisible ? 1 : 0, transition: "opacity 0.5s ease" }}
+        >
+          <AiAnalyticsPage />
+        </div>
+      </>
+    );
   }
 
   return (

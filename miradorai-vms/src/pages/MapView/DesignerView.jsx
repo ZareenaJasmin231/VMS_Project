@@ -181,6 +181,46 @@ function getPolygonArea(polygon, ppm) {
   return areaPx / (ppm * ppm);
 }
 
+// ── Premium Popup Component ─────────────────────────────────────────────
+function PremiumPopup({ show, type, title, message, onConfirm, onCancel }) {
+  if (!show) return null;
+  return (
+    <div className="mv-stream-overlay" style={{ zIndex: 99999 }}>
+      <div className="mv-zone-name-modal" style={{ maxWidth: 400, border: "1px solid #2e3d55", background: "#0d1117ee", backdropFilter: "blur(8px)" }}>
+        <div className="mv-zone-name-modal__header" style={{ color: type === "confirm" ? "#3b82f6" : "#f59e0b" }}>
+          {type === "confirm" ? (
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20">
+              <circle cx="12" cy="12" r="10" />
+              <path d="M9 12l2 2 4-4" />
+            </svg>
+          ) : (
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20">
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" y1="8" x2="12" y2="12" />
+              <line x1="12" y1="16" x2="12.01" y2="16" />
+            </svg>
+          )}
+          <span style={{ fontWeight: 700, fontSize: 14 }}>{title}</span>
+        </div>
+        <p className="mv-zone-name-modal__sub" style={{ color: "#e8edf5", fontSize: 13, marginTop: 8, marginBottom: 20 }}>
+          {message}
+        </p>
+        <div className="mv-zone-name-modal__row" style={{ justifyContent: "flex-end", gap: 10 }}>
+          {type === "confirm" && (
+            <button className="mv-modal__btn mv-modal__btn--cancel" onClick={onCancel}>
+              Cancel
+            </button>
+          )}
+          <button className="mv-modal__btn mv-modal__btn--confirm" style={{ background: type === "confirm" ? "#3b82f6" : "#1D9E75", borderColor: type === "confirm" ? "#3b82f6" : "#1D9E75" }} onClick={onConfirm}>
+            {type === "confirm" ? "Confirm" : "OK"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
 // ── Automation Modal Component ──────────────────────────────────────────
 // ── Automation Modal Component ──────────────────────────────────────────
 function AutomationModal({ zone, ppm, cameraDB, getCameraForType, onConfirm, onCancel }) {
@@ -1052,6 +1092,51 @@ export default function DesignerView({ onBack }) {
   const [showZoneNameModal, setShowZoneNameModal] = useState(false);
   const [pendingZonePoly, setPendingZonePoly] = useState(null);
 
+  const [draftZones, setDraftZones] = useState([]);
+  const draftZonesRef = useRef([]);
+  useEffect(() => { draftZonesRef.current = draftZones; }, [draftZones]);
+  const [isDetectingZones, setIsDetectingZones] = useState(false);
+
+  const [popupState, setPopupState] = useState({
+    show: false,
+    type: "alert",
+    title: "",
+    message: "",
+    onConfirm: null,
+    onCancel: null
+  });
+
+  const showAlert = (title, message) => {
+    setPopupState({
+      show: true,
+      type: "alert",
+      title,
+      message,
+      onConfirm: () => {
+        setPopupState(prev => ({ ...prev, show: false }));
+      },
+      onCancel: null
+    });
+  };
+
+  const showConfirm = (title, message, onConfirmCallback) => {
+    setPopupState({
+      show: true,
+      type: "confirm",
+      title,
+      message,
+      onConfirm: () => {
+        setPopupState(prev => ({ ...prev, show: false }));
+        onConfirmCallback();
+      },
+      onCancel: () => {
+        setPopupState(prev => ({ ...prev, show: false }));
+      }
+    });
+  };
+
+
+
   const [sidebarExpanded, setSidebarExpanded] = useState(false);
   const [highlightedCamId, setHighlightedCamId] = useState(null);
   const highlightedCamIdRef = useRef(null);
@@ -1067,10 +1152,21 @@ export default function DesignerView({ onBack }) {
     return () => window.removeEventListener("click", handleGlobalClick);
   }, []);
 
+  useEffect(() => {
+    const originalAlert = window.alert;
+    window.alert = (msg) => showAlert("Designer View Alert", msg);
+    return () => {
+      window.alert = originalAlert;
+    };
+  }, []);
+
+
   const [showHeatmap, setShowHeatmap] = useState(false);
   const [hasFloor, setHasFloor] = useState(false);
   const [brandFilter, setBrandFilter] = useState(null);
   const [typeFilter, setTypeFilter] = useState(null);
+  const [brandMenuOpen, setBrandMenuOpen] = useState(false);
+  const [typeMenuOpen, setTypeMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [cameraDB, setCameraDB] = useState([]);
   const cameraDBRef = useRef([]);
@@ -1088,6 +1184,8 @@ export default function DesignerView({ onBack }) {
   const [showStats, setShowStats] = useState(false);
   const [showPpm, setShowPpm] = useState(false);
   const [showConfigDrawer, setShowConfigDrawer] = useState(false);
+  const [inspectorExpanded, setInspectorExpanded] = useState(true);
+  const [inspectorTab, setInspectorTab] = useState("cameras"); // "cameras" | "zones"
   const [retentionDays, setRetentionDays] = useState(30);
   const exportMenuRef = useRef(null);
 
@@ -1236,6 +1334,39 @@ export default function DesignerView({ onBack }) {
 
       ctx.restore();
     });
+
+    // ── Draft (CV Detected) Zones ────────────────────────────────────────────
+    draftZonesRef.current.forEach(zone => {
+      if (zone.polygon.length < 2) return;
+      ctx.save();
+      ctx.beginPath();
+      zone.polygon.forEach((p, i) => { if (i === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y); });
+      ctx.closePath();
+      ctx.fillStyle = zone.color + "10"; ctx.fill();
+      ctx.strokeStyle = zone.color + "77";
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([4, 4]);
+      ctx.stroke(); ctx.setLineDash([]);
+      
+      zone.polygon.forEach(p => {
+        ctx.beginPath(); ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
+        ctx.fillStyle = zone.color; ctx.globalAlpha = 0.4; ctx.fill();
+        ctx.strokeStyle = "#fff"; ctx.lineWidth = 1; ctx.stroke(); ctx.globalAlpha = 1;
+      });
+
+      // Calculate center to show a nice little label
+      let cx = 0, cy = 0;
+      zone.polygon.forEach(p => { cx += p.x; cy += p.y; });
+      cx /= zone.polygon.length;
+      cy /= zone.polygon.length;
+      ctx.fillStyle = zone.color;
+      ctx.font = "bold 9px monospace";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("CV DRAFT", cx, cy);
+      ctx.restore();
+    });
+
 
     // ── Zone drawing in progress ──────────────────────────────────────────────
     if (drawingPointsRef.current.length > 0) {
@@ -1418,11 +1549,23 @@ export default function DesignerView({ onBack }) {
     const wrap = wrapRef.current; const img = floorImgRef.current;
     if (!wrap || !img) return;
     const W = wrap.clientWidth, H = wrap.clientHeight;
-    const s = Math.min(W / img.width, H / img.height) * 0.9;
+    
+    const leftMargin = 65;
+    const rightPanelWidth = inspectorExpanded ? 265 : 0;
+    const visibleW = W - rightPanelWidth - leftMargin;
+    
+    const s = Math.min(visibleW / img.width, (H - 40) / img.height) * 0.96;
     scaleRef.current = s;
-    offsetRef.current = { x: (W - img.width * s) / 2, y: (H - img.height * s) / 2 };
+    offsetRef.current = {
+      x: leftMargin + (visibleW - img.width * s) / 2,
+      y: (H - img.height * s) / 2,
+    };
     setZoomPct(Math.round(s * 100)); draw();
-  }, [draw]);
+  }, [inspectorExpanded, draw]);
+
+  useEffect(() => {
+    fitImage();
+  }, [inspectorExpanded, fitImage]);
 
   const applyZoom = useCallback((delta, cx, cy) => {
     const prev = scaleRef.current;
@@ -1788,7 +1931,39 @@ export default function DesignerView({ onBack }) {
       return;
     }
     setSelectedIdx(null);
-  }, [selectedIdx, finishZoneDrawing, draw]); // eslint-disable-line
+
+    // Check if clicked inside a draft (CV-detected) zone
+    if (draftZonesRef.current.length > 0) {
+      const clickedDraft = draftZonesRef.current.find(
+        z => z.polygon?.length >= 3 && pointInPolygon(p.x, p.y, z.polygon)
+      );
+      if (clickedDraft) {
+        showConfirm("Import Zone", `Import auto-detected "${clickedDraft.name}"?`, () => {
+          const updatedDrafts = draftZonesRef.current.filter(z => z.id !== clickedDraft.id);
+          setDraftZones(updatedDrafts);
+          draftZonesRef.current = updatedDrafts;
+
+          const colorIdx = zonesRef.current.length % ZONE_COLORS.length;
+          const newImportedZone = {
+            ...clickedDraft,
+            id: "zone_" + Date.now(),
+            color: ZONE_COLORS[colorIdx]
+          };
+          const updatedZones = [...zonesRef.current, newImportedZone];
+          zonesRef.current = updatedZones;
+          setZones(updatedZones);
+          setActiveZoneId(newImportedZone.id);
+          activeZoneIdRef.current = newImportedZone.id;
+          apiSaveZones(updatedZones);
+          setTimeout(() => zoomToZone(newImportedZone), 0);
+          draw();
+        });
+        return;
+      }
+    }
+  }, [selectedIdx, finishZoneDrawing, draw, draftZones, showConfirm]); // eslint-disable-line
+
+
 
   const onMouseMove = useCallback(e => {
     const p = toImg(e.clientX, e.clientY);
@@ -1886,13 +2061,52 @@ export default function DesignerView({ onBack }) {
   // ── Floor plan import ─────────────────────────────────────────────────────
   function handleFileChange(e) {
     const file = e.target.files[0]; if (!file) return;
-    const reader = new FileReader();
-    reader.onload = ev => {
-      const img = new Image();
-      img.onload = () => { floorImgRef.current = img; setHasFloor(true); fitImage(); apiSaveFloorPlan(ev.target.result); };
-      img.src = ev.target.result;
+    
+    const proceedWithImport = () => {
+      const reader = new FileReader();
+      reader.onload = ev => {
+        const img = new Image();
+        img.onload = () => {
+          floorImgRef.current = img;
+          setHasFloor(true);
+          
+          // Clear any pending debounced saves to prevent previous zones/cameras from overwriting this empty state
+          if (saveTimerRef.current) {
+            clearTimeout(saveTimerRef.current);
+          }
+          
+          // Clear previous map layout data when importing a new floor plan
+          placedRef.current = [];
+          setPlaced([]);
+          zonesRef.current = [];
+          setZones([]);
+          draftZonesRef.current = [];
+          setDraftZones([]);
+          drawingPointsRef.current = [];
+          setDrawingPoints([]);
+          setSelectedIdx(null);
+          setActiveZoneId(null);
+          activeZoneIdRef.current = null;
+          
+          fitImage();
+          apiSaveFloorPlan(ev.target.result);
+          apiSaveLayout({ placed: [], zones: [], ppm: ppmRef.current });
+        };
+        img.src = ev.target.result;
+      };
+      reader.readAsDataURL(file);
     };
-    reader.readAsDataURL(file);
+
+    if (placedRef.current.length > 0 || zonesRef.current.length > 0) {
+      showConfirm(
+        "Import New Floor Plan",
+        "Importing a new floor plan will clear all currently placed cameras and zones. Do you want to proceed?",
+        proceedWithImport
+      );
+    } else {
+      proceedWithImport();
+    }
+    
     e.target.value = "";
   }
 
@@ -2035,8 +2249,8 @@ export default function DesignerView({ onBack }) {
       position: "relative",
       width: sidebarExpanded ? 168 : 36,
       minWidth: sidebarExpanded ? 168 : 36,
-      background: "#0d1117",
-      borderRight: "0.5px solid #1e2d3e",
+      background: "#161c28",
+      borderRight: "1.5px solid rgba(46, 61, 85, 0.5)",
       display: "flex",
       flexDirection: "column",
       transition: "width 0.2s ease, min-width 0.2s ease",
@@ -2047,7 +2261,7 @@ export default function DesignerView({ onBack }) {
     head: {
       display: "flex", alignItems: "center", gap: 6,
       padding: "10px 8px 8px",
-      borderBottom: "0.5px solid #1e2d3e",
+      borderBottom: "1px solid rgba(46, 61, 85, 0.5)",
       whiteSpace: "nowrap",
     },
     list: {
@@ -2056,7 +2270,7 @@ export default function DesignerView({ onBack }) {
     },
     sectionLabel: {
       fontSize: 9, fontWeight: 700, letterSpacing: "0.1em",
-      textTransform: "uppercase", color: "#4a5568",
+      textTransform: "uppercase", color: "#5aabf0",
       padding: "6px 6px 4px",
       whiteSpace: "nowrap",
       display: sidebarExpanded ? "block" : "none",
@@ -2065,12 +2279,12 @@ export default function DesignerView({ onBack }) {
       display: "flex", alignItems: "center", gap: 6,
       width: "100%", background: "none", border: "none",
       padding: "5px 6px", cursor: "pointer",
-      color: "#3b82f6", fontSize: 11, textAlign: "left",
+      color: "#5aabf0", fontSize: 11, textAlign: "left",
       borderRadius: 4,
       whiteSpace: "nowrap",
     },
     divider: {
-      height: "0.5px", background: "#1e2d3e", margin: "6px 4px",
+      height: "0.5px", background: "rgba(46, 61, 85, 0.5)", margin: "6px 4px",
     },
   };
   const scaleParams = (() => {
@@ -2097,350 +2311,297 @@ export default function DesignerView({ onBack }) {
 
       {/* ── Top bar ── */}
       <div className="dv-topbar">
-        <div className="dv-topbar__actions" style={{ marginLeft: 0 }}>
-          <div className="dv-scale-control" style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <label>Scale</label>
-            <input type="number" min="4" max="100" value={ppm}
-              onChange={e => {
-                const newPpm = Number(e.target.value) || PIXELS_PER_METRE;
-                setPpm(newPpm);
-                ppmRef.current = newPpm;
-                scheduleSave(placedRef.current, zonesRef.current, newPpm);
-                draw();
-              }} />
-            <span style={{ fontSize: 10, marginRight: 4 }}>px/m</span>
-            <button
-              className={`dv-tbtn ${mode === "calibrate" ? "dv-tbtn--active" : ""}`}
-              style={{
-                fontSize: 11,
-                padding: "3px 8px",
-                borderColor: mode === "calibrate" ? "#f59e0b" : "#2e3d55",
-                background: mode === "calibrate" ? "#f59e0b22" : "#0d1117",
-                color: mode === "calibrate" ? "#f59e0b" : "#e8edf5",
-                height: 24,
-                display: "flex",
-                alignItems: "center"
-              }}
-              onClick={() => {
-                if (mode === "calibrate") {
-                  setMode("place");
-                  setCalPts([]);
-                  draw();
-                } else {
-                  setMode("calibrate");
-                  setCalPts([]);
-                  setMouseMapPos(null);
-                  draw();
-                }
-              }}
-              title="Calibrate map scale visually using a tape measure line"
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="10" height="10" style={{ marginRight: 3 }}>
-                <path d="M4 19h16M4 5h16M12 5v14M8 12h8" />
+        <div className="dv-topbar__actions" style={{ marginLeft: 0, width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          
+          <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
+            {/* File Actions Group */}
+            <button className="dv-tbtn" onClick={() => fileInputRef.current?.click()} title="Import Floor Plan">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="13" height="13">
+                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/>
               </svg>
-              Calibrate
+              Import Floor Plan
             </button>
-          </div>
-          <div className="dv-sep" />
+            <input ref={fileInputRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handleFileChange} />
 
-          <button className={`dv-tbtn ${mode === "place" ? "dv-tbtn--active" : ""}`} onClick={() => setMode("place")}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="12" height="12">
-              <circle cx="12" cy="12" r="3" /><circle cx="12" cy="12" r="8" strokeDasharray="2 3" />
-            </svg>
-            Place
-          </button>
-          <button className={`dv-tbtn ${mode === "pan" ? "dv-tbtn--active" : ""}`} onClick={() => setMode("pan")}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="12" height="12">
-              <path d="M5 9l-3 3 3 3M9 5l3-3 3 3M15 19l-3 3-3-3M19 9l3 3-3 3M12 3v18M3 12h18" />
-            </svg>
-            Pan
-          </button>
-          <button
-            className={`dv-tbtn ${mode === "zone" ? "dv-tbtn--active dv-tbtn--zone" : ""}`}
-            onClick={() => { setMode("zone"); drawingPointsRef.current = []; setDrawingPoints([]); }}
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="12" height="12">
-              <polygon points="3,20 12,4 21,20" />
-              <circle cx="3" cy="20" r="1.5" fill="currentColor" />
-              <circle cx="12" cy="4" r="1.5" fill="currentColor" />
-              <circle cx="21" cy="20" r="1.5" fill="currentColor" />
-            </svg>
-            Draw Zone
-          </button>
-          {mode === "zone" && (
-            <span className="dv-zone-hint">
-              {drawingPoints.length === 0
-                ? "Click to place first point"
-                : drawingPoints.length < 3
-                  ? `${drawingPoints.length} pt${drawingPoints.length > 1 ? "s" : ""} — need ≥3`
-                  : "Click first point to close · Esc to cancel"}
-            </span>
-          )}
+            <div className="dv-export-group" ref={exportMenuRef}>
+              <button
+                className={`dv-tbtn dv-tbtn--export ${showExportMenu ? "dv-tbtn--active" : ""}`}
+                onClick={() => setShowExportMenu(!showExportMenu)}
+                disabled={placed.length === 0}
+                title="Export PNG snapshot"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="13" height="13">
+                  <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/>
+                </svg>
+                Export PNG
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="10" height="10" style={{ marginLeft: 2, opacity: 0.6 }}>
+                  <polyline points="6 9 12 15 18 9" />
+                </svg>
+              </button>
 
-          <button
-            className={`dv-tbtn ${showHeatmap ? "dv-tbtn--active dv-tbtn--heatmap" : ""}`}
-            onClick={() => setShowHeatmap(v => !v)}
-            disabled={placed.length === 0}
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="12" height="12">
-              <circle cx="12" cy="12" r="3" />
-              <path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
-            </svg>
-            Heatmap
-          </button>
-          <button
-            className={`dv-tbtn ${showPpm ? "dv-tbtn--active" : ""}`}
-            onClick={() => setShowPpm(!showPpm)}
-            title="Visualize image clarity (PPM) zones"
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="12" height="12">
-              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" />
-            </svg>
-            Clarity Zones
-          </button>
-          <div className="dv-sep" />
+              {showExportMenu && (
+                <div className="dv-export-menu">
+                  <button className="dv-export-item" onClick={() => exportPng("design")}>
+                    <div className="dv-export-item__icon">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
+                        <rect x="3" y="3" width="18" height="18" rx="2" /><path d="M3 9h18M9 21V9" />
+                      </svg>
+                    </div>
+                    <div className="dv-export-item__label">
+                      <span>Download Map View</span>
+                      <small>Exact snapshot of current layout</small>
+                    </div>
+                  </button>
+                  <button className="dv-export-item" onClick={() => exportPng("heatmap")}>
+                    <div className="dv-export-item__icon dv-export-item__icon--heatmap">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
+                        <circle cx="12" cy="12" r="3" />
+                        <path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
+                      </svg>
+                    </div>
+                    <div className="dv-export-item__label">
+                      <span>Download Heatmap</span>
+                      <small>Coverage intensity map</small>
+                    </div>
+                  </button>
+                </div>
+              )}
+            </div>
 
-          <button className="dv-tbtn" onClick={() => fileInputRef.current?.click()}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="12" height="12">
-              <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12" />
-            </svg>
-            Import Floor Plan
-          </button>
-          <input ref={fileInputRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handleFileChange} />
+            <div className="dv-toolbar-divider" />
 
-          {selectedPlaced && (
-            <button className="dv-tbtn dv-tbtn--danger" onClick={removeSelected}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="12" height="12">
-                <polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14H6L5 6" />
-              </svg>
-              Remove
-            </button>
-          )}
+            {/* Interactive Tools Group (Pill-shaped switcher) */}
+            <div className="dv-toolbar-pill-group">
+              <button
+                className={`dv-tbtn dv-tbtn--pill ${mode === "place" ? "dv-tbtn--pill-active" : ""}`}
+                onClick={() => setMode("place")}
+                title="Place cameras mode"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="12" height="12">
+                  <circle cx="12" cy="12" r="3"/>
+                  <circle cx="12" cy="12" r="8" strokeDasharray="2 3"/>
+                </svg>
+                Place
+              </button>
 
+              <button
+                className={`dv-tbtn dv-tbtn--pill ${mode === "pan" ? "dv-tbtn--pill-active" : ""}`}
+                onClick={() => setMode("pan")}
+                title="Pan map mode"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="12" height="12">
+                  <path d="M5 9l-3 3 3 3M9 5l3-3 3 3M15 19l-3 3-3-3M19 9l3 3-3 3M12 3v18M3 12h18"/>
+                </svg>
+                Pan
+              </button>
 
+              <button
+                className={`dv-tbtn dv-tbtn--pill ${mode === "zone" ? "dv-tbtn--pill-active" : ""}`}
+                onClick={() => { setMode("zone"); drawingPointsRef.current = []; setDrawingPoints([]); }}
+                title="Draw zone mode"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="12" height="12">
+                  <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/>
+                </svg>
+                Draw Zone
+              </button>
 
-          <button
-            className={`dv-tbtn ${showStats ? "dv-tbtn--active" : ""}`}
-            onClick={() => setShowStats(!showStats)}
-            title="View project engineering summary"
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="12" height="12">
-              <path d="M12 20V10M18 20V4M6 20v-4" />
-            </svg>
-            Project Summary
-          </button>
+              <button
+                className={`dv-tbtn dv-tbtn--pill ${isDetectingZones ? "dv-tbtn--disabled" : ""}`}
+                style={{
+                  borderColor: draftZones.length > 0 ? "#10b98150" : undefined,
+                  color: draftZones.length > 0 ? "#10b981" : undefined,
+                }}
+                onClick={async () => {
+                  if (isDetectingZones) return;
+                  setIsDetectingZones(true);
+                  try {
+                    const r = await fetch(`${API}/api/designer/detect-zones`, {
+                      method: "POST",
+                      headers: getAuthHeaders(),
+                      body: JSON.stringify({ map_id: MAP_ID, floor_id: FLOOR_ID, source: "designer" })
+                    });
+                    if (!r.ok) {
+                      const errData = await r.json();
+                      alert(`CV Zone detection failed: ${errData.detail || r.statusText}`);
+                      return;
+                    }
+                    const data = await r.json();
+                    if (data.success && data.zones?.length > 0) {
+                      setDraftZones(data.zones);
+                      draftZonesRef.current = data.zones;
+                      alert(`Detected ${data.zones.length} potential zones. Hover/click inside them on the map to import!`);
+                      draw();
+                    } else {
+                      alert("No distinct closed zones detected on this floor plan image.");
+                    }
+                  } catch (e) {
+                    console.error(e);
+                    alert("An error occurred during CV zone detection.");
+                  } finally {
+                    setIsDetectingZones(false);
+                  }
+                }}
+                disabled={isDetectingZones}
+                title="Automatically extract zones using CV"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="12" height="12">
+                  <path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
+                </svg>
+                {isDetectingZones ? "Detecting..." : "Auto-Detect Zones (CV)"}
+              </button>
+            </div>
 
-          <div className="dv-export-group" ref={exportMenuRef}>
-            <button
-              className={`dv-tbtn dv-tbtn--export ${showExportMenu ? "dv-tbtn--active" : ""}`}
-              onClick={() => setShowExportMenu(!showExportMenu)}
-              disabled={placed.length === 0}
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="12" height="12">
-                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" />
-              </svg>
-              Export PNG
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="10" height="10" style={{ marginLeft: 2, opacity: 0.6 }}>
-                <polyline points="6 9 12 15 18 9" />
-              </svg>
-            </button>
-            {showExportMenu && (
-              <div className="dv-export-menu">
-                <button className="dv-export-item" onClick={() => exportPng("design")}>
-                  <div className="dv-export-item__icon">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
-                      <path d="M3 9h18M9 21V9" /><rect x="3" y="3" width="18" height="18" rx="2" />
-                    </svg>
-                  </div>
-                  <div className="dv-export-item__label">
-                    <span>Download Design View</span>
-                    <small>Layout with cameras &amp; zones</small>
-                  </div>
+            {mode === "zone" && (
+              <span className="dv-zone-hint" style={{ fontSize: "11px", color: "#F59E0B", background: "#F59E0B15", padding: "3px 10px", borderRadius: "99px", border: "0.5px solid #F59E0B55" }}>
+                {drawingPoints.length === 0
+                  ? "Click to place first point"
+                  : drawingPoints.length < 3
+                    ? `${drawingPoints.length} pt${drawingPoints.length > 1 ? "s" : ""} — need ≥3`
+                    : "Click first point to close · Esc to cancel"}
+              </span>
+            )}
+
+            {draftZones.length > 0 && (
+              <div style={{ display: "flex", gap: "4px" }}>
+                <button
+                  className="dv-tbtn"
+                  style={{ borderColor: "#10b981", background: "#10b98122", color: "#10b981" }}
+                  onClick={() => {
+                    showConfirm("Import All Zones", `Import all ${draftZones.length} detected zones?`, () => {
+                      const newImportedZones = draftZones.map((dz, idx) => {
+                        const colorIdx = (zonesRef.current.length + idx) % ZONE_COLORS.length;
+                        return {
+                          ...dz,
+                          id: "zone_" + (Date.now() + idx),
+                          color: ZONE_COLORS[colorIdx]
+                        };
+                      });
+                      const updatedZones = [...zonesRef.current, ...newImportedZones];
+                      zonesRef.current = updatedZones;
+                      setZones(updatedZones);
+                      setDraftZones([]);
+                      draftZonesRef.current = [];
+                      apiSaveZones(updatedZones);
+                      draw();
+                      alert(`Successfully imported all ${newImportedZones.length} zones.`);
+                    });
+                  }}
+                >
+                  Import All ({draftZones.length})
                 </button>
-                <button className="dv-export-item" onClick={() => exportPng("heatmap")}>
-                  <div className="dv-export-item__icon dv-export-item__icon--heatmap">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
-                      <circle cx="12" cy="12" r="3" />
-                      <path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
-                    </svg>
-                  </div>
-                  <div className="dv-export-item__label">
-                    <span>Download Heatmap</span>
-                    <small>Coverage intensity map</small>
-                  </div>
+                <button
+                  className="dv-tbtn"
+                  style={{ borderColor: "#ef4444", background: "#ef444411", color: "#ef4444" }}
+                  onClick={() => {
+                    setDraftZones([]);
+                    draftZonesRef.current = [];
+                    draw();
+                  }}
+                >
+                  Clear Drafts
                 </button>
               </div>
             )}
+
+            <div className="dv-toolbar-divider" />
+
+            {/* Overlays / Views Group */}
+            <button
+              className={`dv-tbtn ${showHeatmap ? "dv-tbtn--active" : ""}`}
+              onClick={() => setShowHeatmap(v => !v)}
+              disabled={placed.length === 0}
+              title="Toggle blind-spot heatmap"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="12" height="12">
+                <circle cx="12" cy="12" r="3" />
+                <path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
+              </svg>
+              Heatmap
+            </button>
+            
+            <button
+              className={`dv-tbtn ${showPpm ? "dv-tbtn--active" : ""}`}
+              onClick={() => setShowPpm(!showPpm)}
+              title="Visualize image clarity (PPM) DORI zones"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="12" height="12">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" />
+              </svg>
+              Clarity Zones
+            </button>
+
+            <div className="dv-toolbar-divider" />
+
+            {/* Scale Tape Calibration Controls */}
+            <div className="dv-scale-control" style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <label>Scale</label>
+              <input type="number" min="4" max="100" value={ppm}
+                onChange={e => {
+                  const newPpm = Number(e.target.value) || PIXELS_PER_METRE;
+                  setPpm(newPpm);
+                  ppmRef.current = newPpm;
+                  scheduleSave(placedRef.current, zonesRef.current, newPpm);
+                  draw();
+                }}
+                style={{ width: "40px", padding: "3px 6px", background: "#0d1117", border: "0.5px solid #2e3d55", borderRadius: "4px", color: "#e8edf5", fontSize: "11.5px", textAlign: "center" }}
+              />
+              <span style={{ fontSize: 10, marginRight: 4 }}>px/m</span>
+              <button
+                className={`dv-tbtn ${mode === "calibrate" ? "dv-tbtn--active" : ""}`}
+                style={{ fontSize: 11, padding: "3px 8px", height: 24, display: "flex", alignItems: "center" }}
+                onClick={() => {
+                  if (mode === "calibrate") {
+                    setMode("place"); setCalPts([]); draw();
+                  } else {
+                    setMode("calibrate"); setCalPts([]); setMouseMapPos(null); draw();
+                  }
+                }}
+                title="Calibrate map scale visually using a tape measure line"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="10" height="10" style={{ marginRight: 3 }}>
+                  <path d="M4 19h16M4 5h16M12 5v14M8 12h8" />
+                </svg>
+                Calibrate
+              </button>
+            </div>
+
+            <div className="dv-toolbar-divider" />
+
+            {selectedPlaced && (
+              <button className="dv-tbtn dv-tbtn--danger" onClick={removeSelected}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="12" height="12">
+                  <polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14H6L5 6" />
+                </svg>
+                Remove
+              </button>
+            )}
+
+            <button
+              className={`dv-tbtn ${showStats ? "dv-tbtn--active" : ""}`}
+              onClick={() => setShowStats(!showStats)}
+              title="View project engineering summary"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="12" height="12">
+                <path d="M12 20V10M18 20V4M6 20v-4" />
+              </svg>
+              Project Summary
+            </button>
           </div>
-          <div className="dv-sep" />
-          <button className="dv-zbtn" onClick={() => { const el = wrapRef.current; if (el) applyZoom(-0.2, el.clientWidth / 2, el.clientHeight / 2); }}>−</button>
-          <span className="dv-zoom-label">{zoomPct}%</span>
-          <button className="dv-zbtn" onClick={() => { const el = wrapRef.current; if (el) applyZoom(0.2, el.clientWidth / 2, el.clientHeight / 2); }}>+</button>
-          <button className="dv-zbtn dv-zbtn--fit" onClick={fitImage}>Fit</button>
+
+          {/* Far Right: Clear Map Floor plan */}
+          <button className="dv-tbtn dv-tbtn--danger" onClick={removeFloorPlan} title="Clear Floor Plan Image" style={{ borderColor: "rgba(239, 68, 68, 0.25)", color: "#ef4444", background: "rgba(239, 68, 68, 0.05)" }}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="12" height="12" style={{ marginRight: 4 }}>
+              <polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14H6L5 6" />
+            </svg>
+            Clear Floor
+          </button>
+
         </div>
       </div>
 
       {/* ── Body ── */}
       <div className="dv-body">
-
-        {/* ══════════════════════════════════════════════════════════════
-            ZONE SIDEBAR
-        ══════════════════════════════════════════════════════════════ */}
-        <div
-          style={sidebarStyles.sidebar}
-          onMouseEnter={() => setSidebarExpanded(true)}
-          onMouseLeave={() => setSidebarExpanded(false)}
-        >
-          {/* Header */}
-          <div style={sidebarStyles.head}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="1.8" width="15" height="15" style={{ flexShrink: 0 }}>
-              <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6" />
-              <line x1="8" y1="2" x2="8" y2="18" />
-              <line x1="16" y1="6" x2="16" y2="22" />
-            </svg>
-            {sidebarExpanded && (
-              <span style={{ fontSize: 11, fontWeight: 600, color: "#7a8499", whiteSpace: "nowrap" }}>
-                Zones
-              </span>
-            )}
-          </div>
-
-          {/* Zone list */}
-          <div style={sidebarStyles.list}>
-
-            {/* ── FIX 2: Floor plan row at top of sidebar ────────────────── */}
-            <div style={{
-              borderLeft: hasFloor ? "2.5px solid #3b82f6" : "2.5px solid #1e2d3e",
-              background: hasFloor ? "#3b82f611" : "transparent",
-              borderRadius: 5,
-              marginBottom: 2,
-              transition: "all 0.15s",
-            }}>
-              <div style={{
-                display: "flex", alignItems: "center", gap: 6,
-                padding: "5px 6px",
-              }}>
-                {/* floor plan icon */}
-                <svg
-                  viewBox="0 0 24 24" fill="none"
-                  stroke={hasFloor ? "#3b82f6" : "#4a5568"}
-                  strokeWidth="1.8" width="10" height="10"
-                  style={{ flexShrink: 0 }}
-                >
-                  <rect x="3" y="3" width="18" height="18" rx="2" />
-                  <path d="M3 9h18M9 21V9" />
-                </svg>
-
-                {sidebarExpanded && (
-                  <span style={{
-                    flex: 1,
-                    fontSize: 11,
-                    color: hasFloor ? "#c9d1d9" : "#4a5568",
-                    overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                  }}>
-                    Floor 1
-                  </span>
-                )}
-
-                {/* ✕ to remove floor plan image */}
-                {sidebarExpanded && hasFloor && (
-                  <span
-                    onClick={removeFloorPlan}
-                    title="Remove floor plan image"
-                    style={{
-                      fontSize: 9, color: "#4a5568", cursor: "pointer",
-                      padding: "0 2px", flexShrink: 0,
-                      transition: "color 0.1s",
-                    }}
-                    onMouseEnter={e => e.currentTarget.style.color = "#ef4444"}
-                    onMouseLeave={e => e.currentTarget.style.color = "#4a5568"}
-                  >✕</span>
-                )}
-
-                {/* + to upload if no floor plan */}
-                {sidebarExpanded && !hasFloor && (
-                  <span
-                    onClick={() => fileInputRef.current?.click()}
-                    title="Upload floor plan"
-                    style={{
-                      fontSize: 12, color: "#3b82f6", cursor: "pointer",
-                      padding: "0 2px", flexShrink: 0, lineHeight: 1,
-                    }}
-                  >+</span>
-                )}
-              </div>
-            </div>
-
-            <div style={sidebarStyles.divider} />
-
-            {/* ── Section label: Zones ─────────────────────────────────── */}
-            {sidebarExpanded && (
-              <div style={sidebarStyles.sectionLabel}>Zones</div>
-            )}
-
-            {zones.length === 0 && sidebarExpanded && (
-              <div style={{ padding: "10px 8px", fontSize: 10, color: "#4a5568", textAlign: "center" }}>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" width="22" height="22" style={{ opacity: 0.25, display: "block", margin: "0 auto 6px" }}>
-                  <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6" />
-                </svg>
-                No zones yet
-              </div>
-            )}
-
-            {zones.map(zone => (
-              <DvZoneSidebarItem
-                key={zone.id}
-                zone={zone}
-                placed={placed}
-                isActive={activeZoneId === zone.id}
-                highlightedId={highlightedCamId}
-                onSelect={handleSelectZone}
-                onDelete={handleDeleteZone}
-                onHighlightCam={handleHighlightCam}
-                onRemoveCam={handleRemoveCamFromZone}
-                sidebarExpanded={sidebarExpanded}
-                onContextMenu={(e) => onSidebarZoneContextMenu(e, zone)}
-              />
-            ))}
-
-            {/* Create Zone button */}
-            <button
-              style={sidebarStyles.addBtn}
-              onClick={() => { setMode("zone"); drawingPointsRef.current = []; setDrawingPoints([]); }}
-              title="Draw a new zone"
-            >
-              <span style={{ fontSize: 14, lineHeight: 1, flexShrink: 0 }}>+</span>
-              {sidebarExpanded && <span>Create Zone</span>}
-            </button>
-
-            {/* Active zone hint */}
-            {activeZone && sidebarExpanded && (
-              <div style={{
-                margin: "6px 4px 0",
-                padding: "6px 8px",
-                background: activeZone.color + "14",
-                border: `0.5px solid ${activeZone.color}44`,
-                borderRadius: 5,
-                fontSize: 10,
-                color: activeZone.color,
-                lineHeight: 1.5,
-              }}>
-                <div style={{ fontWeight: 700, marginBottom: 2 }}>Active: {activeZone.name}</div>
-                <div style={{ color: "#7a8499" }}>Cameras will be constrained to this zone.</div>
-                <button
-                  onClick={() => { setActiveZoneId(null); activeZoneIdRef.current = null; }}
-                  style={{
-                    marginTop: 4, background: "none", border: `0.5px solid ${activeZone.color}55`,
-                    borderRadius: 3, color: activeZone.color, cursor: "pointer",
-                    fontSize: 9, padding: "2px 6px",
-                  }}
-                >
-                  Deselect
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
 
         {/* ── Canvas ── */}
         <div className="dv-canvas-wrap" ref={wrapRef}
@@ -2468,6 +2629,15 @@ export default function DesignerView({ onBack }) {
             activeZone={activeZone}
             zones={zones}
           />
+
+          {/* Floating Zoom HUD */}
+          <div className="dv-zoom-hud">
+            <button className="dv-zbtn dv-zbtn--fit" onClick={fitImage}>Fit</button>
+            <div className="dv-zoom-hud-divider" style={{ width: "1px", height: "14px", background: "rgba(46, 61, 85, 0.5)", margin: "0 4px" }} />
+            <button className="dv-zbtn" onClick={() => { const el = wrapRef.current; if (el) applyZoom(-0.2, el.clientWidth / 2, el.clientHeight / 2); }} title="Zoom Out">−</button>
+            <span className="dv-zoom-label">{zoomPct}%</span>
+            <button className="dv-zbtn" onClick={() => { const el = wrapRef.current; if (el) applyZoom(0.2, el.clientWidth / 2, el.clientHeight / 2); }} title="Zoom In">+</button>
+          </div>
 
           {/* ── Floating DORI Legend ── */}
           {showPpm && (
@@ -2775,7 +2945,22 @@ export default function DesignerView({ onBack }) {
 
         {/* ── Spec detail panel ── */}
         {selectedModel && (
-          <div style={{ display: "flex", flexDirection: "column", width: 258, borderLeft: "0.5px solid #1e2d3e", borderRight: "0.5px solid #1e2d3e", background: "#0d1117", flexShrink: 0 }}>
+          <div style={{
+            display: "flex",
+            flexDirection: "column",
+            width: 258,
+            borderLeft: "0.5px solid #1e2d3e",
+            borderRight: "0.5px solid #1e2d3e",
+            background: "#0d1117",
+            flexShrink: 0,
+            position: "absolute",
+            top: 0,
+            bottom: 0,
+            right: inspectorExpanded ? 265 : 48,
+            zIndex: 9,
+            boxShadow: "-8px 0 24px rgba(0,0,0,0.35)",
+            transition: "right 0.3s cubic-bezier(0.4, 0, 0.2, 1)"
+          }}>
             <SpecPanel camera={selectedModel} onClose={() => setSelectedModel(null)} />
             <div className="dv-fov-overlay-panel">
               <div className="dv-fov-overlay__label">{selectedModel.model}</div>
@@ -2784,54 +2969,228 @@ export default function DesignerView({ onBack }) {
           </div>
         )}
 
-        {/* ── Camera Library (right panel) ── */}
-        <div className="dv-library">
-          <div className="dv-library__head">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="13" height="13">
-              <rect x="2" y="3" width="20" height="14" rx="2" /><path d="M8 21h8M12 17v4" />
-            </svg>
-            Camera Library
-            <span className="dv-library__count">{filteredCameras.length}</span>
-          </div>
+        {/* ── Slide-out Tabbed Right Inspector Panel ── */}
+        <div className={`dv-inspector ${inspectorExpanded ? "dv-inspector--expanded" : ""}`}>
+          {!inspectorExpanded && (
+            <button
+              className="dv-inspector-toggle"
+              onClick={() => setInspectorExpanded(true)}
+              title="Expand Inspector"
+            >
+              ←
+              <span className="dv-inspector-toggle__text">Inspector</span>
+            </button>
+          )}
 
-          <div className="dv-library__filters">
-            <input className="dv-search" placeholder="Search models…"
-              value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
-            <div className="dv-filter-row">
-              <select className="dv-select" value={brandFilter || ""} onChange={e => setBrandFilter(e.target.value || null)}>
-                <option value="">-- Brand --</option>
-                {brands.map(b => <option key={b} value={b}>{b}</option>)}
-              </select>
-              <select className="dv-select" value={typeFilter || ""} onChange={e => setTypeFilter(e.target.value || null)}>
-                <option value="">-- Type --</option>
-                {["dome", "bullet", "ptz", "fisheye", "box", "thermal"].map(t => (
-                  <option key={t} value={t}>{TYPE_ICONS[t]} {t.charAt(0).toUpperCase() + t.slice(1)}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          <div className="dv-model-list">
-            {filteredCameras.length === 0 && (
-              <div className="dv-model-empty">
-                {brandFilter ? "No cameras match your filters." : "Please select a brand to view available camera models."}
+          {inspectorExpanded && (
+            <div className="dv-inspector-container">
+              {/* Tab Selector */}
+              <div className="dv-inspector-tabs" style={{ position: "relative", paddingRight: "36px" }}>
+                <button
+                  className={`dv-inspector-tab ${inspectorTab === "cameras" ? "dv-inspector-tab--active" : ""}`}
+                  onClick={() => setInspectorTab("cameras")}
+                >
+                  Cameras ({filteredCameras.length})
+                </button>
+                <button
+                  className={`dv-inspector-tab ${inspectorTab === "zones" ? "dv-inspector-tab--active" : ""}`}
+                  onClick={() => setInspectorTab("zones")}
+                >
+                  Zones ({zones.length})
+                </button>
+                
+                {/* Close Cross Button */}
+                <button
+                  className="dv-inspector-close-btn"
+                  onClick={() => setInspectorExpanded(false)}
+                  title="Collapse Inspector"
+                  style={{
+                    position: "absolute",
+                    right: "10px",
+                    top: "50%",
+                    transform: "translateY(-50%)",
+                    background: "none",
+                    border: "none",
+                    color: "#7a8499",
+                    fontSize: "14px",
+                    fontWeight: "750",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    padding: "4px 6px",
+                    borderRadius: "4px",
+                    transition: "all 0.15s ease"
+                  }}
+                >
+                  ✕
+                </button>
               </div>
-            )}
-            {filteredCameras.map(cam => (
-              <ModelCard key={cam.id} camera={cam}
-                onDragStart={setDragCamera}
-                onSelect={c => setSelectedModel(prev => prev?.id === c.id ? null : c)}
-                isSelected={selectedModel?.id === cam.id}
-              />
-            ))}
-          </div>
 
-          {/* Selected model chip removed as per request */}
+              {/* Tab Content */}
+              <div className="dv-inspector-content">
+                {inspectorTab === "cameras" ? (
+                  <div className="dv-inspector-flow">
+                    <div className="dv-inspector-section-title">Available Devices</div>
+                    
+                    {/* Brand and Type Custom Dropdowns */}
+                    <div className="dv-library__filters" style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "14px" }}>
+                      <input className="dv-search" placeholder="Search models…"
+                        value={searchQuery} onChange={e => setSearchQuery(e.target.value)} style={{ padding: "6px 8px", background: "#0d1117", border: "0.5px solid #2e3d55", borderRadius: 4, color: "#e8edf5", fontSize: 11, outline: "none" }} />
+                      <div className="dv-filter-row" style={{ display: "flex", gap: "5px" }}>
+                        {/* Custom Brand Dropdown */}
+                        <div className="dv-custom-select-wrap" style={{ position: "relative", flex: 1 }}>
+                          <button
+                            className="dv-select"
+                            style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%", textAlign: "left" }}
+                            onClick={() => { setBrandMenuOpen(!brandMenuOpen); setTypeMenuOpen(false); }}
+                          >
+                            <span>{brandFilter || "-- Brand --"}</span>
+                            <span style={{ fontSize: "8px", opacity: 0.7 }}>▼</span>
+                          </button>
+                          {brandMenuOpen && (
+                            <div className="dv-custom-dropdown" style={{
+                              position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0,
+                              background: "#0d1117", border: "0.5px solid #2e3d55", borderRadius: "5px",
+                              maxHeight: "180px", overflowY: "auto", zIndex: 100, padding: "4px",
+                              boxShadow: "0 8px 24px rgba(0,0,0,0.5)"
+                            }}>
+                              <button
+                                className="dv-custom-dropdown-item"
+                                style={{
+                                  width: "100%", background: "none", border: "none", color: "#cbd5e1",
+                                  padding: "6px 8px", textAlign: "left", fontSize: "11px", cursor: "pointer",
+                                  borderRadius: "4px", display: "block"
+                                }}
+                                onClick={() => { setBrandFilter(null); setBrandMenuOpen(false); }}
+                              >
+                                -- Brand --
+                              </button>
+                              {brands.map(b => (
+                                <button
+                                  key={b}
+                                  className="dv-custom-dropdown-item"
+                                  style={{
+                                    width: "100%", background: b === brandFilter ? "rgba(24, 95, 165, 0.15)" : "none",
+                                    border: "none", color: b === brandFilter ? "#5aabf0" : "#cbd5e1",
+                                    padding: "6px 8px", textAlign: "left", fontSize: "11px", cursor: "pointer",
+                                    borderRadius: "4px", display: "block"
+                                  }}
+                                  onClick={() => { setBrandFilter(b); setBrandMenuOpen(false); }}
+                                >
+                                  {b}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
 
-          {!selectedModel && (
-            <div className="dv-cam-selector__hint dv-cam-selector__hint--empty"
-              style={{ padding: "6px 10px 8px", borderTop: "1px solid #1e2d3e", marginTop: 4 }}>
-              Drag a card onto the canvas to place · Click to preview FOV
+                        {/* Custom Type Dropdown */}
+                        <div className="dv-custom-select-wrap" style={{ position: "relative", flex: 1 }}>
+                          <button
+                            className="dv-select"
+                            style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%", textAlign: "left" }}
+                            onClick={() => { setTypeMenuOpen(!typeMenuOpen); setBrandMenuOpen(false); }}
+                          >
+                            <span>
+                              {typeFilter ? `${TYPE_ICONS[typeFilter]} ${typeFilter.charAt(0).toUpperCase() + typeFilter.slice(1)}` : "-- Type --"}
+                            </span>
+                            <span style={{ fontSize: "8px", opacity: 0.7 }}>▼</span>
+                          </button>
+                          {typeMenuOpen && (
+                            <div className="dv-custom-dropdown" style={{
+                              position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0,
+                              background: "#0d1117", border: "0.5px solid #2e3d55", borderRadius: "5px",
+                              zIndex: 100, padding: "4px", boxShadow: "0 8px 24px rgba(0,0,0,0.5)"
+                            }}>
+                              <button
+                                className="dv-custom-dropdown-item"
+                                style={{
+                                  width: "100%", background: "none", border: "none", color: "#cbd5e1",
+                                  padding: "6px 8px", textAlign: "left", fontSize: "11px", cursor: "pointer",
+                                  borderRadius: "4px", display: "block"
+                                }}
+                                onClick={() => { setTypeFilter(null); setTypeMenuOpen(false); }}
+                              >
+                                -- Type --
+                              </button>
+                              {["dome", "bullet", "ptz", "fisheye", "box", "thermal"].map(t => (
+                                <button
+                                  key={t}
+                                  className="dv-custom-dropdown-item"
+                                  style={{
+                                    width: "100%", background: t === typeFilter ? "rgba(24, 95, 165, 0.15)" : "none",
+                                    border: "none", color: t === typeFilter ? "#5aabf0" : "#cbd5e1",
+                                    padding: "6px 8px", textAlign: "left", fontSize: "11px", cursor: "pointer",
+                                    borderRadius: "4px", display: "block"
+                                  }}
+                                  onClick={() => { setTypeFilter(t); setTypeMenuOpen(false); }}
+                                >
+                                  {TYPE_ICONS[t]} {t.charAt(0).toUpperCase() + t.slice(1)}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Camera Model List */}
+                    <div className="dv-model-list" style={{ flex: 1, overflowY: "auto", paddingRight: 4 }}>
+                      {filteredCameras.length === 0 && (
+                        <div className="dv-model-empty">
+                          {brandFilter ? "No cameras match your filters." : "Please select a brand to view available camera models."}
+                        </div>
+                      )}
+                      {filteredCameras.map(cam => (
+                        <ModelCard key={cam.id} camera={cam}
+                          onDragStart={setDragCamera}
+                          onSelect={c => setSelectedModel(prev => prev?.id === c.id ? null : c)}
+                          isSelected={selectedModel?.id === cam.id}
+                        />
+                      ))}
+                    </div>
+
+                    {!selectedModel && (
+                      <div className="dv-cam-selector__hint dv-cam-selector__hint--empty"
+                        style={{ padding: "6px 10px 8px", borderTop: "1px solid #1e2d3e", marginTop: 4, fontSize: 10, color: "#7a8499", textAlign: "center" }}>
+                        Drag a card onto the canvas to place · Click to preview FOV
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="dv-inspector-flow">
+                    <div className="dv-inspector-section-title">Floor Zones</div>
+                    
+                    <div className="dv-zone-scroller">
+                      {zones.length === 0 ? (
+                        <div style={{ padding: "10px 8px", fontSize: 10, color: "#7a8499", textAlign: "center" }}>
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" width="22" height="22" style={{ opacity: 0.25, display: "block", margin: "0 auto 6px" }}>
+                            <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6" />
+                          </svg>
+                          No zones yet
+                        </div>
+                      ) : (
+                        zones.map(zone => (
+                          <DvZoneSidebarItem
+                            key={zone.id}
+                            zone={zone}
+                            placed={placed}
+                            isActive={activeZoneId === zone.id}
+                            highlightedId={highlightedCamId}
+                            onSelect={handleSelectZone}
+                            onDelete={handleDeleteZone}
+                            onHighlightCam={handleHighlightCam}
+                            onRemoveCam={handleRemoveCamFromZone}
+                            sidebarExpanded={true}
+                            onContextMenu={(e) => onSidebarZoneContextMenu(e, zone)}
+                          />
+                        ))
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>
@@ -3000,9 +3359,11 @@ export default function DesignerView({ onBack }) {
         </div>
       )}
 
+      <PremiumPopup {...popupState} />
     </div>
   );
 }
+
 
 // ── Project Stats Panel ───────────────────────────────────────────────
 function ProjectStatsPanel({

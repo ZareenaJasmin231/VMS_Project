@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { NAV_CONFIG } from "../../data/navConfig";
 import { useAuth } from "../../context/AuthContext";
+import logoImg from "../../assets/logo.jpg";
 import "./TopBar.css";
 
 const API_BASE = (typeof import.meta !== "undefined" && import.meta.env?.VITE_API_URL)
@@ -241,59 +242,30 @@ export default function TopBar({
   return (
     <header className="topbar">
       <div className="topbar__left">
-        {/* + button */}
-        <div className="topbar__plus-wrap" ref={plusRef}>
-          <button
-            className={`topbar__plus-btn ${plusOpen ? "topbar__plus-btn--open" : ""}`}
-            onClick={() => setPlusOpen((p) => !p)}
-            title="Open view">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-              <path d="M12 5v14M5 12h14"/>
-            </svg>
-          </button>
-
-          {plusOpen && (
-            <div className="topbar__plus-menu">
-              {PLUS_MENU.map((item) => (
-                <button
-                  key={item.page}
-                  className="topbar__plus-item"
-                  onClick={() => {
-                    onNavigate?.(item.page);
-                    setPlusOpen(false);
-                  }}>
-                  <span
-                    className="topbar__plus-item-icon"
-                    dangerouslySetInnerHTML={{ __html: item.icon }}
-                  />
-                  <span>{item.label}</span>
-                </button>
-              ))}
+        <div className="topbar__ai-wrap">
+          <button 
+            className="topbar__ai-btn" 
+            onClick={() => navigate('/ai-analytics')}
+          >
+            <div className="topbar__ai-logo-mark">
+              <img src={logoImg} alt="MIRADOR AI" className="topbar__ai-logo-img" />
             </div>
-          )}
-        </div>
-
-        <div className="topbar__history">
-          <button
-            className="topbar__history-btn"
-            disabled={!canGoBack}
-            onClick={onBack}
-            title="Go back"
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-              <path d="M15 18l-6-6 6-6" />
-            </svg>
+            <div className="topbar__ai-logo-text">
+              <span className="topbar__ai-logo-name">MIRADOR AI</span>
+              <span className="topbar__ai-logo-sub">Analytics</span>
+            </div>
           </button>
-          <button
-            className="topbar__history-btn"
-            disabled={!canGoForward}
-            onClick={onForward}
-            title="Go forward"
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-              <path d="M9 18l6-6-6-6" />
+          <div className="topbar__ai-info">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="12" y1="16" x2="12" y2="12"></line>
+              <line x1="12" y1="8" x2="12.01" y2="8"></line>
             </svg>
-          </button>
+            <div className="topbar__ai-tooltip">
+              <strong style={{ color: '#fff', display: 'block', marginBottom: '4px' }}>AI Analytics Dashboard</strong>
+              Access advanced AI-driven insights, behavioral metrics, and data visualizations.
+            </div>
+          </div>
         </div>
       </div>
 
