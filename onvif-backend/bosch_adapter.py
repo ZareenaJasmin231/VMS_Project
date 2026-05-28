@@ -315,7 +315,12 @@ def pull_bosch_events(
         if value in ("false", "0", "inactive", "no", "off"):
             continue   # event ended / no trigger
 
+        # ── Filter out technical system/network status logs ───────────
         event_type = _map_event_type(topic)
+        allowed_types = {"Motion", "Object Detection", "LineCrossing", "Tamper"}
+        if event_type == "Unknown" or event_type not in allowed_types:
+            continue   # Discard technical network status logs (like ActiveConnections)
+
         events.append({
             "event_type": event_type,
             "topic":      topic,
