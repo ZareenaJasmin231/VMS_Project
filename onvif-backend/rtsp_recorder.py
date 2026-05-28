@@ -196,9 +196,12 @@ def _record_loop(
                 "-preset",         "ultrafast",
                 "-crf",            "23",
                 "-an",
-                "-movflags",       "+faststart",
+                "-f",              "segment",
+                "-segment_time",   "10",
+                "-segment_format", "mpegts",
+                "-reset_timestamps", "1",
                 "-y",
-                out_file,
+                os.path.join(out_dir, f"temp_{time_str}_%03d.ts")
             ]
         else:
             cmd = [
@@ -209,9 +212,12 @@ def _record_loop(
                 "-t",              str(CHUNK_SECONDS),
                 "-c:v",            "copy",
                 "-an",
-                "-movflags",       "+faststart",
+                "-f",              "segment",
+                "-segment_time",   "10",
+                "-segment_format", "mpegts",
+                "-reset_timestamps", "1",
                 "-y",
-                out_file,
+                os.path.join(out_dir, f"temp_{time_str}_%03d.ts")
             ]
 
         try:

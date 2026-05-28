@@ -2758,12 +2758,18 @@ async def get_alerts(limit: int = 50):
         for d in docs:
             # Bosch alerts are flat (written directly by _analytics_poll_loop)
             if d.get("source") == "bosch":
+                t = d.get("type")
+                if not t or str(t).strip().lower() == "none":
+                    t = "Object Detection"
+                s = d.get("scenario")
+                if not s or str(s).strip().lower() == "none":
+                    s = "Detect Any Object"
                 formatted.append({
                     "ip":          d.get("ip"),
                     "serial":      d.get("serial"),
                     "time":        d.get("time"),
-                    "scenario":    d.get("scenario"),   # "Motion Detection"
-                    "type":        d.get("type"),        # "Motion"
+                    "scenario":    s,
+                    "type":        t,
                     "status":      d.get("status", "Active"),
                     "received_at": d.get("received_at"),
                     "topic":       d.get("topic", ""),
@@ -2772,12 +2778,20 @@ async def get_alerts(limit: int = 50):
                 # Original MQTT/Axis nested format
                 msg  = d.get("message", {})
                 data = msg.get("data", {})
+                
+                t = d.get("type") or data.get("scenarioType")
+                if not t or str(t).strip().lower() == "none":
+                    t = "Object Detection"
+                s = d.get("scenario") or data.get("scenario")
+                if not s or str(s).strip().lower() == "none":
+                    s = "Detect Any Object"
+                    
                 formatted.append({
                     "ip":        d.get("ip"),
                     "serial":    d.get("serial"),
-                    "time":      data.get("triggerTime"),
-                    "scenario":  data.get("scenario"),
-                    "type":      data.get("scenarioType"),
+                    "time":      data.get("triggerTime") or d.get("time"),
+                    "scenario":  s,
+                    "type":      t,
                     "human":     data.get("human"),
                     "total":     data.get("total"),
                     "class":     data.get("classTypes"),

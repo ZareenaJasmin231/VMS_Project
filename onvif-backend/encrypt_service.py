@@ -3,6 +3,20 @@ encrypt_service.py — fixed MongoDB connection + synced recording path
 """
 
 import os
+import sys
+import io
+
+if hasattr(sys.stdout, 'reconfigure'):
+    try:
+        sys.stdout.reconfigure(encoding='utf-8')
+    except:
+        pass
+if hasattr(sys.stderr, 'reconfigure'):
+    try:
+        sys.stderr.reconfigure(encoding='utf-8')
+    except:
+        pass
+
 import io
 import re
 import time
@@ -159,17 +173,24 @@ def _parse_path(input_path: str):
 def _save_metadata_to_db(camera_id, date_part, time_part, output_path):
     try:
         file_size = os.path.getsize(output_path) if os.path.exists(output_path) else 0
-        result = metadata_collection.insert_one({
-            "camera_id":  camera_id,
-            "date":       date_part,
-            "start_time": time_part,
-            "file_path":  output_path.replace("\\", "/"),
-            "file_size":  file_size,
-            "created_at": datetime.utcnow(),
-        })
-        print(f"[ENCRYPT] 📄 Saved to MongoDB: {camera_id} / {date_part} / {time_part} _id={result.inserted_id}")
+        metadata_collection.update_one(
+            {
+                "camera_id":  camera_id,
+                "date":       date_part,
+                "start_time": time_part,
+            },
+            {
+                "$set": {
+                    "file_path":  output_path.replace("\\", "/"),
+                    "file_size":  file_size,
+                    "created_at": datetime.utcnow(),
+                }
+            },
+            upsert=True
+        )
+        print(f"[ENCRYPT] 📄 Saved to MongoDB (Upserted): {camera_id} / {date_part} / {time_part} file_size={file_size}")
     except Exception as e:
-        print(f"[ENCRYPT] ❌ MongoDB insert FAILED: {e}")
+        print(f"[ENCRYPT] ❌ MongoDB upsert FAILED: {e}")
 
 
 def _save_meta_sidecar(camera_id, date_part, time_part, output_path):
@@ -192,35 +213,148 @@ def _save_meta_sidecar(camera_id, date_part, time_part, output_path):
 
 def _is_file_complete(path: str) -> bool:
     try:
+        # If modified more than 5 seconds ago, it is guaranteed complete and closed
+        mtime = os.path.getmtime(path)
+        if time.time() - mtime > 5:
+            return True
+            
         s1 = os.path.getsize(path)
         if s1 == 0:
             return False
-        time.sleep(3)
+        time.sleep(1) # sleep only 1 second for very fresh files
         s2 = os.path.getsize(path)
         return s1 == s2
     except Exception:
         return False
 
 
-def encrypt_file(input_path: str) -> bool:
+def heal_mp4(input_path: str) -> str:
+    """
+    Attempts to heal a potentially truncated/corrupted MP4 file by remuxing it with ffmpeg.
+    If successful, returns the path of the healed file. Otherwise, returns the original path.
+    """
+    import subprocess
+    
+    healed_path = input_path + ".healed.mp4"
+    ffmpeg_bin = os.environ.get("FFMPEG_BIN", "ffmpeg")
+    
+    cmd = [
+        ffmpeg_bin,
+        "-y",
+        "-loglevel", "error",
+        "-err_detect", "ignore_err", # ignore minor errors to recover max frames
+        "-i", input_path,
+        "-c", "copy",
+        "-movflags", "+faststart", # ensure metadata is at the beginning
+        healed_path
+    ]
+    
     try:
-        camera_id, date_part, time_part = _parse_path(input_path)
+        print(f"[ENCRYPT] 🩺 Attempting to heal/remux MP4: {input_path}")
+        proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=30)
+        if proc.returncode == 0 and os.path.exists(healed_path) and os.path.getsize(healed_path) > 0:
+            print(f"[ENCRYPT] 🩺 Successfully healed {input_path} -> {healed_path}")
+            os.remove(input_path)
+            os.rename(healed_path, input_path)
+            return input_path
+        else:
+            stderr = proc.stderr.decode(errors="replace")
+            print(f"[ENCRYPT] 🩺 Healing process exited with code {proc.returncode}. Stderr: {stderr}")
     except Exception as e:
-        print(f"[ENCRYPT] Path parse error {input_path}: {e}")
-        return False
+        print(f"[ENCRYPT] 🩺 Error during healing: {e}")
+        
+    if os.path.exists(healed_path):
+        try:
+            os.remove(healed_path)
+        except:
+            pass
+            
+    return input_path
 
-    # ── Always write .enc alongside the .mp4 in the SAME directory ──
-    # This ensures the file lands in /recordings/<camera>/<date>/ correctly
-    out_dir     = os.path.dirname(input_path)
+
+def encrypt_file(input_path: str) -> bool:
+    fname = os.path.basename(input_path)
+    is_segment = fname.startswith("temp_")
+    
+    if is_segment:
+        # Parse segment path, e.g. temp_11-40-00_000.ts or temp_11-40-00_000.mp4
+        stem = fname.replace(".ts", "").replace(".mp4", "")
+        parts = stem.split("_")
+        if len(parts) >= 3:
+            time_part = parts[1]
+            segment_index = parts[2]
+        else:
+            print(f"[ENCRYPT] Invalid segment filename structure: {fname}")
+            return False
+            
+        try:
+            camera_id, date_part, _ = _parse_path(input_path)
+        except Exception as e:
+            print(f"[ENCRYPT] Path parse error {input_path}: {e}")
+            return False
+    else:
+        try:
+            camera_id, date_part, time_part = _parse_path(input_path)
+        except Exception as e:
+            print(f"[ENCRYPT] Path parse error {input_path}: {e}")
+            return False
+
+    out_dir = os.path.dirname(input_path)
     os.makedirs(out_dir, exist_ok=True)
     output_path = os.path.join(out_dir, f"{time_part}.enc")
 
+    # Healing step for non-segment files (segments are healthy by design and faststart is not needed until final play)
+    if not is_segment:
+        input_path = heal_mp4(input_path)
+
     try:
-        with open(input_path, "rb") as f:
-            data = f.read()
-        with open(output_path, "wb") as f:
-            f.write(_aes_encrypt(data))
-        print(f"[ENCRYPT] ✅ Encrypted: {output_path}")
+        if is_segment:
+            # Chained segment encryption
+            with open(input_path, "rb") as f:
+                segment_data = f.read()
+                
+            current_size = os.path.getsize(output_path) if os.path.exists(output_path) else 0
+            
+            if current_size == 0:
+                # Generate new base IV
+                base_iv = secrets.token_bytes(16)
+                payload_size = 0
+            else:
+                # Read base IV from existing file
+                with open(output_path, "rb") as f_in:
+                    f_in.seek(4) # skip CTR\x00
+                    base_iv = f_in.read(16)
+                payload_size = current_size - 20
+                
+            block_index = payload_size // 16
+            offset_in_block = payload_size % 16
+            
+            iv_int = int.from_bytes(base_iv, 'big') + block_index
+            chained_iv = iv_int.to_bytes(16, 'big')
+            
+            cipher = Cipher(algorithms.AES(MASTER_KEY), modes.CTR(chained_iv), backend=default_backend())
+            encryptor = cipher.encryptor()
+            
+            # If size is not aligned, process dummy bytes to align the cipher state
+            if offset_in_block != 0:
+                encryptor.update(b'\x00' * offset_in_block)
+                
+            encrypted_data = encryptor.update(segment_data) + encryptor.finalize()
+            
+            with open(output_path, "ab") as f_out:
+                if current_size == 0:
+                    f_out.write(b'CTR\x00' + base_iv)
+                f_out.write(encrypted_data)
+                
+            print(f"[ENCRYPT] 🛠  Appended segment {segment_index} to: {output_path} (new size: {os.path.getsize(output_path)} bytes)")
+        else:
+            # Standard single block encryption
+            with open(input_path, "rb") as f:
+                data = f.read()
+            with open(output_path, "wb") as f:
+                f.write(_aes_encrypt(data))
+            print(f"[ENCRYPT] ✅ Encrypted complete file: {output_path}")
+            
     except Exception as e:
         print(f"[ENCRYPT] ❌ Encryption failed {input_path}: {e}")
         return False
@@ -335,16 +469,23 @@ def _scan_and_encrypt():
         if "Non-indexed Files" in root:
             continue
         for fname in files:
-            if not fname.lower().endswith(".mp4"):
+            ext = fname.lower()
+            if not (ext.endswith(".mp4") or ext.endswith(".ts")):
                 continue
             full_path = os.path.join(root, fname)
             if full_path in _seen_files:
                 continue
             _seen_files.add(full_path)
-            if _is_file_complete(full_path):
-                print(f"[ENCRYPT] 🎬 Found completed mp4: {full_path}")
-                encrypt_file(full_path)
-            else:
+            try:
+                if _is_file_complete(full_path):
+                    print(f"[ENCRYPT] 🎬 Found completed file: {full_path}")
+                    success = encrypt_file(full_path)
+                    if not success:
+                        _seen_files.discard(full_path)
+                else:
+                    _seen_files.discard(full_path)
+            except Exception as e:
+                print(f"[ENCRYPT] ❌ Exception processing {full_path}: {e}")
                 _seen_files.discard(full_path)
 
 

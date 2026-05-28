@@ -282,7 +282,9 @@ def decrypt_bytes(raw: bytes) -> io.BytesIO:
             # Fall back to using raw decrypted bytes if padding is invalid (common on truncated files)
             data       = padded
             
-    _validate_mp4(data)   # ← catch wrong-key silently-corrupt output early
+    is_ts = len(data) > 0 and data[0] == 0x47
+    if not is_ts:
+        _validate_mp4(data)   # ← catch wrong-key silently-corrupt output early
     return io.BytesIO(data)
 
 def _decrypt(file_path: str) -> io.BytesIO:
@@ -293,6 +295,27 @@ def _decrypt(file_path: str) -> io.BytesIO:
         return decrypt_bytes(raw)
     except Exception as e:
         raise RuntimeError(f"Failed to decrypt {file_path}: {e}") from e
+
+def remux_ts_to_mp4(ts_data: bytes) -> bytes:
+    """
+    Synchronously remux MPEG-TS bytes to standard MP4 bytes using ffmpeg.
+    Uses copy mode (-c copy) so it's extremely fast and light.
+    """
+    import subprocess
+    if len(ts_data) > 0 and ts_data[0] == 0x47:
+        try:
+            proc = subprocess.run(
+                ["ffmpeg", "-y", "-loglevel", "quiet", "-i", "pipe:0", "-c", "copy", "-f", "mp4", "-movflags", "frag_keyframe+empty_moov+default_base_moof", "pipe:1"],
+                input=ts_data,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                timeout=30
+            )
+            if proc.returncode == 0 and len(proc.stdout) > 0:
+                return proc.stdout
+        except Exception as e:
+            print(f"[REMUX] Remuxing failed: {e}")
+    return ts_data
 
 def decrypt_stream(file_path: str):
     """
@@ -719,7 +742,7 @@ def recorder_status():
     active = [
         name
         for name, thread in recorder._recorders.items()
-        if thread.is_alive()
+        if thread.is_alive() and name in getattr(recorder, '_actively_recording_streams', set())
     ]
     rec_dir = recorder.get_recordings_dir()
     return {
@@ -767,6 +790,11 @@ def play_recording(
     if not os.path.exists(enc_path):
         raise HTTPException(status_code=404, detail=f"Encrypted file missing: {enc_path}")
 
+    # Check for empty/corrupted legacy files
+    file_size_on_disk = os.path.getsize(enc_path)
+    if file_size_on_disk < 100:
+        raise HTTPException(status_code=415, detail="Recording is empty or corrupted")
+
     try:
         key = _load_key()
         
@@ -776,7 +804,82 @@ def play_recording(
             is_ctr = header == b'CTR\x00'
             
         if is_ctr:
-            # For CTR, we can serve it dynamically without reading the whole file!
+            # Check if it is MPEG-TS (starts with 0x47 in first decrypted block)
+            with open(enc_path, "rb") as f:
+                f.seek(4)
+                iv = f.read(16)
+                f.seek(20)
+                first_block = f.read(16)
+                
+            is_ts = False
+            if len(first_block) > 0:
+                cipher = Cipher(algorithms.AES(key), modes.CTR(iv), backend=default_backend())
+                decryptor = cipher.decryptor()
+                decrypted_block = decryptor.update(first_block) + decryptor.finalize()
+                is_ts = len(decrypted_block) > 0 and decrypted_block[0] == 0x47
+                
+            if is_ts:
+                # Dynamic TS -> MP4 remuxing stream
+                def stream_ts_as_mp4():
+                    import subprocess
+                    import threading
+                    
+                    ffmpeg_cmd = [
+                        "ffmpeg", "-y", "-loglevel", "quiet",
+                        "-i", "pipe:0",
+                        "-c", "copy",
+                        "-f", "mp4",
+                        "-movflags", "frag_keyframe+empty_moov+default_base_moof",
+                        "pipe:1"
+                    ]
+                    
+                    proc = subprocess.Popen(
+                        ffmpeg_cmd,
+                        stdin=subprocess.PIPE,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.DEVNULL
+                    )
+                    
+                    def feed_input():
+                        try:
+                            with open(enc_path, "rb") as f_in:
+                                f_in.seek(4)
+                                file_iv = f_in.read(16)
+                                decrypt_cipher = Cipher(algorithms.AES(key), modes.CTR(file_iv), backend=default_backend())
+                                dec = decrypt_cipher.decryptor()
+                                
+                                f_in.seek(20)
+                                while True:
+                                    chunk = f_in.read(128 * 1024)
+                                    if not chunk:
+                                        break
+                                    proc.stdin.write(dec.update(chunk))
+                                proc.stdin.write(dec.finalize())
+                        except Exception as feed_err:
+                            print(f"[PLAY] Error feeding stdin to ffmpeg: {feed_err}")
+                        finally:
+                            try:
+                                proc.stdin.close()
+                            except:
+                                pass
+                                
+                    threading.Thread(target=feed_input, daemon=True).start()
+                    
+                    while True:
+                        chunk = proc.stdout.read(64 * 1024)
+                        if not chunk:
+                            break
+                        yield chunk
+                    proc.wait()
+                    
+                headers = {
+                    "Content-Type": "video/mp4",
+                    "Cache-Control": "no-store",
+                    **_CORS_HEADERS
+                }
+                return StreamingResponse(stream_ts_as_mp4(), headers=headers)
+
+            # For standard MP4 CTR files, serve them dynamically without reading the whole file!
             file_size_on_disk = os.path.getsize(enc_path)
             # 20 bytes is the header + iv
             real_file_size = file_size_on_disk - 20 
@@ -878,6 +981,7 @@ def download_recording(
     try:
         stream = _decrypt(enc_path)
         data   = stream.getvalue()
+        data   = remux_ts_to_mp4(data)
     except Exception as e:
         print(f"[DOWNLOAD] ❌ {enc_path}: {e}")
         raise HTTPException(status_code=500, detail=f"Decryption failed: {e}")
@@ -1020,6 +1124,7 @@ def export_zip(request: ExportZipRequest, background_tasks: BackgroundTasks):
 
                 try:
                     decrypted_data = _decrypt(enc_path).getvalue()
+                    decrypted_data = remux_ts_to_mp4(decrypted_data)
                 except Exception as dec_err:
                     decrypt_errors.append(f"Decrypt failed for {enc_path}: {dec_err}")
                     print(f"[EXPORT-ZIP] ❌ {enc_path}: {dec_err}")
