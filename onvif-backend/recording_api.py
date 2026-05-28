@@ -773,6 +773,7 @@ def _parse_range_header(range_header: str, file_size: int):
 @recording_router.get("/play")
 def play_recording(
     request: Request,
+    background_tasks: BackgroundTasks,
     camera_id:  str = Query(...),
     date:       str = Query(...),
     start_time: str = Query(...),
@@ -819,65 +820,37 @@ def play_recording(
                 is_ts = len(decrypted_block) > 0 and decrypted_block[0] == 0x47
                 
             if is_ts:
-                # Dynamic TS -> MP4 remuxing stream
-                def stream_ts_as_mp4():
-                    import subprocess
-                    import threading
-                    
-                    ffmpeg_cmd = [
-                        "ffmpeg", "-y", "-loglevel", "quiet",
-                        "-i", "pipe:0",
-                        "-c", "copy",
-                        "-f", "mp4",
-                        "-movflags", "frag_keyframe+empty_moov+default_base_moof",
-                        "pipe:1"
-                    ]
-                    
-                    proc = subprocess.Popen(
-                        ffmpeg_cmd,
-                        stdin=subprocess.PIPE,
+                # Dynamic TS -> MP4 remuxing to temporary file
+                decrypted_stream = _decrypt(enc_path)
+                ts_data = decrypted_stream.getvalue()
+                
+                temp_mp4 = tempfile.NamedTemporaryFile(suffix=".mp4", delete=False)
+                temp_mp4_path = temp_mp4.name
+                temp_mp4.close()
+                
+                import subprocess
+                try:
+                    subprocess.run(
+                        ["ffmpeg", "-y", "-loglevel", "quiet", "-i", "pipe:0", "-c", "copy", "-movflags", "+faststart", "-f", "mp4", temp_mp4_path],
+                        input=ts_data,
                         stdout=subprocess.PIPE,
-                        stderr=subprocess.DEVNULL
+                        stderr=subprocess.PIPE,
+                        timeout=30,
+                        check=True
                     )
-                    
-                    def feed_input():
-                        try:
-                            with open(enc_path, "rb") as f_in:
-                                f_in.seek(4)
-                                file_iv = f_in.read(16)
-                                decrypt_cipher = Cipher(algorithms.AES(key), modes.CTR(file_iv), backend=default_backend())
-                                dec = decrypt_cipher.decryptor()
-                                
-                                f_in.seek(20)
-                                while True:
-                                    chunk = f_in.read(128 * 1024)
-                                    if not chunk:
-                                        break
-                                    proc.stdin.write(dec.update(chunk))
-                                proc.stdin.write(dec.finalize())
-                        except Exception as feed_err:
-                            print(f"[PLAY] Error feeding stdin to ffmpeg: {feed_err}")
-                        finally:
-                            try:
-                                proc.stdin.close()
-                            except:
-                                pass
-                                
-                    threading.Thread(target=feed_input, daemon=True).start()
-                    
-                    while True:
-                        chunk = proc.stdout.read(64 * 1024)
-                        if not chunk:
-                            break
-                        yield chunk
-                    proc.wait()
-                    
+                except Exception as remux_err:
+                    print(f"[PLAY] Error remuxing TS to MP4: {remux_err}")
+                    if os.path.exists(temp_mp4_path):
+                        os.unlink(temp_mp4_path)
+                    raise HTTPException(status_code=500, detail="Failed to remux TS segment")
+                
+                background_tasks.add_task(os.unlink, temp_mp4_path)
+                
                 headers = {
-                    "Content-Type": "video/mp4",
                     "Cache-Control": "no-store",
                     **_CORS_HEADERS
                 }
-                return StreamingResponse(stream_ts_as_mp4(), headers=headers)
+                return FileResponse(temp_mp4_path, media_type="video/mp4", headers=headers)
 
             # For standard MP4 CTR files, serve them dynamically without reading the whole file!
             file_size_on_disk = os.path.getsize(enc_path)
