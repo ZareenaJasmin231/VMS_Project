@@ -1433,6 +1433,30 @@ async def startup():
     asyncio.create_task(stream_watchdog())
 
     if analytics_subs_col is not None:
+        # ── 1. Auto-subscribe any registered Bosch cameras that are missing subscriptions ──
+        for device in devices:
+            manuf = str(device.get("manufacturer", "")).lower()
+            model = str(device.get("model", "")).lower()
+            ip    = device.get("ip")
+            
+            if ip and ("bosch" in manuf or "bosch" in model):
+                existing_sub = analytics_subs_col.find_one({"ip": ip})
+                if not existing_sub or not existing_sub.get("enabled"):
+                    print(f"[ANALYTICS] 🔗 Auto-subscribed Bosch camera: {ip}")
+                    analytics_subs_col.update_one(
+                        {"ip": ip},
+                        {"$set": {
+                            "ip":       ip,
+                            "port":     device.get("port", 80),
+                            "username": device.get("username", ""),
+                            "password": device.get("password", ""),
+                            "enabled":  True,
+                            "enabled_at": datetime.utcnow()
+                        }},
+                        upsert=True
+                    )
+
+        # ── 2. Restore all enabled subscriptions (including the newly auto-subscribed ones) ──
         active_subs = list(analytics_subs_col.find({"enabled": True}))
         for sub in active_subs:
             sub_ip = sub.get("ip")
