@@ -44,6 +44,23 @@ FFMPEG_AVAILABLE = _check_ffmpeg()
 print(f"[FORENSIC TRACKER] FFmpeg available: {FFMPEG_AVAILABLE} (bin: {FFMPEG_BIN})")
 
 
+def _resolve_local_path(path: str) -> str:
+    if not path:
+        return ""
+    path = path.replace("\\", "/")
+    if os.name == "nt":
+        if path.startswith("/recordings/"):
+            path = path.replace("/recordings/", "D:/REC/")
+        elif path.startswith("/recording/"):
+            path = path.replace("/recording/", "D:/REC/")
+    else:
+        if path.startswith("D:/REC/"):
+            path = path.replace("D:/REC/", "/recordings/")
+        elif path.startswith("D:/rec/"):
+            path = path.replace("D:/rec/", "/recordings/")
+    return path
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # 1. Real Recording Clip (decrypt .enc → slice with ffmpeg)
 # ─────────────────────────────────────────────────────────────────────────────
@@ -52,12 +69,18 @@ def extract_real_recording_clip(
     enc_path: str,
     output_path: str,
     offset_sec: float,
-    duration: int = 10
+    duration: int = 10,
+    bbox: list = None,
+    appearance: dict = None,
+    camera_name: str = "Camera",
+    timestamp: str = ""
 ) -> bool:
     """
     Decrypt an .enc segment and cut a clip around the detection offset.
+    Applies real-time scaling, green bounding box overlay, and target HUD labels.
     Returns True if a valid MP4 was written to output_path.
     """
+    enc_path = _resolve_local_path(enc_path)
     if not enc_path or not os.path.exists(enc_path):
         print(f"[FORENSIC TRACKER] .enc file not found: {enc_path}")
         return False
@@ -76,16 +99,71 @@ def extract_real_recording_clip(
             print(f"[FORENSIC TRACKER] Decrypted data too small ({len(decrypted)} bytes): {enc_path}")
             return False
 
+        # Write decrypted bytes to a temporary seekable file on disk
+        # (This allows FFmpeg to perform instantaneous input-seeking using index headers,
+        # making the load time go from seconds down to milliseconds!)
+        dec_tmp = tempfile.NamedTemporaryFile(suffix=".ts", delete=False)
+        dec_tmp.write(decrypted)
+        dec_tmp_path = dec_tmp.name.replace("\\", "/")
+        dec_tmp.close()
+
         seek_start = max(0.0, offset_sec - 2.0)
 
+        # ── Setup HUD & Bounding Box Filters ──
+        bx, by, bw, bh = bbox if (bbox and len(bbox) == 4) else [180, 60, 220, 260]
+        obj_type = (appearance.get("object_type") or "person").upper() if appearance else "PERSON"
+        top_col  = (appearance.get("top_color_name") or "white").upper() if appearance else "WHITE"
+        bot_col  = (appearance.get("bottom_color_name") or "blue").upper() if appearance else "BLUE"
+        gender   = (appearance.get("gender") or "unknown").upper() if appearance else "UNKNOWN"
+        bag_val  = (appearance.get("bag") or "none").upper() if appearance else "NONE"
+        conf     = (appearance.get("confidence") or 0.95) * 100 if appearance else 95.0
+
+        ts_safe = (timestamp or "").replace("T", " ").replace(":", "-")[:19]
+        cam_safe = camera_name.replace("'", "").replace(":", "").replace("\\", "")[:30]
+
+        font_param = ""
+        if os.name == "nt":
+            font_param = ":fontfile='C\\:/Windows/Fonts/arial.ttf'"
+
+        def _escape(s):
+            return s.replace("'", "\\'").replace(":", "\\:")
+
+        filters_base = [
+            "scale=640:360",
+            "drawgrid=w=40:h=40:color=white@0.04",
+            f"drawbox=x={bx}:y={by}:w={bw}:h={bh}:color=0x22C55E@0.8:t=2",
+            "drawbox=x=22:y=22:w=12:h=12:color=0xEF4444@0.95:t=fill",
+            # Corner brackets
+            "drawbox=x=10:y=10:w=20:h=3:color=0x38BDF8@0.7:t=fill",
+            "drawbox=x=10:y=10:w=3:h=20:color=0x38BDF8@0.7:t=fill",
+            "drawbox=x=610:y=10:w=20:h=3:color=0x38BDF8@0.7:t=fill",
+            "drawbox=x=627:y=10:w=3:h=20:color=0x38BDF8@0.7:t=fill",
+            "drawbox=x=10:y=347:w=20:h=3:color=0x38BDF8@0.7:t=fill",
+            "drawbox=x=10:y=327:w=3:h=20:color=0x38BDF8@0.7:t=fill",
+            "drawbox=x=610:y=347:w=20:h=3:color=0x38BDF8@0.7:t=fill",
+            "drawbox=x=627:y=327:w=3:h=20:color=0x38BDF8@0.7:t=fill",
+        ]
+
+        filters_text = [
+            f"drawtext=text='REC  {_escape(cam_safe)}'{font_param}:x=42:y=26:fontsize=14:fontcolor=white",
+            f"drawtext=text='{_escape(ts_safe)}'{font_param}:x=22:y=58:fontsize=11:fontcolor=0x94A3B8",
+            f"drawtext=text='TARGET\\: {obj_type}  CONF {conf:.0f}%%'{font_param}:x=22:y=295:fontsize=12:fontcolor=0x22C55E",
+            f"drawtext=text='{_escape(top_col)} TOP  {_escape(bot_col)} BOTTOM  {_escape(gender)}  BAG\\:{_escape(bag_val)}'{font_param}:x=22:y=315:fontsize=11:fontcolor=0x38BDF8",
+        ]
+
+        vf_with_text = ",".join(filters_base + filters_text)
+        vf_no_text = ",".join(filters_base)
+
+        # 1. Try extracting with full Text HUD
         cmd = [
             FFMPEG_BIN, "-y",
-            "-i", "pipe:0",
-            "-ss", str(seek_start),
+            "-ss", str(seek_start),   # Seek BEFORE input (instantaneous seek!)
+            "-i", dec_tmp_path,       # Real seekable file
             "-t",  str(duration),
+            "-vf", vf_with_text,
             "-c:v", "libx264",
             "-preset", "ultrafast",
-            "-crf", "26",
+            "-crf", "28",             # Higher crf for faster encoding
             "-an",
             "-movflags", "+faststart",
             "-f", "mp4",
@@ -94,22 +172,80 @@ def extract_real_recording_clip(
 
         proc = subprocess.Popen(
             cmd,
-            stdin=subprocess.PIPE,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.PIPE
         )
-        _, stderr = proc.communicate(input=decrypted, timeout=45)
+        _, stderr = proc.communicate(timeout=45)
 
         if proc.returncode == 0 and os.path.exists(output_path) and os.path.getsize(output_path) > 500:
-            print(f"[FORENSIC TRACKER] ✅ Real clip extracted: {output_path}")
+            print(f"[FORENSIC TRACKER] ✅ Real clip extracted with HUD text: {output_path}")
             return True
 
-        print(f"[FORENSIC TRACKER] ffmpeg slice failed (rc={proc.returncode}): {stderr[-300:].decode(errors='ignore')}")
+        # 2. Try extracting without Text (if freetype drawtext filter is missing)
+        print(f"[FORENSIC TRACKER] Real clip text HUD failed, retrying with box-only HUD...")
+        cmd2 = [
+            FFMPEG_BIN, "-y",
+            "-ss", str(seek_start),   # Seek BEFORE input
+            "-i", dec_tmp_path,
+            "-t",  str(duration),
+            "-vf", vf_no_text,
+            "-c:v", "libx264",
+            "-preset", "ultrafast",
+            "-crf", "28",
+            "-an",
+            "-movflags", "+faststart",
+            "-f", "mp4",
+            output_path
+        ]
+        proc2 = subprocess.Popen(
+            cmd2,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE
+        )
+        _, stderr2 = proc2.communicate(timeout=45)
+
+        if proc2.returncode == 0 and os.path.exists(output_path) and os.path.getsize(output_path) > 500:
+            print(f"[FORENSIC TRACKER] ✅ Real clip extracted with box-only HUD: {output_path}")
+            return True
+
+        print(f"[FORENSIC TRACKER] Real clip slice with HUD failed: {stderr2[-300:].decode(errors='ignore')}")
+
+        # 3. Last fallback: raw slice with no filter
+        print(f"[FORENSIC TRACKER] Retrying raw slice with no filters...")
+        cmd3 = [
+            FFMPEG_BIN, "-y",
+            "-ss", str(seek_start),   # Seek BEFORE input
+            "-i", dec_tmp_path,
+            "-t",  str(duration),
+            "-c:v", "libx264",
+            "-preset", "ultrafast",
+            "-crf", "28",
+            "-an",
+            "-movflags", "+faststart",
+            "-f", "mp4",
+            output_path
+        ]
+        proc3 = subprocess.Popen(
+            cmd3,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE
+        )
+        proc3.communicate(timeout=45)
+        if proc3.returncode == 0 and os.path.exists(output_path) and os.path.getsize(output_path) > 500:
+            print(f"[FORENSIC TRACKER] ✅ Real clip extracted (raw fallback): {output_path}")
+            return True
+
         return False
 
     except Exception as e:
         print(f"[FORENSIC TRACKER] ❌ extract_real_recording_clip error: {e}")
         return False
+    finally:
+        try:
+            if 'dec_tmp_path' in locals() and os.path.exists(dec_tmp_path):
+                os.unlink(dec_tmp_path)
+        except Exception:
+            pass
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -131,7 +267,7 @@ def find_real_enc_for_camera(camera_id: str, db) -> str | None:
             sort=[("created_at", -1)]
         )
         if rec:
-            p = rec.get("file_path", "").replace("\\", "/")
+            p = _resolve_local_path(rec.get("file_path", ""))
             if p and os.path.exists(p):
                 return p
     except Exception as e:
@@ -515,18 +651,31 @@ def get_clip_with_fallback(
     offset   = det.get("frame_offset_sec", 0.0)
     cam_id   = det.get("camera_id", "")
 
+    enc_path = _resolve_local_path(enc_path)
     # 1. Real .enc at stored path
     if enc_path and os.path.exists(enc_path):
-        if extract_real_recording_clip(enc_path, output_path, offset):
+        if extract_real_recording_clip(
+            enc_path, output_path, offset,
+            bbox=det.get("bbox"),
+            appearance=det.get("appearance"),
+            camera_name=det.get("camera_name", "Camera"),
+            timestamp=det.get("timestamp", "")
+        ):
             return True
         print(f"[FORENSIC TRACKER] Real clip extraction failed for stored path, trying alternatives...")
 
     # 2. DB scan for any real .enc for this camera
-    if db and cam_id:
+    if db is not None and cam_id:
         alt_enc = find_real_enc_for_camera(cam_id, db)
         if alt_enc and alt_enc != enc_path:
             print(f"[FORENSIC TRACKER] Found alternate enc via DB: {alt_enc}")
-            if extract_real_recording_clip(alt_enc, output_path, 15.0):
+            if extract_real_recording_clip(
+                alt_enc, output_path, 15.0,
+                bbox=det.get("bbox"),
+                appearance=det.get("appearance"),
+                camera_name=det.get("camera_name", "Camera"),
+                timestamp=det.get("timestamp", "")
+            ):
                 return True
 
     # 3. Scan decrypted/ folder from VMS build

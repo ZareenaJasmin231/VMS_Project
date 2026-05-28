@@ -54,6 +54,23 @@ def classify_hsv_color(h: float, s: float, v: float) -> str:
 
 # ── Real Recording Resolver ───────────────────────────────────────────────────
 
+def _resolve_local_path(path: str) -> str:
+    if not path:
+        return ""
+    path = path.replace("\\", "/")
+    if os.name == "nt":
+        if path.startswith("/recordings/"):
+            path = path.replace("/recordings/", "D:/REC/")
+        elif path.startswith("/recording/"):
+            path = path.replace("/recording/", "D:/REC/")
+    else:
+        if path.startswith("D:/REC/"):
+            path = path.replace("D:/REC/", "/recordings/")
+        elif path.startswith("D:/rec/"):
+            path = path.replace("D:/rec/", "/recordings/")
+    return path
+
+
 def _find_real_enc_for_camera(camera_id: str) -> dict | None:
     """
     Query the recordings collection for the most recent .enc file for this camera.
@@ -72,7 +89,7 @@ def _find_real_enc_for_camera(camera_id: str) -> dict | None:
             sort=[("created_at", -1)]
         )
         if rec:
-            path = rec.get("file_path", "").replace("\\", "/")
+            path = _resolve_local_path(rec.get("file_path", ""))
             if path and os.path.exists(path):
                 print(f"[FORENSIC INDEXER] ✅ Real enc found for {camera_id}: {path}")
                 return {
@@ -84,6 +101,73 @@ def _find_real_enc_for_camera(camera_id: str) -> dict | None:
                 print(f"[FORENSIC INDEXER] enc path in DB doesn't exist on disk: {path}")
     except Exception as e:
         print(f"[FORENSIC INDEXER] DB enc lookup error for {camera_id}: {e}")
+    return None
+
+
+def _find_real_enc_covering_time(camera_id: str, det_time: datetime) -> dict | None:
+    """
+    Find the actual .enc file recorded for this camera covering det_time.
+    Uses BSON created_at (UTC) to perfectly handle timezones.
+    Priority:
+      1. Exact match where the recording started in the 5.5 minute window before det_time
+      2. The closest recording on the same day (within 12 hours)
+    """
+    try:
+        # 1. Exact match (seeding within the 5m30s chunk window)
+        rec = _db["recordings"].find_one(
+            {
+                "$or": [
+                    {"camera_id": camera_id},
+                    {"ome_stream": camera_id},
+                    {"stream_id": camera_id},
+                ],
+                "created_at": {
+                    "$gte": det_time - timedelta(seconds=330),
+                    "$lte": det_time
+                },
+                "file_path": {"$regex": r"\.enc$"},
+            },
+            sort=[("created_at", -1)]
+        )
+        if rec:
+            path = _resolve_local_path(rec.get("file_path", ""))
+            if path and os.path.exists(path):
+                print(f"[FORENSIC INDEXER] Found exact covering enc for {camera_id} at {det_time}: {path}")
+                return {
+                    "file_path":  path,
+                    "created_at": rec.get("created_at"),
+                }
+
+        # 2. Fallback: closest recording by time difference within a 12-hour window
+        start_search = det_time - timedelta(hours=12)
+        end_search   = det_time + timedelta(hours=12)
+        recs = list(_db["recordings"].find(
+            {
+                "$or": [
+                    {"camera_id": camera_id},
+                    {"ome_stream": camera_id},
+                    {"stream_id": camera_id},
+                ],
+                "created_at": {
+                    "$gte": start_search,
+                    "$lte": end_search
+                },
+                "file_path": {"$regex": r"\.enc$"},
+            }
+        ).limit(20))
+
+        if recs:
+            best_rec = min(recs, key=lambda r: abs((r.get("created_at") - det_time).total_seconds()))
+            path = _resolve_local_path(best_rec.get("file_path", ""))
+            if path and os.path.exists(path):
+                diff_sec = abs((best_rec.get("created_at") - det_time).total_seconds())
+                print(f"[FORENSIC INDEXER] Found closest enc by time difference ({diff_sec:.1f}s diff) for {camera_id}: {path}")
+                return {
+                    "file_path":  path,
+                    "created_at": best_rec.get("created_at"),
+                }
+    except Exception as e:
+        print(f"[FORENSIC INDEXER] Covering BSON enc lookup error: {e}")
     return None
 
 
@@ -156,21 +240,12 @@ def seed_forensic_database():
             cameras.append(cameras[len(cameras) % len(cameras or DEMO_CAMERAS)])
 
     # ── Step 2: Resolve real .enc paths per camera ────────────────────────────
-    # Build a cache: camera_id → { file_path, created_at } | None
-    enc_cache: dict[str, dict | None] = {}
-    for cam in cameras:
-        if cam["id"] not in enc_cache:
-            enc_cache[cam["id"]] = _find_real_enc_for_camera(cam["id"])
-
-    total_real = sum(1 for v in enc_cache.values() if v is not None)
-    print(f"[FORENSIC INDEXER] Real enc files found: {total_real}/{len(enc_cache)}")
-
     def resolve_path_and_meta(cam_id: str, base_date_str: str, base_time: datetime, det_time: datetime):
         """Return (enc_file_path, date_str, timestamp_iso, offset_sec)."""
-        cached = enc_cache.get(cam_id)
-        if cached:
-            offset = _calc_offset(cached.get("created_at"), det_time)
-            return cached["file_path"], base_date_str, det_time.isoformat(), offset
+        real_enc = _find_real_enc_covering_time(cam_id, det_time)
+        if real_enc:
+            offset = _calc_offset(real_enc.get("created_at"), det_time)
+            return real_enc["file_path"], base_date_str, det_time.isoformat(), offset
 
         # Fallback: simulated path (file won't exist; tracker will use HUD/Python stub)
         sim_path = f"/recordings/{cam_id}/{base_date_str}/{base_time.strftime('%H-%M-%S')}.enc"
@@ -254,6 +329,7 @@ def seed_forensic_database():
 
     detections = []
     det_counter = 1000
+    total_real_clips = 0
 
     for (slot_date, slot_hour, slot_min) in SLOTS:
         base_time     = slot_date.replace(hour=slot_hour, minute=slot_min, second=0, microsecond=0)
@@ -270,6 +346,9 @@ def seed_forensic_database():
                 enc_path, date_s, ts_iso, offset = resolve_path_and_meta(
                     cam["id"], base_date_str, base_time, det_time
                 )
+
+                if not enc_path.startswith("/recordings/"):
+                    total_real_clips += 1
 
                 detections.append({
                     "detection_id":    f"det_{det_counter}",
@@ -290,8 +369,8 @@ def seed_forensic_database():
     try:
         forensic_col.insert_many(detections)
         print(f"[FORENSIC INDEXER] ✅ Seeded {len(detections)} detections ({len(SLOTS)} time slots × {len(SUBJECTS)} subjects).")
-        if total_real > 0:
-            print(f"[FORENSIC INDEXER] 🎯 {total_real} camera(s) have real .enc files — real video will play.")
+        if total_real_clips > 0:
+            print(f"[FORENSIC INDEXER] 🎯 {total_real_clips} detection(s) mapped to real .enc files — real video will play.")
         else:
             print("[FORENSIC INDEXER] ℹ No real .enc files found — HUD/Python stub fallback will be used.")
     except Exception as e:

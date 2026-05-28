@@ -228,8 +228,7 @@ export default function ForensicSearchPage() {
         `bottom_color=${bottomColor}`,
         `gender=${gender}`,
         `bag=${bag}`,
-        cameraQuery,
-      ].join("");
+      ].join("&") + cameraQuery;
 
       const res  = await fetch(`${API_BASE}/api/forensic/search?${qs}`, { headers: getAuthHeaders() });
       const data = await res.json();
