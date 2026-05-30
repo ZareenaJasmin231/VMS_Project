@@ -669,3 +669,25 @@
   color: #a78bfa;
   border: 1px solid rgba(130, 100, 255, 0.2);
 }
+
+/* ── Refresh button ── */
+.topbar__refresh-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 6px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  height: 28px;
+  width: 28px;
+}
+
+.topbar__refresh-btn:hover {
+  background: var(--bg-hover);
+  color: var(--teal);
+  transform: rotate(180deg);
+}

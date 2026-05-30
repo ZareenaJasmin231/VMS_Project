@@ -335,7 +335,7 @@ export default function StorageManagementPage() {
       </div>
 
       <div className="sm-table-actions">
-        <button className="sm-btn" disabled={selected === null} onClick={handleRemove}>Remove</button>
+        <button className="sm-btn sm-btn--danger" disabled={selected === null} onClick={handleRemove}>Remove</button>
       </div>
 
       {sel && (
@@ -455,9 +455,7 @@ export default function StorageManagementPage() {
                 className="sm-input"
               />
             </div>
-            <div style={{ fontSize: "12px", color: "var(--text-muted, #888)", marginTop: 2, lineHeight: 1.3 }}>
-              Windows path <code>D:\REC\site-A</code> or container path <code>/recordings/site-A</code> are both automatically converted.
-            </div>
+
 
             {applyMsg && <div className="sm-apply-msg">{applyMsg}</div>}
 

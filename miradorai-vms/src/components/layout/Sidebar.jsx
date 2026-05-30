@@ -50,8 +50,7 @@ export default function Sidebar({ userRole }) {
         </div>
         {!isCollapsed && (
           <div className="sidebar__logo-text">
-            <span className="sidebar__logo-name">MIRADOR</span>
-            <span className="sidebar__logo-sub">VMS Platform</span>
+            <span className="sidebar__logo-name">MIRADOR VMS</span>
           </div>
         )}
         <button 

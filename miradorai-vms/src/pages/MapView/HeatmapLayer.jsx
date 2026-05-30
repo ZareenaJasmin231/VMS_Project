@@ -80,14 +80,14 @@ export default function HeatmapLayer({
             <span className="mv-heatmap-legend__swatch mv-heatmap-legend__swatch--single" />
             <span>Single camera coverage</span>
           </div>
-          <div className="mv-heatmap-legend__row">
+          {/* <div className="mv-heatmap-legend__row">
             <span className="mv-heatmap-legend__swatch mv-heatmap-legend__swatch--overlap" />
             <span>2-camera overlap</span>
           </div>
           <div className="mv-heatmap-legend__row">
             <span className="mv-heatmap-legend__swatch mv-heatmap-legend__swatch--high" />
             <span>High density (3+ cameras)</span>
-          </div>
+          </div> */}
         </div>
       )}
     </>

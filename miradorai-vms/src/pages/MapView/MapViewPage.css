@@ -21,6 +21,8 @@
   border-bottom: 0.5px solid var(--color-border-tertiary, #2e3d55);
   background: var(--color-background-secondary, #161c28);
   flex-shrink: 0;
+  position: relative;
+  z-index: 1010;
 }
 
 .mv-toolbar__left {
@@ -2241,7 +2243,17 @@
 .mv-inspector-content .mv-zone-header-btn:hover .mv-zone-btn__delete {
   opacity: 1 !important;
   max-width: 24px !important;
-  color: #f87171 !important;
+  color: rgba(255, 255, 255, 0.5) !important;
+}
+
+.mv-zone-btn__delete:hover {
+  color: #ef4444 !important;
+  opacity: 1 !important;
+}
+
+.mv-zone-btn__edit:hover {
+  color: #ffffff !important;
+  opacity: 1 !important;
 }
 
 /* Ensure nested camera lists in a zone are visible in the right side bar */

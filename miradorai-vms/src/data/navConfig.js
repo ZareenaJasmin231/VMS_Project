@@ -57,16 +57,7 @@ const CORE_NAV = [
     </svg>`,
   },
 
-    // ✅ FORENSIC SEARCH
-  {
-    section: "Forensic Search",
-    page: "forensic-search",
-    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-      <circle cx="11" cy="11" r="8"/>
-      <path d="m21 21-4.35-4.35"/>
-      <path d="M11 8v6M8 11h6"/>
-    </svg>`,
-  },
+
   // ✅ RECORDING & EVENTS
   {
     section: "Recording & Events",
@@ -77,7 +68,7 @@ const CORE_NAV = [
     items: [
       { label: "Schedules", page: "schedules" },
       { label: "Recording Method", page: "rec-method" },
-      { label: "Action Rules", page: "action-rules" },
+      // { label: "Action Rules", page: "action-rules" },
     ],
   },
 
@@ -105,7 +96,16 @@ const ADMIN_ONLY_NAV = [
       <rect x="1" y="5" width="15" height="14" rx="2"/>
     </svg>`,
   },
-
+    // ✅ FORENSIC SEARCH
+  {
+    section: "Forensic Search",
+    page: "forensic-search",
+    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+      <circle cx="11" cy="11" r="8"/>
+      <path d="m21 21-4.35-4.35"/>
+      <path d="M11 8v6M8 11h6"/>
+    </svg>`,
+  },
   // ✅ BACKUP
   {
     section: "Backup",
@@ -116,18 +116,21 @@ const ADMIN_ONLY_NAV = [
     </svg>`,
   },
 
-  // ✅ LOGS
-  {
-    section: "Logs",
-    page: "logs",
-    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-      <polyline points="14 2 14 8 20 8"/>
-      <line x1="16" y1="13" x2="8" y2="13"/>
-      <line x1="16" y1="17" x2="8" y2="17"/>
-      <polyline points="10 9 9 9 8 9"/>
-    </svg>`,
-  },
+
+
+
+
+    {
+  section: "Designer View",
+  page: "designer-view",
+
+  icon: `<svg viewBox="0 0 24 24" fill="none"
+  stroke="currentColor" stroke-width="1.8">
+    <rect x="3" y="3" width="18" height="18" rx="2"/>
+    <path d="M8 8h8v8H8z"/>
+    <path d="M3 12h5M16 12h5"/>
+  </svg>`,
+},
 
   //mapview
   // Add after the Logs entry in ADMIN_ONLY_NAV
@@ -141,23 +144,24 @@ const ADMIN_ONLY_NAV = [
       <line x1="16" y1="6" x2="16" y2="22"/>
     </svg>`,
   },
-    {
-  section: "Designer View",
-  page: "designer-view",
-
-  icon: `<svg viewBox="0 0 24 24" fill="none"
-  stroke="currentColor" stroke-width="1.8">
-    <rect x="3" y="3" width="18" height="18" rx="2"/>
-    <path d="M8 8h8v8H8z"/>
-    <path d="M3 12h5M16 12h5"/>
-  </svg>`,
-},
   // ✅ INFRASTRUCTURE
   {
     section: "Infrastructure",
     page: "infrastructure",
     icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
       <rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" y1="6" x2="6" y2="6"/><line x1="6" y1="18" x2="6" y2="18"/><path d="M12 10v4M12 10h4M12 14h4"/>
+    </svg>`,
+  },
+    // ✅ LOGS
+    {
+    section: "Logs",
+    page: "logs",
+    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+      <polyline points="14 2 14 8 20 8"/>
+      <line x1="16" y1="13" x2="8" y2="13"/>
+      <line x1="16" y1="17" x2="8" y2="17"/>
+      <polyline points="10 9 9 9 8 9"/>
     </svg>`,
   },
 
@@ -206,7 +210,7 @@ const CLIENT_NAV = [
     items: [
       { label: "Schedules",         page: "schedules" },
       { label: "Recording Method",  page: "rec-method" },
-      { label: "Action Rules",      page: "action-rules" },
+      // { label: "Action Rules",      page: "action-rules" },
     ],
   },
   { section: "Forensic Search", page: "forensic-search", icon: ICONS.forensicSearch },

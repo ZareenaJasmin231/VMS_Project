@@ -381,10 +381,32 @@ function ZoneSidebarItem({
   highlightedCamId,
   onSelect,
   onDelete,
+  onRename,
   onHighlightCam,
   onRemoveCam,
   sidebarExpanded,
 }) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [editName, setEditName] = useState(zone.name);
+
+  useEffect(() => {
+    setEditName(zone.name);
+  }, [zone.name]);
+
+  const handleSave = () => {
+    const trimmed = editName.trim();
+    if (!trimmed) {
+      alert("Zone name cannot be empty.");
+      setEditName(zone.name);
+      setIsEditing(false);
+      return;
+    }
+    if (trimmed !== zone.name) {
+      onRename(zone.id, trimmed);
+    }
+    setIsEditing(false);
+  };
+
   const camsInZone = markers.filter(
     m => zone.polygon.length >= 3 && pointInPolygon(m.x, m.y, zone.polygon)
   );
@@ -393,7 +415,7 @@ function ZoneSidebarItem({
     <div className={`mv-zone-sidebar-item ${isActive ? "mv-zone-sidebar-item--active" : ""}`}>
       <button
         className="mv-zone-header-btn"
-        onClick={() => onSelect(zone)}
+        onClick={() => !isEditing && onSelect(zone)}
         title={zone.name}
         style={isActive ? { borderLeft: `2.5px solid ${zone.color}` } : {}}
       >
@@ -401,7 +423,37 @@ function ZoneSidebarItem({
           className="mv-zone-btn__swatch"
           style={{ background: zone.color, flexShrink: 0 }}
         />
-        <span className="mv-zone-header-btn__name">{zone.name}</span>
+        {isEditing ? (
+          <input
+            type="text"
+            value={editName}
+            onChange={e => setEditName(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === "Enter") {
+                handleSave();
+              } else if (e.key === "Escape") {
+                setIsEditing(false);
+                setEditName(zone.name);
+              }
+            }}
+            onBlur={handleSave}
+            onClick={e => e.stopPropagation()}
+            autoFocus
+            style={{
+              background: "#0d1117",
+              border: "1px solid #185FA5",
+              borderRadius: "4px",
+              color: "#e8edf5",
+              fontSize: "11px",
+              padding: "2px 4px",
+              width: "100%",
+              outline: "none",
+              fontFamily: "inherit"
+            }}
+          />
+        ) : (
+          <span className="mv-zone-header-btn__name">{zone.name}</span>
+        )}
         {camsInZone.length > 0 && (
           <span className="mv-zone-header-btn__count" style={{ background: `${zone.color}28`, color: zone.color }}>
             {camsInZone.length}
@@ -416,11 +468,41 @@ function ZoneSidebarItem({
             <polyline points="6 9 12 15 18 9"/>
           </svg>
         )}
-        <span
-          className="mv-zone-btn__delete"
-          onClick={e => { e.stopPropagation(); onDelete(zone.id); }}
-          title="Delete zone"
-        >✕</span>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", zIndex: 5 }} onClick={e => e.stopPropagation()}>
+          <span
+            className="mv-zone-btn__edit"
+            onClick={e => { e.stopPropagation(); setIsEditing(true); }}
+            title="Rename zone"
+            style={{
+              fontSize: "11px",
+              color: "rgba(255, 255, 255, 0.5)",
+              cursor: "pointer",
+              padding: "2px",
+              flexShrink: 0,
+              display: "flex",
+              alignItems: "center"
+            }}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="11" height="11">
+              <path d="M12 20h9M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/>
+            </svg>
+          </span>
+          <span
+            className="mv-zone-btn__delete"
+            onClick={e => { e.stopPropagation(); onDelete(zone.id); }}
+            title="Delete zone"
+            style={{
+              fontSize: "12px",
+              color: "rgba(255, 255, 255, 0.5)",
+              cursor: "pointer",
+              padding: "2px",
+              flexShrink: 0,
+              fontWeight: "bold",
+              display: "flex",
+              alignItems: "center"
+            }}
+          >✕</span>
+        </div>
       </button>
 
       {isActive && sidebarExpanded && camsInZone.length > 0 && (
@@ -959,9 +1041,22 @@ export default function MapViewPage() {
         text:    `${cam.name}  •  ${cam.ip}  •  ${cam.status === "online" ? "🟢 Online" : "⚫ Offline"}  •  FOV ${m.fovAngle || 60}°  •  Dir ${Math.round(m.direction || 0)}°`,
       });
     } else {
-      setTooltip(t => ({ ...t, visible: false }));
+      const hoveredZone = zonesRef.current
+        .filter(z => z.floorIndex === activeFloor)
+        .find(z => z.polygon?.length >= 3 && pointInPolygon(p.x, p.y, z.polygon));
+
+      if (hoveredZone) {
+        setTooltip({
+          visible: true,
+          x:       e.nativeEvent.offsetX + 14,
+          y:       e.nativeEvent.offsetY - 36,
+          text:    `Zone: ${hoveredZone.name}`,
+        });
+      } else {
+        setTooltip(t => ({ ...t, visible: false }));
+      }
     }
-  }, [cameras]); // eslint-disable-line
+  }, [cameras, activeFloor]); // eslint-disable-line
 
   const onMouseDown = useCallback(e => {
     if (!floorImgRef.current || e.button === 2) return;
@@ -1176,6 +1271,24 @@ export default function MapViewPage() {
       activeZoneIdRef.current = null;
     }
     canvasApiRef.current?.drawAll();
+  }
+
+  function renameZone(id, newName) {
+    const zone = zonesRef.current.find(z => z.id === id);
+    if (!zone) return;
+    const trimmed = newName.trim();
+    if (!trimmed) return;
+    const exists = zonesRef.current.some(z => z.id !== id && z.name.toLowerCase() === trimmed.toLowerCase());
+    if (exists) {
+      alert("A zone with this name already exists.");
+      return;
+    }
+    const updated = zonesRef.current.map(z => z.id === id ? { ...z, name: trimmed } : z);
+    setZones(updated);
+    zonesRef.current = updated;
+    persistZones(updated);
+    canvasApiRef.current?.drawAll();
+    setStatus(`Zone renamed to "${trimmed}"`);
   }
 
   function selectZone(zone) {
@@ -1934,11 +2047,11 @@ export default function MapViewPage() {
             scaleRef={scaleRef}
             offsetRef={offsetRef}
             wrapRef={wrapRef}
-            virtualMode={virtualMode}
+            visible={virtualMode}
             floorImgRef={floorImgRef}
             expandedCamId={expandedCamId}
-            onCloseCam={() => setExpandedCamId(null)}
-            onSelectCam={setExpandedCamId}
+            onClose={() => setExpandedCamId(null)}
+            onExpand={setExpandedCamId}
           />
 
           {/* Configuration panel modal */}
@@ -2107,45 +2220,6 @@ export default function MapViewPage() {
                           ))
                         )}
                       </div>
-
-                      {markers.length > 0 && (
-                        <div className="mv-inspector-legend">
-                          <div className="mv-inspector-section-title" style={{ marginTop: 24, borderTop: "0.5px solid #2e3d55", paddingTop: 16 }}>
-                            Placed on Map ({markers.length})
-                          </div>
-                          <div className="mv-legend-scroller">
-                            {markers.map((m, i) => {
-                              const cam = cameras.find(c => c.id === m.camId) || {
-                                name:   m.camName,
-                                status: "offline",
-                              };
-                              const camZone = zones.filter(z => z.floorIndex === activeFloor).find(z => z.polygon.length >= 3 && pointInPolygon(m.x, m.y, z.polygon));
-                              return (
-                                <div key={i} className="mv-legend__item">
-                                  <span className="mv-legend__num">{i + 1}</span>
-                                  <span className={`mv-cam-dot mv-cam-dot--${cam.status}`} />
-                                  <div className="mv-legend__info">
-                                    <span className="mv-legend__name">{cam.name}</span>
-                                    <span className="mv-legend__meta">
-                                      FOV {m.fovAngle || 60}° · {Math.round(m.direction || 0)}°
-                                      {camZone && (
-                                        <span className="mv-legend__zone-tag" style={{ color: camZone.color }}>
-                                          &nbsp;· {camZone.name}
-                                        </span>
-                                      )}
-                                    </span>
-                                  </div>
-                                  <button
-                                    className="mv-legend__remove"
-                                    onClick={() => removeMarker(i)}
-                                    title="Remove"
-                                  >✕</button>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      )}
                     </div>
                   ) : (
                     <div className="mv-inspector-flow">
@@ -2170,6 +2244,7 @@ export default function MapViewPage() {
                               highlightedCamId={highlightedCamId}
                               onSelect={selectZone}
                               onDelete={deleteZone}
+                              onRename={renameZone}
                               onHighlightCam={handleHighlightCam}
                               onRemoveCam={removeCamFromZone}
                               sidebarExpanded={true}
@@ -2308,18 +2383,18 @@ function ZoneOverlay({ zones, draftZones = [], drawingPoints, activeZoneId, scal
           <g key={z.id}>
             <polygon
               points={pts}
-              fill={`url(#hatch-${z.id})`}
+              fill="none"
               stroke={z.color}
               strokeWidth={isActive ? 2.5 : 1.5}
               strokeOpacity={isActive ? 1 : 0.55}
               strokeDasharray={isActive ? "none" : "6 3"}
             />
-            <polygon
+            {/* <polygon
               points={pts}
               fill={z.color}
               fillOpacity={isActive ? 0.1 : 0.05}
               stroke="none"
-            />
+            /> */}
             {z.polygon.map((p, i) => {
               const [vx, vy] = toPx(p.x, p.y);
               return (
@@ -2358,12 +2433,12 @@ function ZoneOverlay({ zones, draftZones = [], drawingPoints, activeZoneId, scal
               strokeOpacity={0.65}
               strokeDasharray="4 4"
             />
-            <polygon
+            {/* <polygon
               points={pts}
               fill={z.color}
               fillOpacity={0.06}
               stroke="none"
-            />
+            /> */}
             {z.polygon.map((p, i) => {
               const [vx, vy] = toPx(p.x, p.y);
               return (

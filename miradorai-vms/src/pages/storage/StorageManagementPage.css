@@ -41,6 +41,18 @@
   justify-content: flex-end;
   gap: 8px;
   flex-shrink: 0;
+  margin-top: 16px;
+}
+
+.sm-btn--danger {
+  color: #f87171 !important;
+  border-color: rgba(239, 68, 68, 0.4) !important;
+  background: rgba(239, 68, 68, 0.05) !important;
+}
+.sm-btn--danger:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.15) !important;
+  border-color: #ef4444 !important;
+  color: #fff !important;
 }
 
 .sm-btn {

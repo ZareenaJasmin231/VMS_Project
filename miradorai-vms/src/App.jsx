@@ -36,19 +36,7 @@ function AppContent() {
     return <LoginPage />;
   }
 
-  if (activePage === "ai-analytics") {
-    return (
-      <>
-        {showSplash && <SplashScreen onDone={handleSplashDone} />}
-        <div
-          className="app-root"
-          style={{ opacity: appVisible ? 1 : 0, transition: "opacity 0.5s ease" }}
-        >
-          <AiAnalyticsPage />
-        </div>
-      </>
-    );
-  }
+
 
   return (
     <>

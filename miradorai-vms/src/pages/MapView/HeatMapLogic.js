@@ -103,6 +103,17 @@ export function drawHeatmapToContext(
   const data        = imageData.data;
   const foundLevels = new Set();
 
+  // Pre-cache the containing zone for each marker to maximize performance
+  const markerZones = new Map();
+  if (allZones.length > 0) {
+    for (const marker of markers) {
+      const zone = allZones.find(z => z.polygon?.length >= 3 && pointInPolygon(marker.x, marker.y, z.polygon));
+      if (zone) {
+        markerZones.set(marker, zone);
+      }
+    }
+  }
+
   for (let sy = 0; sy < sh; sy += step) {
     for (let sx = 0; sx < sw; sx += step) {
 
@@ -120,18 +131,29 @@ export function drawHeatmapToContext(
       let onlineCoverage = 0;
       for (const marker of markers) {
         if (!insideCone(imgX, imgY, marker)) continue;
+
+        // Only count coverage if the pixel is in the same zone where the camera is placed
+        const mZone = markerZones.get(marker);
+        if (mZone && !pointInPolygon(imgX, imgY, mZone.polygon)) continue;
+
         const cam = cameras.find(c => c.id === marker.camId);
         if (cam?.status === "online") onlineCoverage++;
       }
 
-      const level = Math.min(onlineCoverage, 3);
+      const level = onlineCoverage > 0 ? 1 : 0;
       foundLevels.add(level);
 
       let r, g, b, a;
-      if      (onlineCoverage === 0) { r=15;  g=15;  b=25;  a=110; }
+      if (onlineCoverage === 0) {
+        r=15;  g=15;  b=25;  a=110; // Blind spot / Black
+      } else {
+        r=34;  g=197; b=94;  a=150; // Green coverage
+      }
+      /* Commented out yellow and red colors as requested:
       else if (onlineCoverage === 1) { r=34;  g=197; b=94;  a=150; }
       else if (onlineCoverage === 2) { r=234; g=179; b=8;   a=170; }
       else                           { r=220; g=38;  b=38;  a=190; }
+      */
 
       for (let dy = 0; dy < step && sy + dy < sh; dy++) {
         for (let dx = 0; dx < step && sx + dx < sw; dx++) {
@@ -170,9 +192,11 @@ export function drawHeatmapLegendToCanvas(
 ) {
   const entries = [];
   if (!foundLevels || foundLevels.has(0)) entries.push({ color: "rgba(30,41,59,0.88)",  label: "Blind Spot (No Coverage)" });
-  if (!foundLevels || foundLevels.has(1)) entries.push({ color: "rgba(34,197,94,0.88)", label: "Single Camera Coverage" });
+  if (!foundLevels || foundLevels.has(1)) entries.push({ color: "rgba(34,197,94,0.88)", label: "Camera Coverage" });
+  /* Commented out yellow and red legends as requested:
   if (!foundLevels || foundLevels.has(2)) entries.push({ color: "rgba(234,179,8,0.90)", label: "2-Camera Overlap" });
   if (!foundLevels || foundLevels.has(3)) entries.push({ color: "rgba(220,38,38,0.92)", label: "High Density (3+ Overlap)" });
+  */
   if (!entries.length) return;
 
   const fontSize = compact ? 9 : 13,  swatchW = compact ? 16 : 30, swatchH = compact ? 8 : 14;
@@ -312,5 +336,69 @@ function drawCameraIcon(ctx, x, y, size, type, color) {
     ctx.beginPath(); ctx.moveTo(17, 9); ctx.lineTo(22, 7); ctx.lineTo(22, 17); ctx.lineTo(17, 15); ctx.closePath(); ctx.stroke();
     ctx.beginPath(); ctx.arc(9, 12, 2, 0, Math.PI * 2); ctx.fillStyle = color + "44"; ctx.fill(); ctx.stroke();
   }
+  ctx.restore();
+}
+
+/** Draws the DORI Clarity Zones legend onto an export canvas.
+ *  Colors and labels match the live UI legend and canvas beam colors exactly.
+ */
+export function drawDoriLegendToCanvas(ctx, canvasW, canvasH) {
+  const entries = [
+    { color: "#a855f7", label: "Identification (250+ px/m)" },
+    { color: "#f97316", label: "Recognition (125+ px/m)" },
+    { color: "#eab308", label: "Observation (62+ px/m)" },
+    { color: "#3b82f6", label: "Detection (25+ px/m)" },
+  ];
+
+  const fontSize = 9, dotSize = 7, rowGap = 17, padX = 10, padY = 10;
+  const boxRadius = 6, margin = 12;
+
+  ctx.save();
+  ctx.font = `700 ${fontSize}px Inter, system-ui, sans-serif`;
+  const maxLW = Math.max(...entries.map(e => ctx.measureText(e.label).width));
+  const titleH = 14;
+  const boxW = padX * 2 + dotSize + 10 + maxLW;
+  const boxH = padY * 2 + titleH + 4 + entries.length * rowGap;
+  const bx = margin;
+  const by = margin;
+
+  // Background box
+  ctx.fillStyle = "rgba(13, 20, 32, 0.92)";
+  ctx.beginPath();
+  if (ctx.roundRect) ctx.roundRect(bx, by, boxW, boxH, boxRadius); else ctx.rect(bx, by, boxW, boxH);
+  ctx.fill();
+  ctx.strokeStyle = "rgba(168, 85, 247, 0.5)";
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  // Title
+  ctx.fillStyle = "#c084fc";
+  ctx.font = `800 ${fontSize - 1}px Inter, system-ui, sans-serif`;
+  ctx.textBaseline = "top";
+  ctx.fillText("DORI ZONES (EN 62676-4)", bx + padX, by + padY);
+
+  // Divider line
+  const divY = by + padY + titleH + 2;
+  ctx.strokeStyle = "rgba(255,255,255,0.1)";
+  ctx.lineWidth = 0.5;
+  ctx.beginPath(); ctx.moveTo(bx + padX, divY); ctx.lineTo(bx + boxW - padX, divY); ctx.stroke();
+
+  entries.forEach((e, i) => {
+    const ey = divY + 4 + i * rowGap;
+    // Colored dot
+    ctx.beginPath();
+    ctx.arc(bx + padX + dotSize / 2, ey + dotSize / 2, dotSize / 2, 0, Math.PI * 2);
+    ctx.fillStyle = e.color;
+    ctx.shadowColor = e.color;
+    ctx.shadowBlur = 4;
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    // Label
+    ctx.fillStyle = "#e2e8f0";
+    ctx.font = `600 ${fontSize}px Inter, system-ui, sans-serif`;
+    ctx.textBaseline = "middle";
+    ctx.fillText(e.label, bx + padX + dotSize + 8, ey + dotSize / 2);
+  });
+
   ctx.restore();
 }

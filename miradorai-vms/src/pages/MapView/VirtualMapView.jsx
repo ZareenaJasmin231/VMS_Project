@@ -122,6 +122,7 @@ export default function VirtualMapView({
             isRecording={isRecording}
             onExpand={() => onExpand(cam.id)}
             onClose={onClose}
+            wrap={wrap}
           />
         );
       })}
@@ -144,14 +145,18 @@ export default function VirtualMapView({
 }
 
 // ── Single camera thumbnail pinned to map position ────────────────
-function CamThumbnail({ cam, marker, index, sx, sy, isExpanded, isOnline, isRecording, onExpand, onClose }) {
+function CamThumbnail({ cam, marker, index, sx, sy, isExpanded, isOnline, isRecording, onExpand, onClose, wrap }) {
   const THUMB_W = 160;
   const THUMB_H = 90;
   const [thumbLive, setThumbLive] = useState(false);
 
   // Position thumbnail so its bottom-centre aligns with the camera dot
-  const left = sx - THUMB_W / 2;
-  const top  = sy - THUMB_H - 28; // 28px above the dot
+  // Clamp to ensure it doesn't get cut off or go off the top/sides of the canvas wrap
+  const wrapW = wrap ? wrap.clientWidth : 1000;
+  const wrapH = wrap ? wrap.clientHeight : 1000;
+
+  const left = Math.max(8, Math.min(wrapW - THUMB_W - 8, sx - THUMB_W / 2));
+  const top  = Math.max(8, Math.min(wrapH - THUMB_H - 8, sy - THUMB_H - 28)); // 28px above the dot
 
   return (
     <div

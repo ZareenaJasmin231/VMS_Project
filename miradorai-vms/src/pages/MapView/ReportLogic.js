@@ -46,12 +46,57 @@ export function drawStorageReport(data) {
   ctx.strokeStyle = C_ACCENT; ctx.lineWidth = 4;
   ctx.strokeRect(60, 40, W - 120, 120);
 
-  ctx.fillStyle = C_ACCENT;
-  ctx.font = "bold 44px sans-serif";
-  ctx.textAlign = "center";
-  ctx.fillText("CCTV STORAGE CALCULATION:", W / 2, 95);
-  ctx.font = "32px sans-serif";
-  ctx.fillText("A STRATEGIC GUIDE", W / 2, 135);
+  // ── MIRADOR VMS LOGO (Top Left) ──
+  if (data.logoImg) {
+    ctx.drawImage(data.logoImg, 80, 60, 80, 80);
+  } else {
+    // 1. Fallback Logo Mark (Camera Lens / Eye vector drawing)
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(120, 100, 30, 0, Math.PI * 2);
+    ctx.fillStyle = "#0f172a";
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.arc(120, 100, 20, 0, Math.PI * 2);
+    ctx.strokeStyle = "#3b82f6";
+    ctx.lineWidth = 3.5;
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.arc(120, 100, 9, 0, Math.PI * 2);
+    ctx.fillStyle = "#1d9e75";
+    ctx.fill();
+
+    // Status indicator glint
+    ctx.beginPath();
+    ctx.arc(126, 94, 3, 0, Math.PI * 2);
+    ctx.fillStyle = "#ffffff";
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // 2. Logo Text (MIRADOR VMS)
+  ctx.save();
+  ctx.textAlign = "left";
+  ctx.textBaseline = "middle";
+  ctx.fillStyle = "#0f172a";
+  ctx.font = "bold 34px sans-serif";
+  ctx.fillText("MIRADOR VMS", 175, 100);
+  ctx.restore();
+
+  // ── REPORT TITLE (Top Right Aligned) ──
+  ctx.save();
+  ctx.textAlign = "right";
+  ctx.textBaseline = "middle";
+  ctx.fillStyle = "#1e293b";
+  ctx.font = "bold 30px sans-serif";
+  ctx.fillText("CCTV STORAGE REPORT", W - 90, 82);
+
+  ctx.fillStyle = "#3b82f6";
+  ctx.font = "bold 15px sans-serif";
+  ctx.fillText("SYSTEM DESIGN & STORAGE ESTIMATE", W - 90, 118);
+  ctx.restore();
 
   // ── Main Content Area ──
   const topY = 200;
@@ -85,16 +130,37 @@ export function drawStorageReport(data) {
   const rightX = 640;
   drawSectionHeader(ctx, "CALCULATION SUMMARY", rightX, topY, 480);
   
-  // Table
+  // Table constants
   const tableY = topY + 50;
-  const colW = [160, 180, 120];
+  const tableW = 480;
+  const ROW_H = 52;
+  const COL_ITEM = 0;
+  const COL_FORMULA = 160;
+  const COL_RESULT = 350;
+
+  // Header row background
   ctx.fillStyle = C_BOX_BG;
-  ctx.fillRect(rightX, tableY, 480, 45);
+  ctx.fillRect(rightX, tableY, tableW, ROW_H);
+  // Header row border
+  ctx.strokeStyle = C_BORDER;
+  ctx.lineWidth = 1;
+  ctx.strokeRect(rightX, tableY, tableW, ROW_H);
+  // Vertical dividers in header
+  ctx.beginPath();
+  ctx.moveTo(rightX + COL_FORMULA, tableY);
+  ctx.lineTo(rightX + COL_FORMULA, tableY + ROW_H);
+  ctx.moveTo(rightX + COL_RESULT, tableY);
+  ctx.lineTo(rightX + COL_RESULT, tableY + ROW_H);
+  ctx.stroke();
+
+  // Header text — vertically centered
   ctx.font = "bold 18px sans-serif";
   ctx.fillStyle = C_TEXT;
-  ctx.fillText("Item", rightX + 10, tableY + 30);
-  ctx.fillText("Formula", rightX + 170, tableY + 30);
-  ctx.fillText("Result", rightX + 350, tableY + 30);
+  ctx.textAlign = "left";
+  ctx.textBaseline = "middle";
+  ctx.fillText("Item",    rightX + COL_ITEM    + 10, tableY + ROW_H / 2);
+  ctx.fillText("Formula", rightX + COL_FORMULA + 10, tableY + ROW_H / 2);
+  ctx.fillText("Result",  rightX + COL_RESULT  + 10, tableY + ROW_H / 2);
 
   const rows = [
     { 
@@ -104,27 +170,58 @@ export function drawStorageReport(data) {
     },
     { 
       item: "Daily (Total):", 
-      formula: "Bandwidth x Sec", 
+      formula: "Bandwidth × Sec", 
       res: data.dailyStorageTotalGB.toFixed(1) + " GB" 
     },
     { 
       item: "Total Retention:", 
-      formula: "Daily x Days", 
+      formula: "Daily × Days", 
       res: (data.totalStorageTB >= 1 ? data.totalStorageTB.toFixed(2) + " TB" : data.totalStorageGB.toFixed(1) + " GB") 
     },
   ];
 
   rows.forEach((r, i) => {
-    const py = tableY + 45 + (i + 1) * 55;
+    const rowY = tableY + ROW_H + i * ROW_H;
+    const midY = rowY + ROW_H / 2;
+
+    // Alternating row background
+    ctx.fillStyle = i % 2 === 0 ? "#ffffff" : C_ACCENT_LIGHT;
+    ctx.fillRect(rightX, rowY, tableW, ROW_H);
+
+    // Row border
     ctx.strokeStyle = C_BORDER;
-    ctx.strokeRect(rightX, tableY + 45 + i * 55, 480, 55);
-    ctx.font = "18px sans-serif";
-    ctx.fillText(r.item, rightX + 10, py - 20);
+    ctx.lineWidth = 1;
+    ctx.strokeRect(rightX, rowY, tableW, ROW_H);
+
+    // Vertical column dividers
+    ctx.beginPath();
+    ctx.moveTo(rightX + COL_FORMULA, rowY);
+    ctx.lineTo(rightX + COL_FORMULA, rowY + ROW_H);
+    ctx.moveTo(rightX + COL_RESULT, rowY);
+    ctx.lineTo(rightX + COL_RESULT, rowY + ROW_H);
+    ctx.stroke();
+
+    // Item text
+    ctx.font = "600 18px sans-serif";
+    ctx.fillStyle = C_TEXT;
+    ctx.textAlign = "left";
+    ctx.textBaseline = "middle";
+    ctx.fillText(r.item, rightX + COL_ITEM + 10, midY);
+
+    // Formula text (italic)
     ctx.font = "italic 16px sans-serif";
-    ctx.fillText(r.formula, rightX + 170, py - 20);
+    ctx.fillStyle = "#475569";
+    ctx.fillText(r.formula, rightX + COL_FORMULA + 10, midY);
+
+    // Result text (bold, accent color)
     ctx.font = "bold 18px sans-serif";
-    ctx.fillText(r.res, rightX + 350, py - 20);
+    ctx.fillStyle = i === rows.length - 1 ? "#16a34a" : C_ACCENT;
+    ctx.fillText(r.res, rightX + COL_RESULT + 10, midY);
   });
+
+  // Reset textBaseline
+  ctx.textBaseline = "alphabetic";
+
 
   // ── STEP 1: CALCULATE UNIT STORAGE ──
   const step1Y = 550;
@@ -232,7 +329,9 @@ function drawSectionHeader(ctx, text, x, y, w) {
   ctx.fillStyle = "#fff";
   ctx.font = "bold 20px sans-serif";
   ctx.textAlign = "center";
-  ctx.fillText(text, x + w / 2, y + 28);
+  ctx.textBaseline = "middle";
+  ctx.fillText(text, x + w / 2, y + 20);
+  ctx.textBaseline = "alphabetic";
 }
 
 function drawStepBanner(ctx, text, y) {

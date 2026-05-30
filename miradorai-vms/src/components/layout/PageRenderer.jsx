@@ -47,6 +47,7 @@ import NetworkHealthPage from "../../pages/diagnostics/NetworkHealthPage";
 import DesignerView from "../../pages/Mapview/DesignerView";
 import MaskingPage from "../../pages/devices/MaskingPage";
 import ForensicSearchPage from "../../pages/forensic/ForensicSearchPage";
+import AiAnalyticsPage from "../../pages/analytics/AiAnalyticsPage";
 
 
 
@@ -54,6 +55,7 @@ import ForensicSearchPage from "../../pages/forensic/ForensicSearchPage";
 const MAP = {
   // ✅ DASHBOARD (DEFAULT PAGE)
   "dashboard": DashboardPage,
+  "ai-analytics": AiAnalyticsPage,
 
   // ================= DEVICES =================
   "add-devices": AddDevicesPage,
