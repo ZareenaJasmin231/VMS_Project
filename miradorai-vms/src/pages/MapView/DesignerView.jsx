@@ -112,11 +112,12 @@ async function fetchCameraModels({ brand = null, type = null, search = "" } = {}
 
 const TYPE_ICONS = {
   dome: "⊙", bullet: "▶", ptz: "↻", fisheye: "◎", box: "▪", thermal: "🌡",
+  eyeball: "⊙", turret: "⊙"
 };
 const TYPE_COLORS = {
   dome: "#3b82f6", bullet: "#f59e0b", ptz: "#8b5cf6",
   fisheye: "#10b981", box: "#f97316", thermal: "#ef4444",
-
+  eyeball: "#3b82f6", turret: "#3b82f6"
 };
 const ZONE_COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#ec4899", "#8b5cf6", "#f97316", "#06b6d4"];
 
@@ -1815,50 +1816,188 @@ export default function DesignerView({ onBack }) {
     const n = poly.length;
     if (n < 3) return;
 
-    // Centroid
+    // Centroid (Center of the zone)
     let Cx = 0, Cy = 0;
     poly.forEach(p => { Cx += p.x; Cy += p.y; });
     Cx /= n;
     Cy /= n;
 
+    const activePpm = Math.max(1, ppmRef.current || 22);
+
+    // Calculate real-world metrics using visual tape calibration (ppm)
+    let maxDistPx = 0;
+    poly.forEach(vertex => {
+      const d = Math.hypot(Cx - vertex.x, Cy - vertex.y);
+      if (d > maxDistPx) maxDistPx = d;
+    });
+    const maxDistMeters = maxDistPx / activePpm;
+    const areaMeters = getPolygonArea(poly, activePpm);
+
     const newPlaced = [];
 
-    // 1. Fisheye / PTZ Center Placement
+    // 1. Fisheye / PTZ Smart Grid Distribution Check
     const fisheyeModel = models.find(m => m.type === "fisheye");
     const ptzModel = models.find(m => m.type === "ptz");
     const centerModel = fisheyeModel || ptzModel;
 
-    if (centerModel) {
-      newPlaced.push({
-        id: `placed_${Date.now()}_center_${Math.random().toString(36).substr(2, 5)}`,
-        camera: centerModel,
-        x: Cx,
-        y: Cy,
-        direction: 0,
-        recordingMode: "continuous",
-        fps: 25,
-        lighting: "normal",
-        mounting: "default",
-        includeBackbox: false,
-        includePoe: false,
-      });
+    const cornerModels = models.filter(m => m.type !== "fisheye" && m.type !== "ptz");
+    const only360Selected = centerModel && cornerModels.length === 0;
+
+    if (only360Selected) {
+      if (centerModel.rangeDay >= maxDistMeters) {
+        // If a single central Fisheye or PTZ covers the furthest corner, place just one
+        newPlaced.push({
+          id: `placed_${Date.now()}_center_${Math.random().toString(36).substr(2, 5)}`,
+          camera: centerModel,
+          x: Cx,
+          y: Cy,
+          direction: 0,
+          recordingMode: "continuous",
+          fps: 25,
+          lighting: "normal",
+          mounting: "default",
+          includeBackbox: false,
+          includePoe: false,
+        });
+      } else {
+        // Multi-Fisheye Ceiling Grid Distribution: Place multiple 360° cameras evenly along the centerline/grid
+        let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+        poly.forEach(p => {
+          if (p.x < minX) minX = p.x;
+          if (p.x > maxX) maxX = p.x;
+          if (p.y < minY) minY = p.y;
+          if (p.y > maxY) maxY = p.y;
+        });
+
+        const W_px = maxX - minX;
+        const H_px = maxY - minY;
+        const W_m = W_px / activePpm;
+        const H_m = H_px / activePpm;
+
+        // Overlap coverage circles by 20% to guarantee full coverage
+        const coverDiameter = centerModel.rangeDay * 1.6;
+        const cols = Math.max(1, Math.ceil(W_m / coverDiameter));
+        const rows = Math.max(1, Math.ceil(H_m / coverDiameter));
+
+        for (let r = 0; r < rows; r++) {
+          for (let c = 0; c < cols; c++) {
+            const gridX = minX + ((c + 0.5) / cols) * W_px;
+            const gridY = minY + ((r + 0.5) / rows) * H_px;
+
+            if (pointInPolygon(gridX, gridY, poly)) {
+              newPlaced.push({
+                id: `placed_${Date.now()}_dist_${r}_${c}_${Math.random().toString(36).substr(2, 5)}`,
+                camera: centerModel,
+                x: gridX,
+                y: gridY,
+                direction: 0,
+                recordingMode: "continuous",
+                fps: 25,
+                lighting: "normal",
+                mounting: "default",
+                includeBackbox: false,
+                includePoe: false,
+              });
+            } else {
+              // Find the closest point inside the polygon (useful for complex/L-shaped spaces)
+              let bestPt = { x: Cx, y: Cy };
+              let minPtDist = Infinity;
+              for (let sx = minX; sx <= maxX; sx += W_px / 12) {
+                for (let sy = minY; sy <= maxY; sy += H_px / 12) {
+                  if (pointInPolygon(sx, sy, poly)) {
+                    const d = Math.hypot(sx - gridX, sy - gridY);
+                    if (d < minPtDist) {
+                      minPtDist = d;
+                      bestPt = { x: sx, y: sy };
+                    }
+                  }
+                }
+              }
+              newPlaced.push({
+                id: `placed_${Date.now()}_dist_${r}_${c}_${Math.random().toString(36).substr(2, 5)}`,
+                camera: centerModel,
+                x: bestPt.x,
+                y: bestPt.y,
+                direction: 0,
+                recordingMode: "continuous",
+                fps: 25,
+                lighting: "normal",
+                mounting: "default",
+                includeBackbox: false,
+                includePoe: false,
+              });
+            }
+          }
+        }
+      }
+
+      const outsideCameras = placedRef.current.filter(
+        p => !pointInOrOnPolygon(p.x, p.y, zone.polygon)
+      );
+      const updatedPlaced = [...outsideCameras, ...newPlaced];
+      placedRef.current = updatedPlaced;
+      setPlaced(updatedPlaced);
+      draw();
+      apiSaveLayout({ placed: updatedPlaced, zones: zonesRef.current, ppm: ppmRef.current });
+      return;
     }
 
-    // 2. Corner Placement
-    const cornerModels = models.filter(m => m.type !== "fisheye" && m.type !== "ptz");
+    // 2. Smart Corner Placement for Directional Cameras (Dome/Bullet)
     const placementModels = cornerModels.length > 0 ? cornerModels : models;
 
-    // Check if the room center is out of coverage range for corner cameras to avoid central blind spots
+     // Determine corner coverage indices based on room shape and area
+     const cornersToPlace = [];
+     const sampleCorner = placementModels[0];
+     const rangeLimit = sampleCorner?.rangeDay || 20;
+
+     if (n === 4 && (areaMeters < 350 || maxDistMeters * 2 < rangeLimit * 1.5)) {
+       // Rectangular/square rooms: 2 diagonal corners are mathematically and practically sufficient
+       cornersToPlace.push(0, 2);
+     } else if (n === 3 && (areaMeters < 150 || maxDistMeters * 2 < rangeLimit * 1.5)) {
+       // Triangular rooms: 2 corners are fully sufficient
+       cornersToPlace.push(0, 2);
+     } else {
+       // Large or complex polygons: place on all corners
+       for (let i = 0; i < n; i++) {
+         cornersToPlace.push(i);
+       }
+     }
+
+    // Check if room center is out of reach of the standard cameras (to flag central fallback)
     let centerOutOfReach = false;
     const sampleCornerModel = placementModels[0];
-    const maxCoverageDist = sampleCornerModel.rangeDay * ppmRef.current;
+    const maxCoverageDistPx = (sampleCornerModel?.rangeDay || 20) * activePpm;
 
     poly.forEach((vertex, i) => {
+      // Skip if this corner is not selected by our smart optimizer
+      if (!cornersToPlace.includes(i)) return;
+
       const model = placementModels[i % placementModels.length];
-      const distToCenter = Math.hypot(Cx - vertex.x, Cy - vertex.y);
-      if (distToCenter > maxCoverageDist) {
+      const distToCenterPx = Math.hypot(Cx - vertex.x, Cy - vertex.y);
+      const distToCenterMeters = distToCenterPx / activePpm;
+
+      if (distToCenterPx > maxCoverageDistPx) {
         centerOutOfReach = true;
       }
+
+      // If a center camera was placed and covers this corner, skip placing a redundant corner camera
+      if (centerModel && distToCenterMeters <= centerModel.rangeDay) {
+        return;
+      }
+
+      // Check if this corner is already covered by an already placed directional corner camera
+      let alreadyCovered = false;
+      for (const p of newPlaced) {
+        // Skip checking against the center camera since we already handled center-to-corner range above
+        if (p.id.includes("_center")) continue;
+        const distMeters = Math.hypot(vertex.x - p.x, vertex.y - p.y) / activePpm;
+        // If a camera is already placed within 45% of this camera's range or within 8 meters, skip placing another
+        if (distMeters < Math.max(8, model.rangeDay * 0.45)) {
+          alreadyCovered = true;
+          break;
+        }
+      }
+      if (alreadyCovered) return;
 
       // Calculate perfect interior angle bisector pointing inwards
       const prev = poly[(i - 1 + n) % n];
@@ -1917,11 +2056,10 @@ export default function DesignerView({ onBack }) {
         includePoe: false,
       });
 
-      // 3. Edge Midpoint (to prevent blind spots on long walls)
+      // 3. Smart Edge Midpoint (placed only if wall segment is longer than 75% of camera range)
       const nextVertex = poly[(i + 1) % n];
-      const dist = Math.hypot(nextVertex.x - vertex.x, nextVertex.y - vertex.y);
-      // Place midpoints if the wall segment is longer than 75% of the range (highly dense wall coverage)
-      if (dist > maxCoverageDist * 0.75) {
+      const distPx = Math.hypot(nextVertex.x - vertex.x, nextVertex.y - vertex.y);
+      if (distPx > maxCoverageDistPx * 0.75) {
         const Mx = (vertex.x + nextVertex.x) / 2;
         const My = (vertex.y + nextVertex.y) / 2;
 
@@ -1954,28 +2092,7 @@ export default function DesignerView({ onBack }) {
       }
     });
 
-    // 4. Center Fallback (if center is out of reach and no fisheye/PTZ is selected)
-    // Place a 360-degree cluster of 4 cameras at the center pointing in all directions
-    if (centerOutOfReach && !centerModel) {
-      const centerModelFallback = models.find(m => m.type === "dome" || m.type === "bullet") || models[0];
-      const directions = [0, 90, 180, 270];
-      directions.forEach((dir, idx) => {
-        newPlaced.push({
-          id: `placed_${Date.now()}_center_fallback_${idx}_${Math.random().toString(36).substr(2, 5)}`,
-          camera: centerModelFallback,
-          x: Cx,
-          y: Cy,
-          direction: dir,
-          recordingMode: "continuous",
-          fps: 25,
-          lighting: "normal",
-          mounting: "default",
-          includeBackbox: false,
-          includePoe: false,
-        });
-      });
-    }
-
+    // Outside cameras retention check and save
     const outsideCameras = placedRef.current.filter(
       p => !pointInOrOnPolygon(p.x, p.y, zone.polygon)
     );
@@ -3374,7 +3491,7 @@ export default function DesignerView({ onBack }) {
                             onClick={() => { setTypeMenuOpen(!typeMenuOpen); setBrandMenuOpen(false); }}
                           >
                             <span>
-                              {typeFilter ? `${TYPE_ICONS[typeFilter]} ${typeFilter.charAt(0).toUpperCase() + typeFilter.slice(1)}` : "-- Type --"}
+                              {typeFilter ? `${TYPE_ICONS[typeFilter] || "⊙"} ${typeFilter.charAt(0).toUpperCase() + typeFilter.slice(1)}` : "-- Type --"}
                             </span>
                             <span style={{ fontSize: "8px", opacity: 0.7 }}>▼</span>
                           </button>
@@ -3395,7 +3512,7 @@ export default function DesignerView({ onBack }) {
                               >
                                 -- Type --
                               </button>
-                              {["dome", "bullet", "ptz", "fisheye", "box", "thermal"].map(t => (
+                              {["dome", "bullet", "ptz", "fisheye", "eyeball","turret", "thermal"].map(t => (
                                 <button
                                   key={t}
                                   className="dv-custom-dropdown-item"
