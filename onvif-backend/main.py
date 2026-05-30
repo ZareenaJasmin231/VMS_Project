@@ -552,7 +552,7 @@ async def webrtc_proxy(stream_key: str, request: Request):
         raise HTTPException(status_code=502, detail=str(e))
 
 @app.get("/api/event-playback")
-def event_playback(ip: str, time: str, stream: int = 0):
+def event_playback(ip: str, time: str, request: Request = None, stream: int = 0):
     """
     stream=0 (default): returns JSON with clipUrl
     stream=1: returns video/mp4 bytes directly (used by <video src="...">)
@@ -890,14 +890,16 @@ def event_playback(ip: str, time: str, stream: int = 0):
         except Exception:
             pass
 
-        clipUrl = (
-                    f"http://192.168.126.200/api/event-playback"
-                    f"?ip={urllib.parse.quote(ip)}"
-                    f"&time={urllib.parse.quote(time)}"
-                    f"&stream=1"
-                )
+        # Dynamically build base URL from the incoming request, fallback to old static IP if request not provided
+        if request:
+            base_url = str(request.base_url).rstrip("/")
+        else:
+            base_url = "http://192.168.126.200"
 
-        print(f"[STREAM=0] Returning JSON with clipUrl: {clipUrl}")
+        encoded_time = urllib.parse.quote(time)
+        clipUrl = f"{base_url}/api/event-playback/hls/{ip}/{encoded_time}/index.m3u8"
+
+        print(f"[STREAM=0] Returning JSON with HLS clipUrl: {clipUrl}")
 
         return Response(
                     content=json.dumps({
@@ -918,6 +920,290 @@ def event_playback(ip: str, time: str, stream: int = 0):
             status_code=500,
             media_type="application/json",
             headers={"Access-Control-Allow-Origin": "*"},
+        )
+
+
+@app.get("/api/event-playback/hls/{ip}/{time_str}/{filename}")
+def event_playback_hls(ip: str, time_str: str, filename: str):
+    """
+    Dynamically serves/generates cached HLS chunks (.m3u8 playlist or .ts segments)
+    for the 20-second event clip.
+    """
+    import re, tempfile, subprocess, os, urllib.parse
+    from datetime import datetime, timezone, timedelta
+    from fastapi.responses import FileResponse
+
+    headers = {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, OPTIONS",
+        "Access-Control-Allow-Headers": "*",
+    }
+
+    try:
+        time_val = urllib.parse.unquote(time_str)
+        ip_folder = ip.strip().replace(".", "_")
+
+        # ── 1. Parse timestamp ────────────────────────────────────────
+        t = time_val.strip()
+        if " " in t:
+            t = t.replace(" ", "+")
+        t = re.sub(r"([+-])(\d{2})(\d{2})$", r"\1\2:\3", t)
+
+        try:
+            alert_dt = datetime.fromisoformat(t)
+        except ValueError:
+            t_clean  = re.sub(r"[+-]\d{2}:\d{2}$", "", t).rstrip("Z").strip()
+            alert_dt = datetime.fromisoformat(t_clean)
+
+        alert_local_hms  = alert_dt.strftime("%H-%M-%S")
+        alert_local_date = alert_dt.strftime("%Y-%m-%d")
+        clip_ts = alert_dt.strftime("%H-%M-%S")
+        alert_local_secs = (
+            alert_dt.hour * 3600 + alert_dt.minute * 60 + alert_dt.second
+        )
+
+        if alert_dt.tzinfo is not None:
+            alert_utc = alert_dt.astimezone(timezone.utc).replace(tzinfo=None)
+        else:
+            alert_utc = alert_dt
+
+        # Path where HLS files are cached on disk
+        hls_dir = os.path.join(recorder.get_recordings_dir(), "hls_playback", ip_folder, alert_local_date, clip_ts)
+        hls_file_path = os.path.join(hls_dir, filename)
+
+        # ── 2. Dynamic generation if index.m3u8 or requested file is missing ──
+        if not os.path.exists(hls_file_path) or filename == "index.m3u8":
+            CHUNK_SECONDS = 300
+            
+            # Find candidate camera IDs
+            ip_prefix = ip.strip().replace(".", "_")
+            recordings_col = _db["recordings"]
+
+            all_cam_ids = recordings_col.distinct(
+                "camera_id",
+                {"camera_id": {"$regex": f"^{re.escape(ip_prefix)}"}}
+            )
+            if not all_cam_ids:
+                all_cam_ids = [ip_prefix, ip.strip()]
+
+            def find_best_chunk_db(date_str, hms_str):
+                best = None
+                for cam_id in all_cam_ids:
+                    candidate = recordings_col.find_one(
+                        {
+                            "camera_id":  cam_id,
+                            "date":       date_str,
+                            "start_time": {"$lte": hms_str},
+                        },
+                        sort=[("start_time", -1)],
+                    )
+                    if candidate:
+                        if best is None or candidate["start_time"] > best["start_time"]:
+                            best = candidate
+                return best
+
+            doc = find_best_chunk_db(alert_local_date, alert_local_hms)
+
+            if not doc:
+                prev = (alert_dt - timedelta(days=1)).strftime("%Y-%m-%d")
+                doc  = find_best_chunk_db(prev, "23-59-59")
+
+            if not doc:
+                doc = find_best_chunk_db(
+                    alert_utc.strftime("%Y-%m-%d"),
+                    alert_utc.strftime("%H-%M-%S"),
+                )
+
+            enc_path = None
+            if doc:
+                try:
+                    parts = re.split(r"[-:]", doc["start_time"])
+                    ch, cm, cs = int(parts[0]), int(parts[1]), int(parts[2])
+                    chunk_secs  = ch * 3600 + cm * 60 + cs
+                    elapsed     = alert_local_secs - chunk_secs
+
+                    if elapsed <= CHUNK_SECONDS + 30:
+                        enc_path = doc.get("file_path", "").replace("\\", "/")
+                except Exception:
+                    pass
+
+            if not enc_path:
+                rec_dir   = recorder.get_recordings_dir()
+                best_file = None
+                best_diff = None
+
+                for cam_folder in os.listdir(rec_dir):
+                    if not cam_folder.startswith(ip_prefix):
+                        continue
+                    date_dir = os.path.join(rec_dir, cam_folder, alert_local_date)
+                    if not os.path.isdir(date_dir):
+                        continue
+                    for fname in os.listdir(date_dir):
+                        if not fname.endswith(".enc"):
+                            continue
+                        stem = fname.replace(".enc", "")
+                        try:
+                            fparts = re.split(r"[-:]", stem)
+                            fh, fm, fs = int(fparts[0]), int(fparts[1]), int(fparts[2])
+                            file_secs  = fh * 3600 + fm * 60 + fs
+                        except Exception:
+                            continue
+                        diff = alert_local_secs - file_secs
+                        if 0 <= diff <= CHUNK_SECONDS + 30:
+                            if best_diff is None or diff < best_diff:
+                                best_diff = diff
+                                best_file = os.path.join(date_dir, fname)
+
+                if best_file:
+                    enc_path = best_file
+                    stem     = os.path.basename(best_file).replace(".enc", "")
+                    fparts   = re.split(r"[-:]", stem)
+                    fh, fm, fs = int(fparts[0]), int(fparts[1]), int(fparts[2])
+                    elapsed  = alert_local_secs - (fh * 3600 + fm * 60 + fs)
+                else:
+                    return Response(
+                        content=b'{"error":"No recording found for this alert"}',
+                        status_code=404,
+                        media_type="application/json",
+                        headers=headers,
+                    )
+
+            if not os.path.exists(enc_path):
+                return Response(
+                    content=f'{{"error":"File not found on disk: {enc_path}"}}'.encode(),
+                    status_code=404,
+                    media_type="application/json",
+                    headers=headers,
+                )
+
+            # Seek offset parameters (10s before, 10s after)
+            BEFORE   = 10
+            AFTER    = 10
+            offset   = max(0.0, elapsed - BEFORE)
+            duration = BEFORE + AFTER
+
+            # Decrypt recording
+            try:
+                decrypted_bytes = b""
+                for chunk in encrypt_service.decrypt_file_stream(enc_path):
+                    decrypted_bytes += chunk
+            except Exception as dec_err:
+                return Response(
+                    content=f'{{"error":"Decryption failed: {str(dec_err)}"}}'.encode(),
+                    status_code=500,
+                    media_type="application/json",
+                    headers=headers,
+                )
+
+            if len(decrypted_bytes) < 1000:
+                return Response(
+                    content=b'{"error":"Decrypted file is empty - key mismatch?"}',
+                    status_code=500,
+                    media_type="application/json",
+                    headers=headers,
+                )
+
+            # Extract 20s clip to temporary MP4
+            output_path = tempfile.mktemp(suffix=".mp4")
+            ffmpeg_cmd = [
+                "ffmpeg", "-y",
+                "-i",      "pipe:0",
+                "-ss",     str(offset),
+                "-t",      str(duration),
+                "-c",      "copy",
+                "-an",
+                "-movflags", "+faststart",
+                output_path,
+            ]
+
+            proc = subprocess.Popen(
+                ffmpeg_cmd,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.PIPE,
+            )
+
+            try:
+                proc.communicate(input=decrypted_bytes, timeout=60)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                proc.communicate()
+
+            if not os.path.exists(output_path) or os.path.getsize(output_path) < 500:
+                # Retry with offset=0
+                ffmpeg_cmd2 = [
+                    "ffmpeg", "-y",
+                    "-i",      "pipe:0",
+                    "-t",      str(duration),
+                    "-c",      "copy",
+                    "-an",
+                    "-movflags", "+faststart",
+                    output_path,
+                ]
+                proc2 = subprocess.Popen(
+                    ffmpeg_cmd2,
+                    stdin=subprocess.PIPE,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.PIPE,
+                )
+                try:
+                    proc2.communicate(input=decrypted_bytes, timeout=60)
+                except subprocess.TimeoutExpired:
+                    proc2.kill()
+                    proc2.communicate()
+
+            if not os.path.exists(output_path) or os.path.getsize(output_path) < 500:
+                return Response(
+                    content=b'{"error":"Failed to extract MP4 clip from recording"}',
+                    status_code=500,
+                    media_type="application/json",
+                    headers=headers,
+                )
+
+            # Segment MP4 into HLS format inside hls_dir
+            os.makedirs(hls_dir, exist_ok=True)
+            ffmpeg_hls = [
+                "ffmpeg", "-y",
+                "-i", output_path,
+                "-codec", "copy",
+                "-start_number", "0",
+                "-hls_time", "2",
+                "-hls_list_size", "0",
+                "-f", "hls",
+                os.path.join(hls_dir, "index.m3u8")
+            ]
+            subprocess.run(ffmpeg_hls, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+            # Cleanup temp MP4
+            try:
+                os.remove(output_path)
+            except Exception:
+                pass
+
+        if not os.path.exists(hls_file_path):
+            return Response(
+                content=b'{"error":"HLS file not found on disk"}',
+                status_code=404,
+                media_type="application/json",
+                headers=headers,
+            )
+
+        # Serve the requested HLS index or segment
+        if filename.endswith(".m3u8"):
+            return FileResponse(hls_file_path, media_type="application/x-mpegURL", headers=headers)
+        elif filename.endswith(".ts"):
+            return FileResponse(hls_file_path, media_type="video/MP2T", headers=headers)
+        else:
+            return FileResponse(hls_file_path, headers=headers)
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return Response(
+            content=f'{{"error":"{str(e)}"}}'.encode(),
+            status_code=500,
+            media_type="application/json",
+            headers=headers,
         )
 
 async def system_health_collector():

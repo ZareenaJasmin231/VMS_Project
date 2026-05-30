@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import WebRTCPlayer from "../../components/shared/WebRTCPlayer";
+import Hls from "hls.js";
 import "./LiveViewPage.css";
 
 const API = import.meta.env.VITE_API_URL;
@@ -124,19 +125,95 @@ function AlertPopup({ ip, alerts, onClose }) {
   const [videoError,   setVideoError]   = useState(null);
   const [saveStatus,   setSaveStatus]   = useState({}); // { [alertKey]: "saving"|"saved"|"error" }
 
+  const videoRef = useRef(null);
+  const hlsRef = useRef(null);
+
   // Revoke blob URL when it changes or on unmount
   useEffect(() => {
     return () => {
-      if (videoUrl) URL.revokeObjectURL(videoUrl);
+      if (videoUrl && videoUrl.startsWith("blob:")) {
+        URL.revokeObjectURL(videoUrl);
+      }
     };
   }, [videoUrl]);
+
+  // Handle HLS.js loading and binding dynamically
+  useEffect(() => {
+    if (!videoUrl || videoLoading) return;
+
+    const video = videoRef.current;
+    if (!video) return;
+
+    // Clean up any existing Hls instance
+    if (hlsRef.current) {
+      hlsRef.current.destroy();
+      hlsRef.current = null;
+    }
+
+    const isHls = videoUrl.includes(".m3u8");
+
+    if (isHls) {
+      if (Hls.isSupported()) {
+        const hls = new Hls({
+          enableWorker: true,
+          lowLatencyMode: true,
+        });
+        hlsRef.current = hls;
+        hls.loadSource(videoUrl);
+        hls.attachMedia(video);
+        hls.on(Hls.Events.MANIFEST_PARSED, () => {
+          video.play().catch(() => {});
+        });
+        hls.on(Hls.Events.ERROR, (event, data) => {
+          if (data.fatal) {
+            switch (data.type) {
+              case Hls.ErrorTypes.NETWORK_ERROR:
+                console.error("[HLS] Network error, attempting to recover...");
+                hls.startLoad();
+                break;
+              case Hls.ErrorTypes.MEDIA_ERROR:
+                console.error("[HLS] Media error, attempting to recover...");
+                hls.recoverMediaError();
+                break;
+              default:
+                console.error("[HLS] Unrecoverable error, destroying...");
+                hls.destroy();
+                hlsRef.current = null;
+                setVideoError("Playback failed to stream");
+                break;
+            }
+          }
+        });
+      } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
+        // Native HLS (Safari)
+        video.src = videoUrl;
+        video.addEventListener("loadedmetadata", () => {
+          video.play().catch(() => {});
+        });
+      } else {
+        setVideoError("HLS streaming is not supported on this browser.");
+      }
+    } else {
+      // Non-HLS fallback (e.g. blobs, raw MP4s)
+      video.src = videoUrl;
+    }
+
+    return () => {
+      if (hlsRef.current) {
+        hlsRef.current.destroy();
+        hlsRef.current = null;
+      }
+    };
+  }, [videoUrl, videoLoading]);
 
   const alertKey = (alert) =>
     `${(alert.ip || ip)}_${alert.time || alert.received_at}`;
 
-const handleView = async (alert) => {
+  const handleView = async (alert) => {
     if (videoUrl) {
-      URL.revokeObjectURL(videoUrl);
+      if (videoUrl.startsWith("blob:")) {
+        URL.revokeObjectURL(videoUrl);
+      }
       setVideoUrl(null);
     }
     setPlayingAlert(alert);
@@ -166,18 +243,9 @@ const handleView = async (alert) => {
       const data = await res.json();
       if (!data.clipUrl) throw new Error("No clip URL returned from server");
 
-      // Step 2 — fetch the actual video bytes using clip_url (stream=1)
-      const videoRes = await fetch(data.clipUrl, { headers: getAuthHeaders() });
-
-      if (!videoRes.ok) {
-        throw new Error(`Video fetch failed (${videoRes.status})`);
-      }
-
-      const blob = await videoRes.blob();
-      if (!blob || blob.size === 0) throw new Error("Server returned an empty video");
-
-      const blobUrl = URL.createObjectURL(blob);
-      setVideoUrl(blobUrl);
+      // With HLS streaming, we do NOT fetch the whole video bytes as a Blob!
+      // We pass the clipUrl straight to our player.
+      setVideoUrl(data.clipUrl);
 
     } catch (e) {
       console.error("[AlertPopup] playback error:", e);
@@ -186,6 +254,7 @@ const handleView = async (alert) => {
       setVideoLoading(false);
     }
   };
+
   // ── Manual Save ───────────────────────────────────────────────
   const handleSave = async (alert) => {
     const key     = alertKey(alert);
@@ -222,7 +291,9 @@ const handleView = async (alert) => {
 
   const handleBack = () => {
     if (videoUrl) {
-      URL.revokeObjectURL(videoUrl);
+      if (videoUrl.startsWith("blob:")) {
+        URL.revokeObjectURL(videoUrl);
+      }
       setVideoUrl(null);
     }
     setPlayingAlert(null);
@@ -277,8 +348,8 @@ const handleView = async (alert) => {
             {videoUrl && !videoLoading && (
               <video
                 key={videoUrl}
+                ref={videoRef}
                 className="alp-video"
-                src={videoUrl}
                 controls
                 autoPlay
                 playsInline
