@@ -101,7 +101,7 @@ def extract_real_recording_clip(
 
         # Write decrypted bytes to a temporary seekable file on disk
         # (This allows FFmpeg to perform instantaneous input-seeking using index headers,
-        # making the load time go from seconds down to milliseconds!)
+        # ignoring any weird camera PTS offsets!)
         dec_tmp = tempfile.NamedTemporaryFile(suffix=".ts", delete=False)
         dec_tmp.write(decrypted)
         dec_tmp_path = dec_tmp.name.replace("\\", "/")
@@ -129,6 +129,7 @@ def extract_real_recording_clip(
             return s.replace("'", "\\'").replace(":", "\\:")
 
         filters_base = [
+            "fps=15",
             "scale=640:360",
             "drawgrid=w=40:h=40:color=white@0.04",
             f"drawbox=x={bx}:y={by}:w={bw}:h={bh}:color=0x22C55E@0.8:t=2",
@@ -157,13 +158,13 @@ def extract_real_recording_clip(
         # 1. Try extracting with full Text HUD
         cmd = [
             FFMPEG_BIN, "-y",
-            "-ss", str(seek_start),   # Seek BEFORE input (instantaneous seek!)
-            "-i", dec_tmp_path,       # Real seekable file
+            "-ss", str(seek_start),   # Seek BEFORE input (relative file seek)
+            "-i", dec_tmp_path,
             "-t",  str(duration),
             "-vf", vf_with_text,
             "-c:v", "libx264",
             "-preset", "ultrafast",
-            "-crf", "28",             # Higher crf for faster encoding
+            "-crf", "28",
             "-an",
             "-movflags", "+faststart",
             "-f", "mp4",
@@ -185,7 +186,7 @@ def extract_real_recording_clip(
         print(f"[FORENSIC TRACKER] Real clip text HUD failed, retrying with box-only HUD...")
         cmd2 = [
             FFMPEG_BIN, "-y",
-            "-ss", str(seek_start),   # Seek BEFORE input
+            "-ss", str(seek_start),
             "-i", dec_tmp_path,
             "-t",  str(duration),
             "-vf", vf_no_text,
@@ -214,7 +215,7 @@ def extract_real_recording_clip(
         print(f"[FORENSIC TRACKER] Retrying raw slice with no filters...")
         cmd3 = [
             FFMPEG_BIN, "-y",
-            "-ss", str(seek_start),   # Seek BEFORE input
+            "-ss", str(seek_start),
             "-i", dec_tmp_path,
             "-t",  str(duration),
             "-c:v", "libx264",
@@ -233,6 +234,30 @@ def extract_real_recording_clip(
         proc3.communicate(timeout=45)
         if proc3.returncode == 0 and os.path.exists(output_path) and os.path.getsize(output_path) > 500:
             print(f"[FORENSIC TRACKER] ✅ Real clip extracted (raw fallback): {output_path}")
+            return True
+
+        # 4. Ultimate fallback: Ignore offset entirely and just grab the start of the file
+        print(f"[FORENSIC TRACKER] Retrying with offset=0 (ignoring PTS)...")
+        cmd4 = [
+            FFMPEG_BIN, "-y",
+            "-i", dec_tmp_path,
+            "-t",  str(duration),
+            "-c:v", "libx264",
+            "-preset", "ultrafast",
+            "-crf", "28",
+            "-an",
+            "-movflags", "+faststart",
+            "-f", "mp4",
+            output_path
+        ]
+        proc4 = subprocess.Popen(
+            cmd4,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE
+        )
+        proc4.communicate(timeout=45)
+        if proc4.returncode == 0 and os.path.exists(output_path) and os.path.getsize(output_path) > 500:
+            print(f"[FORENSIC TRACKER] ✅ Real clip extracted (offset=0 fallback): {output_path}")
             return True
 
         return False

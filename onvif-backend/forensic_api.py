@@ -18,7 +18,8 @@ import subprocess
 from datetime import datetime, timedelta
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Query, Depends, Response
+from fastapi import APIRouter, HTTPException, Query, Depends, Response, BackgroundTasks
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from pymongo import MongoClient
 
@@ -239,7 +240,7 @@ def trigger_reindex(
 # ══════════════════════════════════════════════════════════════════════════════
 
 @forensic_router.get("/video/clip")
-def get_detection_clip(detection_id: str):
+def get_detection_clip(detection_id: str, background_tasks: BackgroundTasks):
     """
     Returns a 10-second MP4 clip for a single detection.
 
@@ -270,11 +271,18 @@ def get_detection_clip(detection_id: str):
                 appearance=det.get("appearance", {}),
             )
 
-        data = _read_and_clean(tmp_path)
-        if not data:
-            raise HTTPException(status_code=500, detail="Failed to generate video clip.")
-
-        return _mp4_response(data, f"clip_{detection_id}.mp4", inline=True)
+        background_tasks.add_task(lambda p: os.path.exists(p) and os.unlink(p), tmp_path)
+        return FileResponse(
+            tmp_path,
+            media_type="video/mp4",
+            filename=f"clip_{detection_id}.mp4",
+            content_disposition_type="inline",
+            headers={
+                "Cache-Control": "no-store, no-cache",
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Expose-Headers": "Content-Length, Content-Type, Accept-Ranges"
+            }
+        )
 
     except HTTPException:
         raise
@@ -282,9 +290,18 @@ def get_detection_clip(detection_id: str):
         print(f"[FORENSIC API] /video/clip error: {e}")
         try:
             forensic_tracker.generate_python_mp4_stub(tmp_path)
-            data = _read_and_clean(tmp_path)
-            if data:
-                return _mp4_response(data, f"clip_{detection_id}.mp4", inline=True)
+            background_tasks.add_task(lambda p: os.path.exists(p) and os.unlink(p), tmp_path)
+            return FileResponse(
+                tmp_path,
+                media_type="video/mp4",
+                filename=f"clip_{detection_id}.mp4",
+                content_disposition_type="inline",
+                headers={
+                    "Cache-Control": "no-store, no-cache",
+                    "Access-Control-Allow-Origin": "*",
+                    "Access-Control-Expose-Headers": "Content-Length, Content-Type, Accept-Ranges"
+                }
+            )
         except Exception:
             pass
         raise HTTPException(status_code=500, detail=f"Clip generation failed: {e}")
@@ -295,7 +312,7 @@ def get_detection_clip(detection_id: str):
 # ══════════════════════════════════════════════════════════════════════════════
 
 @forensic_router.get("/video/combined")
-def get_combined_track(track_id: str):
+def get_combined_track(track_id: str, background_tasks: BackgroundTasks):
     """
     Concatenates all clips in a track into a single unified MP4.
     Uses the same fallback chain per clip, then ffmpeg concat.
@@ -347,11 +364,18 @@ def get_combined_track(track_id: str):
         if not os.path.exists(combined_path) or os.path.getsize(combined_path) < 50:
             raise HTTPException(status_code=500, detail="Failed to assemble combined track.")
 
-        data = _read_and_clean(combined_path)
-        if not data:
-            raise HTTPException(status_code=500, detail="Failed to read combined track.")
-
-        return _mp4_response(data, f"track_{track_id}.mp4", inline=False)
+        background_tasks.add_task(lambda p: os.path.exists(p) and os.unlink(p), combined_path)
+        return FileResponse(
+            combined_path,
+            media_type="video/mp4",
+            filename=f"track_{track_id}.mp4",
+            content_disposition_type="attachment",
+            headers={
+                "Cache-Control": "no-store, no-cache",
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Expose-Headers": "Content-Length, Content-Type, Accept-Ranges"
+            }
+        )
 
     except HTTPException:
         raise
@@ -390,6 +414,8 @@ def get_detection_thumbnail(detection_id: str):
             dec_bytes = b""
             for chunk in encrypt_service.decrypt_file_stream(enc_path):
                 dec_bytes += chunk
+                if len(dec_bytes) > 4 * 1024 * 1024:  # 4MB is plenty for a thumbnail
+                    break
 
             if len(dec_bytes) > 2000:
                 bx, by, bw, bh = bbox if len(bbox) == 4 else [100, 50, 200, 280]

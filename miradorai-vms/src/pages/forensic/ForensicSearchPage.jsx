@@ -164,6 +164,10 @@ export default function ForensicSearchPage() {
     setEndDate(today.toISOString().split("T")[0]);
     fetchCameras();
     fetchStatus();
+
+    // Poll indexer status every 10 seconds to keep it dynamic
+    const pollId = setInterval(fetchStatus, 10000);
+    return () => clearInterval(pollId);
   }, []);
 
   // ── Camera Loader ─────────────────────────────────────────────────────────
@@ -233,6 +237,9 @@ export default function ForensicSearchPage() {
       const res  = await fetch(`${API_BASE}/api/forensic/search?${qs}`, { headers: getAuthHeaders() });
       const data = await res.json();
       if (data.success) setResults(data.results || []);
+      
+      // Instantly refresh index status when searching
+      fetchStatus();
     } catch (err) {
       console.error("[FORENSIC] Search failed:", err);
     } finally {
@@ -339,9 +346,17 @@ export default function ForensicSearchPage() {
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <div className="forensic-shell">
+    <div className="forensic-page-shell">
+      {/* ── Page Header ── */}
+      <div className="page-header" style={{ padding: "16px 20px 8px 20px" }}>
+        <div>
+          <h1 className="page-title">Forensic <span>Scan</span></h1>
+          <p className="page-desc">Run AI Multi-Camera Forensic searches across all cameras.</p>
+        </div>
+      </div>
 
-      {/* ── SIDEBAR ────────────────────────────────────────────────────────── */}
+      <div className="forensic-container">
+        {/* ── SIDEBAR ────────────────────────────────────────────────────────── */}
       <aside className="forensic-sidebar">
         <div className="sidebar-title">
           <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2.2">
@@ -405,11 +420,11 @@ export default function ForensicSearchPage() {
         {objectType === "person" ? (
           <>
             <div className="filter-group">
-              <div className="filter-label">Upper Color (Shirt)</div>
+              <div className="filter-label">Upper Color</div>
               <ColorSwatches value={topColor} onChange={setTopColor}/>
             </div>
             <div className="filter-group">
-              <div className="filter-label">Lower Color (Pants)</div>
+              <div className="filter-label">Lower Color</div>
               <ColorSwatches value={bottomColor} onChange={setBottomColor}/>
             </div>
             <div className="filter-group">
@@ -450,7 +465,7 @@ export default function ForensicSearchPage() {
           )}
         </button>
 
-        {/* Indexer Status */}
+        {/* Indexer Status
         {statusData && (
           <div className="status-badge">
             <div className="status-row">
@@ -471,6 +486,7 @@ export default function ForensicSearchPage() {
             </div>
           </div>
         )}
+        */}
       </aside>
 
       {/* ── RESULTS MAIN ───────────────────────────────────────────────────── */}
@@ -701,6 +717,7 @@ export default function ForensicSearchPage() {
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 }

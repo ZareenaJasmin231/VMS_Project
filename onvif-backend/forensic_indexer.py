@@ -171,12 +171,31 @@ def _find_real_enc_covering_time(camera_id: str, det_time: datetime) -> dict | N
     return None
 
 
-def _calc_offset(enc_created_at, detection_time: datetime) -> float:
+def _calc_offset(enc_created_at, detection_time: datetime, enc_file_path: str = "") -> float:
     """
     Calculate a frame offset within the recording file.
-    If we know when the recording started, compute seconds elapsed.
+    Priority 1: True start time from filename (e.g. 2026-05-27/06-40-28.enc)
+    Priority 2: Fallback to enc_created_at difference.
     Otherwise default to 15s (safe middle-of-recording offset).
     """
+    if enc_file_path:
+        try:
+            parts = enc_file_path.replace("\\", "/").split("/")
+            if len(parts) >= 2:
+                date_str = parts[-2]
+                time_str = parts[-1].replace(".enc", "").replace(".mp4", "").replace(".ts", "")
+                if "_" in time_str: time_str = time_str.split("_")[-1]
+                start_dt = datetime.strptime(f"{date_str} {time_str}", "%Y-%m-%d %H-%M-%S")
+                # Fix timezone offset (start_dt is local, detection_time is UTC)
+                local_tz_offset = datetime.now() - datetime.utcnow()
+                start_dt_utc = start_dt - local_tz_offset
+                
+                diff = (detection_time - start_dt_utc).total_seconds()
+                if 0 <= diff < 7200:
+                    return float(diff)
+        except Exception:
+            pass
+
     if enc_created_at and hasattr(enc_created_at, "timestamp"):
         diff = (detection_time - enc_created_at).total_seconds()
         if 0 < diff < 3600:  # within 1 hour
@@ -244,7 +263,7 @@ def seed_forensic_database():
         """Return (enc_file_path, date_str, timestamp_iso, offset_sec)."""
         real_enc = _find_real_enc_covering_time(cam_id, det_time)
         if real_enc:
-            offset = _calc_offset(real_enc.get("created_at"), det_time)
+            offset = _calc_offset(real_enc.get("created_at"), det_time, real_enc.get("file_path"))
             return real_enc["file_path"], base_date_str, det_time.isoformat(), offset
 
         # Fallback: simulated path (file won't exist; tracker will use HUD/Python stub)
