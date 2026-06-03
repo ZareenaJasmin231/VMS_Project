@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef } from "react";
 import "./LogsPage.css";
 
 const API_BASE = import.meta.env.VITE_API_URL;
-const WS_BASE = import.meta.env.VITE_WS_URL;
 const formatLocalDatetime = (date) => {
   const pad = (n) => String(n).padStart(2, "0");
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
@@ -88,14 +87,9 @@ export default function LogsPage() {
   }, [activeTab]);
 
   useEffect(() => {
-    const ws = new WebSocket(`${WS_BASE}/ws/logs`);
-    ws.onmessage = (event) => {
-      const newLog = JSON.parse(event.data);
-      // 🔥 Add new log on top
-      setLogs(prev => [newLog, ...prev]);
-    };
-    return () => ws.close();
-  }, []);
+    const interval = setInterval(fetchLogs, 10000);
+    return () => clearInterval(interval);
+  }, [activeTab, fromDate, toDate, category]);
 
   // Pagination calculations
   const indexOfLastLog = currentPage * logsPerPage;
@@ -254,30 +248,30 @@ export default function LogsPage() {
             </table>
           </div>
         )}
-
-        {/* Pagination Controls */}
-        {logs.length > logsPerPage && (
-          <div className="pagination-container">
-            <button 
-              className="pagination-btn" 
-              disabled={currentPage === 1}
-              onClick={() => handlePageChange(currentPage - 1)}
-            >
-              Prev
-            </button>
-            <span className="pagination-info">
-              Page {currentPage} of {totalPages} ({logs.length} total logs)
-            </span>
-            <button 
-              className="pagination-btn" 
-              disabled={currentPage === totalPages}
-              onClick={() => handlePageChange(currentPage + 1)}
-            >
-              Next
-            </button>
-          </div>
-        )}
       </div>
+
+      {/* Pagination Controls */}
+      {logs.length > logsPerPage && (
+        <div className="pagination-container">
+          <button 
+            className="pagination-btn" 
+            disabled={currentPage === 1}
+            onClick={() => handlePageChange(currentPage - 1)}
+          >
+            Prev
+          </button>
+          <span className="pagination-info">
+            Page {currentPage} of {totalPages} ({logs.length} total logs)
+          </span>
+          <button 
+            className="pagination-btn" 
+            disabled={currentPage === totalPages}
+            onClick={() => handlePageChange(currentPage + 1)}
+          >
+            Next
+          </button>
+        </div>
+      )}
     </div>
   );
 }

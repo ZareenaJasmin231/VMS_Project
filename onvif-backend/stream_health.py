@@ -21,8 +21,12 @@ async def get_stream_status(stream_name: str) -> dict:
     try:
         headers = {"Authorization": OME_AUTH}
         url = f"{OME_API}/{stream_name}"
-        res = requests.get(url, headers=headers, timeout=5)
-        
+        res = await asyncio.to_thread(
+            requests.get,
+            url,
+            headers=headers,
+            timeout=5
+        )        
         if res.status_code == 200:
             data = res.json()
             # OME wraps data in a 'response' key
@@ -127,6 +131,9 @@ async def start_health_monitoring(devices: list, cameras_col):
                     failed_stream['stream_name'],
                     failed_stream['rtsp_url']
                 )
+
+                await asyncio.sleep(15)
+
                 if recovered:
                     print(f"[HEALTH] Stream {failed_stream['stream_name']} recovered")
         

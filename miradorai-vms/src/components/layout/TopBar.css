@@ -1,5 +1,7 @@
 /* ── Topbar ──────────────────────────────────────── */
 .topbar {
+  position: relative;
+  z-index: 110000;
   height: 52px;
   background: var(--bg-surface);
   border-bottom: 1px solid var(--border);
@@ -691,3 +693,161 @@
   color: var(--teal);
   transform: rotate(180deg);
 }
+
+/* ── Icon Buttons (Refresh / Storage / Logs in topbar right) ── */
+.topbar__icon-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  background: none;
+  border: none;
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.5);
+  cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease, transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+}
+
+.topbar__icon-btn:hover,
+.topbar__icon-btn--active {
+  background: rgba(255, 255, 255, 0.07);
+  color: rgba(255, 255, 255, 0.9);
+}
+
+/* Refresh spins on hover */
+.topbar__icon-btn:first-child:hover svg {
+  transform: rotate(180deg);
+  transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.topbar__icon-btn svg {
+  transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Tooltip via title attribute – use ::after for styled tooltips */
+.topbar__icon-btn::after {
+  content: attr(title);
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-light);
+  color: var(--text-secondary);
+  font-size: 11px;
+  white-space: nowrap;
+  padding: 4px 8px;
+  border-radius: 5px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  z-index: 200;
+}
+
+.topbar__icon-btn:hover::after {
+  opacity: 1;
+}
+
+/* Standalone Settings wrap and dropdown menu styling */
+.topbar__settings-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+/* Settings gear spins on hover or when dropdown is open */
+.topbar__settings-wrap:hover .topbar__icon-btn svg,
+.topbar__settings-wrap .topbar__icon-btn--active svg {
+  transform: rotate(45deg);
+  transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.topbar__settings-dropdown {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  width: 220px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+  z-index: 1000;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  animation: slideUp 0.2s ease-out;
+}
+
+.topbar__settings-dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  width: 100%;
+  background: none;
+  border: none;
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-family: var(--font-ui);
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.15s ease;
+}
+
+.topbar__settings-dropdown-item:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.topbar__settings-dropdown-item span:first-child {
+  display: flex;
+  align-items: center;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.topbar__settings-dropdown-item span:first-child svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* Supervisor Details special item in standalone settings dropdown */
+.topbar__settings-dropdown-item--supervisor {
+  color: #a78bfa;
+}
+
+.topbar__settings-dropdown-item--supervisor:hover {
+  background: rgba(130, 100, 255, 0.1);
+  color: #c4b5fd;
+}
+
+.topbar__settings-dropdown-item--supervisor span:first-child {
+  color: #a78bfa;
+}
+
+.topbar__settings-dropdown-divider {
+  height: 1px;
+  background: var(--border-light);
+  margin: 6px 4px;
+}
+
+/* Supervisor Details special item in user dropdown */
+.topbar__user-dropdown-item--supervisor {
+  color: #a78bfa !important;
+}
+
+.topbar__user-dropdown-item--supervisor:hover {
+  background: rgba(130, 100, 255, 0.1) !important;
+  color: #c4b5fd !important;
+}
+
+.topbar__user-dropdown-item--supervisor svg {
+  color: #a78bfa !important;
+}
+
+

@@ -38,7 +38,7 @@
 }
 
 .mv-toolbar__title {
-  font-size: 13px;
+  font-size: 17px;
   font-weight: 600;
   color: var(--color-text-primary, #e8edf5);
   margin-right: 4px;
@@ -55,7 +55,7 @@
   display: flex;
   align-items: center;
   gap: 5px;
-  font-size: 12px;
+  font-size: 16px;
   padding: 5px 11px;
   border-radius: var(--border-radius-md, 6px);
   border: 0.5px solid var(--color-border-secondary, #2e3d55);
@@ -116,7 +116,7 @@
   border: 0.5px solid #F59E0B55;
 }
 .mv-zone-draw-done {
-  font-size: 11px;
+  font-size: 15px;
   padding: 2px 8px;
   border-radius: 5px;
   background: #F59E0B;
@@ -149,7 +149,7 @@
 }
 
 .mv-status-count {
-  font-size: 11px;
+  font-size: 15px;
   color: var(--color-text-tertiary, #4a5568);
   white-space: nowrap;
   padding: 2px 8px;
@@ -298,7 +298,7 @@
   background: var(--color-background-primary, #0d1117);
   border: 0.5px solid var(--color-border-secondary, #2e3d55);
   color: var(--color-text-secondary, #7a8499);
-  font-size: 11px;
+  font-size: 15px;
   font-weight: 700;
   display: flex;
   align-items: center;
@@ -332,7 +332,7 @@
 
 /* Camera count chip */
 .mv-floor-btn__badge {
-  font-size: 9px;
+  font-size: 13px;
   font-weight: 700;
   background: #185FA525;
   color: #5aabf0;
@@ -367,7 +367,7 @@
 .mv-floor-btn--add .mv-floor-btn__num {
   background: none;
   border-style: dashed;
-  font-size: 16px;
+  font-size: 20px;
   font-weight: 300;
   color: var(--color-text-tertiary, #4a5568);
   transition: color 0.12s, border-color 0.12s;
@@ -402,7 +402,7 @@
 
 /* Delete button inside zone item */
 .mv-zone-btn__delete {
-  font-size: 9px;
+  font-size: 13px;
   color: var(--color-text-tertiary, #4a5568);
   background: none;
   border: none;
@@ -455,7 +455,7 @@
 }
 
 .mv-zone-section-label {
-  font-size: 9px;
+  font-size: 13px;
   font-weight: 700;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -500,7 +500,7 @@
   transform: translateX(-50%);
   background: #0d1117ee;
   color: #F59E0B;
-  font-size: 12px;
+  font-size: 16px;
   padding: 7px 16px;
   border-radius: 99px;
   border: 1px solid #F59E0B55;
@@ -540,7 +540,7 @@
   border: none;
   color: var(--color-text-tertiary, #4a5568);
   cursor: pointer;
-  font-size: 10px;
+  font-size: 14px;
   padding: 0 2px;
   margin-left: 4px;
   transition: color 0.12s;
@@ -558,7 +558,7 @@
   gap: 8px;
   background: #1a0d0d;
   color: #f87171;
-  font-size: 12px;
+  font-size: 16px;
   font-weight: 600;
   padding: 8px 18px;
   border-radius: 8px;
@@ -583,7 +583,7 @@
   pointer-events: none;
 }
 .mv-hint__icon  { opacity: 0.25; margin-bottom: 12px; }
-.mv-hint__title { font-size: 13px; color: #4a5568; margin-bottom: 4px; }
+.mv-hint__title { font-size: 17px; color: #4a5568; margin-bottom: 4px; }
 .mv-hint__sub   { font-size: 11.5px; color: #374151; line-height: 1.6; }
 .mv-hint__sub strong { color: #4b6a8e; }
 
@@ -592,7 +592,7 @@
   position: absolute;
   background: #0d1117f0;
   color: #e8edf5;
-  font-size: 11px;
+  font-size: 15px;
   padding: 5px 10px;
   border-radius: 6px;
   pointer-events: none;
@@ -618,7 +618,7 @@
   align-items: center;
   gap: 8px;
   padding: 9px 14px;
-  font-size: 12px;
+  font-size: 16px;
   color: var(--color-text-primary, #e8edf5);
   background: transparent;
   border: none;
@@ -664,7 +664,7 @@
 }
 
 .mv-modal__title {
-  font-size: 14px;
+  font-size: 18px;
   font-weight: 700;
   margin-bottom: 8px;
   color: var(--color-text-primary, #e8edf5);
@@ -688,7 +688,7 @@
 }
 
 .mv-modal__badge {
-  font-size: 11px;
+  font-size: 15px;
   padding: 2px 8px;
   border-radius: 99px;
 }
@@ -712,7 +712,7 @@
 }
 
 .mv-modal__label-value {
-  font-size: 12px;
+  font-size: 16px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   letter-spacing: 0;
@@ -721,7 +721,7 @@
 }
 
 .mv-modal__hint {
-  font-size: 11px;
+  font-size: 15px;
   color: var(--color-text-tertiary, #4a5568);
   margin-top: 7px;
   line-height: 1.5;
@@ -741,7 +741,7 @@
 }
 
 .mv-modal__btn {
-  font-size: 12px;
+  font-size: 16px;
   padding: 7px 18px;
   border-radius: 7px;
   border: 0.5px solid var(--color-border-secondary, #2e3d55);
@@ -773,7 +773,7 @@
   border: 0.5px solid var(--color-border-secondary, #2e3d55);
   background: var(--color-background-primary, #0d1117);
   color: var(--color-text-secondary, #7a8499);
-  font-size: 12px;
+  font-size: 16px;
   font-weight: 600;
   cursor: pointer;
   text-align: center;
@@ -883,7 +883,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 9px;
+  font-size: 13px;
   font-weight: 700;
   letter-spacing: 0;
   color: var(--color-text-tertiary, #4a5568);
@@ -963,14 +963,14 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  font-size: 14px;
+  font-size: 18px;
   font-weight: 700;
   color: #F59E0B;
   margin-bottom: 8px;
 }
 
 .mv-zone-name-modal__sub {
-  font-size: 12px;
+  font-size: 16px;
   color: var(--color-text-secondary, #7a8499);
   margin-bottom: 16px;
   line-height: 1.55;
@@ -980,7 +980,7 @@
   width: 100%;
   box-sizing: border-box;
   padding: 9px 12px;
-  font-size: 13px;
+  font-size: 17px;
   border-radius: 8px;
   border: 1px solid #2e3d55;
   background: var(--color-background-primary, #0d1117);
@@ -999,7 +999,7 @@
   box-shadow: 0 0 0 2px #f8717122;
 }
 .mv-zone-name-err {
-  font-size: 11px;
+  font-size: 15px;
   color: #f87171;
   margin: 4px 0 12px;
 }
@@ -1019,7 +1019,7 @@
   padding: 7px 12px;
   background: rgba(255,255,255,0.03);
   border-bottom: 0.5px solid;
-  font-size: 11px;
+  font-size: 15px;
   color: var(--color-text-secondary, #7a8499);
   line-height: 1.4;
 }
@@ -1051,7 +1051,7 @@
 }
 
 .mv-sidebar__count {
-  font-size: 11px;
+  font-size: 15px;
   background: #2e3d55;
   color: var(--color-text-secondary, #7a8499);
   padding: 1px 7px;
@@ -1071,7 +1071,7 @@
 
 .mv-cam-empty {
   padding: 20px 14px;
-  font-size: 12px;
+  font-size: 16px;
   color: var(--color-text-tertiary, #4a5568);
   text-align: center;
   line-height: 1.6;
@@ -1105,7 +1105,7 @@
   min-width: 0;
 }
 .mv-cam-name {
-  font-size: 12px;
+  font-size: 16px;
   color: var(--color-text-primary, #e8edf5);
   white-space: nowrap;
   overflow: hidden;
@@ -1150,7 +1150,7 @@
   font-size: 11.5px;
 }
 .mv-legend__num {
-  font-size: 10px;
+  font-size: 14px;
   font-weight: 700;
   color: var(--color-text-tertiary, #4a5568);
   width: 14px;
@@ -1171,7 +1171,7 @@
   text-overflow: ellipsis;
 }
 .mv-legend__meta {
-  font-size: 10px;
+  font-size: 14px;
   color: var(--color-text-tertiary, #4a5568);
   font-variant-numeric: tabular-nums;
   margin-top: 1px;
@@ -1180,7 +1180,7 @@
   font-weight: 600;
 }
 .mv-legend__remove {
-  font-size: 10px;
+  font-size: 14px;
   color: var(--color-text-tertiary, #4a5568);
   background: none;
   border: none;
@@ -1204,7 +1204,7 @@
   flex-shrink: 0;
 }
 .mv-zoom-label {
-  font-size: 11px;
+  font-size: 15px;
   color: var(--color-text-secondary, #7a8499);
   min-width: 38px;
   text-align: center;
@@ -1218,7 +1218,7 @@
   background: var(--color-background-primary, #0d1117);
   color: var(--color-text-primary, #e8edf5);
   cursor: pointer;
-  font-size: 15px;
+  font-size: 19px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1228,7 +1228,7 @@
 .mv-zbtn--fit {
   width: auto;
   padding: 0 9px;
-  font-size: 11px;
+  font-size: 15px;
 }
 
 /* ── Stream / Alerts overlay ──────────────────────────────────── */
@@ -1244,8 +1244,8 @@
 }
 
 .mv-stream-modal {
-  width: 680px;
-  max-height: 82vh;
+  width: 540px;
+  max-height: 70vh;
   background: #13161f;
   border: 1px solid #2a2d3a;
   border-radius: 12px;
@@ -1265,13 +1265,13 @@
 }
 
 .mv-stream-title {
-  font-size: 15px;
+  font-size: 19px;
   font-weight: 700;
   color: #e8edf5;
 }
 
 .mv-stream-sub {
-  font-size: 12px;
+  font-size: 16px;
   color: #6b7280;
   margin-top: 3px;
   display: flex;
@@ -1283,7 +1283,7 @@
   background: none;
   border: none;
   color: #6b7280;
-  font-size: 18px;
+  font-size: 22px;
   cursor: pointer;
   padding: 0 4px;
   line-height: 1;
@@ -1305,7 +1305,7 @@
   border-bottom: 2px solid transparent;
   color: #6b7280;
   cursor: pointer;
-  font-size: 13px;
+  font-size: 17px;
   font-weight: 500;
   transition: all 0.15s;
 }
@@ -1318,7 +1318,7 @@
   align-items: center;
   justify-content: center;
   background: #0a0c12;
-  min-height: 340px;
+  min-height: 220px;
   position: relative;
 }
 
@@ -1326,9 +1326,9 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  min-height: 340px;
+  min-height: 220px;
   color: #4b5563;
-  font-size: 14px;
+  font-size: 18px;
 }
 
 .mv-alerts-body {
@@ -1339,14 +1339,14 @@
 
 .mv-alerts-loading {
   color: #6b7280;
-  font-size: 13px;
+  font-size: 17px;
   padding: 24px 0;
   text-align: center;
 }
 
 .mv-alerts-empty {
   color: #4b5563;
-  font-size: 13px;
+  font-size: 17px;
   font-style: italic;
   padding: 24px 0;
   text-align: center;
@@ -1355,7 +1355,7 @@
 .mv-alert-group       { margin-bottom: 18px; }
 
 .mv-alert-group-title {
-  font-size: 12px;
+  font-size: 16px;
   font-weight: 600;
   color: #9ca3af;
   text-transform: uppercase;
@@ -1371,7 +1371,7 @@
   color: #d1d5db;
   border-radius: 10px;
   padding: 1px 7px;
-  font-size: 11px;
+  font-size: 15px;
   font-weight: 700;
 }
 
@@ -1383,7 +1383,7 @@
   background: #1a1d26;
   border-radius: 6px;
   margin-bottom: 4px;
-  font-size: 12px;
+  font-size: 16px;
   color: #d1d5db;
 }
 
@@ -1479,13 +1479,13 @@
 }
 
 .mv-export-item__label span {
-  font-size: 12px;
+  font-size: 16px;
   font-weight: 600;
   display: block;
 }
 
 .mv-export-item__label small {
-  font-size: 10px;
+  font-size: 14px;
   color: #4a5568;
 }
 
@@ -1549,7 +1549,7 @@
  
 /* Camera count chip on zone header */
 .mv-zone-header-btn__count {
-  font-size: 9px;
+  font-size: 13px;
   font-weight: 700;
   border-radius: 99px;
   padding: 1px 5px;
@@ -1586,7 +1586,7 @@
  
 /* Delete button inside zone header */
 .mv-zone-btn__delete {
-  font-size: 9px;
+  font-size: 13px;
   color: var(--color-text-tertiary, #4a5568);
   background: none;
   border: none;
@@ -1661,7 +1661,7 @@
 }
  
 .mv-zone-cam-item__name {
-  font-size: 11px;
+  font-size: 15px;
   color: var(--color-text-secondary, #7a8499);
   white-space: nowrap;
   overflow: hidden;
@@ -1677,7 +1677,7 @@
  
 /* Remove camera button */
 .mv-zone-cam-item__remove {
-  font-size: 9px;
+  font-size: 13px;
   color: var(--color-text-tertiary, #4a5568);
   background: none;
   border: none;
@@ -1699,7 +1699,7 @@
  
 /* Empty cameras in zone hint */
 .mv-zone-cam-empty {
-  font-size: 10px;
+  font-size: 14px;
   color: var(--color-text-tertiary, #4a5568);
   padding: 4px 10px 6px;
   font-style: italic;
@@ -1825,7 +1825,7 @@
 }
 
 .mv-floor-hud__label {
-  font-size: 8px;
+  font-size: 12px;
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.1em;
@@ -1842,7 +1842,7 @@
   border: 1.5px solid rgba(255, 255, 255, 0.25) !important;
   color: rgba(255, 255, 255, 0.9) !important;
   font-weight: 700;
-  font-size: 13px;
+  font-size: 17px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1883,7 +1883,7 @@
   background: #ef444422;
   color: #ef4444;
   border: 1px solid #ef444440;
-  font-size: 8px;
+  font-size: 12px;
   width: 14px;
   height: 14px;
   border-radius: 50%;
@@ -1960,7 +1960,7 @@
 }
 
 .mv-inspector-toggle__text {
-  font-size: 9px;
+  font-size: 13px;
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.18em;
@@ -2100,7 +2100,7 @@
   background: transparent;
   border: none;
   color: #7a8499;
-  font-size: 15px;
+  font-size: 19px;
   font-weight: 600;
   width: 26px;
   height: 26px;

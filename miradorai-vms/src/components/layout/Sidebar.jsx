@@ -24,9 +24,7 @@ export default function Sidebar({ userRole }) {
     return localStorage.getItem("sidebar-collapsed") === "true";
   });
   const [expanded, setExpanded] = useState({
-    Cameras: true,
-    "Recording & Events": false,
-    Client: false,
+    Settings: true,
   });
   const [search, setSearch] = useState("");
 

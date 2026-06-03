@@ -140,7 +140,8 @@
   box-shadow: 0 0 0 3px rgba(130, 100, 255, 0.12), 0 0 15px rgba(130, 100, 255, 0.1);
 }
 
-.sv-eye-btn {
+.sv-eye-btn,
+.sv-eye {
   position: absolute;
   right: 0.75rem;
   top: 50%;
@@ -155,12 +156,14 @@
   transition: color 0.2s;
 }
 
-.sv-eye-btn svg {
+.sv-eye-btn svg,
+.sv-eye svg {
   width: 17px;
   height: 17px;
 }
 
-.sv-eye-btn:hover {
+.sv-eye-btn:hover,
+.sv-eye:hover {
   color: rgba(200, 210, 255, 0.8);
 }
 

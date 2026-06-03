@@ -36,16 +36,16 @@ const css = `
     flex-shrink: 0;
   }
   .msm-eyebrow {
-    font-size: 10px; letter-spacing: .14em; text-transform: uppercase;
+    font-size: 14px; letter-spacing: .14em; text-transform: uppercase;
     color: #3b82f6; font-weight: 500; margin-bottom: 4px;
   }
   .msm-title {
     font-family: 'Syne', sans-serif;
-    font-size: 18px; font-weight: 700; color: #e8edf5; margin: 0;
+    font-size: 22px; font-weight: 700; color: #e8edf5; margin: 0;
   }
   .msm-close {
     background: none; border: none; cursor: pointer;
-    color: #4a5568; padding: 2px; transition: color .15s;
+    color: rgba(255, 255, 255, 0.5); padding: 2px; transition: color .15s;
   }
   .msm-close:hover { color: #e8edf5; }
 
@@ -66,12 +66,12 @@ const css = `
   .msm-field--port { flex: 0 0 160px; }
 
   .msm-label {
-    font-size: 10px; letter-spacing: .1em; text-transform: uppercase;
-    color: #6b7a99; font-weight: 500;
+    font-size: 14px; letter-spacing: .1em; text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.5); font-weight: 500;
   }
   .msm-input {
     background: #080c12; border: 1px solid #1e2a3a; border-radius: 8px;
-    color: #c9d4e8; font-family: 'DM Mono', monospace; font-size: 13px;
+    color: #c9d4e8; font-family: 'DM Mono', monospace; font-size: 17px;
     padding: 10px 13px; outline: none;
     transition: border-color .15s, box-shadow .15s;
     width: 100%; box-sizing: border-box;
@@ -83,7 +83,7 @@ const css = `
   .msm-custom-select { position: relative; width: 100%; }
   .msm-select-btn {
     background: #080c12; border: 1px solid #1e2a3a; border-radius: 8px;
-    color: #c9d4e8; font-family: 'DM Mono', monospace; font-size: 13px;
+    color: #c9d4e8; font-family: 'DM Mono', monospace; font-size: 17px;
     padding: 10px 13px; outline: none; width: 100%; text-align: left;
     display: flex; justify-content: space-between; align-items: center;
     cursor: pointer; transition: border-color .15s, box-shadow .15s;
@@ -101,7 +101,7 @@ const css = `
   .msm-dropdown-menu::-webkit-scrollbar-thumb { background: #1e2a3a; border-radius: 3px; }
   .msm-dropdown-menu::-webkit-scrollbar-thumb:hover { background: #2e3d55; }
   .msm-dropdown-item {
-    padding: 8px 12px; color: #8b99b3; font-size: 13px; cursor: pointer;
+    padding: 8px 12px; color: rgba(255, 255, 255, 0.5); font-size: 17px; cursor: pointer;
     border-radius: 4px; display: flex; align-items: center; transition: all .15s;
   }
   .msm-dropdown-item:hover { background: #1e2a3a; color: #c9d4e8; }
@@ -116,13 +116,13 @@ const css = `
   .msm-eye-btn {
     position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
     background: none; border: none; cursor: pointer;
-    color: #6b7a99; padding: 2px; transition: color .15s;
+    color: rgba(255, 255, 255, 0.5); padding: 2px; transition: color .15s;
   }
   .msm-eye-btn:hover { color: #c9d4e8; }
 
   .msm-divider {
     display: flex; align-items: center; gap: 10px;
-    color: #2e3d55; font-size: 11px;
+    color: rgba(255, 255, 255, 0.5); font-size: 15px;
   }
   .msm-divider::before, .msm-divider::after {
     content: ''; flex: 1; height: 1px; background: #1e2a3a;
@@ -132,7 +132,7 @@ const css = `
     background: #080c12; border: 1px solid #1e2a3a;
     border-radius: 8px; padding: 12px 14px;
     display: flex; align-items: center; gap: 10px;
-    font-size: 12px; color: #4a5568; min-height: 44px;
+    font-size: 16px; color: rgba(255, 255, 255, 0.5); min-height: 44px;
   }
   .msm-probe.probing { color: #3b82f6; border-color: #1e3a5f; }
   .msm-probe.success { color: #22c55e; border-color: #14532d; background: #0a1a10; }
@@ -153,8 +153,8 @@ const css = `
     border-radius: 8px; padding: 12px 14px;
   }
   .msm-info-item { display: flex; flex-direction: column; gap: 2px; }
-  .msm-info-key  { font-size: 9px; letter-spacing: .1em; text-transform: uppercase; color: #4a5568; }
-  .msm-info-val  { font-size: 12px; color: #c9d4e8; }
+  .msm-info-key  { font-size: 13px; letter-spacing: .1em; text-transform: uppercase; color: rgba(255, 255, 255, 0.5); }
+  .msm-info-val  { font-size: 16px; color: #c9d4e8; }
   .msm-info-val--highlight { color: #3b82f6; font-weight: 500; }
 
   .msm-profiles { border: 1px solid #1e2a3a; border-radius: 8px; overflow: hidden; display: flex; flex-direction: column; }
@@ -168,27 +168,27 @@ const css = `
   .msm-profiles-scroll::-webkit-scrollbar-thumb:hover { background: #2e3d55; }
   .msm-profiles-header {
     background: #0d1117; padding: 7px 12px;
-    font-size: 9px; letter-spacing: .12em; text-transform: uppercase;
-    color: #4a5568; border-bottom: 1px solid #1e2a3a;
+    font-size: 13px; letter-spacing: .12em; text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.5); border-bottom: 1px solid #1e2a3a;
     display: flex; justify-content: space-between; align-items: center;
   }
   .msm-profiles-badge {
     background: #0f1f3d; color: #3b82f6;
     border: 1px solid #2563eb; border-radius: 4px;
-    padding: 2px 7px; font-size: 10px; font-weight: 500; letter-spacing: .05em;
+    padding: 2px 7px; font-size: 14px; font-weight: 500; letter-spacing: .05em;
   }
   .msm-profile-row {
     background: #080c12; padding: 9px 12px;
     display: grid; grid-template-columns: 1fr 80px 55px 58px;
     gap: 8px; align-items: center;
-    border-bottom: 1px solid #111923; font-size: 11px;
+    border-bottom: 1px solid #111923; font-size: 15px;
   }
   .msm-profile-row:last-child { border-bottom: none; }
   .msm-profile-name { color: #c9d4e8; font-weight: 500; }
-  .msm-profile-res  { color: #6b7a99; font-size: 10px; margin-top: 2px; }
-  .msm-profile-meta { color: #4a5568; font-size: 10px; }
+  .msm-profile-res  { color: rgba(255, 255, 255, 0.5); font-size: 14px; margin-top: 2px; }
+  .msm-profile-meta { color: rgba(255, 255, 255, 0.5); font-size: 14px; }
   .msm-profile-tag {
-    font-size: 9px; padding: 2px 6px; border-radius: 4px;
+    font-size: 13px; padding: 2px 6px; border-radius: 4px;
     text-align: center; font-weight: 500;
     letter-spacing: .04em; text-transform: uppercase;
   }
@@ -200,7 +200,7 @@ const css = `
     background: #0a0f1a; border: 1px solid #1a2a3a;
     border-left: 2px solid #2563eb;
     border-radius: 0 6px 6px 0;
-    padding: 8px 12px; font-size: 11px;
+    padding: 8px 12px; font-size: 15px;
     color: #4a6a99; line-height: 1.5;
   }
   .msm-routing-hint span { color: #60a5fa; }
@@ -218,11 +218,11 @@ const css = `
   input[type="password"]::-webkit-contacts-auto-fill-button { display: none !important; }
 
   .msm-btn {
-    font-family: 'DM Mono', monospace; font-size: 12px; font-weight: 500;
+    font-family: 'DM Mono', monospace; font-size: 16px; font-weight: 500;
     padding: 9px 18px; border-radius: 8px; cursor: pointer;
     border: 1px solid transparent; transition: all .15s;
   }
-  .msm-btn--ghost  { background: transparent; border-color: #1e2a3a; color: #6b7a99; }
+  .msm-btn--ghost  { background: transparent; border-color: #1e2a3a; color: rgba(255, 255, 255, 0.5); }
   .msm-btn--ghost:hover { border-color: #2e3d55; color: #c9d4e8; }
   .msm-btn--probe  { background: #0f1f3d; border-color: #2563eb; color: #3b82f6; }
   .msm-btn--probe:hover:not(:disabled) { background: #1a3260; }
@@ -233,8 +233,8 @@ const css = `
   /* Channel picker */
   .msm-channels { display: flex; flex-direction: column; gap: 6px; }
   .msm-channel-header {
-    font-size: 10px; letter-spacing: .12em; text-transform: uppercase;
-    color: #4a5568; margin-bottom: 2px;
+    font-size: 14px; letter-spacing: .12em; text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.5); margin-bottom: 2px;
   }
   .msm-channel-row {
     display: flex; align-items: center; justify-content: space-between;
@@ -246,8 +246,8 @@ const css = `
   .msm-channel-row.selected { border-color: #2563eb; background: #0f1f3d; }
   .msm-channel-left { display: flex; align-items: center; gap: 10px; }
   .msm-channel-dot { width: 8px; height: 8px; border-radius: 50%; background: #22c55e; flex-shrink: 0; }
-  .msm-channel-name { color: #c9d4e8; font-size: 13px; font-weight: 500; }
-  .msm-channel-sub { color: #4a5568; font-size: 10px; margin-top: 2px; }
+  .msm-channel-name { color: #c9d4e8; font-size: 17px; font-weight: 500; }
+  .msm-channel-sub { color: rgba(255, 255, 255, 0.5); font-size: 14px; margin-top: 2px; }
   .msm-channel-check {
     width: 18px; height: 18px; border-radius: 50%;
     border: 2px solid #2563eb; display: flex; align-items: center; justify-content: center;
@@ -257,7 +257,7 @@ const css = `
   .msm-channel-check svg { display: none; }
   .msm-channel-check.filled svg { display: block; }
 
-  .msm-error-msg { font-size: 11px; color: #f87171; margin-top: -8px; }
+  .msm-error-msg { font-size: 15px; color: #f87171; margin-top: -8px; }
 
   .msm-ui-alert {
     background: rgba(239, 68, 68, 0.08);
@@ -265,7 +265,7 @@ const css = `
     color: #f87171;
     padding: 10px 14px;
     border-radius: 8px;
-    font-size: 12px;
+    font-size: 16px;
     display: flex;
     align-items: flex-start;
     gap: 10px;
@@ -284,10 +284,11 @@ const css = `
   }
   .msm-ui-alert-close {
     background: none; border: none; cursor: pointer;
-    color: #6b7a99; font-size: 14px; line-height: 1; padding: 2px;
+    color: rgba(255, 255, 255, 0.5); font-size: 18px; line-height: 1; padding: 2px;
     transition: color 0.15s;
   }
   .msm-ui-alert-close:hover { color: #f87171; }
+
 `;
 
 const PROFILE_TAGS = ["main", "sub", "extra"];
@@ -655,7 +656,7 @@ export default function ManualSearchModal({
                   onClick={() => setDropdownOpen(!dropdownOpen)}
                 >
                   <span>{selectedGroupId === "default" ? "Default" : groups?.find(g => g.id === selectedGroupId)?.name || "Default"}</span>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6b7a99" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: dropdownOpen ? "rotate(180deg)" : "rotate(0)", transition: "transform .2s" }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255, 255, 255, 0.5)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: dropdownOpen ? "rotate(180deg)" : "rotate(0)", transition: "transform .2s" }}>
                     <path d="M6 9l6 6 6-6"/>
                   </svg>
                 </button>
@@ -797,7 +798,7 @@ export default function ManualSearchModal({
                   <div className="msm-probe-dot" />
                   ONVIF device discovered — {discovered.manufacturer} {discovered.model}
                   {detectedPort && !port && (
-                    <span style={{ fontSize: "11px", color: "#60a5fa", marginLeft: "8px" }}>
+                    <span style={{ fontSize: "15px", color: "#60a5fa", marginLeft: "8px" }}>
                       on port {detectedPort}
                     </span>
                   )}
@@ -915,7 +916,7 @@ export default function ManualSearchModal({
               }}
               disabled={probe === "probing"}
             >
-              {probe === "probing" ? "Probing…" : "Probe via ONVIF"}
+              {probe === "probing" ? "Probing…" : "Probe "}
             </button>
             <button
               tabIndex={8}

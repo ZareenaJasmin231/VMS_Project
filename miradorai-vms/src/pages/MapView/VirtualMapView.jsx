@@ -9,6 +9,40 @@ function getAuthHeaders() {
   return token ? { "Authorization": "Bearer " + token } : {};
 }
 
+// ── Read enabled alert types from Action Rules ────────────────────
+function getEnabledAlertTypes() {
+  try {
+    const rules = JSON.parse(localStorage.getItem("miradorai_action_rules") || "[]");
+    if (rules.length === 0) {
+      return ["motion", "object", "device", "occupancy", "linecrossing", "objectinarea", "tampering"];
+    }
+    return rules
+      .filter((r) => r.enabled)
+      .map((r) => (r.trigger || "").toLowerCase());
+  } catch {
+    return ["motion", "object", "device", "occupancy", "linecrossing", "objectinarea", "tampering"];
+  }
+}
+
+// ── Check if a single alert passes the enabled filter ─────────────
+function isAlertAllowed(alert) {
+  const enabledTypes = getEnabledAlertTypes();
+  const type     = (alert.type     || "").toLowerCase();
+  const scenario = (alert.scenario || "").toLowerCase();
+
+  if (enabledTypes.length === 0) return true;
+
+  return enabledTypes.some((t) => {
+    const key = t.toLowerCase();
+    if (key.includes("motion"))       return type.includes("motion")       || scenario.includes("motion");
+    if (key.includes("tamper"))       return type.includes("tamper")       || scenario.includes("tamper");
+    if (key.includes("object"))       return type.includes("object")       || type.includes("objectinarea");
+    if (key.includes("occupancy"))    return type.includes("occupancy")    || scenario.includes("occupancy");
+    if (key.includes("linecrossing")) return type.includes("linecrossing") || type.includes("crossing");
+    return true;
+  });
+}
+
 /**
  * VirtualMapView
  * ─────────────────────────────────────────────────────────────────
@@ -44,6 +78,7 @@ export default function VirtualMapView({
   onExpand,
   onClose,
   visible,
+  alertCounts = {},
 }) {
   const [, forceUpdate] = useState(0);
   const rafRef = useRef(null);
@@ -120,6 +155,7 @@ export default function VirtualMapView({
             isExpanded={isExpanded}
             isOnline={isOnline}
             isRecording={isRecording}
+            alertCount={alertCounts[cam.ip] || 0}
             onExpand={() => onExpand(cam.id)}
             onClose={onClose}
             wrap={wrap}
@@ -145,7 +181,7 @@ export default function VirtualMapView({
 }
 
 // ── Single camera thumbnail pinned to map position ────────────────
-function CamThumbnail({ cam, marker, index, sx, sy, isExpanded, isOnline, isRecording, onExpand, onClose, wrap }) {
+function CamThumbnail({ cam, marker, index, sx, sy, isExpanded, isOnline, isRecording, alertCount, onExpand, onClose, wrap }) {
   const THUMB_W = 160;
   const THUMB_H = 90;
   const [thumbLive, setThumbLive] = useState(false);
@@ -160,13 +196,20 @@ function CamThumbnail({ cam, marker, index, sx, sy, isExpanded, isOnline, isReco
 
   return (
     <div
-      className={`vt-thumb ${isOnline ? "vt-thumb--online" : "vt-thumb--offline"} ${isExpanded ? "vt-thumb--expanded" : ""}`}
+      className={`vt-thumb ${isOnline ? "vt-thumb--online" : "vt-thumb--offline"} ${isExpanded ? "vt-thumb--expanded" : ""} ${alertCount > 0 ? "vt-thumb--alert" : ""}`}
       style={{ left, top, width: THUMB_W, height: THUMB_H }}
       onClick={e => { e.stopPropagation(); isExpanded ? onClose() : onExpand(); }}
       title={`${cam.name} — click to expand`}
     >
       {/* Connector line from thumbnail down to camera dot */}
       <div className="vt-thumb__connector" />
+
+      {/* Alert Badge */}
+      {alertCount > 0 && (
+        <div className="vt-thumb__alert-badge" title={`${alertCount} alert${alertCount !== 1 ? "s" : ""} — click to view`}>
+          {alertCount > 99 ? "99+" : alertCount}
+        </div>
+      )}
 
       {/* Live feed or offline placeholder */}
       {isOnline ? (
@@ -219,13 +262,18 @@ function ExpandedFeed({ cam, marker, onClose }) {
   useEffect(() => {
     if (tab !== "alerts") return;
     setLA(true);
-    const API = "http://192.168.126.200:80";
     const token = localStorage.getItem("miradorai_token") || localStorage.getItem("token") || "";
-    fetch(`${API}/api/alerts?camera_ip=${cam.ip}&limit=50`, {
+    fetch(`${API}/api/alerts?camera_ip=${cam.ip}&limit=100`, {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     })
       .then(r => r.ok ? r.json() : null)
-      .then(d => setAlerts(d?.alerts || []))
+      .then(d => {
+        const all = d?.alerts || [];
+        const filtered = all
+          .filter(a => a.status === "Active")
+          .filter(isAlertAllowed);
+        setAlerts(filtered);
+      })
       .catch(() => {})
       .finally(() => setLA(false));
   }, [tab, cam.ip]);

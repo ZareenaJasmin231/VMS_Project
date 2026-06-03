@@ -32,7 +32,7 @@ html, body, #root {
   background: transparent;   /* ❌ remove box */
   border: none;
   color: #ffffff;           /* white cross */
-  font-size: 14px;
+  font-size: 18px;
   cursor: pointer;
   padding: 4px;
   line-height: 1;
@@ -101,7 +101,7 @@ html, body, #root {
 .cam-ip-link {
   color: #1D9E75;
   font-family: "Consolas", "JetBrains Mono", monospace;
-  font-size: 12px;
+  font-size: 16px;
   cursor: pointer;
   text-decoration: underline;
   text-underline-offset: 2px;
@@ -126,7 +126,7 @@ html, body, #root {
 
 /* ── Footer count ────────────────────────────────────────── */
 .cameras-count {
-  font-size: 12px;
+  font-size: 16px;
   color: var(--text-muted);
 }
 
@@ -150,7 +150,7 @@ html, body, #root {
   display: flex;
   flex-direction: column;
   color: var(--text-primary, #e8eaf0);
-  font-size: 13px;
+  font-size: 17px;
 }
 
 /* Title bar */
@@ -164,7 +164,7 @@ html, body, #root {
   border-radius: 12px 12px 0 0;
 }
 .ec-title {
-  font-size: 14px;
+  font-size: 18px;
   font-weight: 600;
   color: var(--text-primary, #e8eaf0);
 }
@@ -178,7 +178,7 @@ html, body, #root {
   border: none;
   background: transparent;
   border-radius: 4px;
-  font-size: 12px;
+  font-size: 16px;
   color: var(--text-secondary, #8892a4);
   cursor: pointer;
   display: flex;
@@ -200,7 +200,7 @@ html, body, #root {
 }
 
 .ec-section-title {
-  font-size: 15px;
+  font-size: 19px;
   font-weight: 600;
   color: var(--text-primary, #e8eaf0);
   margin-bottom: 2px;
@@ -213,7 +213,7 @@ html, body, #root {
   display: flex;
   align-items: center;
   gap: 7px;
-  font-size: 13px;
+  font-size: 17px;
   color: var(--text-primary, #e8eaf0);
   cursor: pointer;
   margin-bottom: 2px;
@@ -236,7 +236,7 @@ html, body, #root {
 .ec-field-label {
   width: 90px;
   flex-shrink: 0;
-  font-size: 13px;
+  font-size: 17px;
   color: var(--text-secondary, #8892a4);
   text-align: right;
 }
@@ -247,7 +247,7 @@ html, body, #root {
   border: 1px solid var(--border-light, #2e3548);
   border-radius: var(--radius-sm, 4px);
   background: var(--bg-base, #0d0f14);
-  font-size: 13px;
+  font-size: 17px;
   color: var(--text-primary, #e8eaf0);
   outline: none;
   transition: all 0.2s ease;
@@ -268,7 +268,7 @@ html, body, #root {
   border: 1px solid var(--border-light, #2e3548);
   border-radius: var(--radius-sm, 4px);
   background: var(--bg-base, #0d0f14);
-  font-size: 13px;
+  font-size: 17px;
   color: var(--text-primary, #e8eaf0);
   resize: vertical;
   outline: none;
@@ -301,7 +301,7 @@ html, body, #root {
   height: 32px;
   padding: 0 16px;
   border-radius: var(--radius-sm, 4px);
-  font-size: 13px;
+  font-size: 17px;
   font-weight: 500;
   cursor: pointer;
   border: 1px solid var(--border-light, #2e3548);
@@ -363,7 +363,7 @@ html, body, #root {
 
 /* Auth dialog description text */
 .ec-auth-desc {
-  font-size: 13px;
+  font-size: 17px;
   color: var(--text-secondary, #8892a4);
   margin: 0 0 12px 0;
   line-height: 1.5;
@@ -403,7 +403,7 @@ html, body, #root {
 
 .cam-side-header h3 {
   margin: 0;
-  font-size: 18px;
+  font-size: 22px;
   font-weight: 700;
   color: var(--teal);
   letter-spacing: -0.02em;
@@ -413,7 +413,7 @@ html, body, #root {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 12px;
+  font-size: 16px;
   color: var(--text-muted);
   margin-top: 4px;
 }
@@ -468,7 +468,7 @@ html, body, #root {
 }
 
 .cam-item-ip {
-  font-size: 11px;
+  font-size: 15px;
   color: var(--text-muted);
   font-family: var(--font-mono);
 }
@@ -483,7 +483,7 @@ html, body, #root {
 }
 
 .ec-panel__footer-left {
-  font-size: 12px;
+  font-size: 16px;
   color: var(--text-muted);
   font-weight: 500;
 }
@@ -683,7 +683,7 @@ html, body, #root {
   gap: 5px;
   padding: 2px 8px;
   border-radius: 20px;
-  font-size: 11px;
+  font-size: 15px;
   font-weight: 500;
   letter-spacing: 0.02em;
   flex-shrink: 0;
@@ -736,7 +736,7 @@ html, body, #root {
 }
 
 .cam-side-panel__toggle-label {
-  font-size: 11px;
+  font-size: 15px;
   color: var(--color-text-secondary);
 }
 
@@ -764,7 +764,7 @@ html, body, #root {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 11px;
+  font-size: 15px;
   font-weight: 500;
   color: #1D9E75;
   text-transform: uppercase;
@@ -789,12 +789,12 @@ html, body, #root {
 }
 
 .cam-stream-paused span {
-  font-size: 11px;
+  font-size: 15px;
   font-weight: 500;
 }
 
 .cam-stream-paused-sub {
-  font-size: 10px !important;
+  font-size: 14px !important;
   font-weight: 400 !important;
   opacity: 0.7;
 }
@@ -809,7 +809,7 @@ html, body, #root {
 /* ── Footer: active count ─────────────────────────────────── */
 .cameras-count-active {
   color: #1D9E75;
-  font-size: 12px;
+  font-size: 16px;
 }
 
 /* ── Edit modal: toggle row ──────────────────────────────── */
@@ -830,13 +830,13 @@ html, body, #root {
 }
 
 .ec-toggle-label {
-  font-size: 13px;
+  font-size: 17px;
   color: var(--color-text-primary);
   font-weight: 500;
 }
 
 .ec-toggle-sub {
-  font-size: 11px;
+  font-size: 15px;
   color: var(--color-text-secondary);
 }
 .m-table {
@@ -928,7 +928,7 @@ html, body, #root {
 }
 
 .group-total {
-  font-size: 13px;
+  font-size: 17px;
   color: #c9d4e8;
   font-weight: 500;
   display: block;
@@ -940,7 +940,7 @@ html, body, #root {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 11px;
+  font-size: 15px;
 }
 
 .group-active {
@@ -966,12 +966,12 @@ html, body, #root {
 /* ── 2. Right panel header ── */
 .group-panel-header h3 {
   color: #22c55e;
-  font-size: 16px;
+  font-size: 20px;
   margin: 0 0 4px 0;
 }
 
 .group-panel-meta {
-  font-size: 12px;
+  font-size: 16px;
   color: #64748b;
   display: flex;
   align-items: center;
@@ -1009,7 +1009,7 @@ html, body, #root {
 }
 
 .group-cam-name {
-  font-size: 13px;
+  font-size: 17px;
   color: #c9d4e8;
   white-space: nowrap;
   overflow: hidden;
@@ -1017,7 +1017,7 @@ html, body, #root {
 }
 
 .group-cam-ip {
-  font-size: 11px;
+  font-size: 15px;
   color: #64748b;
 }
 

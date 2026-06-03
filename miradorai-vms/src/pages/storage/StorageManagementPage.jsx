@@ -271,7 +271,7 @@ export default function StorageManagementPage() {
       <div className="page-header">
         <div>
           <h1 className="page-title">Storage <span>Management</span></h1>
-          <p className="page-desc">
+          <p className="page-desc" style={{ color: "rgba(255, 255, 255, 0.5)" }}>
             Add and remove local or network storage. Select how much space to use and where to store data.
           </p>
         </div>
@@ -284,15 +284,15 @@ export default function StorageManagementPage() {
             <tr>
               <th style={{ width: 40 }}></th>
               {["Location", "Allocated", "Used", "Status", "Server"].map((c) => (
-                <th key={c}>{c}</th>
+                <th key={c} style={{ color: "rgba(255, 255, 255, 0.5)" }}>{c}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={6} className="m-table__empty">Loading...</td></tr>
+              <tr><td colSpan={6} className="m-table__empty" style={{ color: "rgba(255, 255, 255, 0.5)" }}>Loading...</td></tr>
             ) : filtered.length === 0 ? (
-              <tr><td colSpan={6} className="m-table__empty">No storage locations configured.</td></tr>
+              <tr><td colSpan={6} className="m-table__empty" style={{ color: "rgba(255, 255, 255, 0.5)" }}>No storage locations configured.</td></tr>
             ) : filtered.map((r, i) => {
               const isSel = selected === i;
               const pct   = r.total ? Math.round((r.used / r.total) * 100) : 0;
@@ -361,8 +361,8 @@ export default function StorageManagementPage() {
             <div className="sm-divider" style={{ marginTop: "auto" }} />
 
             <div className="sm-field-row" style={{ marginTop: 8 }}>
-              <span style={{ fontWeight: 600, color: "var(--text-primary)", fontSize: "14px" }}>Total Capacity:</span>
-              <strong style={{ marginLeft: "auto", fontSize: "16px", color: "var(--teal)" }}>{sel.total} GB</strong>
+              <span style={{ fontWeight: 600, color: "rgba(255, 255, 255, 0.5)", fontSize: "18px" }}>Total Capacity:</span>
+              <strong style={{ marginLeft: "auto", fontSize: "20px", color: "var(--teal)" }}>{sel.total} GB</strong>
             </div>
           </div>
 
@@ -370,18 +370,18 @@ export default function StorageManagementPage() {
           <div className="sm-card card">
             <div className="sm-panel-title">Disk Usage</div>
 
-            <div className="sm-usage-label">DISK USAGE</div>
+            <div className="sm-usage-label" style={{ color: "rgba(255, 255, 255, 0.5)" }}>DISK USAGE</div>
             <div className="sm-usage-track">
               <div className="sm-usage-bar" style={{ width: `${usedPct}%`, background: usedColor }} />
             </div>
-            <div className="sm-usage-text">
+            <div className="sm-usage-text" style={{ color: "rgba(255, 255, 255, 0.5)" }}>
               {sel.used} GB used of {sel.total} GB ({usedPct}%)
             </div>
 
             <div className="sm-divider" />
 
             <div className="sm-field-row">
-              <label style={{ fontWeight: 600, fontSize: "14px" }}>Allocated Limit:</label>
+              <label style={{ fontWeight: 600, fontSize: "18px", color: "rgba(255, 255, 255, 0.5)" }}>Allocated Limit:</label>
             </div>
             <div className="sm-slider-row">
               <input
@@ -434,7 +434,7 @@ export default function StorageManagementPage() {
             <div className="sm-panel-title">Status to Apply</div>
 
             <div className="sm-field-row" style={{ marginBottom: 6 }}>
-              <label style={{ fontWeight: 600, fontSize: "14px" }}>Status:</label>
+              <label style={{ fontWeight: 600, fontSize: "18px", color: "rgba(255, 255, 255, 0.5)" }}>Status:</label>
               <span className={`sm-status ${usedPct >= 90 ? "sm-status--warn" : "sm-status--ok"}`}>
                 {sel.status}
               </span>
@@ -443,7 +443,7 @@ export default function StorageManagementPage() {
             <div className="sm-divider" />
 
             <div className="sm-field-row">
-              <label style={{ fontWeight: 600, fontSize: "14px" }}>Folder for new recordings:</label>
+              <label style={{ fontWeight: 600, fontSize: "18px", color: "rgba(255, 255, 255, 0.5)" }}>Folder for new recordings:</label>
             </div>
 
             <div className="sm-folder-row">
@@ -494,7 +494,7 @@ export default function StorageManagementPage() {
                     title="Windows path (D:\REC\site-B) or container path (/recordings/site-B) — both work."
                   />
                 </div>
-                <div style={{ fontSize: "0.72rem", color: "var(--text-muted, #888)", marginTop: 4, paddingLeft: 2 }}>
+                <div style={{ fontSize: "0.72rem", color: "rgba(255, 255, 255, 0.5)", marginTop: 4, paddingLeft: 2 }}>
                   Windows path <code>D:\REC\site-B</code> and container path{" "}
                   <code>/recordings/site-B</code> both map to the same location.
                 </div>

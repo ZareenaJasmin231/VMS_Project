@@ -18,7 +18,7 @@
 }
 
 .rm-page-title {
-  font-size: 26px;
+  font-size: 30px;
   font-weight: 700;
   margin: 0;
   color: var(--text-primary);
@@ -29,7 +29,7 @@
 }
 
 .rm-page-desc {
-  font-size: 14px;
+  font-size: 18px;
   color: var(--text-muted);
   max-width: 600px;
   line-height: 1.6;
@@ -43,7 +43,7 @@
   padding: 10px 16px;
   border-radius: 8px;
   color: #fff;
-  font-size: 13px;
+  font-size: 17px;
   outline: none;
   transition: all 0.2s ease;
   backdrop-filter: blur(10px);
@@ -85,7 +85,7 @@
 .m-table th {
   text-align: left;
   padding: 16px 20px;
-  font-size: 11px;
+  font-size: 15px;
   font-weight: 700;
   color: rgba(255, 255, 255, 0.4);
   text-transform: uppercase;
@@ -109,7 +109,7 @@
 .m-table td {
   padding: 16px 20px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.04);
-  font-size: 14px;
+  font-size: 18px;
   vertical-align: middle;
 }
 
@@ -146,7 +146,7 @@
 
 .rm-side-header h3 {
   margin: 0;
-  font-size: 18px;
+  font-size: 22px;
   font-weight: 700;
   color: #fff;
 }
@@ -206,7 +206,7 @@
 }
 
 .rm-item-name {
-  font-size: 14px;
+  font-size: 18px;
   font-weight: 600;
   color: #fff;
   margin-bottom: 2px;
@@ -216,7 +216,7 @@
 }
 
 .rm-stream-badge {
-  font-size: 10px;
+  font-size: 14px;
   padding: 2px 6px;
   border-radius: 4px;
   background: rgba(45, 212, 191, 0.1);
@@ -228,7 +228,7 @@
 }
 
 .rm-item-mode {
-  font-size: 11px;
+  font-size: 15px;
   color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -241,7 +241,7 @@
   justify-content: center;
   padding: 4px 12px;
   border-radius: 20px;
-  font-size: 12px;
+  font-size: 16px;
   font-weight: 700;
   min-width: 44px;
 }
@@ -292,7 +292,7 @@
 }
 
 .rm-h-label {
-  font-size: 12px;
+  font-size: 16px;
   font-weight: 700;
   color: var(--text-secondary, #8892a4);
   text-transform: uppercase;
@@ -305,7 +305,7 @@
   color: var(--text-primary, #e8eaf0);
   padding: 10px 32px 10px 16px;
   border-radius: 10px;
-  font-size: 14px;
+  font-size: 18px;
   font-weight: 500;
   min-width: 200px;
   cursor: pointer;
@@ -370,7 +370,7 @@
   border-radius: 12px;
   color: rgba(255, 255, 255, 0.3);
   font-style: italic;
-  font-size: 14px;
+  font-size: 18px;
 }
 
 /* ── Toast Notification ──────────────────────────────────────── */
@@ -385,7 +385,7 @@
   padding: 12px 24px;
   border-radius: 8px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
-  font-size: 14px;
+  font-size: 18px;
   font-weight: 600;
   z-index: 1000;
   animation: rmToastIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
@@ -399,4 +399,70 @@
 @keyframes rmToastIn {
   from { opacity: 0; transform: translate(-50%, 20px); }
   to { opacity: 1; transform: translate(-50%, 0); }
+}
+
+/* ── Custom Select Styles ────────────────────────────────────── */
+.rm-custom-select {
+  position: relative;
+  min-width: 200px;
+}
+
+.rm-select-btn {
+  width: 100%;
+  padding: 10px 16px;
+  background: var(--bg-base, #0d0f14);
+  border: 1px solid var(--border-light, #2e3548);
+  color: var(--text-primary, #e8eaf0);
+  border-radius: 10px;
+  font-size: 18px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.rm-select-btn:hover {
+  border-color: var(--teal);
+  background-color: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 0 0 4px rgba(45, 212, 191, 0.1);
+}
+
+.rm-dropdown-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin-top: 8px;
+  background: var(--bg-elevated, #1a1e28);
+  border: 1px solid var(--border-light, #2e3548);
+  border-radius: 8px;
+  list-style: none;
+  padding: 4px 0;
+  margin: 0;
+  z-index: 100;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  max-height: 250px;
+  overflow-y: auto;
+}
+
+.rm-dropdown-item {
+  padding: 10px 16px;
+  font-size: 16px;
+  cursor: pointer;
+  color: var(--text-secondary, #8892a4);
+  transition: all 0.2s ease;
+  font-weight: 500;
+}
+
+.rm-dropdown-item:hover {
+  background: var(--bg-hover, #1f2433);
+  color: var(--text-primary, #e8eaf0);
+}
+
+.rm-dropdown-item.active {
+  background: rgba(45, 212, 191, 0.15);
+  color: var(--teal);
+  font-weight: 600;
 }

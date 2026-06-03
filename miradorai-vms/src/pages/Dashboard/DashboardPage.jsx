@@ -8,38 +8,215 @@ import {
   AlertTriangle,
   Server,
   Cpu,
-  MemoryStick
+  MemoryStick,
+  Calendar,
+  Download
 } from "lucide-react";
-const API_BASE = "http://localhost:80";
+const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:80";
 
-const Sparkline = ({ data, color = '#6366f1', height = 60 }) => {
+const getAuthHeaders = () => {
+  const token = localStorage.getItem("miradorai_token");
+  return token ? { "Authorization": "Bearer " + token } : {};
+};
+
+
+const formatLocalDatetime = (date) => {
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+};
+
+const getInitialFromDate = () => {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return formatLocalDatetime(d);
+};
+
+const getInitialToDate = () => {
+  const d = new Date();
+  return formatLocalDatetime(d);
+};
+
+// ── CPU: Smooth area chart showing trend over time ──
+const CpuAreaChart = ({ data, value }) => {
+  const height = 64;
+  const width = 220;
   if (!data || data.length < 2) return <div style={{ height }} />;
-  const min = Math.min(...data);
-  const max = Math.max(...data);
-  const range = max - min || 1;
-  const width = 200;
+
+  // Scale 0-100 to chart height with some padding
+  const padTop = 4;
+  const padBot = 4;
+  const chartH = height - padTop - padBot;
+
   const points = data.map((val, i) => {
     const x = (i / (data.length - 1)) * width;
-    const y = height - ((val - min) / range) * height;
-    return `${x},${y}`;
-  }).join(' ');
-  const pathData = `M ${points}`;
-  const areaData = `${pathData} L ${width},${height} L 0,${height} Z`;
+    const y = padTop + chartH - (val / 100) * chartH;
+    return { x, y };
+  });
 
-  // Sanitizing color to avoid `#` in SVG element IDs, which is illegal and breaks gradient rendering
-  const cleanColorId = color.replace('#', '');
+  // Smooth curve using cubic bezier
+  let pathD = `M ${points[0].x},${points[0].y}`;
+  for (let i = 1; i < points.length; i++) {
+    const prev = points[i - 1];
+    const curr = points[i];
+    const cpx1 = prev.x + (curr.x - prev.x) * 0.4;
+    const cpx2 = prev.x + (curr.x - prev.x) * 0.6;
+    pathD += ` C ${cpx1},${prev.y} ${cpx2},${curr.y} ${curr.x},${curr.y}`;
+  }
+
+  const areaD = `${pathD} L ${width},${height} L 0,${height} Z`;
+  const lineColor = value > 85 ? '#ef4444' : value > 60 ? '#f59e0b' : '#10b981';
 
   return (
-    <svg viewBox={`0 0 ${width} ${height}`} className="dashboard-sparkline" preserveAspectRatio="none">
+    <svg viewBox={`0 0 ${width} ${height}`} className="cpu-area-chart" preserveAspectRatio="none">
       <defs>
-        <linearGradient id={`grad-${cleanColorId}`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={color} stopOpacity="0.3" />
-          <stop offset="100%" stopColor={color} stopOpacity="0" />
+        <linearGradient id="cpuGrad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={lineColor} stopOpacity="0.25" />
+          <stop offset="100%" stopColor={lineColor} stopOpacity="0.02" />
         </linearGradient>
       </defs>
-      <path d={areaData} fill={`url(#grad-${cleanColorId})`} />
-      <path d={pathData} fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+      {/* Threshold line at 85% */}
+      <line x1="0" y1={padTop + chartH - (85 / 100) * chartH} x2={width} y2={padTop + chartH - (85 / 100) * chartH}
+        stroke="#ef4444" strokeWidth="0.5" strokeDasharray="4 3" opacity="0.4" />
+      {/* Threshold line at 60% */}
+      <line x1="0" y1={padTop + chartH - (60 / 100) * chartH} x2={width} y2={padTop + chartH - (60 / 100) * chartH}
+        stroke="#f59e0b" strokeWidth="0.5" strokeDasharray="4 3" opacity="0.3" />
+      <path d={areaD} fill="url(#cpuGrad)" />
+      <path d={pathD} fill="none" stroke={lineColor} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      {/* Current value dot */}
+      <circle cx={points[points.length - 1].x} cy={points[points.length - 1].y} r="3" fill={lineColor} />
+      <circle cx={points[points.length - 1].x} cy={points[points.length - 1].y} r="5" fill={lineColor} opacity="0.3" />
     </svg>
+  );
+};
+
+// ── RAM: Horizontal usage gauge ──
+const RamUsageGauge = ({ value }) => {
+  const pct = Math.min(100, Math.max(0, value));
+  const color = pct > 85 ? '#ef4444' : pct > 60 ? '#f59e0b' : '#10b981';
+  const free = Math.round(100 - pct);
+
+  return (
+    <div className="ram-usage-gauge">
+      <div className="ram-gauge-bar">
+        <div
+          className="ram-gauge-fill"
+          style={{ width: `${pct}%`, background: `linear-gradient(90deg, ${color}88, ${color})` }}
+        >
+          {pct > 15 && <span className="ram-fill-label">{Math.round(pct)}%</span>}
+        </div>
+        {free > 10 && (
+          <div className="ram-gauge-free">
+            <span className="ram-free-label">{free}% free</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// ── Disk: Horizontal segmented usage bar ──
+const DiskUsageBar = ({ value, used, total }) => {
+  const pct = Math.min(100, Math.max(0, value));
+  const color = pct > 90 ? '#ef4444' : pct > 75 ? '#f59e0b' : '#10b981';
+
+  return (
+    <div className="disk-bar-wrapper">
+      <div className="disk-bar-track">
+        <div
+          className="disk-bar-fill"
+          style={{
+            width: `${pct}%`,
+            background: `linear-gradient(90deg, ${color}cc, ${color})`,
+            transition: 'width 0.6s ease'
+          }}
+        />
+        {/* Segment markers at 25%, 50%, 75% */}
+        <div className="disk-bar-marker" style={{ left: '25%' }} />
+        <div className="disk-bar-marker" style={{ left: '50%' }} />
+        <div className="disk-bar-marker" style={{ left: '75%' }} />
+      </div>
+      <div className="disk-bar-labels">
+        <span className="disk-bar-used" style={{ color }}>{used || `${pct}%`}</span>
+        <span className="disk-bar-total">{total ? `/ ${total}` : '/ 100%'}</span>
+      </div>
+    </div>
+  );
+};
+
+// ── Disk: Donut gauge ──
+const DiskDonut = ({ value, used, total }) => {
+  const size = 80;
+  const strokeW = 7;
+  const radius = (size - strokeW) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const pct = Math.min(100, Math.max(0, value));
+  const dashOffset = circumference - (pct / 100) * circumference;
+  const color = pct > 90 ? '#ef4444' : pct > 75 ? '#f59e0b' : '#10b981';
+
+  return (
+    <div className="disk-donut-container">
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="disk-donut-svg">
+        <circle
+          cx={size / 2} cy={size / 2} r={radius}
+          fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth={strokeW}
+        />
+        <circle
+          cx={size / 2} cy={size / 2} r={radius}
+          fill="none" stroke={color} strokeWidth={strokeW}
+          strokeLinecap="round"
+          strokeDasharray={circumference}
+          strokeDashoffset={dashOffset}
+          transform={`rotate(-90 ${size / 2} ${size / 2})`}
+          style={{ transition: 'stroke-dashoffset 0.6s ease, stroke 0.3s ease' }}
+        />
+        <text x="50%" y="50%" textAnchor="middle" dominantBaseline="central"
+          fill={color} fontSize="14" fontWeight="700" fontFamily="var(--font-ui)">
+          {Math.round(pct)}%
+        </text>
+      </svg>
+      <span className="disk-donut-sub">{used} / {total} GB</span>
+    </div>
+  );
+};
+
+// ── Mini Arc Gauge for stat cards ──
+const MiniArcGauge = ({ value, label, thresholds = [60, 85], invert = false }) => {
+  const size = 64;
+  const strokeW = 5;
+  const radius = (size - strokeW) / 2;
+  // Semi-circle (180 degrees)
+  const halfCirc = Math.PI * radius;
+  const pct = Math.min(100, Math.max(0, value));
+  const offset = halfCirc - (pct / 100) * halfCirc;
+
+  let color;
+  if (invert) {
+    // For recording cameras: high % = good (green), low % = bad (red)
+    color = pct >= thresholds[1] ? '#10b981' : pct >= thresholds[0] ? '#f59e0b' : '#ef4444';
+  } else {
+    // For disk: high % = bad (red)
+    color = pct > thresholds[1] ? '#ef4444' : pct > thresholds[0] ? '#f59e0b' : '#10b981';
+  }
+
+  return (
+    <div className="mini-arc-container">
+      <svg width={size} height={size / 2 + 6} viewBox={`0 0 ${size} ${size / 2 + 6}`}>
+        {/* Background track */}
+        <path
+          d={`M ${strokeW / 2},${size / 2} A ${radius},${radius} 0 0,1 ${size - strokeW / 2},${size / 2}`}
+          fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth={strokeW} strokeLinecap="round"
+        />
+        {/* Progress arc */}
+        <path
+          d={`M ${strokeW / 2},${size / 2} A ${radius},${radius} 0 0,1 ${size - strokeW / 2},${size / 2}`}
+          fill="none" stroke={color} strokeWidth={strokeW} strokeLinecap="round"
+          strokeDasharray={halfCirc}
+          strokeDashoffset={offset}
+          style={{ transition: 'stroke-dashoffset 0.6s ease, stroke 0.3s ease' }}
+        />
+      </svg>
+      <span className="mini-arc-label" style={{ color }}>{label}</span>
+    </div>
   );
 };
 
@@ -72,14 +249,196 @@ const DashboardPage = () => {
   const [loading, setLoading] = useState(true);
   const [cameraHealth, setCameraHealth] = useState([]);
 
+  // ─── NEW: Report Generation States ─────────────────────────────────────────
+  const [reportFromDate, setReportFromDate] = useState(getInitialFromDate());
+  const [reportToDate, setReportToDate] = useState(getInitialToDate());
+  const [reportType, setReportType] = useState("alerts");
+  const [reportData, setReportData] = useState([]);
+  const [reportLoading, setReportLoading] = useState(false);
+  const [reportCurrentPage, setReportCurrentPage] = useState(1);
+  const [reportDropdownOpen, setReportDropdownOpen] = useState(false);
+  const [reportSuccessMsg, setReportSuccessMsg] = useState("");
+  const [reportErrorMsg, setReportErrorMsg] = useState("");
+  const reportPerPage = 10;
+
+  const reportTypeMap = {
+    alerts: "Camera Up/Down History",
+    live_alerts: "Live View Alerts",
+    health: "Device Health & Uptime Status"
+  };
+
+  const handleGenerateReport = async () => {
+    setReportLoading(true);
+    setReportSuccessMsg("");
+    setReportErrorMsg("");
+    try {
+      const fromTime = new Date(reportFromDate).getTime();
+      const toTime = new Date(reportToDate).getTime();
+
+      if (reportType === "alerts") {
+        // Query recent alerts and filter by date range
+        const res = await fetch(`${API_BASE}/api/infrastructure/alerts?limit=5000`, {
+          headers: getAuthHeaders()
+        });
+        const alertsData = await res.json();
+        
+        if (Array.isArray(alertsData)) {
+          const filtered = alertsData.filter(a => {
+            const ts = new Date(a.timestamp).getTime();
+            return ts >= fromTime && ts <= toTime;
+          });
+          
+          const formatted = filtered.map(a => ({
+            timestamp: a.timestamp,
+            ip: a.ip || "—",
+            model: a.model || "—",
+            type: a.type || "—",
+            event: a.event || "—",
+            message: a.message || "—",
+            acknowledged: a.acknowledged ? "Yes" : "No"
+          }));
+          
+          setReportData(formatted);
+          setReportCurrentPage(1);
+          if (formatted.length > 0) {
+            setReportSuccessMsg(`Successfully generated report with ${formatted.length} camera up/down history records.`);
+          } else {
+            setReportSuccessMsg("No camera up/down history records found for the selected time range.");
+          }
+        } else {
+          setReportErrorMsg("Failed to fetch alerts from server.");
+        }
+      } else if (reportType === "live_alerts") {
+        // Query Real-Time MQTT Alerts and filter by date range
+        const res = await fetch(`${API_BASE}/api/alerts?limit=5000`, {
+          headers: getAuthHeaders()
+        });
+        const alertsRes = await res.json();
+        const alertsList = Array.isArray(alertsRes) ? alertsRes : (alertsRes.alerts || []);
+        
+        if (Array.isArray(alertsList)) {
+          const filtered = alertsList.filter(a => {
+            const timeVal = a.received_at || a.time;
+            if (!timeVal) return false;
+            
+            // Normalize time-only strings or standard timestamps to local datetime strings
+            let finalDateStr = timeVal;
+            if (!timeVal.includes("-") && !timeVal.includes("T")) {
+              const d = new Date();
+              const pad = (n) => String(n).padStart(2, "0");
+              const todayLocalStr = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+              finalDateStr = `${todayLocalStr}T${timeVal}`;
+            }
+            
+            // Normalize space to T for parsing compatibility
+            finalDateStr = finalDateStr.replace(" ", "T");
+            
+            const ts = new Date(finalDateStr).getTime();
+            return !isNaN(ts) && ts >= fromTime && ts <= toTime;
+          });
+          
+          const formatted = filtered.map(a => ({
+            timestamp: a.received_at || "—",
+            ip_address: a.ip ? a.ip.replace(/_/g, ".") : "—",
+            time_only: a.time || "—",
+            scenario: a.scenario || "—",
+            classification: a.type || "—"
+          }));
+          
+          setReportData(formatted);
+          setReportCurrentPage(1);
+          if (formatted.length > 0) {
+            setReportSuccessMsg(`Successfully generated report with ${formatted.length} live view alerts.`);
+          } else {
+            setReportSuccessMsg("No live view alerts found for the selected time range.");
+          }
+        } else {
+          setReportErrorMsg("Failed to fetch Live View alerts from server.");
+        }
+      } else if (reportType === "health") {
+        // Query topology nodes for health status
+        const res = await fetch(`${API_BASE}/api/infrastructure/topology`, {
+          headers: getAuthHeaders()
+        });
+        const topoData = await res.json();
+        
+        if (topoData && Array.isArray(topoData.nodes)) {
+          const formatted = topoData.nodes.map(n => ({
+            device_id: n.id || "—",
+            ip_address: n.ip || "—",
+            manufacturer: n.manufacturer || "—",
+            model: n.model || "—",
+            device_type: n.type || "—",
+            current_status: n.status || "offline",
+            latency_ms: n.latency !== undefined && n.latency !== null ? `${n.latency} ms` : "—",
+            uptime_duration: n.uptime || "—",
+            online_since: n.last_seen || "—",
+            reboot_count: n.reboot_count !== undefined ? String(n.reboot_count) : "0",
+            last_reboot: n.last_reboot || "—"
+          }));
+          
+          setReportData(formatted);
+          setReportCurrentPage(1);
+          if (formatted.length > 0) {
+            setReportSuccessMsg(`Successfully generated health report with ${formatted.length} devices.`);
+          } else {
+            setReportSuccessMsg("No active devices found in infrastructure topology.");
+          }
+        } else {
+          setReportErrorMsg("Failed to fetch network topology from server.");
+        }
+      }
+    } catch (err) {
+      console.error(err);
+      setReportErrorMsg("An error occurred while generating the report.");
+    } finally {
+      setReportLoading(false);
+    }
+  };
+
+  const handleDownloadCSV = () => {
+    if (!reportData || reportData.length === 0) return;
+
+    const headers = Object.keys(reportData[0]);
+    const csvRows = [];
+    
+    csvRows.push(headers.join(","));
+
+    for (const row of reportData) {
+      const values = headers.map(header => {
+        const val = row[header];
+        const escaped = ("" + (val === null || val === undefined ? "" : val)).replace(/"/g, '""');
+        return `"${escaped}"`;
+      });
+      csvRows.push(values.join(","));
+    }
+
+    const csvContent = csvRows.join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `${reportType}_report_${new Date().toISOString().slice(0,10)}.csv`);
+    link.style.visibility = "hidden";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  // Pagination for report
+  const indexOfLastReport = reportCurrentPage * reportPerPage;
+  const indexOfFirstReport = indexOfLastReport - reportPerPage;
+  const currentReportRows = reportData.slice(indexOfFirstReport, indexOfLastReport);
+  const totalReportPages = Math.ceil(reportData.length / reportPerPage);
+
   useEffect(() => {
     const fetchData = async () => {
       try {
         const [sumRes, storRes, eventRes, camRes] = await Promise.all([
-          fetch(`${API_BASE}/api/dashboard/summary`),
-          fetch(`${API_BASE}/api/storage/management`),
-          fetch(`${API_BASE}/api/dashboard/events`),
-          fetch(`${API_BASE}/api/cameras/`)
+          fetch(`${API_BASE}/api/dashboard/summary`, { headers: getAuthHeaders() }),
+          fetch(`${API_BASE}/api/storage/management`, { headers: getAuthHeaders() }),
+          fetch(`${API_BASE}/api/dashboard/events`, { headers: getAuthHeaders() }),
+          fetch(`${API_BASE}/api/cameras/`, { headers: getAuthHeaders() })
         ]);
 
         const sumData = await sumRes.json();
@@ -90,17 +449,21 @@ const DashboardPage = () => {
         // Fetch history for the VMS host (assuming it's node-172-19-0-6 or similar)
         // We'll try to find the host node first or just fetch history if we have an ID
         try {
-          const topoRes = await fetch(`${API_BASE}/api/infrastructure/topology`);
+          const topoRes = await fetch(`${API_BASE}/api/infrastructure/topology`, { headers: getAuthHeaders() });
           const topoData = await topoRes.json();
           const hostNode = topoData.nodes.find(n => n.model === "VMS Host");
           if (hostNode) {
-            const histRes = await fetch(`${API_BASE}/api/infrastructure/nodes/${hostNode.id}/history`);
-            const histData = await histRes.json();
-            sumData.history = {
-              cpu: histData.map(h => h.metrics.cpu),
-              ram: histData.map(h => h.metrics.ram),
-              disk: histData.map(h => h.metrics.disk)
-            };
+            const histRes = await fetch(`${API_BASE}/api/infrastructure/nodes/${hostNode.id}/history`, { headers: getAuthHeaders() });
+            if (histRes.ok) {
+              const histData = await histRes.json();
+              if (Array.isArray(histData)) {
+                sumData.history = {
+                  cpu: histData.map(h => h.metrics?.cpu || 0),
+                  ram: histData.map(h => h.metrics?.ram || 0),
+                  disk: histData.map(h => h.metrics?.disk || 0)
+                };
+              }
+            }
           }
         } catch (hErr) {
           console.warn("History fetch failed:", hErr);
@@ -154,7 +517,7 @@ const DashboardPage = () => {
   }, []);
 
   useEffect(() => {
-    fetch("/api/camera-health")
+    fetch(`${API_BASE}/api/camera-health`, { headers: getAuthHeaders() })
       .then(res => res.json())
       .then(data => setCameraHealth(data))
       .catch(err => console.error("Camera health fetch error:", err));
@@ -253,20 +616,30 @@ const DashboardPage = () => {
 
       {/* 🔹 Stats Cards */}
       <div className="cards">
-        {stats.map((item, index) => (
+        {/* Simple stat cards */}
+        {[
+          { title: "Total Cameras", value: summary.total_cameras, icon: <Camera size={18} /> },
+          { title: "Active Streams", value: summary.active_streams, icon: <Activity size={18} /> },
+          { title: "Alarms Today", value: summary.alarms_today, icon: <Bell size={18} /> }
+        ].map((item, index) => (
           <div className="card" key={index}>
-            <div className={`icon ${index === 0 ? "blue" :
-              index === 1 ? "green" :
-                index === 2 ? "red" : "orange"
-              }`}>
-              {item.icon}
-            </div>
+            <div className="icon">{item.icon}</div>
             <div className="card-content">
               <p className="title">{item.title}</p>
               <h3>{item.value}</h3>
             </div>
           </div>
         ))}
+
+
+        {/* Recording Cameras */}
+        <div className="card" key="rec">
+          <div className="icon"><Server size={18} /></div>
+          <div className="card-content">
+            <p className="title">Recording Cameras</p>
+            <h3>{cameras.filter(c => c.stream_status?.connected).length} / {cameras.length}</h3>
+          </div>
+        </div>
       </div>
 
       <div className="health-section">
@@ -274,34 +647,36 @@ const DashboardPage = () => {
 
         <div className="health-grid">
 
+          {/* CPU — Area trend chart */}
           <div className="health-box">
             <div className="health-box-header">
-              <p>CPU</p>
+              <div className="health-box-label"><Cpu size={14} /> <p>CPU</p></div>
               <h2>{summary.cpu}%</h2>
             </div>
-            <Sparkline data={summary.history.cpu} color={summary.cpu > 80 ? "#ef4444" : "#6366f1"} />
+            <CpuAreaChart data={summary.history.cpu} value={summary.cpu} />
             <span className={summary.cpu > 85 ? "bad" : summary.cpu > 60 ? "warn" : "good"}>
               {summary.cpu > 85 ? "Critical" : summary.cpu > 60 ? "High" : "Normal"}
             </span>
           </div>
 
+          {/* RAM — Bar chart */}
           <div className="health-box">
             <div className="health-box-header">
-              <p>RAM</p>
+              <div className="health-box-label"><MemoryStick size={14} /> <p>RAM</p></div>
               <h2>{summary.ram}%</h2>
             </div>
-            <Sparkline data={summary.history.ram} color={summary.ram > 80 ? "#f59e0b" : "#22c55e"} />
+            <RamUsageGauge value={summary.ram} />
             <span className={summary.ram > 85 ? "bad" : summary.ram > 60 ? "warn" : "good"}>
               {summary.ram > 85 ? "Critical" : summary.ram > 60 ? "High" : "Normal"}
             </span>
           </div>
 
-          <div className="health-box">
+          {/* Disk — Donut chart */}
+          <div className="health-box health-box--centered">
             <div className="health-box-header">
-              <p>Disk</p>
-              <h2>{summary.disk}%</h2>
+              <div className="health-box-label"><HardDrive size={14} /> <p>Disk</p></div>
             </div>
-            <Sparkline data={summary.history.disk} color="#94a3b8" />
+            <DiskDonut value={summary.disk} used={storage.used} total={storage.total} />
             <span className={summary.disk > 90 ? "bad" : summary.disk > 75 ? "warn" : "good"}>
               {summary.disk > 90 ? "Full" : summary.disk > 75 ? "Filling" : "Healthy"}
             </span>
@@ -392,7 +767,7 @@ const DashboardPage = () => {
       */}
 
       {/* 🔹 Storage Details */}
-      <div className="activity storage-overview">
+      <div className="activity storage-overview" style={{ marginBottom: "32px" }}>
         <h3>Storage Health</h3>
         <div className="storage-bar-container">
           <div
@@ -405,6 +780,249 @@ const DashboardPage = () => {
           <strong>Storage Location:</strong> {storage.location}
           ({storagePercent.toFixed(1)}% full)
         </p>
+      </div>
+
+      {/* 📊 NEW: Report Generation Section */}
+      <div className="report-generation">
+        <div className="report-section-header">
+          <div className="report-title-area">
+            <h3 className="report-title-main">Reports</h3>
+            <p className="report-subtitle-main">Generate and export system-wide performance, health, and activity reports</p>
+          </div>
+        </div>
+
+        <div className="report-filters">
+          <div className="report-filter-group">
+            <label>From Date & Time</label>
+            <div className="report-input-wrapper">
+              <Calendar size={14} className="input-icon" />
+              <input
+                type="datetime-local"
+                className="report-input"
+                value={reportFromDate}
+                onChange={(e) => setReportFromDate(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="report-filter-group">
+            <label>To Date & Time</label>
+            <div className="report-input-wrapper">
+              <Calendar size={14} className="input-icon" />
+              <input
+                type="datetime-local"
+                className="report-input"
+                value={reportToDate}
+                onChange={(e) => setReportToDate(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="report-filter-group relative">
+            <label>Report Type</label>
+            <div className="report-custom-select">
+              <button
+                type="button"
+                className="report-select-btn"
+                onClick={() => setReportDropdownOpen(!reportDropdownOpen)}
+              >
+                <span>{reportTypeMap[reportType]}</span>
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  style={{
+                    transform: reportDropdownOpen ? "rotate(180deg)" : "rotate(0)",
+                    transition: "transform .2s",
+                    color: "var(--text-secondary)"
+                  }}
+                >
+                  <path d="M6 9l6 6 6-6" />
+                </svg>
+              </button>
+              {reportDropdownOpen && (
+                <ul className="report-dropdown-menu">
+                  {Object.entries(reportTypeMap).map(([val, label]) => (
+                    <li
+                      key={val}
+                      className={`report-dropdown-item ${reportType === val ? "active" : ""}`}
+                      onClick={() => {
+                        setReportType(val);
+                        setReportDropdownOpen(false);
+                      }}
+                    >
+                      {label}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+
+          <div className="report-btn-group">
+            <button
+              onClick={handleGenerateReport}
+              disabled={reportLoading}
+              className="report-btn-primary"
+            >
+              {reportLoading ? "Generating..." : "Generate Report"}
+            </button>
+            
+            {reportData.length > 0 && (
+              <button
+                onClick={handleDownloadCSV}
+                className="report-btn-secondary"
+              >
+                <Download size={14} />
+                Download CSV
+              </button>
+            )}
+          </div>
+        </div>
+
+        {reportSuccessMsg && <div className="report-alert success">{reportSuccessMsg}</div>}
+        {reportErrorMsg && <div className="report-alert error">{reportErrorMsg}</div>}
+
+        {/* Report Results Table */}
+        {reportData.length > 0 && (
+          <div className="report-table-container">
+            <div className="report-table-wrapper">
+              <table className="report-table">
+                <thead>
+                  <tr>
+                    {reportType === "alerts" && (
+                      <>
+                        <th>Timestamp</th>
+                        <th>Device IP</th>
+                        <th>Model</th>
+                        <th>Type</th>
+                        <th>Event</th>
+                        <th>Message</th>
+                        <th>Ack</th>
+                      </>
+                    )}
+                    {reportType === "live_alerts" && (
+                      <>
+                        <th>Camera IP</th>
+                        <th>Type</th>
+                        <th>Event</th>
+                        <th>Time</th>
+                        <th>Timestamp</th>
+                      </>
+                    )}
+                    {reportType === "health" && (
+                      <>
+                        <th>Device ID</th>
+                        <th>IP Address</th>
+                        <th>Manufacturer</th>
+                        <th>Model</th>
+                        <th>Type</th>
+                        <th>Status</th>
+                        <th>Latency</th>
+                        <th>Uptime</th>
+                        <th>Online Since</th>
+                        <th>Reboot Count</th>
+                        <th>Last Reboot</th>
+                      </>
+                    )}
+                  </tr>
+                </thead>
+                <tbody>
+                  {currentReportRows.map((row, i) => (
+                    <tr key={i}>
+                      {reportType === "alerts" && (
+                        <>
+                          <td>{new Date(row.timestamp).toLocaleString()}</td>
+                          <td>{row.ip}</td>
+                          <td>{row.model}</td>
+                          <td>
+                            <span className={`report-tag-type ${row.type}`}>
+                              {row.type?.toUpperCase()}
+                            </span>
+                          </td>
+                          <td>
+                            <span className={`report-event-tag ${row.event === "device_offline" ? "offline" : "online"}`}>
+                              {row.event?.replace("_", " ").toUpperCase()}
+                            </span>
+                          </td>
+                          <td>{row.message}</td>
+                          <td>{row.acknowledged}</td>
+                        </>
+                      )}
+                      {reportType === "live_alerts" && (
+                        <>
+                          <td>{row.ip_address}</td>
+                          <td>
+                            <span className={`report-tag-type ${row.classification?.toLowerCase()}`}>
+                              {row.classification?.toUpperCase()}
+                            </span>
+                          </td>
+                          <td>{row.scenario}</td>
+                          <td style={{ color: "#22c55e", fontWeight: "600" }}>{row.time_only}</td>
+                          <td>{row.timestamp ? new Date(row.timestamp).toLocaleString() : "—"}</td>
+                        </>
+                      )}
+                      {reportType === "health" && (
+                        <>
+                          <td>{row.device_id}</td>
+                          <td>{row.ip_address}</td>
+                          <td>{row.manufacturer}</td>
+                          <td>{row.model}</td>
+                          <td>
+                            <span className={`report-tag-type ${row.device_type}`}>
+                              {row.device_type?.toUpperCase()}
+                            </span>
+                          </td>
+                          <td>
+                            <span className={`status-dot ${row.current_status === "online" ? "online" : "error"}`} style={{ display: "inline-block", marginRight: "6px" }} />
+                            <span className={`report-event-tag ${row.current_status === "online" ? "online" : "offline"}`}>
+                              {row.current_status?.toUpperCase()}
+                            </span>
+                          </td>
+                          <td>{row.latency_ms}</td>
+                          <td>{row.uptime_duration}</td>
+                          <td>{row.online_since !== "—" ? new Date(row.online_since).toLocaleString() : "—"}</td>
+                          <td>
+                            <span className="report-exit-code error">{row.reboot_count}</span>
+                          </td>
+                          <td>{row.last_reboot !== "—" ? new Date(row.last_reboot).toLocaleString() : "—"}</td>
+                        </>
+                      )}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Pagination */}
+            {reportData.length > reportPerPage && (
+              <div className="report-pagination">
+                <button
+                  className="report-pag-btn"
+                  disabled={reportCurrentPage === 1}
+                  onClick={() => setReportCurrentPage(reportCurrentPage - 1)}
+                >
+                  Prev
+                </button>
+                <span className="report-pag-info">
+                  Page {reportCurrentPage} of {totalReportPages} ({reportData.length} records)
+                </span>
+                <button
+                  className="report-pag-btn"
+                  disabled={reportCurrentPage === totalReportPages}
+                  onClick={() => setReportCurrentPage(reportCurrentPage + 1)}
+                >
+                  Next
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

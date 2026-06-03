@@ -385,7 +385,7 @@ export default function DiscoveryModal({
                 <div className="dm-empty-title">Auto-Discover Cameras</div>
                 <div className="dm-empty-sub">
                   Automatically scans your network for ONVIF-compatible cameras.
-                  <br />No configuration needed — just click Start.
+                
                 </div>
                 <button className="dm-start-btn" onClick={startDiscovery} tabIndex={1}>
                   <svg viewBox="0 0 24 24" fill="currentColor" width="13" height="13">

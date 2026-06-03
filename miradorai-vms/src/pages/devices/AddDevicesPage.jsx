@@ -809,9 +809,26 @@ export default function AddDevicesPage({ onNavigate }) {
                   <li
                     key={g.id}
                     className={`adp-dropdown-item ${activeGroup === g.id ? "active" : ""}`}
+                    style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6 }}
                     onClick={() => { setActiveGroup(g.id); setFilterDropdownOpen(false); }}
                   >
-                    {g.name}
+                    <span>{g.name}</span>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteGroup(g.id);
+                        setFilterDropdownOpen(false);
+                      }}
+                      title="Delete group"
+                      style={{
+                        background: "none", border: "none", cursor: "pointer",
+                        color: "rgba(255,255,255,0.35)", fontSize: 13, lineHeight: 1,
+                        padding: "1px 3px", borderRadius: 3, flexShrink: 0,
+                        transition: "color 0.15s",
+                      }}
+                      onMouseEnter={e => e.currentTarget.style.color = "#ef4444"}
+                      onMouseLeave={e => e.currentTarget.style.color = "rgba(255,255,255,0.35)"}
+                    >✕</button>
                   </li>
                 ))}
               </ul>
@@ -826,12 +843,12 @@ export default function AddDevicesPage({ onNavigate }) {
             <table className="m-table">
               <thead>
                 <tr>
-                  <th style={{ width: 60 }}></th>
+                  <th style={{ width: 60, color: "rgba(255, 255, 255, 0.5)" }}></th>
                   {["Device Name", "IP Address", "MAC Address", "Status", "Manufacturer", "Model"].map((c) => (
-                    <th key={c}>{c}</th>
+                    <th key={c} style={{ color: "rgba(255, 255, 255, 0.5)" }}>{c}</th>
                   ))}
-                  <th>Group</th>
-                  <th>Stream</th>
+                  <th style={{ color: "rgba(255, 255, 255, 0.5)" }}>Group</th>
+                  <th style={{ color: "rgba(255, 255, 255, 0.5)" }}>Stream</th>
                 </tr>
               </thead>
               <tbody>

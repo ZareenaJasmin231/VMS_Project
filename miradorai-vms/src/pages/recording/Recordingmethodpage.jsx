@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import SearchBar from "../../components/shared/SearchBar";
 
 import "./Recordingmethodpage.css";
@@ -52,6 +52,24 @@ export default function RecordingMethodPage() {
   const [checkedGroups, setCheckedGroups] = useState([]);
   const [checkedCams, setCheckedCams] = useState([]);
   const [toastMessage, setToastMessage] = useState(null);
+
+  const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
+  const [scheduleDropdownOpen, setScheduleDropdownOpen] = useState(false);
+  const profileDropdownRef = useRef(null);
+  const scheduleDropdownRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (profileDropdownRef.current && !profileDropdownRef.current.contains(e.target)) {
+        setProfileDropdownOpen(false);
+      }
+      if (scheduleDropdownRef.current && !scheduleDropdownRef.current.contains(e.target)) {
+        setScheduleDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const showToast = (message, isError = false) => {
     setToastMessage({ text: message, isError });
@@ -358,7 +376,7 @@ export default function RecordingMethodPage() {
       <div className="page-header">
         <div className="page-header__left">
           <h1 className="page-title">Recording <span>Method</span></h1>
-          <p className="page-desc">Manage recording methods by groups. Configure continuous or scheduled recording.</p>
+          <p className="page-desc" style={{ color: "rgba(255, 255, 255, 0.5)" }}>Manage recording methods by groups. Configure continuous or scheduled recording.</p>
         </div>
         <SearchBar value={filter} onChange={setFilter} placeholder="Filter groups or cameras..." />
       </div>
@@ -387,10 +405,10 @@ export default function RecordingMethodPage() {
                       }}
                     />
                   </th>
-                  <th>Group Name</th>
-                  <th style={{ width: 120 }}>Continuous</th>
-                  <th style={{ width: 120 }}>Scheduled</th>
-                  <th style={{ width: 150 }}></th>
+                  <th style={{ color: "rgba(255, 255, 255, 0.5)" }}>Group Name</th>
+                  <th style={{ width: 120, color: "rgba(255, 255, 255, 0.5)" }}>Continuous</th>
+                  <th style={{ width: 120, color: "rgba(255, 255, 255, 0.5)" }}>Scheduled</th>
+                  <th style={{ width: 150, color: "rgba(255, 255, 255, 0.5)" }}></th>
                 </tr>
               </thead>
               <tbody>
@@ -460,44 +478,157 @@ export default function RecordingMethodPage() {
         {(selectedId || checkedCams.length > 0) && (
           <div className="rm-detail-horizontal">
             <div className="rm-h-group">
-              <div className="rm-h-field">
-                <label className="rm-h-label">Profiles</label>
-                <select
-                  className="rm-h-select"
-                  value={
-                    selectedId 
-                      ? recSettings[selectedId]?.continuous?.profile 
-                      : recSettings[checkedCams[0]]?.continuous?.profile || "SUB_STREAM"
-                  }
-                  onChange={e => updateProfile(e.target.value)}
-                >
-                  <option value="MAIN_STREAM">Main Stream</option>
-                  <option value="SUB_STREAM">Sub Stream</option>
-                </select>
+              <div className="rm-h-field" ref={profileDropdownRef}>
+                <label className="rm-h-label" style={{ color: "rgba(255, 255, 255, 0.5)" }}>Profiles</label>
+                <div className="rm-custom-select">
+                  <button
+                    type="button"
+                    className="rm-select-btn"
+                    onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
+                  >
+                    <span>
+                      {(() => {
+                        const curProfile = selectedId 
+                          ? recSettings[selectedId]?.continuous?.profile 
+                          : recSettings[checkedCams[0]]?.continuous?.profile || "SUB_STREAM";
+                        return curProfile === "MAIN_STREAM" ? "Main Stream" : "Sub Stream";
+                      })()}
+                    </span>
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      style={{
+                        transform: profileDropdownOpen ? "rotate(180deg)" : "rotate(0)",
+                        transition: "transform .2s",
+                        color: "var(--text-secondary)"
+                      }}
+                    >
+                      <path d="M6 9l6 6 6-6" />
+                    </svg>
+                  </button>
+                  {profileDropdownOpen && (
+                    <ul className="rm-dropdown-menu">
+                      <li
+                        className={`rm-dropdown-item ${
+                          (selectedId ? recSettings[selectedId]?.continuous?.profile : recSettings[checkedCams[0]]?.continuous?.profile) === "MAIN_STREAM" ? "active" : ""
+                        }`}
+                        onClick={() => {
+                          updateProfile("MAIN_STREAM");
+                          setProfileDropdownOpen(false);
+                        }}
+                      >
+                        Main Stream
+                      </li>
+                      <li
+                        className={`rm-dropdown-item ${
+                          (selectedId ? recSettings[selectedId]?.continuous?.profile : recSettings[checkedCams[0]]?.continuous?.profile) === "SUB_STREAM" ? "active" : ""
+                        }`}
+                        onClick={() => {
+                          updateProfile("SUB_STREAM");
+                          setProfileDropdownOpen(false);
+                        }}
+                      >
+                        Sub Stream
+                      </li>
+                    </ul>
+                  )}
+                </div>
               </div>
 
-              <div className="rm-h-sep">|</div>
+              <div className="rm-h-sep" style={{ color: "rgba(255, 255, 255, 0.5)" }}>|</div>
 
-              <div className="rm-h-field">
-                <label className="rm-h-label">Recording mode</label>
-                <select
-                  className="rm-h-select"
-                  value={
-                    selectedId
-                      ? recSettings[selectedId]?.continuous?.schedule || "Always"
-                      : recSettings[checkedCams[0]]?.continuous?.schedule || "Always"
-                  }
-                  onChange={e => updateSchedule(e.target.value)}
-                >
-                  <option value="Always">Continuous</option>
-                  {schedules.map(s => (
-                    <option key={s.id} value={s.id}>{s.name}</option>
-                  ))}
-                  <option value="Never">Never</option>
-                </select>
+              <div className="rm-h-field" ref={scheduleDropdownRef}>
+                <label className="rm-h-label" style={{ color: "rgba(255, 255, 255, 0.5)" }}>Recording mode</label>
+                <div className="rm-custom-select">
+                  <button
+                    type="button"
+                    className="rm-select-btn"
+                    onClick={() => setScheduleDropdownOpen(!scheduleDropdownOpen)}
+                  >
+                    <span>
+                      {(() => {
+                        const curSch = selectedId
+                          ? recSettings[selectedId]?.continuous?.schedule || "Always"
+                          : recSettings[checkedCams[0]]?.continuous?.schedule || "Always";
+                        if (curSch && curSch.toString().toLowerCase() === "always") return "Continuous";
+                        if (curSch && curSch.toString().toLowerCase() === "never") return "Never";
+                        return schedules.find(s => s.id === curSch)?.name || curSch;
+                      })()}
+                    </span>
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      style={{
+                        transform: scheduleDropdownOpen ? "rotate(180deg)" : "rotate(0)",
+                        transition: "transform .2s",
+                        color: "var(--text-secondary)"
+                      }}
+                    >
+                      <path d="M6 9l6 6 6-6" />
+                    </svg>
+                  </button>
+                  {scheduleDropdownOpen && (
+                    <ul className="rm-dropdown-menu">
+                      <li
+                        className={`rm-dropdown-item ${
+                          (() => {
+                            const curSch = selectedId ? recSettings[selectedId]?.continuous?.schedule : recSettings[checkedCams[0]]?.continuous?.schedule;
+                            return (curSch && curSch.toString().toLowerCase() === "always") ? "active" : "";
+                          })()
+                        }`}
+                        onClick={() => {
+                          updateSchedule("Always");
+                          setScheduleDropdownOpen(false);
+                        }}
+                      >
+                        Continuous
+                      </li>
+                      {schedules.map(s => (
+                        <li
+                          key={s.id}
+                          className={`rm-dropdown-item ${
+                            (selectedId ? recSettings[selectedId]?.continuous?.schedule : recSettings[checkedCams[0]]?.continuous?.schedule) === s.id ? "active" : ""
+                          }`}
+                          onClick={() => {
+                            updateSchedule(s.id);
+                            setScheduleDropdownOpen(false);
+                          }}
+                        >
+                          {s.name}
+                        </li>
+                      ))}
+                      <li
+                        className={`rm-dropdown-item ${
+                          (() => {
+                            const curSch = selectedId ? recSettings[selectedId]?.continuous?.schedule : recSettings[checkedCams[0]]?.continuous?.schedule;
+                            return (curSch && curSch.toString().toLowerCase() === "never") ? "active" : "";
+                          })()
+                        }`}
+                        onClick={() => {
+                          updateSchedule("Never");
+                          setScheduleDropdownOpen(false);
+                        }}
+                      >
+                        Never
+                      </li>
+                    </ul>
+                  )}
+                </div>
               </div>
 
-              <div className="rm-h-sep">|</div>
+              <div className="rm-h-sep" style={{ color: "rgba(255, 255, 255, 0.5)" }}>|</div>
 
               <button
                 className="m-btn m-btn--primary"
@@ -513,7 +644,7 @@ export default function RecordingMethodPage() {
 
         {!selectedGroup && !selectedId && !checkedCams.length && filteredGroups.length > 0 && (
           <div className="rm-detail rm-detail--empty">
-            <span>Select a camera or group above to configure recording settings.</span>
+            <span style={{ color: "rgba(255, 255, 255, 0.5)" }}>Select a camera or group above to configure recording settings.</span>
           </div>
         )}
 

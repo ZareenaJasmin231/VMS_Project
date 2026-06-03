@@ -87,6 +87,40 @@ function normalizeCams(data) {
   }));
 }
 
+// ── Read enabled alert types from Action Rules ────────────────────
+function getEnabledAlertTypes() {
+  try {
+    const rules = JSON.parse(localStorage.getItem("miradorai_action_rules") || "[]");
+    if (rules.length === 0) {
+      return ["motion", "object", "device", "occupancy", "linecrossing", "objectinarea", "tampering"];
+    }
+    return rules
+      .filter((r) => r.enabled)
+      .map((r) => (r.trigger || "").toLowerCase());
+  } catch {
+    return ["motion", "object", "device", "occupancy", "linecrossing", "objectinarea", "tampering"];
+  }
+}
+
+// ── Check if a single alert passes the enabled filter ─────────────
+function isAlertAllowed(alert) {
+  const enabledTypes = getEnabledAlertTypes();
+  const type     = (alert.type     || "").toLowerCase();
+  const scenario = (alert.scenario || "").toLowerCase();
+
+  if (enabledTypes.length === 0) return true;
+
+  return enabledTypes.some((t) => {
+    const key = t.toLowerCase();
+    if (key.includes("motion"))       return type.includes("motion")       || scenario.includes("motion");
+    if (key.includes("tamper"))       return type.includes("tamper")       || scenario.includes("tamper");
+    if (key.includes("object"))       return type.includes("object")       || type.includes("objectinarea");
+    if (key.includes("occupancy"))    return type.includes("occupancy")    || scenario.includes("occupancy");
+    if (key.includes("linecrossing")) return type.includes("linecrossing") || type.includes("crossing");
+    return true;
+  });
+}
+
 // ── Default floors shape ──────────────────────────────────────────────
 function makeFloor(n) {
   return {
@@ -189,8 +223,8 @@ const StreamModal = React.memo(function StreamModal({ cam, onClose }) {
               <WebRTCPlayer key={ref.current.id} serverUrl={ref.current.ws_url} cameraId={ref.current.id} />
             ) : (
               <div className="mv-stream-offline">
-                <div style={{ fontSize: 48 }}>📷</div>
-                <div style={{ marginTop: 8, color: "#888" }}>Camera offline</div>
+                <div style={{ fontSize: 52 }}>📷</div>
+                <div style={{ marginTop: 8, color: "rgba(255, 255, 255, 0.5)" }}>Camera offline</div>
               </div>
             )}
           </div>
@@ -306,9 +340,9 @@ function PremiumPopup({ show, type, title, message, onConfirm, onCancel }) {
               <line x1="12" y1="16" x2="12.01" y2="16" />
             </svg>
           )}
-          <span style={{ fontWeight: 700, fontSize: 14 }}>{title}</span>
+          <span style={{ fontWeight: 700, fontSize: 18 }}>{title}</span>
         </div>
-        <p className="mv-zone-name-modal__sub" style={{ color: "#e8edf5", fontSize: 13, marginTop: 8, marginBottom: 20 }}>
+        <p className="mv-zone-name-modal__sub" style={{ color: "#e8edf5", fontSize: 17, marginTop: 8, marginBottom: 20 }}>
           {message}
         </p>
         <div className="mv-zone-name-modal__row" style={{ justifyContent: "flex-end", gap: 10 }}>
@@ -444,7 +478,7 @@ function ZoneSidebarItem({
               border: "1px solid #185FA5",
               borderRadius: "4px",
               color: "#e8edf5",
-              fontSize: "11px",
+              fontSize: "15px",
               padding: "2px 4px",
               width: "100%",
               outline: "none",
@@ -474,7 +508,7 @@ function ZoneSidebarItem({
             onClick={e => { e.stopPropagation(); setIsEditing(true); }}
             title="Rename zone"
             style={{
-              fontSize: "11px",
+              fontSize: "15px",
               color: "rgba(255, 255, 255, 0.5)",
               cursor: "pointer",
               padding: "2px",
@@ -492,7 +526,7 @@ function ZoneSidebarItem({
             onClick={e => { e.stopPropagation(); onDelete(zone.id); }}
             title="Delete zone"
             style={{
-              fontSize: "12px",
+              fontSize: "16px",
               color: "rgba(255, 255, 255, 0.5)",
               cursor: "pointer",
               padding: "2px",
@@ -655,6 +689,63 @@ export default function MapViewPage() {
     window.alert = (msg) => showAlert("Map View Alert", msg);
     return () => {
       window.alert = originalAlert;
+    };
+  }, []);
+
+  const [alertCounts, setAlertCounts] = useState({});
+
+  // Fetch initial active alert counts and subscribe to live websocket events
+  useEffect(() => {
+    const loadInitialCounts = async () => {
+      try {
+        const res = await fetch(`${API}/api/alerts?limit=1000`, {
+          headers: getAuthHeaders()
+        });
+        const data = await res.json();
+        const counts = {};
+        (data.alerts || [])
+          .filter((a) => a.status === "Active")
+          .filter(isAlertAllowed)
+          .forEach((alert) => {
+            const ip = (alert.ip || "").replace(/_/g, ".");
+            if (ip) counts[ip] = (counts[ip] || 0) + 1;
+          });
+        setAlertCounts(counts);
+      } catch (e) {
+        console.error("[AlertCounts] load failed:", e);
+      }
+    };
+    loadInitialCounts();
+
+    const ws = new WebSocket(`${import.meta.env.VITE_WS_URL}/ws/events`);
+    ws.onopen = () => {
+      console.log("✅ WS CONNECTED (Map View)");
+    };
+    ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (!isAlertAllowed(data)) return;
+
+        const normIp = (data.ip || "").replace(/_/g, ".");
+        if (normIp) {
+          setAlertCounts((prev) => ({
+            ...prev,
+            [normIp]: (prev[normIp] || 0) + 1,
+          }));
+        }
+      } catch (err) {
+        console.error("[WS] parse error:", err);
+      }
+    };
+    ws.onerror = (err) => {
+      console.error("[WS] error:", err);
+    };
+    ws.onclose = () => {
+      console.log("❌ WS CLOSED (Map View)");
+    };
+
+    return () => {
+      ws.close();
     };
   }, []);
 
@@ -1820,7 +1911,7 @@ export default function MapViewPage() {
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="12" height="12">
                 <path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
               </svg>
-              {isDetectingZones ? "Detecting..." : "Auto-Detect Zones (CV)"}
+              {isDetectingZones ? "Detecting..." : "Auto-Detect Zones"}
             </button>
           </div>
 
@@ -1958,6 +2049,7 @@ export default function MapViewPage() {
               hoveredIdxRef={hoveredIdxRef}
               highlightedCamId={highlightedCamId}
               showHeatmap={showHeatmap}
+              alertCounts={alertCounts}
               onMouseMove={onMouseMove}
               onMouseDown={onMouseDown}
               onMouseUp={onMouseUp}
@@ -2052,6 +2144,7 @@ export default function MapViewPage() {
             expandedCamId={expandedCamId}
             onClose={() => setExpandedCamId(null)}
             onExpand={setExpandedCamId}
+            alertCounts={alertCounts}
           />
 
           {/* Configuration panel modal */}
@@ -2175,7 +2268,7 @@ export default function MapViewPage() {
                       background: "none",
                       border: "none",
                       color: "#7a8499",
-                      fontSize: "14px",
+                      fontSize: "18px",
                       fontWeight: "700",
                       cursor: "pointer",
                       display: "flex",

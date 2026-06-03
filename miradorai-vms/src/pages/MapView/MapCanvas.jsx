@@ -24,6 +24,7 @@ const MapCanvas = forwardRef(function MapCanvas(
     hoveredIdxRef,
     highlightedCamId,
     showHeatmap,
+    alertCounts = {},
     onDraw,
     onMouseMove,
     onMouseDown,
@@ -251,15 +252,21 @@ const MapCanvas = forwardRef(function MapCanvas(
         name: m.camName || m.camId, ip: m.camIp || "", status: "offline",
       };
       const online = cam.status === "online";
+      const hasAlert = alertCounts && alertCounts[cam.ip] > 0;
       const isHighlit = m.camId === highlightedCamId;
-      const col = online ? (isHighlit ? "#5aabf0" : "#1D9E75") : "#555";
+      const col = hasAlert ? "#E24B4A" : (online ? (isHighlit ? "#5aabf0" : "#1D9E75") : "#555");
       const R = 8;   // glow / hit radius
       const hov = i === hoveredIdxRef.current;
 
       // ── Glow ring ──
       ctx.beginPath();
-      ctx.arc(m.x, m.y, hov ? R + 4 : R + 1.5, 0, Math.PI * 2);
-      ctx.fillStyle = col + (isHighlit ? "40" : "20");
+      let ringRadius = hov ? R + 4 : R + 1.5;
+      if (hasAlert) {
+        const pulse = Math.sin(Date.now() / 150) * 2.5 + 2.5;
+        ringRadius += pulse;
+      }
+      ctx.arc(m.x, m.y, ringRadius, 0, Math.PI * 2);
+      ctx.fillStyle = col + (hasAlert ? "60" : (isHighlit ? "40" : "20"));
       ctx.fill();
 
       // ── Rotated camera body (all parts relative to m.x, m.y = body centre) ──

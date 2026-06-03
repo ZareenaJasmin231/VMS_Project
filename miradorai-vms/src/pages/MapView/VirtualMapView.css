@@ -427,8 +427,8 @@
 }
 
 .vt-expanded-modal {
-  width:         min(860px, 94vw);
-  max-height:    88vh;
+  width:         min(540px, 94vw);
+  max-height:    70vh;
   background:    #0d1117;
   border:        1px solid #ffffff18;
   border-radius: 14px;
@@ -603,3 +603,40 @@
 .vt-info-online  { color: #1D9E75 !important; }
 .vt-info-offline { color: #666    !important; }
 .vt-info-url     { font-family: monospace; font-size: 11px; word-break: break-all; }
+
+/* ── Alert Blinking and Badge ── */
+.vt-thumb--alert {
+  border: 2px solid #E24B4A !important;
+  animation: vt-thumb-blink 1.2s ease-in-out infinite !important;
+}
+
+@keyframes vt-thumb-blink {
+  0%, 100% {
+    border-color: #E24B4A;
+    box-shadow: 0 0 0 3px rgba(226, 75, 74, 0.25);
+  }
+  50% {
+    border-color: #A32D2D;
+    box-shadow: 0 0 0 6px rgba(226, 75, 74, 0.10);
+  }
+}
+
+.vt-thumb__alert-badge {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 1040;
+  background: #E24B4A;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  border-radius: 999px;
+  min-width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+  box-shadow: 0 2px 6px rgba(226, 75, 74, 0.5);
+  user-select: none;
+}

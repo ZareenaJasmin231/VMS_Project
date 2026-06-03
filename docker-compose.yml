@@ -47,6 +47,7 @@ services:
   mqtt-consumer:
     build: ./onvif-backend
     container_name: mqtt-consumer
+    init: true
     restart: unless-stopped
     command: python mqtt_to_db.py
     environment:
@@ -66,6 +67,7 @@ services:
     build: ./onvif-backend
     command: uvicorn main:app --host 0.0.0.0 --port ${BACKEND_PORT}
     container_name: backend
+    init: true
     restart: unless-stopped
     ports:
       - "${BACKEND_PORT}:${BACKEND_PORT}"
@@ -93,8 +95,6 @@ services:
       - D:/REC:/recordings
       - C:/vmsrecording_backup:/network_backup
       - D:/:/mnt/dest_d        # ← add this
-      # - E:/:/mnt/dest_e        # ← add this (USB)
-      # - F:/:/mnt/dest_f        # ← add this (USB)
       - C:/:/mnt/dest_c        # ← add this
       - /etc/localtime:/etc/localtime:ro
     depends_on:

@@ -6,7 +6,6 @@ import platform
 import re
 from datetime import datetime
 from pymongo import MongoClient
-from .websocket_manager import manager
 
 MONGO_URI       = os.environ.get("MONGO_URI", "mongodb://localhost:27017/")
 client          = MongoClient(MONGO_URI)
@@ -143,15 +142,7 @@ async def run_diagnostics_loop():
 
                 nodes_col.update_one({"id": node_id}, {"$set": node_fields})
 
-                # Broadcast so any open sidebar refreshes without page reload
-                try:
-                    await manager.broadcast({
-                        "type": "NODE_UPDATE",
-                        "id":   node_id,
-                        "data": node_fields,
-                    })
-                except Exception as broadcast_err:
-                    print(f"[DIAGNOSTICS] Broadcast error for {ip}: {broadcast_err}")
+
 
             # ── Persist diagnostics snapshot & broadcast global update ─────
             bandwidth = await get_bandwidth()
@@ -166,20 +157,7 @@ async def run_diagnostics_loop():
                 if oldest:
                     diagnostics_col.delete_one({"_id": oldest["_id"]})
 
-            try:
-                await manager.broadcast({
-                    "type": "DIAGNOSTICS_UPDATE",
-                    "data": {
-                        "devices": stats,
-                        "bandwidth": {
-                            "sent_kbps": bandwidth["sent_kbps"],
-                            "recv_kbps": bandwidth["recv_kbps"],
-                            "timestamp": bandwidth["timestamp"].isoformat()
-                        }
-                    }
-                })
-            except Exception as e:
-                print(f"[DIAGNOSTICS] DIAGNOSTICS_UPDATE broadcast error: {e}")
+
 
         except Exception as e:
             print(f"[DIAGNOSTICS ERROR] {e}")

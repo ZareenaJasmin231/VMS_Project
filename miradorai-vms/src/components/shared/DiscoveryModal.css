@@ -22,6 +22,8 @@
 
 /* ── Main modal ── */
 .dm-modal {
+  --text-muted: rgba(255, 255, 255, 0.5);
+  --text-secondary: rgba(255, 255, 255, 0.5);
   background: var(--bg-surface, #111318);
   border: 1px solid var(--border-light, #1e2230);
   border-radius: 14px;
@@ -53,7 +55,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 14px;
+  font-size: 18px;
   font-weight: 600;
   color: var(--text-primary, #e2e4ea);
 }
@@ -88,7 +90,7 @@
   color: #f87171;
   padding: 10px 14px;
   border-radius: 8px;
-  font-size: 12px;
+  font-size: 16px;
   display: flex;
   align-items: flex-start;
   gap: 10px;
@@ -107,7 +109,7 @@
 }
 .dm-ui-alert-close {
   background: none; border: none; cursor: pointer;
-  color: #6b7a99; font-size: 14px; line-height: 1; padding: 2px;
+  color: rgba(255, 255, 255, 0.5); font-size: 18px; line-height: 1; padding: 2px;
   transition: color 0.15s;
 }
 .dm-ui-alert-close:hover { color: #f87171; }
@@ -137,12 +139,12 @@
 .dm-empty-icon--warn { color: #f59e0b; }
 
 .dm-empty-title {
-  font-size: 14px;
+  font-size: 18px;
   font-weight: 600;
   color: var(--text-primary, #e2e4ea);
 }
 .dm-empty-sub {
-  font-size: 12px;
+  font-size: 16px;
   color: var(--text-muted, #4a5060);
   text-align: center;
   line-height: 1.7;
@@ -159,7 +161,7 @@
 }
 .dm-field { display: flex; flex-direction: column; gap: 4px; }
 .dm-label {
-  font-size: 11px;
+  font-size: 15px;
   font-weight: 500;
   color: var(--text-muted, #4a5060);
   text-transform: uppercase;
@@ -171,7 +173,7 @@
   border: 1px solid var(--border-light, #1e2230);
   border-radius: 7px;
   padding: 8px 11px;
-  font-size: 13px;
+  font-size: 17px;
   color: var(--text-primary, #e2e4ea);
   outline: none;
   font-family: inherit;
@@ -190,7 +192,7 @@
   border: none;
   border-radius: 8px;
   color: #fff;
-  font-size: 13px;
+  font-size: 17px;
   font-weight: 600;
   cursor: pointer;
   margin-top: 4px;
@@ -210,7 +212,7 @@
 }
 @keyframes dmSpin { to { transform: rotate(360deg); } }
 
-.dm-scan-msg { font-size: 13px; color: var(--text-secondary, #8a8ea0); }
+.dm-scan-msg { font-size: 17px; color: var(--text-secondary, #8a8ea0); }
 
 .dm-progress-wrap {
   display: flex;
@@ -233,7 +235,7 @@
   transition: width 0.3s ease;
 }
 .dm-progress-pct {
-  font-size: 11px;
+  font-size: 15px;
   color: var(--text-muted, #4a5060);
   min-width: 28px;
   text-align: right;
@@ -250,7 +252,7 @@
   border-bottom: 1px solid var(--border-light, #1e2230);
   flex-shrink: 0;
 }
-.dm-results-count { font-size: 13px; color: var(--text-secondary, #8a8ea0); }
+.dm-results-count { font-size: 17px; color: var(--text-secondary, #8a8ea0); }
 .dm-results-count strong { color: var(--text-primary, #e2e4ea); }
 
 .dm-select-all {
@@ -258,7 +260,7 @@
   border: 1px solid var(--border-light, #1e2230);
   border-radius: 6px;
   padding: 4px 10px;
-  font-size: 11px;
+  font-size: 15px;
   color: var(--text-secondary, #8a8ea0);
   cursor: pointer;
   transition: all 0.1s;
@@ -312,7 +314,7 @@
 
 .dm-device-info { flex: 1; min-width: 0; }
 .dm-device-name {
-  font-size: 13px;
+  font-size: 17px;
   font-weight: 500;
   color: var(--text-primary, #e2e4ea);
   white-space: nowrap;
@@ -320,7 +322,7 @@
   text-overflow: ellipsis;
 }
 .dm-device-meta {
-  font-size: 11px;
+  font-size: 15px;
   color: var(--text-muted, #4a5060);
   margin-top: 2px;
   display: flex;
@@ -333,7 +335,7 @@
   background: rgba(59,130,246,0.1);
   border: 1px solid rgba(59,130,246,0.2);
   color: #60a5fa;
-  font-size: 9px;
+  font-size: 13px;
   padding: 1px 5px;
   border-radius: 3px;
   font-weight: 600;
@@ -350,7 +352,7 @@
   display: flex;
   align-items: center;
   gap: 5px;
-  font-size: 11px;
+  font-size: 15px;
   font-weight: 500;
   flex-shrink: 0;
 }
@@ -379,7 +381,7 @@
 
 .dm-register-msg {
   flex: 1;
-  font-size: 12px;
+  font-size: 16px;
   color: var(--teal, #10b981);
   margin-right: auto; /* push it left, keep buttons right */
 }
@@ -387,7 +389,7 @@
 .dm-btn {
   padding: 8px 16px;
   border-radius: 7px;
-  font-size: 13px;
+  font-size: 17px;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.15s;
@@ -411,7 +413,7 @@
 
 /* ── Per-device registration status badges ── */
 .dm-reg-badge {
-  font-size: 11px;
+  font-size: 15px;
   font-weight: 500;
   padding: 3px 8px;
   border-radius: 4px;
@@ -434,6 +436,8 @@
    Credential enrollment modal
    ════════════════════════════════════════════════════════════ */
 .dm-cred-modal {
+  --text-muted: rgba(255, 255, 255, 0.5);
+  --text-secondary: rgba(255, 255, 255, 0.5);
   background: var(--bg-surface, #111318);
   border: 1px solid var(--border-light, #1e2230);
   border-radius: 14px;
@@ -448,7 +452,7 @@
 }
 
 .dm-cred-hint {
-  font-size: 12px;
+  font-size: 16px;
   color: var(--text-muted, #4a5060);
   margin: 0 0 14px 0;
   line-height: 1.6;
@@ -502,7 +506,7 @@
 }
 
 .dm-cred-cam-name {
-  font-size: 12px;
+  font-size: 16px;
   font-weight: 500;
   color: var(--text-primary, #e2e4ea);
   white-space: nowrap;
@@ -511,7 +515,7 @@
 }
 
 .dm-cred-cam-ip {
-  font-size: 11px;
+  font-size: 15px;
   color: var(--text-muted, #4a5060);
   margin-top: 2px;
   font-family: monospace;
@@ -530,7 +534,7 @@
   border: 1px solid var(--border-light, #1e2230);
   border-radius: 6px;
   padding: 7px 10px;
-  font-size: 12px;
+  font-size: 16px;
   color: var(--text-primary, #e2e4ea);
   outline: none;
   transition: border-color 0.15s;
@@ -546,7 +550,7 @@
 .dm-custom-select { position: relative; width: 100%; }
 .dm-select-btn {
   background: var(--bg-elevated, #0d1018); border: 1px solid var(--border-light, #1e2230); border-radius: 6px;
-  color: var(--text-primary, #e2e4ea); font-size: 12px;
+  color: var(--text-primary, #e2e4ea); font-size: 16px;
   padding: 7px 10px; outline: none; width: 100%; text-align: left;
   display: flex; justify-content: space-between; align-items: center;
   cursor: pointer; transition: border-color .15s, background .15s;
@@ -564,7 +568,7 @@
 .dm-dropdown-menu::-webkit-scrollbar-thumb { background: #1e2230; border-radius: 3px; }
 .dm-dropdown-menu::-webkit-scrollbar-thumb:hover { background: #2e3548; }
 .dm-dropdown-item {
-  padding: 8px 12px; color: var(--text-muted, #4a5060); font-size: 12px; cursor: pointer;
+  padding: 8px 12px; color: var(--text-muted, #4a5060); font-size: 16px; cursor: pointer;
   border-radius: 4px; display: flex; align-items: center; transition: all .15s;
 }
 .dm-dropdown-item:hover { background: rgba(255,255,255,0.03); color: var(--text-primary, #e2e4ea); }

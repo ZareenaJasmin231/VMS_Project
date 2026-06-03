@@ -7,7 +7,6 @@ import 'reactflow/dist/style.css';
 import './Topology.css';
 
 const API_BASE = `http://${window.location.hostname}:80/api/infrastructure`;
-const WS_URL   = `ws://${window.location.hostname}:80/api/infrastructure/ws`;
 
 const BW_SPIKE_THRESHOLD_MBPS = 80;
 
@@ -110,7 +109,7 @@ const CustomNode = ({ data }) => (
           borderRadius: '50%',
           width: 17,
           height: 17,
-          fontSize: 10,
+          fontSize: 14,
           fontWeight: 700,
           display: 'flex',
           alignItems: 'center',
@@ -219,7 +218,7 @@ const BellAlertButton = ({ alerts, onAck }) => {
             borderRadius: '50%',
             minWidth: 18,
             height: 18,
-            fontSize: 10,
+            fontSize: 14,
             fontWeight: 700,
             display: 'flex',
             alignItems: 'center',
@@ -260,14 +259,14 @@ const BellAlertButton = ({ alerts, onAck }) => {
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <Icon type="bell" size={14} />
-              <span style={{ color: '#e5e7eb', fontWeight: 600, fontSize: 13 }}>Alerts</span>
+              <span style={{ color: '#e5e7eb', fontWeight: 600, fontSize: 17 }}>Alerts</span>
               {unreadCount > 0 && (
                 <span style={{
                   background: '#ef4444',
                   color: '#fff',
                   borderRadius: 10,
                   padding: '1px 7px',
-                  fontSize: 10,
+                  fontSize: 14,
                   fontWeight: 700,
                 }}>
                   {unreadCount}
@@ -276,7 +275,7 @@ const BellAlertButton = ({ alerts, onAck }) => {
             </div>
             <button
               onClick={() => setOpen(false)}
-              style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', padding: 2 }}
+              style={{ background: 'none', border: 'none', color: "rgba(255, 255, 255, 0.5)", cursor: 'pointer', padding: 2 }}
             >
               <Icon type="x" size={14} />
             </button>
@@ -288,14 +287,14 @@ const BellAlertButton = ({ alerts, onAck }) => {
               <div style={{
                 padding: 32,
                 textAlign: 'center',
-                color: '#4b5563',
+                color: "rgba(255, 255, 255, 0.5)",
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'center',
                 gap: 10,
               }}>
                 <Icon type="check" size={28} />
-                <span style={{ fontSize: 13 }}>No active alerts</span>
+                <span style={{ fontSize: 17 }}>No active alerts</span>
               </div>
             ) : (
               alerts.map((a, i) => {
@@ -316,7 +315,7 @@ const BellAlertButton = ({ alerts, onAck }) => {
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{
                         color: severityColor(sev),
-                        fontSize: 9,
+                        fontSize: 13,
                         fontWeight: 700,
                         letterSpacing: '0.08em',
                         marginBottom: 3,
@@ -325,14 +324,14 @@ const BellAlertButton = ({ alerts, onAck }) => {
                       </div>
                       <div style={{
                         color: '#d1d5db',
-                        fontSize: 11,
+                        fontSize: 15,
                         lineHeight: 1.45,
                         wordBreak: 'break-word',
                         marginBottom: 4,
                       }}>
                         {a.message}
                       </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#6b7280', fontSize: 10 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: "rgba(255, 255, 255, 0.5)", fontSize: 14 }}>
                         {a.ip && <span>{a.ip}</span>}
                         <span>{new Date(a.timestamp).toLocaleTimeString()}</span>
                       </div>
@@ -346,7 +345,7 @@ const BellAlertButton = ({ alerts, onAck }) => {
                         borderRadius: 6,
                         color: '#818cf8',
                         cursor: 'pointer',
-                        fontSize: 10,
+                        fontSize: 14,
                         fontWeight: 600,
                         padding: '3px 8px',
                         letterSpacing: '0.04em',
@@ -374,7 +373,7 @@ const BellAlertButton = ({ alerts, onAck }) => {
                   border: 'none',
                   color: '#6366f1',
                   cursor: 'pointer',
-                  fontSize: 11,
+                  fontSize: 15,
                   fontWeight: 600,
                 }}
               >
@@ -434,7 +433,7 @@ const NetworkPerfTable = ({ diagnostics, filterIp }) => {
         <div key={i} className="perf-table__row perf-row--selected">
           <span className="perf-name">{d.name || d.ip}</span>
           <span className="perf-latency">{d.latency != null ? `${d.latency}ms` : '—'}</span>
-          <span style={{ color: packetLossColor(d.packet_loss), fontSize: '10px', textAlign: 'center' }}>
+          <span style={{ color: packetLossColor(d.packet_loss), fontSize: '14px', textAlign: 'center' }}>
             {d.packet_loss != null ? `${d.packet_loss}%` : '—'}
           </span>
           <span className={`perf-port ${d.ports?.rtsp  ? 'port-up' : 'port-dn'}`}>{d.ports?.rtsp  ? '●' : '○'}</span>
@@ -509,7 +508,7 @@ const CameraStreamPanel = ({ d, liveData, isRefreshing, onRefresh }) => {
           style={{
             background: 'none', border: 'none', cursor: 'pointer',
             color: isRefreshing ? '#4b5563' : '#6366f1', padding: '2px 4px',
-            display: 'flex', alignItems: 'center', gap: 4, fontSize: 10
+            display: 'flex', alignItems: 'center', gap: 4, fontSize: 14
           }}>
           <Icon type="refresh" size={12}/>
           {isRefreshing ? 'Loading…' : 'Refresh'}
@@ -519,7 +518,7 @@ const CameraStreamPanel = ({ d, liveData, isRefreshing, onRefresh }) => {
       {!hasAnyStreamData && !isRefreshing && (
         <div style={{
           background: '#1f2937', borderRadius: 6, padding: '8px 10px',
-          color: '#6b7280', fontSize: 10, marginBottom: 8,
+          color: "rgba(255, 255, 255, 0.5)", fontSize: 14, marginBottom: 8,
           border: '1px solid #374151', display: 'flex', alignItems: 'center', gap: 6
         }}>
           <Icon type="alert" size={12}/>
@@ -586,12 +585,12 @@ const CameraStreamPanel = ({ d, liveData, isRefreshing, onRefresh }) => {
       {(cam.onvif_url || cam.rtsp_url) && (
         <div style={{ marginTop: 8 }}>
           {cam.onvif_url && (
-            <div className="detail-row" style={{ fontSize: 9, color: '#6b7280' }}>
+            <div className="detail-row" style={{ fontSize: 13, color: "rgba(255, 255, 255, 0.5)" }}>
               <label>ONVIF URL</label><span style={{ wordBreak: 'break-all' }}>{cam.onvif_url}</span>
             </div>
           )}
           {cam.rtsp_url && (
-            <div className="detail-row" style={{ fontSize: 9, color: '#6b7280' }}>
+            <div className="detail-row" style={{ fontSize: 13, color: "rgba(255, 255, 255, 0.5)" }}>
               <label>RTSP URL</label><span style={{ wordBreak: 'break-all' }}>{cam.rtsp_url}</span>
             </div>
           )}
@@ -599,7 +598,7 @@ const CameraStreamPanel = ({ d, liveData, isRefreshing, onRefresh }) => {
       )}
 
       {cam.stream_last_polled && (
-        <div style={{ marginTop: 6, fontSize: 9, color: '#4b5563', textAlign: 'right' }}>
+        <div style={{ marginTop: 6, fontSize: 13, color: "rgba(255, 255, 255, 0.5)", textAlign: 'right' }}>
           Last polled: {new Date(cam.stream_last_polled).toLocaleTimeString()}
         </div>
       )}
@@ -623,6 +622,42 @@ const PoEPanel = ({ d }) => {
       </div>
     </div>
   );
+};
+
+const normalizeNodeType = (node) => {
+  if (!node) return node;
+  const type = node.type;
+  if (type === 'web_device') return node;
+  
+  const modelLower = (node.model || '').toLowerCase();
+  const manufacturerLower = (node.manufacturer || '').toLowerCase();
+  const labelLower = (node.label || '').toLowerCase();
+  const idLower = (node.id || '').toLowerCase();
+  const ip = node.ip || '';
+  
+  if (
+    modelLower.includes('pc box') || 
+    modelLower.includes('vms host') || 
+    modelLower.includes('pc-box') ||
+    modelLower.includes('host') ||
+    modelLower.includes('server') ||
+    modelLower.includes('computer') ||
+    modelLower.includes('workstation') ||
+    (modelLower.includes('pc') && !modelLower.includes('ipc')) ||
+    manufacturerLower.includes('pc box') ||
+    manufacturerLower.includes('vms host') ||
+    (manufacturerLower.includes('pc') && !manufacturerLower.includes('ipc')) ||
+    labelLower.includes('pc box') ||
+    labelLower.includes('vms host') ||
+    (labelLower.includes('pc') && !labelLower.includes('ipc')) ||
+    idLower.includes('host') ||
+    ip === '172.19.0.6' ||
+    ip.startsWith('172.') ||
+    ip === window.location.hostname
+  ) {
+    return { ...node, type: 'server' };
+  }
+  return node;
 };
 
 // ─── Main Component ───────────────────────────────────────────────────────────
@@ -774,7 +809,8 @@ export default function Topology() {
       const seen = new Map();
       data.nodes.forEach(n => {
         if (n.type !== 'web_device') {
-          seen.set(n.id, n);
+          const norm = normalizeNodeType(n);
+          seen.set(norm.id, norm);
         }
       });
       const uniqueNodes = Array.from(seen.values());
@@ -804,19 +840,6 @@ export default function Topology() {
         return true;
       });
 
-      // setEdges(uniqueEdges.map((e, idx) => ({
-      //   id: `e-${idx}`, source: e.source, target: e.target,
-      //   animated: e.inferred, label: e.port_label || '',
-      //   style: { stroke: e.inferred ? '#6366f1' : '#4b5563' },
-      //   markerEnd: { type: MarkerType.ArrowClosed, color: '#4b5563' }
-      // })));
-
-      setEdges(uniqueEdges.map((e, idx) => ({
-        id: `e-${idx}`, source: e.source, target: e.target,
-        animated: e.inferred, label: e.port_label || '',
-        style: { stroke: e.inferred ? '#6366f1' : '#4b5563' },
-        markerEnd: { type: MarkerType.ArrowClosed, color: '#4b5563' }
-      })));
       setEdges(uniqueEdges.map((e, idx) => {
         const targetNode = uniqueNodes.find(n => n.id === e.target);
         const targetType = targetNode?.type;
@@ -834,6 +857,8 @@ export default function Topology() {
           strokeWidth = 2.5;
         }
 
+        const isCameraTarget = targetType === 'camera';
+
         return {
           id: `e-${idx}`, 
           source: e.source, 
@@ -846,10 +871,17 @@ export default function Topology() {
             strokeWidth: strokeWidth,
             filter: `drop-shadow(0px 0px 3px ${strokeColor}66)` // Neon glowing drop-shadow
           },
-          markerEnd: { 
-            type: MarkerType.ArrowClosed, 
-            color: strokeColor 
-          }
+          ...(isCameraTarget ? {
+            markerStart: {
+              type: MarkerType.ArrowClosed,
+              color: strokeColor
+            }
+          } : {
+            markerEnd: {
+              type: MarkerType.ArrowClosed,
+              color: strokeColor
+            }
+          })
         };
       }));
     } catch (err) { console.error('Topology fetch failed:', err); }
@@ -879,65 +911,19 @@ export default function Topology() {
     } catch {}
   }, []);
 
-  const connectWebSocket = useCallback(() => {
-    if (wsRef.current) wsRef.current.close();
-    const ws = new WebSocket(WS_URL);
-    wsRef.current = ws;
-    ws.onopen = () => console.log('[WS] Connected.');
-    ws.onmessage = (event) => {
-      try {
-        const msg = JSON.parse(event.data);
-        if (msg.type === 'NODE_UPDATE') {
-          checkUnexpectedReboot(msg.id, msg.data);
-          if (msg.data.switch_ports) {
-            msg.data.switch_ports.forEach(p => {
-              if (p.status === 'down') {
-                setAlerts(prev => [{
-                  node_id: msg.id, severity: 'warning',
-                  message: `Switch port ${p.port} is DOWN on ${msg.data.ip || msg.id}${p.connected_device ? ` (was: ${p.connected_device})` : ''}`,
-                  timestamp: new Date().toISOString(), ip: msg.data.ip || msg.id
-                }, ...prev]);
-              }
-            });
-          }
-          if (msg.data.type === 'nvr' && msg.data.nvr_connected === false) {
-            setAlerts(prev => [{
-              node_id: msg.id, severity: 'critical',
-              message: `NVR ${msg.data.ip || msg.id} is UNREACHABLE — recording may be interrupted!`,
-              timestamp: new Date().toISOString(), ip: msg.data.ip || msg.id
-            }, ...prev]);
-          }
-          setScannedNodes(snd => snd.map(n =>
-            n.id === msg.id ? { ...n, ...msg.data } : n
-          ));
-          setNodes(nds => nds.map(n =>
-            n.id === msg.id ? { ...n, data: { ...n.data, ...msg.data, onRemove: n.data.onRemove } } : n
-          ));
-          setDeviceLiveData(prev => {
-            if (prev && msg.id === prev.id) return { ...prev, ...msg.data };
-            return prev;
-          });
-        } else if (msg.type === 'TOPOLOGY_UPDATE') {
-          fetchTopology();
-        } else if (msg.type === 'DIAGNOSTICS_UPDATE') {
-          setDiagnostics(msg.data);
-          const bw = msg.data.bandwidth;
-          setBwHistory(prev => [...prev.slice(-99), bw]);
-          checkBandwidthSpike(bw);
-        } else if (msg.type === 'ALERT') {
-          setAlerts(prev => [msg.data, ...prev]);
-        }
-      } catch (e) { console.error('[WS] Parse error:', e); }
-    };
-    ws.onclose = () => setTimeout(connectWebSocket, 5000);
-    ws.onerror = (e) => { console.error('[WS] Error:', e); ws.close(); };
-  }, [fetchTopology, setNodes, checkUnexpectedReboot, checkBandwidthSpike]);
-
   useEffect(() => {
-    fetchTopology(); fetchMetrics(); fetchAlerts(); fetchBandwidth(); connectWebSocket();
-    const interval = setInterval(fetchMetrics, 10000);
-    return () => { clearInterval(interval); if (wsRef.current) wsRef.current.close(); };
-  }, [fetchTopology, fetchMetrics, fetchAlerts, fetchBandwidth, connectWebSocket]);
+    fetchTopology(); fetchMetrics(); fetchAlerts(); fetchBandwidth();
+    const intervalMetrics = setInterval(fetchMetrics, 10000);
+    const intervalTopo = setInterval(fetchTopology, 5000);
+    const intervalAlerts = setInterval(fetchAlerts, 5000);
+    const intervalBw = setInterval(fetchBandwidth, 5000);
+    return () => {
+      clearInterval(intervalMetrics);
+      clearInterval(intervalTopo);
+      clearInterval(intervalAlerts);
+      clearInterval(intervalBw);
+    };
+  }, [fetchTopology, fetchMetrics, fetchAlerts, fetchBandwidth]);
 
   // Keep selectedNode data in sync when nodes refresh
   useEffect(() => {
@@ -954,8 +940,7 @@ export default function Topology() {
   }, []);
 
   const onConnect = useCallback((params) => {
-    // setEdges(eds => addEdge({ ...params, id: `e-${Date.now()}` }, eds));
-        const targetNode = scannedNodes.find(n => n.id === params.target);
+    const targetNode = scannedNodes.find(n => n.id === params.target);
     const targetType = targetNode?.type;
     
     let strokeColor = '#818cf8'; // Neon Indigo default
@@ -971,6 +956,8 @@ export default function Topology() {
       strokeWidth = 2.5;
     }
 
+    const isCameraTarget = targetType === 'camera';
+
     const customEdge = {
       ...params,
       id: `e-${Date.now()}`,
@@ -981,10 +968,17 @@ export default function Topology() {
         strokeWidth: strokeWidth,
         filter: `drop-shadow(0px 0px 3px ${strokeColor}66)`
       },
-      markerEnd: { 
-        type: MarkerType.ArrowClosed, 
-        color: strokeColor 
-      }
+      ...(isCameraTarget ? {
+        markerStart: {
+          type: MarkerType.ArrowClosed,
+          color: strokeColor
+        }
+      } : {
+        markerEnd: {
+          type: MarkerType.ArrowClosed,
+          color: strokeColor
+        }
+      })
     };
 
     setEdges(eds => addEdge(customEdge, eds));
@@ -1297,7 +1291,7 @@ export default function Topology() {
     background: active ? `${activeColor}22` : 'rgba(255,255,255,0.04)',
     color: active ? activeColor : '#9ca3af',
     cursor: 'pointer',
-    fontSize: 11,
+    fontSize: 15,
     fontWeight: active ? 700 : 500,
     transition: 'all 0.15s',
     userSelect: 'none',
@@ -1349,7 +1343,7 @@ export default function Topology() {
 
         {/* ── DEVICE TYPE FILTER CHIPS ── */}
         <div style={{ borderTop: '1px solid #1f2937', paddingTop: 8, marginTop: 2 }}>
-          <div style={{ color: '#4b5563', fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 6 }}>
+          <div style={{ color: "rgba(255, 255, 255, 0.5)", fontSize: 13, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 6 }}>
             Filter by Type
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
@@ -1387,7 +1381,7 @@ export default function Topology() {
                       color: active ? '#fff' : '#6b7280',
                       borderRadius: 10,
                       padding: '0 6px',
-                      fontSize: 9,
+                      fontSize: 13,
                       fontWeight: 700,
                     }}>{count}</span>
                   </div>
@@ -1408,7 +1402,7 @@ export default function Topology() {
                 borderRadius: 7,
                 color: '#f87171',
                 cursor: 'pointer',
-                fontSize: 10,
+                fontSize: 14,
                 fontWeight: 600,
                 padding: '5px 0',
                 display: 'flex',
@@ -1459,7 +1453,7 @@ export default function Topology() {
                       {isPlaced && (
                         <span style={{
                           color: '#10b981',
-                          fontSize: 8,
+                          fontSize: 12,
                           fontWeight: 700,
                           background: 'rgba(16,185,129,0.15)',
                           padding: '1px 4px',
@@ -1522,22 +1516,22 @@ export default function Topology() {
               backdropFilter: 'blur(8px)',
               flexWrap: 'wrap'
             }}>
-              <span style={{ fontSize: 9, fontWeight: 700, color: '#9ca3af', letterSpacing: '0.05em', marginRight: 4 }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: "rgba(255, 255, 255, 0.5)", letterSpacing: '0.05em', marginRight: 4 }}>
                 TEMPLATES:
               </span>
-              <button className="topo-btn topo-btn--small" style={{ fontSize: 11, padding: '3px 8px' }} onClick={() => applyTopologyTemplate('star')} title="Generate Star Topology">
+              <button className="topo-btn topo-btn--small" style={{ fontSize: 15, padding: '3px 8px' }} onClick={() => applyTopologyTemplate('star')} title="Generate Star Topology">
                 ★ Star
               </button>
-              <button className="topo-btn topo-btn--small" style={{ fontSize: 11, padding: '3px 8px' }} onClick={() => applyTopologyTemplate('ring')} title="Generate Ring Topology">
+              <button className="topo-btn topo-btn--small" style={{ fontSize: 15, padding: '3px 8px' }} onClick={() => applyTopologyTemplate('ring')} title="Generate Ring Topology">
                 ◯ Ring
               </button>
-              <button className="topo-btn topo-btn--small" style={{ fontSize: 11, padding: '3px 8px' }} onClick={() => applyTopologyTemplate('bus')} title="Generate Bus Topology">
+              <button className="topo-btn topo-btn--small" style={{ fontSize: 15, padding: '3px 8px' }} onClick={() => applyTopologyTemplate('bus')} title="Generate Bus Topology">
                 ▬ Bus
               </button>
-              <button className="topo-btn topo-btn--small" style={{ fontSize: 11, padding: '3px 8px' }} onClick={() => applyTopologyTemplate('mesh')} title="Generate Mesh Topology">
+              <button className="topo-btn topo-btn--small" style={{ fontSize: 15, padding: '3px 8px' }} onClick={() => applyTopologyTemplate('mesh')} title="Generate Mesh Topology">
                 🕸 Mesh
               </button>
-              <button className="topo-btn topo-btn--small" style={{ fontSize: 11, padding: '3px 8px' }} onClick={() => applyTopologyTemplate('tree')} title="Generate Hierarchical Tree">
+              <button className="topo-btn topo-btn--small" style={{ fontSize: 15, padding: '3px 8px' }} onClick={() => applyTopologyTemplate('tree')} title="Generate Hierarchical Tree">
                 🌲 Hierarchical
               </button>
             </div>
@@ -1553,7 +1547,7 @@ export default function Topology() {
                 borderRadius: 8,
                 padding: '4px 10px',
                 color: '#818cf8',
-                fontSize: 11,
+                fontSize: 15,
                 fontWeight: 600,
                 alignSelf: 'flex-start'
               }}>
@@ -1590,7 +1584,7 @@ export default function Topology() {
             <h3>
               {deviceTypeLabel(d?.type)}
               {deviceRefreshing && (
-                <span style={{ fontSize: 9, color: '#6366f1', marginLeft: 8, fontWeight: 400 }}>
+                <span style={{ fontSize: 13, color: '#6366f1', marginLeft: 8, fontWeight: 400 }}>
                   fetching…
                 </span>
               )}
@@ -1691,7 +1685,7 @@ export default function Topology() {
                   <span style={{ color: packetLossColor(d.packet_loss), fontWeight: 600 }}>
                     {d.packet_loss != null ? `${d.packet_loss}%` : 'N/A'}
                     {d.packet_loss != null && (
-                      <span style={{ fontWeight: 400, color: '#6b7280', fontSize: 10, marginLeft: 6 }}>
+                      <span style={{ fontWeight: 400, color: "rgba(255, 255, 255, 0.5)", fontSize: 14, marginLeft: 6 }}>
                         {d.packet_loss < 1 ? '(Good)' : d.packet_loss < 5 ? '(Degraded)' : '(Critical)'}
                       </span>
                     )}
@@ -1732,7 +1726,7 @@ export default function Topology() {
               <div className="network-tab">
                 <div className="bw-section">
                   <div className="bw-header">
-                    <span>Network Bandwidth <span style={{ color: '#6b7280', fontSize: 10 }}>(network-wide)</span></span>
+                    <span>Network Bandwidth <span style={{ color: "rgba(255, 255, 255, 0.5)", fontSize: 14 }}>(network-wide)</span></span>
                     <span className="bw-live">LIVE</span>
                   </div>
                   <div className="bw-row">
@@ -1793,7 +1787,7 @@ export default function Topology() {
                     <div key={i} className="alert-card" style={{ borderColor: `${sevColor}66`, borderLeftColor: sevColor }}>
                       <div className="alert-card__icon" style={{ color: sevColor }}><Icon type="alert" size={16} /></div>
                       <div className="alert-card__body">
-                        <div className="alert-card__sev" style={{ color: sevColor, fontSize: 9, fontWeight: 700, marginBottom: 2 }}>{sev.toUpperCase()}</div>
+                        <div className="alert-card__sev" style={{ color: sevColor, fontSize: 13, fontWeight: 700, marginBottom: 2 }}>{sev.toUpperCase()}</div>
                         <div className="alert-card__msg">{a.message}</div>
                         <div className="alert-card__meta"><span>{a.ip}</span><span>{new Date(a.timestamp).toLocaleTimeString()}</span></div>
                       </div>

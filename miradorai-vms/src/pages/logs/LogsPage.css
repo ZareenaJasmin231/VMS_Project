@@ -3,6 +3,8 @@
   flex-direction: column;
   gap: 20px;
   height: 100%;
+  padding: 32px;
+  box-sizing: border-box;
 }
 
 .logs-header {
@@ -17,56 +19,68 @@
 }
 
 .logs-title {
-  font-size: 24px;
-  font-weight: 600;
-  color: var(--text-primary);
+  font-size: 30px;
+  font-weight: 700;
   margin: 0;
+  color: var(--text-primary);
+  background: linear-gradient(135deg, #fff 0%, var(--teal) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  letter-spacing: -0.02em;
+}
+
+.logs-title span {
+  background: none;
+  -webkit-text-fill-color: var(--teal);
 }
 
 .logs-subtitle {
-  font-size: 13px;
-  color: var(--text-secondary);
+  font-size: 18px;
+  color: var(--text-muted);
+  max-width: 600px;
+  line-height: 1.6;
   margin: 4px 0 0 0;
 }
 
 .logs-tabs {
   display: flex;
-  background: var(--bg-surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
   padding: 4px;
 }
 
 .logs-tab {
   padding: 8px 16px;
-  font-size: 13px;
+  font-size: 17px;
   font-weight: 500;
-  color: var(--text-secondary);
+  color: rgba(255, 255, 255, 0.6);
   background: transparent;
   border: none;
-  border-radius: var(--radius-sm);
+  border-radius: 6px;
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
 .logs-tab.active {
-  background: var(--teal-subtle);
+  background: rgba(45, 212, 191, 0.15);
   color: var(--teal);
 }
 
 .logs-tab:hover:not(.active) {
-  background: var(--bg-hover);
-  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.05);
+  color: #fff;
 }
 
 .logs-filters {
   display: flex;
-  gap: 16px;
-  align-items: center;
-  background: var(--bg-surface);
-  padding: 16px;
-  border-radius: var(--radius-md);
-  border: 1px solid var(--border);
+  gap: 24px;
+  align-items: flex-end;
+  background: var(--bg-surface, #13161e);
+  padding: 24px;
+  border-radius: var(--radius-lg, 12px);
+  border: 1px solid var(--border-light, #2e3548);
+  box-shadow: var(--shadow-lg, 0 8px 32px rgba(0, 0, 0, 0.3));
   overflow: visible !important;
   z-index: 20;
 }
@@ -78,25 +92,32 @@
 }
 
 .log-filter-group label {
-  font-size: 12px;
-  color: var(--text-secondary);
-  font-weight: 500;
+  font-size: 14px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.4);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
 }
 
 .log-input {
-  background: var(--bg-elevated);
-  border: 1px solid var(--border);
-  color: var(--text-primary);
-  padding: 8px 12px;
-  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #fff;
+  padding: 10px 16px;
+  border-radius: var(--radius-sm, 6px);
   font-family: inherit;
-  font-size: 13px;
+  font-size: 17px;
   outline: none;
   min-width: 150px;
+  height: 44px;
+  box-sizing: border-box;
+  transition: all 0.2s ease;
 }
 
 .log-input:focus {
   border-color: var(--teal);
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: 0 0 0 3px rgba(45, 212, 191, 0.15);
 }
 
 .log-input[type="datetime-local"] {
@@ -115,31 +136,34 @@
 }
 
 .log-btn-primary {
-  background: var(--teal);
-  color: var(--bg-base);
-  border: none;
-  padding: 8px 16px;
-  border-radius: var(--radius-sm);
+  background: rgba(0, 200, 160, 0.1);
+  color: var(--teal);
+  border: 1px solid rgba(0, 200, 160, 0.35);
+  padding: 10px 24px;
+  border-radius: 8px;
   font-weight: 600;
-  font-size: 13px;
+  font-size: 17px;
   cursor: pointer;
   align-self: flex-end;
-  height: 35px;
+  height: 44px;
   transition: all 0.2s;
+  box-sizing: border-box;
 }
 
 .log-btn-primary:hover {
-  background: var(--teal-dim);
+  background: rgba(0, 200, 160, 0.18);
+  border-color: rgba(0, 200, 160, 0.5);
 }
 
 .logs-table-container {
   flex: 1;
-  background: var(--bg-surface);
-  border-radius: var(--radius-md);
-  border: 1px solid var(--border);
+  background: var(--bg-surface, #13161e);
+  border-radius: var(--radius-lg, 12px);
+  border: 1px solid var(--border-light, #2e3548);
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  box-shadow: var(--shadow-lg, 0 8px 32px rgba(0, 0, 0, 0.3));
 }
 
 .logs-table-wrapper {
@@ -154,40 +178,43 @@
 }
 
 .logs-table th {
-  background: var(--bg-elevated);
-  color: var(--text-secondary);
-  font-weight: 600;
-  font-size: 12px;
-  padding: 12px 16px;
+  background: rgba(255, 255, 255, 0.02);
+  color: rgba(255, 255, 255, 0.4);
+  font-weight: 700;
+  font-size: 15px;
+  padding: 16px 20px;
   position: sticky;
   top: 0;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
   z-index: 10;
 }
 
 .logs-table td {
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--border-light);
-  font-size: 13px;
+  padding: 16px 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  font-size: 18px;
   color: var(--text-primary);
+  vertical-align: middle;
 }
 
 .logs-table tbody tr:hover {
-  background: var(--bg-hover);
+  background: rgba(255, 255, 255, 0.03);
 }
 
 .empty-logs {
   padding: 40px;
   text-align: center;
-  color: var(--text-secondary);
-  font-size: 14px;
+  color: var(--text-muted);
+  font-size: 18px;
 }
 
 .log-tag {
   display: inline-block;
   padding: 4px 8px;
   border-radius: 4px;
-  font-size: 11px;
+  font-size: 15px;
   font-weight: 600;
 }
 
@@ -204,7 +231,7 @@
 .log-output pre {
   margin: 0;
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 15px;
   background: var(--bg-base);
   padding: 8px;
   border-radius: 4px;
@@ -217,7 +244,7 @@
   text-align: center;
   padding: 80px 40px;
   color: var(--teal);
-  font-size: 16px;
+  font-size: 20px;
   font-weight: 500;
   letter-spacing: 0.05em;
 }
@@ -230,23 +257,23 @@
   gap: 16px;
   padding: 12px 16px;
   background: var(--bg-surface);
-  border-top: 1px solid var(--border);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .pagination-btn {
-  background: var(--bg-elevated);
-  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   color: var(--text-primary);
   padding: 6px 12px;
-  border-radius: var(--radius-sm);
-  font-size: 12px;
+  border-radius: var(--radius-sm, 6px);
+  font-size: 16px;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .pagination-btn:not(:disabled):hover {
-  background: var(--bg-hover);
+  background: rgba(255, 255, 255, 0.06);
   border-color: var(--teal);
 }
 
@@ -256,8 +283,8 @@
 }
 
 .pagination-info {
-  font-size: 12px;
-  color: var(--text-secondary);
+  font-size: 16px;
+  color: var(--text-muted);
 }
 
 /* Details Cell Styles */
@@ -271,7 +298,7 @@
   background: var(--bg-base);
   border-radius: 4px;
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 15px;
   color: var(--text-secondary);
   white-space: pre-wrap;
   word-break: break-word;
@@ -286,29 +313,32 @@
 }
 
 .logs-select-btn {
-  background: var(--bg-elevated);
-  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   color: var(--text-primary);
-  padding: 8px 12px;
-  border-radius: var(--radius-sm);
+  padding: 10px 16px;
+  border-radius: var(--radius-sm, 6px);
   font-family: inherit;
-  font-size: 13px;
+  font-size: 17px;
   outline: none;
-  min-width: 160px;
+  min-width: 180px;
   display: flex;
   justify-content: space-between;
   align-items: center;
   cursor: pointer;
-  height: 37px; /* matches the date time inputs perfectly */
-  transition: border-color 0.15s, background 0.15s;
+  height: 44px;
+  box-sizing: border-box;
+  transition: all 0.2s ease;
+  backdrop-filter: blur(10px);
 }
 
 .logs-select-btn:hover {
-  background: var(--bg-hover);
+  background: rgba(255, 255, 255, 0.06);
 }
 
 .logs-select-btn:focus {
   border-color: var(--teal);
+  box-shadow: 0 0 0 3px rgba(45, 212, 191, 0.15);
 }
 
 .logs-dropdown-menu {
@@ -316,10 +346,10 @@
   top: calc(100% + 4px);
   left: 0;
   right: 0;
-  background: var(--bg-surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+  background: #0b1220;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-md, 8px);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.6);
   z-index: 999;
   padding: 6px;
   list-style: none;
@@ -337,32 +367,32 @@
 }
 
 .logs-dropdown-menu::-webkit-scrollbar-thumb {
-  background: var(--border-light);
+  background: rgba(255, 255, 255, 0.1);
   border-radius: 3px;
 }
 
 .logs-dropdown-menu::-webkit-scrollbar-thumb:hover {
-  background: var(--text-muted);
+  background: rgba(255, 255, 255, 0.2);
 }
 
 .logs-dropdown-item {
   padding: 8px 12px;
-  color: var(--text-secondary);
-  font-size: 13px;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 17px;
   cursor: pointer;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-sm, 6px);
   display: flex;
   align-items: center;
   transition: all 0.15s;
 }
 
 .logs-dropdown-item:hover {
-  background: var(--bg-hover);
-  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.04);
+  color: #fff;
 }
 
 .logs-dropdown-item.active {
-  background: var(--teal-subtle);
+  background: rgba(45, 212, 191, 0.15);
   color: var(--teal);
   font-weight: 600;
 }

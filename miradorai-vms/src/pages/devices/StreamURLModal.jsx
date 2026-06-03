@@ -30,23 +30,23 @@ const css = `
     display: flex; align-items: flex-start; justify-content: space-between;
   }
   .sum-eyebrow {
-    font-size: 10px; letter-spacing: .14em; text-transform: uppercase;
+    font-size: 14px; letter-spacing: .14em; text-transform: uppercase;
     color: #3b82f6; font-weight: 500; margin-bottom: 4px;
   }
   .sum-title {
     font-family: 'Syne', sans-serif;
-    font-size: 18px; font-weight: 700; color: #e8edf5; margin: 0;
+    font-size: 22px; font-weight: 700; color: #e8edf5; margin: 0;
   }
   .sum-close {
     background: none; border: none; cursor: pointer;
-    color: #4a5568; padding: 2px; transition: color .15s;
+    color: rgba(255, 255, 255, 0.5); padding: 2px; transition: color .15s;
   }
   .sum-close:hover { color: #e8edf5; }
 
   .sum-body { padding: 24px; display: flex; flex-direction: column; gap: 16px; }
 
   .sum-desc {
-    font-size: 12px; color: #4a5568; line-height: 1.6;
+    font-size: 16px; color: rgba(255, 255, 255, 0.5); line-height: 1.6;
     background: #080c12; border: 1px solid #1e2a3a;
     border-radius: 8px; padding: 12px 14px;
     display: flex; gap: 10px; align-items: flex-start;
@@ -55,8 +55,8 @@ const css = `
 
   .sum-field { display: flex; flex-direction: column; gap: 6px; }
   .sum-label {
-    font-size: 10px; letter-spacing: .1em; text-transform: uppercase;
-    color: #6b7a99; font-weight: 500;
+    font-size: 14px; letter-spacing: .1em; text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.5); font-weight: 500;
   }
   .sum-input {
     background: #080c12;
@@ -64,7 +64,7 @@ const css = `
     border-radius: 8px;
     color: #c9d4e8;
     font-family: 'DM Mono', monospace;
-    font-size: 13px;
+    font-size: 17px;
     padding: 10px 13px;
     outline: none;
     transition: border-color .15s, box-shadow .15s;
@@ -77,12 +77,12 @@ const css = `
     box-shadow: 0 0 0 3px rgba(37,99,235,.18);
   }
   .sum-input.error { border-color: #dc2626; box-shadow: 0 0 0 3px rgba(220,38,38,.15); }
-  .sum-error-msg { font-size: 11px; color: #f87171; }
+  .sum-error-msg { font-size: 15px; color: #f87171; }
 
   .sum-custom-select { position: relative; width: 100%; }
   .sum-select-btn {
     background: #080c12; border: 1px solid #1e2a3a; border-radius: 8px;
-    color: #c9d4e8; font-family: 'DM Mono', monospace; font-size: 13px;
+    color: #c9d4e8; font-family: 'DM Mono', monospace; font-size: 17px;
     padding: 10px 13px; outline: none; width: 100%; text-align: left;
     display: flex; justify-content: space-between; align-items: center;
     cursor: pointer; transition: border-color .15s, box-shadow .15s;
@@ -100,7 +100,7 @@ const css = `
   .sum-dropdown-menu::-webkit-scrollbar-thumb { background: #1e2a3a; border-radius: 3px; }
   .sum-dropdown-menu::-webkit-scrollbar-thumb:hover { background: #2e3d55; }
   .sum-dropdown-item {
-    padding: 8px 12px; color: #8b99b3; font-size: 13px; cursor: pointer;
+    padding: 8px 12px; color: rgba(255, 255, 255, 0.5); font-size: 17px; cursor: pointer;
     border-radius: 4px; display: flex; align-items: center; transition: all .15s;
   }
   .sum-dropdown-item:hover { background: #1e2a3a; color: #c9d4e8; }
@@ -114,12 +114,12 @@ const css = `
     border-radius: 8px; padding: 10px 12px;
   }
   .sum-url-text {
-    flex: 1; font-size: 12px; color: #c9d4e8;
+    flex: 1; font-size: 16px; color: #c9d4e8;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
   .sum-url-remove {
     background: none; border: none; cursor: pointer;
-    color: #4a5568; padding: 2px; transition: color .15s; flex-shrink: 0;
+    color: rgba(255, 255, 255, 0.5); padding: 2px; transition: color .15s; flex-shrink: 0;
   }
   .sum-url-remove:hover { color: #f87171; }
 
@@ -128,7 +128,7 @@ const css = `
   .sum-add-row .sum-input { flex: 1; }
 
   .sum-btn-add {
-    font-family: 'DM Mono', monospace; font-size: 12px; font-weight: 500;
+    font-family: 'DM Mono', monospace; font-size: 16px; font-weight: 500;
     padding: 10px 16px; border-radius: 8px; cursor: pointer;
     border: 1px solid #2563eb; background: #0f1f3d; color: #3b82f6;
     white-space: nowrap; transition: all .15s; flex-shrink: 0;
@@ -142,12 +142,12 @@ const css = `
     display: flex; justify-content: flex-end; gap: 10px;
   }
   .sum-btn {
-    font-family: 'DM Mono', monospace; font-size: 12px; font-weight: 500;
+    font-family: 'DM Mono', monospace; font-size: 16px; font-weight: 500;
     padding: 9px 18px; border-radius: 8px; cursor: pointer;
     border: 1px solid transparent; transition: all .15s;
   }
   .sum-btn--ghost {
-    background: transparent; border-color: #1e2a3a; color: #6b7a99;
+    background: transparent; border-color: #1e2a3a; color: rgba(255, 255, 255, 0.5);
   }
   .sum-btn--ghost:hover { border-color: #2e3d55; color: #c9d4e8; }
   .sum-btn--primary {
@@ -161,7 +161,7 @@ const css = `
     color: #f87171;
     padding: 10px 14px;
     border-radius: 8px;
-    font-size: 12px;
+    font-size: 16px;
     display: flex;
     align-items: flex-start;
     gap: 10px;
@@ -180,11 +180,12 @@ const css = `
   }
   .sum-ui-alert-close {
     background: none; border: none; cursor: pointer;
-    color: #6b7a99; font-size: 14px; line-height: 1; padding: 2px;
+    color: rgba(255, 255, 255, 0.5); font-size: 18px; line-height: 1; padding: 2px;
     transition: color 0.15s;
   }
   .sum-ui-alert-close:hover { color: #f87171; }
 `;
+
 
 function validateURL(url) {
   return /^(rtsp|rtsps|http|https):\/\/.+/.test(url.trim());
@@ -302,10 +303,11 @@ export default function StreamURLModal({
                   onClick={() => setDropdownOpen(!dropdownOpen)}
                 >
                   <span>{selectedGroupId === "default" ? "Default" : groups?.find(g => g.id === selectedGroupId)?.name || "Default"}</span>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6b7a99" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: dropdownOpen ? "rotate(180deg)" : "rotate(0)", transition: "transform .2s" }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255, 255, 255, 0.5)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: dropdownOpen ? "rotate(180deg)" : "rotate(0)", transition: "transform .2s" }}>
                     <path d="M6 9l6 6 6-6"/>
                   </svg>
                 </button>
+
                 {dropdownOpen && (
                   <ul className="sum-dropdown-menu">
                     <li

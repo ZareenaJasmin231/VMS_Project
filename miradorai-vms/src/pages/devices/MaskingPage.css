@@ -27,7 +27,7 @@
 }
 
 .mp-sidebar-title {
-  font-size: 11px;
+  font-size: 15px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.12em;
@@ -40,7 +40,7 @@
   color: var(--teal);
   padding: 2px 8px;
   border-radius: 20px;
-  font-size: 10px;
+  font-size: 14px;
   font-weight: 700;
   border: 1px solid var(--teal-glow);
 }
@@ -104,7 +104,7 @@
 
 .mp-cam-name {
   display: block;
-  font-size: 13px;
+  font-size: 17px;
   font-weight: 600;
   white-space: nowrap;
   overflow: hidden;
@@ -113,7 +113,7 @@
 
 .mp-cam-ip {
   display: block;
-  font-size: 10px;
+  font-size: 14px;
   opacity: 0.5;
   font-family: var(--font-mono);
 }
@@ -133,7 +133,7 @@
   background: rgba(20, 184, 166, 0.1);
   color: var(--teal);
   border: 1px solid rgba(20, 184, 166, 0.25);
-  font-size: 10px;
+  font-size: 14px;
   font-weight: 700;
   padding: 2px 8px;
   border-radius: 20px;
@@ -183,7 +183,7 @@
 }
 
 .mp-breadcrumb {
-  font-size: 11px;
+  font-size: 15px;
   font-weight: 600;
   color: var(--text-muted);
   display: flex;
@@ -203,7 +203,7 @@
   background: var(--bg-surface);
   padding: 6px 14px;
   border-radius: 20px;
-  font-size: 10px;
+  font-size: 14px;
   font-weight: 700;
   color: var(--text-secondary);
   border: 1px solid var(--border);
@@ -237,7 +237,7 @@
 }
 
 .mp-title {
-  font-size: 24px;
+  font-size: 28px;
   font-weight: 700;
   color: var(--text-primary);
   letter-spacing: -0.5px;
@@ -273,12 +273,12 @@
 }
 
 .mp-device-name {
-  font-size: 13px;
+  font-size: 17px;
   font-weight: 600;
 }
 
 .mp-device-ip {
-  font-size: 10px;
+  font-size: 14px;
   color: var(--text-muted);
   font-family: var(--font-mono);
 }
@@ -315,7 +315,7 @@
   height: 30px;
   padding: 0 14px;
   border-radius: 6px;
-  font-size: 11px;
+  font-size: 15px;
   font-weight: 600;
   border: none;
   background: transparent;
@@ -386,7 +386,7 @@
 
 .mp-toolbar-hint {
   margin-left: auto;
-  font-size: 10px;
+  font-size: 14px;
   color: var(--text-muted);
   font-weight: 600;
   text-transform: uppercase;
@@ -447,12 +447,12 @@
 }
 
 .mp-placeholder-icon {
-  font-size: 48px;
+  font-size: 52px;
   opacity: 0.2;
 }
 
 .mp-placeholder-sub {
-  font-size: 10px;
+  font-size: 14px;
   opacity: 0.6;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -461,7 +461,7 @@
 .mp-corner-label {
   position: absolute;
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: 13px;
   font-weight: 700;
   color: rgba(255, 255, 255, 0.2);
   text-transform: uppercase;
@@ -483,7 +483,7 @@
   color: white;
   padding: 6px 14px;
   border-radius: 20px;
-  font-size: 10px;
+  font-size: 14px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.1em;
@@ -509,7 +509,7 @@
 .mp-stat:last-child { border-right: none; }
 
 .mp-stat-label {
-  font-size: 9px;
+  font-size: 13px;
   font-weight: 700;
   color: var(--text-muted);
   text-transform: uppercase;
@@ -517,7 +517,7 @@
 }
 
 .mp-stat-val {
-  font-size: 18px;
+  font-size: 22px;
   font-weight: 700;
   color: var(--text-primary);
 }
@@ -533,7 +533,7 @@
 }
 
 .mp-list-title {
-  font-size: 11px;
+  font-size: 15px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.15em;
@@ -587,7 +587,7 @@
   border: none;
   border-bottom: 1px solid transparent;
   color: var(--text-primary);
-  font-size: 14px;
+  font-size: 18px;
   font-weight: 600;
   flex: 1;
   outline: none;
@@ -603,7 +603,7 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 11px;
+  font-size: 15px;
   color: var(--text-secondary);
   font-weight: 500;
 }
@@ -680,7 +680,7 @@
 }
 
 .mp-step-num {
-  font-size: 10px;
+  font-size: 14px;
   font-weight: 800;
   color: var(--teal);
   text-transform: uppercase;
@@ -688,14 +688,14 @@
 }
 
 .mp-guide-step h4 {
-  font-size: 14px;
+  font-size: 18px;
   font-weight: 600;
   margin: 0;
   color: var(--text-primary);
 }
 
 .mp-guide-step p {
-  font-size: 12px;
+  font-size: 16px;
   color: var(--text-secondary);
   line-height: 1.6;
   margin: 0;
@@ -711,7 +711,7 @@
   color: var(--text-primary);
   padding: 12px 24px;
   border-radius: 12px;
-  font-size: 13px;
+  font-size: 17px;
   font-weight: 600;
   box-shadow: var(--shadow-lg);
   z-index: 1000;
@@ -735,7 +735,7 @@
   font-weight: 700;
   letter-spacing: 0.15em;
   text-transform: uppercase;
-  font-size: 12px;
+  font-size: 16px;
 }
 
 .mp-empty-state {
@@ -757,14 +757,14 @@
   border-radius: var(--radius-lg);
   text-align: center;
   color: var(--text-muted);
-  font-size: 13px;
+  font-size: 17px;
   display: flex;
   flex-direction: column;
   gap: 4px;
 }
 
 .mp-list-empty span {
-  font-size: 11px;
+  font-size: 15px;
   opacity: 0.7;
 }
 
@@ -772,7 +772,7 @@
   padding: 40px 20px;
   text-align: center;
   color: var(--text-muted);
-  font-size: 12px;
+  font-size: 16px;
 }
 
 /* ── Premium Modal Popup ── */
@@ -818,7 +818,7 @@
 }
 
 .mp-modal-title {
-  font-size: 15px;
+  font-size: 19px;
   font-weight: 700;
   color: #fff;
   margin: 0;
@@ -829,7 +829,7 @@
   background: transparent;
   border: none;
   color: rgba(255,255,255,0.4);
-  font-size: 14px;
+  font-size: 18px;
   cursor: pointer;
   padding: 4px;
   transition: color 0.15s;
@@ -850,7 +850,7 @@
 }
 
 .mp-form-label {
-  font-size: 11px;
+  font-size: 15px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -863,7 +863,7 @@
   border-radius: 8px;
   padding: 10px 12px;
   color: #fff;
-  font-size: 13px;
+  font-size: 17px;
   outline: none;
   transition: border-color 0.2s, box-shadow 0.2s;
   width: 100%;
@@ -888,7 +888,7 @@
   background: rgba(255,255,255,0.05);
   border: 1px solid rgba(255,255,255,0.1);
   color: var(--text-secondary);
-  font-size: 12px;
+  font-size: 16px;
   font-weight: 600;
   padding: 8px 16px;
   border-radius: 8px;
@@ -905,7 +905,7 @@
   background: var(--teal);
   border: none;
   color: #fff;
-  font-size: 12px;
+  font-size: 16px;
   font-weight: 600;
   padding: 8px 18px;
   border-radius: 8px;

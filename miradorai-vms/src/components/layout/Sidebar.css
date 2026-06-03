@@ -58,7 +58,7 @@
 }
 .sidebar__logo-name {
   display: block;
-  font-size: 15px;
+  font-size: 17px;
   font-weight: 700;
   color: var(--text-primary);
   letter-spacing: 1.2px;
@@ -113,7 +113,7 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   color: var(--text-primary);
-  font-size: 12px;
+  font-size: 14px;
   outline: none;
   transition: border-color var(--transition);
 }
@@ -134,7 +134,7 @@
   background: none;
   border: none;
   color: #ffffff;
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 600;
   letter-spacing: 0.3px;
   text-transform: none;
@@ -164,7 +164,7 @@
 .sidebar__chevron--open { transform: rotate(90deg); }
 
 /* Items */
-.sidebar__items { padding: 2px 8px 6px; }
+.sidebar__items { padding: 2px 8px 6px 20px; }
 .sidebar__item {
   width: 100%;
   display: flex;
@@ -175,7 +175,7 @@
   border: none;
   border-radius: var(--radius-sm);
   color: #ffffff;
-  font-size: 12.5px;
+  font-size: 13.5px;
   font-weight: 500;
   text-transform: none;
   letter-spacing: 0.2px;
@@ -233,8 +233,8 @@
   0%, 100% { box-shadow: 0 0 6px var(--teal); }
   50%       { box-shadow: 0 0 14px var(--teal), 0 0 20px var(--teal-glow); }
 }
-.sidebar__server-name { font-size: 12px; font-weight: 600; color: var(--text-primary); }
-.sidebar__server-status { font-size: 10px; color: var(--teal); margin-top: 1px; }
+.sidebar__server-name { font-size: 14px; font-weight: 600; color: var(--text-primary); }
+.sidebar__server-status { font-size: 12px; color: var(--teal); margin-top: 1px; }
 .sidebar__logo-mark {
   width: 40px;
   height: 40px;
@@ -263,7 +263,7 @@
   background: none;
   border: none;
   color: #ffffff;
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 600;
   text-transform: none;
   letter-spacing: 0.3px;

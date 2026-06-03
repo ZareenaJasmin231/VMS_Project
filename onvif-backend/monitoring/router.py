@@ -1,7 +1,6 @@
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Request
+from fastapi import APIRouter, Request
 from .health import nodes_col, db, alerts_col
 from .scheduler import scheduler
-from .websocket_manager import manager
 from .metrics import get_system_metrics
 from datetime import datetime
 
@@ -148,15 +147,4 @@ async def clear_edges():
     edges_col.delete_many({})
     return {"success": True}
 
-
-@router.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket):
-    await manager.connect(websocket)
-    try:
-        while True:
-            await websocket.receive_text()
-    except WebSocketDisconnect:
-        manager.disconnect(websocket)
-    except Exception as e:
-        print(f"[WS] Error: {e}")
-        manager.disconnect(websocket)
+

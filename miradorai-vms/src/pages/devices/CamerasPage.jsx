@@ -359,7 +359,7 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
             <table className="m-table">
               <thead>
                 <tr>
-                  <th style={{ width: 36 }}>
+                  <th style={{ width: 36, color: "rgba(255, 255, 255, 0.5)" }}>
                     <input
                       type="checkbox"
                       className="m-checkbox"
@@ -367,12 +367,12 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
                       onChange={toggleAll}
                     />
                   </th>
-                  <th style={{ width: 72 }}>Active</th>
-                  <th>Group Name</th>
-                  <th style={{ textAlign: "center" }}>Total Cameras</th>
-                  <th style={{ textAlign: "center" }}>Active</th>
-                  <th style={{ textAlign: "center" }}>Disabled</th>
-                  <th style={{ width: 140 }}></th>
+                  <th style={{ width: 72, color: "rgba(255, 255, 255, 0.5)" }}>Active</th>
+                  <th style={{ color: "rgba(255, 255, 255, 0.5)" }}>Group Name</th>
+                  <th style={{ textAlign: "center", color: "rgba(255, 255, 255, 0.5)" }}>Total Cameras</th>
+                  <th style={{ textAlign: "center", color: "rgba(255, 255, 255, 0.5)" }}>Active</th>
+                  <th style={{ textAlign: "center", color: "rgba(255, 255, 255, 0.5)" }}>Disabled</th>
+                  <th style={{ width: 140, color: "rgba(255, 255, 255, 0.5)" }}></th>
                 </tr>
               </thead>
               <tbody>
@@ -440,14 +440,14 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
                             />
                             <button
                               className="ec-btn ec-btn--primary"
-                              style={{ padding: "0 8px", height: "26px", fontSize: "11px" }}
+                              style={{ padding: "0 8px", height: "26px", fontSize: "15px" }}
                               onClick={() => handleSaveGroupName(group.group_id)}
                             >
                               Save
                             </button>
                             <button
                               className="ec-btn ec-btn--cancel"
-                              style={{ padding: "0 8px", height: "26px", fontSize: "11px" }}
+                              style={{ padding: "0 8px", height: "26px", fontSize: "15px" }}
                               onClick={() => setEditingGroupId(null)}
                             >
                               Cancel
@@ -812,7 +812,7 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
               {confirmLoading ? (
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "16px", padding: "20px 0" }}>
                   <div className="deleting-spinner"></div>
-                  <p style={{ margin: 0, fontSize: "14px", fontWeight: "600", color: "var(--text-secondary)" }}>
+                  <p style={{ margin: 0, fontSize: "18px", fontWeight: "600", color: "var(--text-secondary)" }}>
                     Deleting...
                   </p>
                 </div>

@@ -16,8 +16,8 @@
 .dv-topbar {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 8px 14px;
+  gap: 6px;
+  padding: 6px 12px;
   background: #10151f;
   border-bottom: 0.5px solid #1e2d3e;
   flex-shrink: 0;
@@ -29,9 +29,9 @@
 .dv-back-btn {
   display: flex;
   align-items: center;
-  gap: 5px;
-  font-size: 12px;
-  padding: 5px 12px;
+  gap: 4px;
+  font-size: 15px;
+  padding: 4px 10px;
   border-radius: 6px;
   border: 0.5px solid #2e3d55;
   background: #161c28;
@@ -49,18 +49,18 @@
 .dv-topbar__title {
   display: flex;
   align-items: center;
-  gap: 7px;
-  font-size: 13px;
+  gap: 6px;
+  font-size: 16px;
   font-weight: 700;
   color: #e8edf5;
   letter-spacing: -0.01em;
-  margin-right: 6px;
+  margin-right: 4px;
 }
 
 .dv-topbar__actions {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   margin-left: auto;
   flex-wrap: wrap;
 }
@@ -68,13 +68,13 @@
 .dv-scale-control {
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 4px;
   font-size: 11.5px;
-  color: #7a8499;
+  color: rgba(255, 255, 255, 0.6);
 }
 
 .dv-scale-control input {
-  width: 44px;
+  width: 40px;
   padding: 3px 6px;
   background: #0d1117;
   border: 0.5px solid #2e3d55;
@@ -86,17 +86,17 @@
 
 .dv-sep {
   width: 0.5px;
-  height: 18px;
+  height: 16px;
   background: #2e3d55;
-  margin: 0 2px;
+  margin: 0 1px;
 }
 
 .dv-tbtn {
   display: flex;
   align-items: center;
-  gap: 5px;
-  font-size: 12px;
-  padding: 5px 11px;
+  gap: 4px;
+  font-size: 14.5px;
+  padding: 4px 9px;
   border-radius: 6px;
   border: 0.5px solid #2e3d55;
   background: #0d1117;
@@ -147,7 +147,7 @@
   background: #0d1117;
   color: #e8edf5;
   cursor: pointer;
-  font-size: 15px;
+  font-size: 19px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -161,11 +161,11 @@
 .dv-zbtn--fit {
   width: auto;
   padding: 0 9px;
-  font-size: 11px;
+  font-size: 15px;
 }
 
 .dv-zoom-label {
-  font-size: 11px;
+  font-size: 15px;
   color: #7a8499;
   min-width: 36px;
   text-align: center;
@@ -207,7 +207,7 @@
 
 .dv-library__count {
   margin-left: auto;
-  font-size: 11px;
+  font-size: 15px;
   background: #1e2738;
   color: #7a8499;
   padding: 1px 7px;
@@ -229,7 +229,7 @@
   border: 0.5px solid #2e3d55;
   border-radius: 6px;
   color: #e8edf5;
-  font-size: 12px;
+  font-size: 16px;
   outline: none;
   box-sizing: border-box;
 }
@@ -254,7 +254,7 @@
   border: 0.5px solid #2e3d55;
   border-radius: 5px;
   color: #e8edf5;
-  font-size: 11px;
+  font-size: 15px;
   outline: none;
   cursor: pointer;
 }
@@ -331,7 +331,7 @@
 }
 
 .dv-model-empty {
-  font-size: 12px;
+  font-size: 16px;
   color: #4a5568;
   text-align: center;
   padding: 24px 0;
@@ -388,7 +388,7 @@
 }
 
 .dv-model-card__model {
-  font-size: 12px;
+  font-size: 16px;
   font-weight: 600;
   color: #e8edf5;
   white-space: nowrap;
@@ -442,7 +442,7 @@
   align-items: center;
   gap: 6px;
   padding: 7px 12px 4px;
-  font-size: 10px;
+  font-size: 14px;
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: #4a5568;
@@ -470,7 +470,7 @@
 
 .dv-placed-item span {
   flex: 1;
-  font-size: 11px;
+  font-size: 15px;
   color: #9ca3af;
   white-space: nowrap;
   overflow: hidden;
@@ -478,14 +478,14 @@
 }
 
 .dv-placed-item__dir {
-  font-size: 10px;
+  font-size: 14px;
   color: #4a5568;
   font-variant-numeric: tabular-nums;
   flex: 0 !important;
 }
 
 .dv-placed-item button {
-  font-size: 10px;
+  font-size: 14px;
   color: #4a5568;
   background: none;
   border: none;
@@ -529,7 +529,7 @@
 }
 
 .dv-drop-hint p {
-  font-size: 13px;
+  font-size: 17px;
   color: #4a5568;
   margin-bottom: 4px;
 }
@@ -539,25 +539,40 @@
   color: #2e3d55 !important;
 }
 
-/* Selected bar */
 .dv-selected-bar {
   position: absolute;
-  bottom: 20px;
-  left: 50%;
-  transform: translateX(-50%);
-  background: rgba(13, 17, 23, 0.94);
+  bottom: 14px;
+  left: 14px;
+  background: rgba(13, 17, 23, 0.96);
   border: 1px solid rgba(59, 130, 246, 0.25);
   border-radius: 12px;
-  padding: 12px 20px;
+  padding: 12px 18px;
   display: flex;
+  flex-direction: row;
   align-items: center;
-  gap: 10px;
+  gap: 16px;
   font-size: 13.5px;
   color: #e8edf5;
-  white-space: nowrap;
+  white-space: normal;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
   backdrop-filter: blur(12px);
-  pointer-events: none;
+  pointer-events: auto;
+  z-index: 100;
+  overflow: visible;
+  max-width: calc(100% - 480px);
+}
+
+.dv-selected-bar::-webkit-scrollbar {
+  width: 4px;
+}
+
+.dv-selected-bar::-webkit-scrollbar-thumb {
+  background: #3b82f644;
+  border-radius: 3px;
+}
+
+.dv-selected-bar::-webkit-scrollbar-thumb:hover {
+  background: #3b82f688;
 }
 
 .dv-sep-txt {
@@ -594,20 +609,20 @@
 }
 
 .dv-spec-panel__model {
-  font-size: 14px;
+  font-size: 18px;
   font-weight: 700;
   color: #f8fafc;
 }
 
 .dv-spec-panel__brand {
-  font-size: 12px;
+  font-size: 16px;
   color: #94a3b8;
   margin-top: 1px;
 }
 
 .dv-spec-panel__close {
   margin-left: auto;
-  font-size: 14px;
+  font-size: 18px;
   background: none;
   border: none;
   color: #94a3b8;
@@ -674,7 +689,7 @@
 }
 
 .dv-cam-selector__label {
-  font-size: 10px;
+  font-size: 14px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.07em;
@@ -689,7 +704,7 @@
   border: 1px solid #2e3d55;
   border-radius: 7px;
   color: #c9d1d9;
-  font-size: 12px;
+  font-size: 16px;
   font-family: monospace;
   cursor: pointer;
   appearance: none;
@@ -710,7 +725,7 @@
 .dv-cam-dropdown option {
   background: #0d1117;
   color: #c9d1d9;
-  font-size: 12px;
+  font-size: 16px;
 }
 
 /* ── Selected camera chip ───────────────────────────────────────────────────── */
@@ -734,7 +749,7 @@
 }
 
 .dv-cam-chip__name {
-  font-size: 12px;
+  font-size: 16px;
   font-weight: 600;
   color: #e8edf5;
   white-space: nowrap;
@@ -743,7 +758,7 @@
 }
 
 .dv-cam-chip__meta {
-  font-size: 10px;
+  font-size: 14px;
   color: #4a5568;
   font-family: monospace;
   white-space: nowrap;
@@ -759,7 +774,7 @@
   border: 1px solid #2e3d55;
   background: transparent;
   color: #4a5568;
-  font-size: 13px;
+  font-size: 17px;
   line-height: 1;
   cursor: pointer;
   display: flex;
@@ -775,7 +790,7 @@
 
 /* ── Placement hint text ─────────────────────────────────────────────────────── */
 .dv-cam-selector__hint {
-  font-size: 10px;
+  font-size: 14px;
   color: #3b82f6;
   opacity: 0.85;
   text-align: center;
@@ -899,18 +914,18 @@
 }
 
 .dv-export-item__label span {
-  font-size: 12px;
+  font-size: 16px;
   font-weight: 600;
   display: block;
 }
 
 .dv-export-item__label small {
-  font-size: 10px;
+  font-size: 14px;
   color: #4a5568;
 }
 
 .dv-fov-overlay__label {
-  font-size: 10px;
+  font-size: 14px;
   color: #7a8499;
   text-align: center;
   margin-bottom: 4px;
@@ -943,7 +958,7 @@
 }
 
 .dv-spec-panel__model {
-  font-size: 13px;
+  font-size: 17px;
   font-weight: 700;
   color: #e8edf5;
   white-space: nowrap;
@@ -952,7 +967,7 @@
 }
 
 .dv-spec-panel__brand {
-  font-size: 11px;
+  font-size: 15px;
   color: #7a8499;
   margin-top: 2px;
 }
@@ -1015,7 +1030,7 @@
 }
 
 .dv-stats-panel__title {
-  font-size: 15px;
+  font-size: 19px;
   font-weight: 700;
   color: #e8edf5;
 }
@@ -1029,7 +1044,7 @@
   background: none;
   border: none;
   color: rgba(255, 255, 255, 0.5);
-  font-size: 18px;
+  font-size: 22px;
   cursor: pointer;
   padding: 4px;
 }
@@ -1059,7 +1074,7 @@
 }
 
 .dv-stats-card__label {
-  font-size: 11px;
+  font-size: 15px;
   font-weight: 700;
   text-transform: uppercase;
   color: rgba(255, 255, 255, 0.5);
@@ -1068,14 +1083,14 @@
 }
 
 .dv-stats-card__val {
-  font-size: 26px;
+  font-size: 30px;
   font-weight: 700;
   color: #e8edf5;
   font-variant-numeric: tabular-nums;
 }
 
 .dv-stats-card__val small {
-  font-size: 13px;
+  font-size: 17px;
   color: rgba(255, 255, 255, 0.5);
   font-weight: 400;
 }
@@ -1095,7 +1110,7 @@
 }
 
 .dv-stats-card__meta {
-  font-size: 11px;
+  font-size: 15px;
   color: #3b82f6;
   margin-top: auto;
   padding-top: 8px;
@@ -1129,7 +1144,7 @@
 }
 
 .dv-stats-infra__title {
-  font-size: 12px;
+  font-size: 16px;
   font-weight: 700;
   color: rgba(255, 255, 255, 0.5);
   text-transform: uppercase;
@@ -1168,7 +1183,7 @@
   border: none;
   border-radius: 6px;
   padding: 6px 14px;
-  font-size: 12px;
+  font-size: 16px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
@@ -1200,7 +1215,7 @@
   display: flex;
   align-items: center;
   padding: 10px 14px;
-  font-size: 12px;
+  font-size: 16px;
   color: #e8edf5;
   background: transparent;
   border: none;
@@ -1228,27 +1243,27 @@
 /* .dv-automate-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.6); display:flex; align-items:center; justify-content:center; z-index:9998; }
 .dv-automate-modal { background:#161d2a; border:0.5px solid #2e3d55; border-radius:12px; width:430px; max-width:95vw; }
 .dv-automate-header { display:flex; align-items:center; gap:10px; padding:16px 18px 12px; border-bottom:0.5px solid #1e2d3e; }
-.dv-automate-header__icon { width:32px; height:32px; border-radius:8px; background:#7c3aed22; border:0.5px solid #7c3aed55; display:flex; align-items:center; justify-content:center; color:#a78bfa; font-size:16px; flex-shrink:0; }
-.dv-automate-title { font-size:14px; font-weight:600; color:#e8edf5; }
-.dv-automate-sub { font-size:11px; color:#7a8499; margin-top:2px; }
-.dv-automate-close { margin-left:auto; background:none; border:none; color:#4a5568; cursor:pointer; font-size:14px; }
+.dv-automate-header__icon { width:32px; height:32px; border-radius:8px; background:#7c3aed22; border:0.5px solid #7c3aed55; display:flex; align-items:center; justify-content:center; color:#a78bfa; font-size:20px; flex-shrink:0; }
+.dv-automate-title { font-size:18px; font-weight:600; color:#e8edf5; }
+.dv-automate-sub { font-size:15px; color:#7a8499; margin-top:2px; }
+.dv-automate-close { margin-left:auto; background:none; border:none; color:#4a5568; cursor:pointer; font-size:18px; }
 .dv-automate-zone-bar { display:flex; gap:20px; background:#0d1117; border-bottom:0.5px solid #1e2d3e; padding:10px 18px; }
-.dv-az-stat { display:flex; flex-direction:column; gap:2px; font-size:10px; color:#4a5568; }
-.dv-az-stat strong { font-size:13px; color:#94a3b8; font-variant-numeric:tabular-nums; }
+.dv-az-stat { display:flex; flex-direction:column; gap:2px; font-size:14px; color:#4a5568; }
+.dv-az-stat strong { font-size:17px; color:#94a3b8; font-variant-numeric:tabular-nums; }
 .dv-automate-body { padding:14px 18px; }
-.dv-automate-section-label { font-size:10px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:#4a5568; margin-bottom:8px; }
+.dv-automate-section-label { font-size:14px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:#4a5568; margin-bottom:8px; }
 .dv-automate-type-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:14px; }
 .dv-cam-type-card { display:flex; align-items:center; gap:8px; padding:10px 12px; border:0.5px solid #2e3d55; border-radius:8px; cursor:pointer; background:#0d1117; transition:all .15s; }
 .dv-cam-type-card--on { border-color:var(--tc); background:color-mix(in srgb, var(--tc) 10%, transparent); }
 .dv-cam-type-cb { width:14px; height:14px; border-radius:3px; border:0.5px solid #2e3d55; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
 .dv-cam-type-cb--on { background:var(--tc,#3b82f6); border-color:var(--tc,#3b82f6); }
-.dv-cam-type-name { font-size:12px; font-weight:600; }
-.dv-cam-type-spec { font-size:10px; color:#4a5568; margin-top:1px; }
-.dv-automate-coverage-row { display:flex; align-items:center; gap:10px; font-size:11px; color:#7a8499; }
-.dv-automate-coverage-row select { flex:1; font-size:11px; padding:5px 8px; border-radius:6px; border:0.5px solid #2e3d55; background:#0d1117; color:#c9d1d9; }
+.dv-cam-type-name { font-size:16px; font-weight:600; }
+.dv-cam-type-spec { font-size:14px; color:#4a5568; margin-top:1px; }
+.dv-automate-coverage-row { display:flex; align-items:center; gap:10px; font-size:15px; color:#7a8499; }
+.dv-automate-coverage-row select { flex:1; font-size:15px; padding:5px 8px; border-radius:6px; border:0.5px solid #2e3d55; background:#0d1117; color:#c9d1d9; }
 .dv-automate-footer { display:flex; gap:8px; justify-content:flex-end; padding:12px 18px; border-top:0.5px solid #1e2d3e; }
-.dv-automate-cancel { padding:7px 16px; border-radius:6px; border:0.5px solid #2e3d55; background:none; color:#7a8499; font-size:12px; cursor:pointer; }
-.dv-automate-run { padding:7px 18px; border-radius:6px; border:none; background:#7c3aed; color:#fff; font-size:12px; font-weight:600; cursor:pointer; }*/
+.dv-automate-cancel { padding:7px 16px; border-radius:6px; border:0.5px solid #2e3d55; background:none; color:#7a8499; font-size:16px; cursor:pointer; }
+.dv-automate-run { padding:7px 18px; border-radius:6px; border:none; background:#7c3aed; color:#fff; font-size:16px; font-weight:600; cursor:pointer; }*/
 .dv-automate-run:hover { background:#6d28d9; } */ 
 
 /* ── Floating DORI Legend Overlay ── */
@@ -1270,7 +1285,7 @@
 }
 
 .dv-dori-legend__title {
-  font-size: 10px;
+  font-size: 14px;
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -1315,8 +1330,8 @@
 /* ── Live Scale Bar Overlay ── */
 .dv-scale-bar-overlay {
   position: absolute;
-  bottom: 14px;
-  right: 14px;
+  bottom: 20px;
+  right: 500px;
   background: rgba(13, 20, 32, 0.72);
   border: 0.5px solid rgba(255, 255, 255, 0.08);
   border-radius: 6px;
@@ -1329,6 +1344,7 @@
   flex-direction: column;
   align-items: center;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  transition: right 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .dv-scale-bar-text {
@@ -1453,7 +1469,7 @@
 
   .dv-stats-panel__title {
     color: black !important;
-    font-size: 18px !important;
+    font-size: 22px !important;
   }
 
   .dv-stats-panel__sub {
@@ -1535,7 +1551,7 @@
     padding: 0 !important;
     text-align: right !important;
     width: auto !important;
-    font-size: 11px !important;
+    font-size: 15px !important;
     font-family: monospace !important;
     outline: none !important;
     appearance: none !important;
@@ -1581,7 +1597,7 @@
   display: flex;
   align-items: center;
   gap: 5px;
-  font-size: 12px;
+  font-size: 16px;
   padding: 5px 11px;
   border-radius: 6px;
   border: 1px solid rgba(46, 61, 85, 0.8) !important;
@@ -1666,7 +1682,7 @@
 /* Floating Zoom HUD styling */
 .dv-zoom-hud {
   position: absolute;
-  right: 285px;
+  right: 340px;
   bottom: 20px;
   z-index: 10;
   display: flex;
@@ -1738,11 +1754,15 @@
 }
 
 .dv-inspector--expanded {
-  width: 265px;
+  width: 250px;
 }
 
 .dv-inspector:not(.dv-inspector--expanded) ~ .dv-zoom-hud {
   right: 68px;
+}
+
+.dv-inspector:not(.dv-inspector--expanded) ~ .dv-scale-bar-overlay {
+  right: 228px;
 }
 
 .dv-inspector-toggle {
@@ -1768,7 +1788,7 @@
 }
 
 .dv-inspector-toggle__text {
-  font-size: 9px;
+  font-size: 13px;
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.18em;
@@ -1781,7 +1801,7 @@
   display: flex;
   flex-direction: column;
   height: 100%;
-  width: 265px;
+  width: 250px;
   overflow: hidden;
 }
 

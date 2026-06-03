@@ -112,12 +112,11 @@ async function fetchCameraModels({ brand = null, type = null, search = "" } = {}
 
 const TYPE_ICONS = {
   dome: "⊙", bullet: "▶", ptz: "↻", fisheye: "◎", box: "▪", thermal: "🌡",
-  eyeball: "⊙", turret: "⊙"
 };
 const TYPE_COLORS = {
   dome: "#3b82f6", bullet: "#f59e0b", ptz: "#8b5cf6",
   fisheye: "#10b981", box: "#f97316", thermal: "#ef4444",
-  eyeball: "#3b82f6", turret: "#3b82f6"
+
 };
 const ZONE_COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#ec4899", "#8b5cf6", "#f97316", "#06b6d4"];
 
@@ -202,9 +201,9 @@ function PremiumPopup({ show, type, title, message, onConfirm, onCancel }) {
               <line x1="12" y1="16" x2="12.01" y2="16" />
             </svg>
           )}
-          <span style={{ fontWeight: 700, fontSize: 14 }}>{title}</span>
+          <span style={{ fontWeight: 700, fontSize: 18 }}>{title}</span>
         </div>
-        <p className="mv-zone-name-modal__sub" style={{ color: "#e8edf5", fontSize: 13, marginTop: 8, marginBottom: 20 }}>
+        <p className="mv-zone-name-modal__sub" style={{ color: "#e8edf5", fontSize: 17, marginTop: 8, marginBottom: 20 }}>
           {message}
         </p>
         <div className="mv-zone-name-modal__row" style={{ justifyContent: "flex-end", gap: 10 }}>
@@ -301,10 +300,10 @@ function AutomationModal({ zone, ppm, cameraDB, getCameraForType, onConfirm, onC
           borderRadius: 8,
           padding: "10px 12px",
           marginBottom: 16,
-          fontSize: 12,
+          fontSize: 16,
         }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-            <span style={{ color: "#7a8499" }}>Zone Area (sq. ft.):</span>
+            <span style={{ color: "rgba(255, 255, 255, 0.5)" }}>Zone Area (sq. ft.):</span>
             <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
               <input
                 type="text"
@@ -315,7 +314,7 @@ function AutomationModal({ zone, ppm, cameraDB, getCameraForType, onConfirm, onC
                   border: "0.5px solid #2e3d55",
                   borderRadius: 4,
                   color: "#e8edf5",
-                  fontSize: 12,
+                  fontSize: 16,
                   fontWeight: 700,
                   textAlign: "right",
                   padding: "2px 6px",
@@ -323,17 +322,17 @@ function AutomationModal({ zone, ppm, cameraDB, getCameraForType, onConfirm, onC
                   outline: "none",
                 }}
               />
-              <span style={{ color: "#4a5568", fontSize: 10 }}>sq ft</span>
+              <span style={{ color: "rgba(255, 255, 255, 0.5)", fontSize: 14 }}>sq ft</span>
             </div>
           </div>
           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-            <span style={{ color: "#7a8499" }}>Metric Area:</span>
+            <span style={{ color: "rgba(255, 255, 255, 0.5)" }}>Metric Area:</span>
             <span style={{ color: "#e8edf5", fontWeight: 600 }}>
               {parsedAreaSqm.toLocaleString(undefined, { maximumFractionDigits: 1 })} m²
             </span>
           </div>
           <div style={{ display: "flex", justifyContent: "space-between" }}>
-            <span style={{ color: "#7a8499" }}>Boundary Vertices:</span>
+            <span style={{ color: "rgba(255, 255, 255, 0.5)" }}>Boundary Vertices:</span>
             <span style={{ color: "#e8edf5", fontWeight: 700 }}>{zone.polygon.length} corners</span>
           </div>
         </div>
@@ -371,7 +370,7 @@ function AutomationModal({ zone, ppm, cameraDB, getCameraForType, onConfirm, onC
                     }}
                   />
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: "#e8edf5" }}>{label}</div>
+                    <div style={{ fontSize: 16, fontWeight: 700, color: "#e8edf5" }}>{label}</div>
                     {modelsOfType.length > 0 ? (
                       <select
                         value={selectedModel?.id || ""}
@@ -387,7 +386,7 @@ function AutomationModal({ zone, ppm, cameraDB, getCameraForType, onConfirm, onC
                           border: "0.5px solid #2e3d55",
                           borderRadius: 4,
                           color: "#e8edf5",
-                          fontSize: 10,
+                          fontSize: 14,
                           padding: "3px 6px",
                           marginTop: 4,
                           width: "100%",
@@ -403,7 +402,7 @@ function AutomationModal({ zone, ppm, cameraDB, getCameraForType, onConfirm, onC
                         ))}
                       </select>
                     ) : (
-                      <div style={{ fontSize: 10, color: "#8b2222", marginTop: 4 }}>Not available in DB</div>
+                      <div style={{ fontSize: 14, color: "#8b2222", marginTop: 4 }}>Not available in DB</div>
                     )}
                   </div>
                 </div>
@@ -518,28 +517,28 @@ function SpecPanel({ camera, onClose }) {
           <div className="dv-spec-panel__brand">
             <span style={{ color: col, fontWeight: 600 }}>{camera.brand}</span>
             <span style={{ color: "#2e3d55", margin: "0 4px" }}>·</span>
-            <span style={{ color: "#94a3b8" }}>{camera.series}</span>
+            <span style={{ color: "rgba(255, 255, 255, 0.5)" }}>{camera.series}</span>
           </div>
         </div>
         <button className="dv-spec-panel__close" onClick={onClose}>✕</button>
       </div>
       <div style={{ padding: "10px 14px 0", display: "flex", alignItems: "center", gap: 8 }}>
-        <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", padding: "2px 8px", borderRadius: 4, background: col + "22", color: col, border: `0.5px solid ${col}55` }}>
+        <span style={{ fontSize: 15, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", padding: "2px 8px", borderRadius: 4, background: col + "22", color: col, border: `0.5px solid ${col}55` }}>
           {TYPE_ICONS[camera.type]} {camera.type}
         </span>
         {camera.megapixels && (
-          <span style={{ fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 4, background: "#1e2738", color: "#94a3b8", border: "0.5px solid #2e3d55" }}>
+          <span style={{ fontSize: 15, fontWeight: 600, padding: "2px 8px", borderRadius: 4, background: "#1e2738", color: "rgba(255, 255, 255, 0.5)", border: "0.5px solid #2e3d55" }}>
             {camera.megapixels} MP
           </span>
         )}
         {camera.ir > 0 && (
-          <span style={{ fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 4, background: "#f59e0b18", color: "#f59e0b", border: "0.5px solid #f59e0b44" }}>
+          <span style={{ fontSize: 15, fontWeight: 600, padding: "2px 8px", borderRadius: 4, background: "#f59e0b18", color: "#f59e0b", border: "0.5px solid #f59e0b44" }}>
             IR {camera.ir}m
           </span>
         )}
       </div>
       {camera.notes && (
-        <div style={{ margin: "10px 14px 0", padding: "8px 10px", background: "#10151f", border: "0.5px solid #1e2d3e", borderRadius: 6, fontSize: 12, color: "#94a3b8", lineHeight: 1.6 }}>
+        <div style={{ margin: "10px 14px 0", padding: "8px 10px", background: "#10151f", border: "0.5px solid #1e2d3e", borderRadius: 6, fontSize: 16, color: "rgba(255, 255, 255, 0.5)", lineHeight: 1.6 }}>
           {camera.notes}
         </div>
       )}
@@ -548,7 +547,7 @@ function SpecPanel({ camera, onClose }) {
         <div style={{ padding: "8px 14px 0", display: "flex", flexWrap: "wrap", gap: 5 }}>
           {camera.securityBadges.map(badge => (
             <span key={badge} style={{
-              fontSize: 10, fontWeight: 600,
+              fontSize: 14, fontWeight: 600,
               padding: "2px 7px", borderRadius: 4,
               background: badge === "Thermal" ? "#8b5cf622" : badge.startsWith("IK") ? "#f59e0b22" : badge === "PoE" ? "#3b82f622" : "#10b98122",
               color: badge === "Thermal" ? "#8b5cf6" : badge.startsWith("IK") ? "#f59e0b" : badge === "PoE" ? "#3b82f6" : "#10b981",
@@ -562,8 +561,8 @@ function SpecPanel({ camera, onClose }) {
       <div style={{ padding: "12px 14px 6px" }}>
         {rows.map(([k, v]) => (
           <div key={k} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "5px 0", borderBottom: "0.5px solid #1a2030" }}>
-            <span style={{ fontSize: 12, color: "#94a3b8" }}>{k}</span>
-            <span style={{ fontSize: 12, color: "#e2e8f0", fontVariantNumeric: "tabular-nums", fontFamily: "monospace" }}>{v}</span>
+            <span style={{ fontSize: 16, color: "rgba(255, 255, 255, 0.5)" }}>{k}</span>
+            <span style={{ fontSize: 16, color: "#e2e8f0", fontVariantNumeric: "tabular-nums", fontFamily: "monospace" }}>{v}</span>
           </div>
         ))}
       </div>
@@ -956,7 +955,7 @@ function DvZoneSidebarItem({
           display: "flex", alignItems: "center", gap: 6,
           width: "100%", background: "none", border: "none",
           padding: "5px 6px", cursor: "pointer", color: "#c9d1d9",
-          fontSize: 11, textAlign: "left",
+          fontSize: 15, textAlign: "left",
         }}
       >
         <span style={{
@@ -987,7 +986,7 @@ function DvZoneSidebarItem({
                 border: "1px solid #185FA5",
                 borderRadius: "4px",
                 color: "#e8edf5",
-                fontSize: "11px",
+                fontSize: "15px",
                 padding: "2px 4px",
                 width: "100%",
                 outline: "none",
@@ -995,7 +994,7 @@ function DvZoneSidebarItem({
               }}
             />
           ) : (
-            <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 13, fontWeight: 700, color: "#e8edf5" }}>
+            <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 17, fontWeight: 700, color: "#e8edf5" }}>
               {zone.name}
             </span>
           )
@@ -1003,7 +1002,7 @@ function DvZoneSidebarItem({
 
         {sidebarExpanded && camsInZone.length > 0 && (
           <span style={{
-            fontSize: 10, fontWeight: 800, borderRadius: 10,
+            fontSize: 14, fontWeight: 800, borderRadius: 10,
             padding: "2px 6px", background: zone.color + "28", color: zone.color,
           }}>
             {camsInZone.length}
@@ -1017,7 +1016,7 @@ function DvZoneSidebarItem({
               onClick={e => { e.stopPropagation(); setIsEditing(true); }}
               title="Rename zone"
               style={{
-                fontSize: "11px",
+                fontSize: "15px",
                 color: "rgba(255, 255, 255, 0.5)",
                 cursor: "pointer",
                 padding: "2px",
@@ -1035,7 +1034,7 @@ function DvZoneSidebarItem({
               onClick={e => { e.stopPropagation(); onDelete(zone.id); }}
               title="Delete zone"
               style={{
-                fontSize: "12px",
+                fontSize: "16px",
                 color: "rgba(255, 255, 255, 0.5)",
                 cursor: "pointer",
                 padding: "2px",
@@ -1068,7 +1067,7 @@ function DvZoneSidebarItem({
               >
                 <CameraIcon type={p.camera.type} size={14} color={col} />
                 <span style={{
-                  flex: 1, fontSize: 12, color: isHighlit ? "#ffffff" : "#cbd5e1",
+                  flex: 1, fontSize: 16, color: isHighlit ? "#ffffff" : "#cbd5e1",
                   fontWeight: isHighlit ? 600 : 400,
                   overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
                 }}>
@@ -1079,7 +1078,7 @@ function DvZoneSidebarItem({
                   title="Remove camera"
                   style={{
                     background: "none", border: "none", cursor: "pointer",
-                    color: "#4a5568", fontSize: 9, padding: "0 2px", flexShrink: 0,
+                    color: "rgba(255, 255, 255, 0.5)", fontSize: 13, padding: "0 2px", flexShrink: 0,
                   }}
                 >✕</button>
               </div>
@@ -1089,7 +1088,7 @@ function DvZoneSidebarItem({
       )}
 
       {isActive && sidebarExpanded && camsInZone.length === 0 && (
-        <div style={{ padding: "3px 10px 6px 18px", fontSize: 10, color: "#4a5568" }}>
+        <div style={{ padding: "3px 10px 6px 18px", fontSize: 14, color: "rgba(255, 255, 255, 0.5)" }}>
           No cameras in zone
         </div>
       )}
@@ -1102,6 +1101,7 @@ export default function DesignerView({ onBack }) {
   const wrapRef = useRef(null);
   const canvasRef = useRef(null);
   const fileInputRef = useRef(null);
+  const jsonFileInputRef = useRef(null);
   const floorImgRef = useRef(null);
   const scaleRef = useRef(1);
   const offsetRef = useRef({ x: 0, y: 0 });
@@ -1180,6 +1180,20 @@ export default function DesignerView({ onBack }) {
   const draftZonesRef = useRef([]);
   useEffect(() => { draftZonesRef.current = draftZones; }, [draftZones]);
   const [isDetectingZones, setIsDetectingZones] = useState(false);
+
+  const [undoStack, setUndoStack] = useState([]);
+  const [redoStack, setRedoStack] = useState([]);
+
+  const recordState = useCallback((p = placedRef.current, z = zonesRef.current) => {
+    const snapshot = {
+      placed: JSON.parse(JSON.stringify(p)),
+      zones: JSON.parse(JSON.stringify(z))
+    };
+    setUndoStack(prev => [...prev, snapshot]);
+    setRedoStack([]);
+  }, []);
+
+
 
   const [popupState, setPopupState] = useState({
     show: false,
@@ -1529,11 +1543,109 @@ export default function DesignerView({ onBack }) {
     ctx.restore();
   }, [ppm, hoveredIdx, selectedIdx, showPpm]);
 
+  const handleUndo = useCallback(() => {
+    if (undoStack.length === 0) return;
+    const currentState = {
+      placed: JSON.parse(JSON.stringify(placedRef.current)),
+      zones: JSON.parse(JSON.stringify(zonesRef.current))
+    };
+    setRedoStack(prev => [...prev, currentState]);
+    const previousState = undoStack[undoStack.length - 1];
+    setUndoStack(prev => prev.slice(0, -1));
+    placedRef.current = previousState.placed;
+    setPlaced(previousState.placed);
+    zonesRef.current = previousState.zones;
+    setZones(previousState.zones);
+    setSelectedIdx(null);
+    setActiveZoneId(null);
+    activeZoneIdRef.current = null;
+    draw();
+    apiSaveLayout({ placed: previousState.placed, zones: previousState.zones, ppm: ppmRef.current });
+  }, [undoStack, draw]);
+
+  const handleRedo = useCallback(() => {
+    if (redoStack.length === 0) return;
+    const currentState = {
+      placed: JSON.parse(JSON.stringify(placedRef.current)),
+      zones: JSON.parse(JSON.stringify(zonesRef.current))
+    };
+    setUndoStack(prev => [...prev, currentState]);
+    const nextState = redoStack[redoStack.length - 1];
+    setRedoStack(prev => prev.slice(0, -1));
+    placedRef.current = nextState.placed;
+    setPlaced(nextState.placed);
+    zonesRef.current = nextState.zones;
+    setZones(nextState.zones);
+    setSelectedIdx(null);
+    setActiveZoneId(null);
+    activeZoneIdRef.current = null;
+    draw();
+    apiSaveLayout({ placed: nextState.placed, zones: nextState.zones, ppm: ppmRef.current });
+  }, [redoStack, draw]);
+
+  const downloadJson = useCallback(() => {
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify({
+      placed: placedRef.current,
+      zones: zonesRef.current,
+      ppm: ppmRef.current
+    }, null, 2));
+    const downloadAnchor = document.createElement('a');
+    downloadAnchor.setAttribute("href", dataStr);
+    downloadAnchor.setAttribute("download", `mirador_designer_layout_${Date.now()}.json`);
+    document.body.appendChild(downloadAnchor);
+    downloadAnchor.click();
+    downloadAnchor.remove();
+  }, []);
+
+  const handleJsonImport = useCallback((e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const data = JSON.parse(event.target.result);
+        
+        recordState();
+        
+        if (data.ppm) {
+          setPpm(data.ppm);
+          ppmRef.current = data.ppm;
+        }
+        if (Array.isArray(data.placed)) {
+          placedRef.current = data.placed;
+          setPlaced(data.placed);
+        }
+        if (Array.isArray(data.zones)) {
+          zonesRef.current = data.zones;
+          setZones(data.zones);
+          apiSaveZones(data.zones);
+        }
+        
+        draw();
+        
+        apiSaveLayout({
+          placed: data.placed || [],
+          zones: data.zones || [],
+          ppm: data.ppm || ppmRef.current
+        });
+        
+        alert("Layout imported successfully!");
+      } catch (err) {
+        console.error("JSON parsing error: ", err);
+        alert("Failed to parse JSON file. Please ensure it is a valid layout export.");
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = "";
+  }, [draw, recordState]);
+
   // ── Varifocal zoom change handler ──
   const handleVarifocalChange = useCallback((idx, focalLen) => {
     const updated = [...placedRef.current];
     const item = updated[idx];
     if (!item || !item.camera.isVarifocal) return;
+
+    recordState();
 
     // Linear interpolation for HFOV based on focal length
     const fMin = item.camera.focalLength;
@@ -1559,13 +1671,15 @@ export default function DesignerView({ onBack }) {
     setPlaced(updated);
     draw();
     scheduleSave(updated, zonesRef.current, ppmRef.current);
-  }, [draw, scheduleSave]);
+  }, [draw, scheduleSave, recordState]);
 
   // ── Camera surveillance scenario & accessories configuration change handler ──
   const handleCameraConfigChange = useCallback((idx, key, value) => {
     const updated = [...placedRef.current];
     const item = updated[idx];
     if (!item) return;
+
+    recordState();
 
     const newItem = {
       ...item,
@@ -1579,7 +1693,7 @@ export default function DesignerView({ onBack }) {
     setPlaced(updated);
     draw();
     scheduleSave(updated, zonesRef.current, ppmRef.current);
-  }, [draw, scheduleSave]);
+  }, [draw, scheduleSave, recordState]);
 
   // ── Restore layout on mount ───────────────────────────────────────────────
   useEffect(() => {
@@ -1638,7 +1752,15 @@ export default function DesignerView({ onBack }) {
     const W = wrap.clientWidth, H = wrap.clientHeight;
     const targetScale = Math.max(scaleRef.current, 2);
     scaleRef.current = targetScale;
-    offsetRef.current = { x: W / 2 - cam.x * targetScale, y: H / 2 - cam.y * targetScale };
+    
+    // Shift camera focus point UP above the bottom settings bar (~150px)
+    const bottomBarHeight = 150;
+    const visibleH = H - bottomBarHeight;
+    
+    offsetRef.current = { 
+      x: W / 2 - cam.x * targetScale, 
+      y: visibleH / 2 - cam.y * targetScale 
+    };
     setZoomPct(Math.round(targetScale * 100));
   }, []);
 
@@ -1663,14 +1785,18 @@ export default function DesignerView({ onBack }) {
     const rightPanelWidth = inspectorExpanded ? 265 : 0;
     const visibleW = W - rightPanelWidth - leftMargin;
     
-    const s = Math.min(visibleW / img.width, (H - 40) / img.height) * 0.96;
+    // Account for the bottom settings bar height if a camera is selected
+    const bottomBarHeight = selectedIdx !== null ? 150 : 0;
+    const visibleH = H - 40 - bottomBarHeight;
+    
+    const s = Math.min(visibleW / img.width, visibleH / img.height) * 0.96;
     scaleRef.current = s;
     offsetRef.current = {
       x: leftMargin + (visibleW - img.width * s) / 2,
-      y: (H - img.height * s) / 2,
+      y: (visibleH - img.height * s) / 2,
     };
     setZoomPct(Math.round(s * 100)); draw();
-  }, [inspectorExpanded, draw]);
+  }, [inspectorExpanded, selectedIdx, draw]);
 
   useEffect(() => {
     fitImage();
@@ -1732,6 +1858,7 @@ export default function DesignerView({ onBack }) {
   }, []);
 
   function saveZone(name) {
+    recordState();
     const points = pendingZonePoly;
     const colorIdx = zonesRef.current.length % ZONE_COLORS.length;
     const newZone = { id: "zone_" + Date.now(), name, polygon: points, color: ZONE_COLORS[colorIdx] };
@@ -1797,6 +1924,8 @@ export default function DesignerView({ onBack }) {
   const handleAutomatePlacement = useCallback((zoneId, selectedInputs) => {
     const zone = zonesRef.current.find(z => z.id === zoneId);
     if (!zone) return;
+
+    recordState();
 
     const models = selectedInputs
       .map(input => {
@@ -2143,10 +2272,11 @@ export default function DesignerView({ onBack }) {
       return;
     }
 
-    if (nearRotHandle(p.x, p.y)) { rotatingIdxRef.current = selectedIdx; return; }
+    if (nearRotHandle(p.x, p.y)) { recordState(); rotatingIdxRef.current = selectedIdx; return; }
 
     const idx = nearestPlaced(p.x, p.y);
     if (idx >= 0) {
+      recordState();
       setSelectedIdx(idx);
       draggingIdxRef.current = idx;
       const cam = placedRef.current[idx];
@@ -2156,6 +2286,9 @@ export default function DesignerView({ onBack }) {
       return;
     }
     setSelectedIdx(null);
+    setActiveZoneId(null);
+    activeZoneIdRef.current = null;
+    setHighlightedCamId(null);
 
     // Check if clicked inside a draft (CV-detected) zone
     if (draftZonesRef.current.length > 0) {
@@ -2164,6 +2297,7 @@ export default function DesignerView({ onBack }) {
       );
       if (clickedDraft) {
         showConfirm("Import Zone", `Import auto-detected "${clickedDraft.name}"?`, () => {
+          recordState();
           const updatedDrafts = draftZonesRef.current.filter(z => z.id !== clickedDraft.id);
           setDraftZones(updatedDrafts);
           draftZonesRef.current = updatedDrafts;
@@ -2186,7 +2320,7 @@ export default function DesignerView({ onBack }) {
         return;
       }
     }
-  }, [selectedIdx, finishZoneDrawing, draw, draftZones, showConfirm]); // eslint-disable-line
+  }, [selectedIdx, finishZoneDrawing, draw, draftZones, showConfirm, recordState]); // eslint-disable-line
 
 
 
@@ -2263,6 +2397,8 @@ export default function DesignerView({ onBack }) {
       }
     }
 
+    recordState();
+
     const newEntry = {
       camera,
       x: p.x,
@@ -2289,6 +2425,7 @@ export default function DesignerView({ onBack }) {
     const file = e.target.files[0]; if (!file) return;
     
     const proceedWithImport = () => {
+      recordState();
       const reader = new FileReader();
       reader.onload = ev => {
         const img = new Image();
@@ -2338,14 +2475,34 @@ export default function DesignerView({ onBack }) {
 
   // ── FIX 2: Remove floor plan — clears image and deletes from backend ──────
   function removeFloorPlan() {
+    recordState();
     floorImgRef.current = null;
     setHasFloor(false);
     draw();
     apiDeleteFloorPlan();
   }
 
+  // ── Clear all cameras from the floor (keeps floor plan image) ──────────────
+  function clearFloorCameras() {
+    showConfirm(
+      "Clear All Cameras",
+      "This will remove all placed cameras from the floor. The floor plan image will be kept. Do you want to proceed?",
+      () => {
+        recordState();
+        placedRef.current = [];
+        setPlaced([]);
+        setSelectedIdx(null);
+        setHighlightedCamId(null);
+        highlightedCamIdRef.current = null;
+        draw();
+        apiSaveLayout({ placed: [], zones: zonesRef.current, ppm: ppmRef.current });
+      }
+    );
+  }
+
   function removeSelected() {
     if (selectedIdx === null) return;
+    recordState();
     const updated = placedRef.current.filter((_, i) => i !== selectedIdx);
     placedRef.current = updated; setPlaced(updated); setSelectedIdx(null); draw();
     apiSaveLayout({ placed: updated, zones: zonesRef.current, ppm: ppmRef.current });
@@ -2364,6 +2521,7 @@ export default function DesignerView({ onBack }) {
   }
 
   function handleDeleteZone(id) {
+    recordState();
     const updated = zonesRef.current.filter(z => z.id !== id);
     zonesRef.current = updated; setZones(updated);
     if (activeZoneId === id) { setActiveZoneId(null); activeZoneIdRef.current = null; }
@@ -2381,6 +2539,7 @@ export default function DesignerView({ onBack }) {
       alert("A zone with this name already exists.");
       return;
     }
+    recordState();
     const updated = zonesRef.current.map(z => z.id === id ? { ...z, name: trimmed } : z);
     setZones(updated);
     zonesRef.current = updated;
@@ -2407,6 +2566,7 @@ export default function DesignerView({ onBack }) {
   }
 
   function handleRemoveCamFromZone(camId) {
+    recordState();
     const updated = placedRef.current.filter(p => p.id !== camId);
     placedRef.current = updated; setPlaced(updated);
     if (highlightedCamId === camId) { setHighlightedCamId(null); highlightedCamIdRef.current = null; }
@@ -2543,7 +2703,7 @@ export default function DesignerView({ onBack }) {
       padding: "6px 4px",
     },
     sectionLabel: {
-      fontSize: 9, fontWeight: 700, letterSpacing: "0.1em",
+      fontSize: 13, fontWeight: 700, letterSpacing: "0.1em",
       textTransform: "uppercase", color: "#5aabf0",
       padding: "6px 6px 4px",
       whiteSpace: "nowrap",
@@ -2553,7 +2713,7 @@ export default function DesignerView({ onBack }) {
       display: "flex", alignItems: "center", gap: 6,
       width: "100%", background: "none", border: "none",
       padding: "5px 6px", cursor: "pointer",
-      color: "#5aabf0", fontSize: 11, textAlign: "left",
+      color: "#5aabf0", fontSize: 15, textAlign: "left",
       borderRadius: 4,
       whiteSpace: "nowrap",
     },
@@ -2596,6 +2756,43 @@ export default function DesignerView({ onBack }) {
               Import Floor Plan
             </button>
             <input ref={fileInputRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handleFileChange} />
+
+            {hasFloor && (
+              <button className="dv-tbtn" style={{ borderColor: "#ef4444", color: "#ef4444", background: "rgba(239, 68, 68, 0.05)" }} onClick={removeFloorPlan} title="Delete Floor Plan">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="13" height="13">
+                  <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2M10 11v6M14 11v6"/>
+                </svg>
+                Delete Floor Plan
+              </button>
+            )}
+
+            <button className="dv-tbtn" onClick={() => jsonFileInputRef.current?.click()} title="Import Layout JSON">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="13" height="13">
+                <path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1M16 8l-4-4-4 4M12 4v12" />
+              </svg>
+              Import JSON
+            </button>
+            <input ref={jsonFileInputRef} type="file" accept=".json" style={{ display: "none" }} onChange={handleJsonImport} />
+
+            <button className="dv-tbtn" onClick={downloadJson} title="Download Layout JSON">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="13" height="13">
+                <path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1M12 16V4M8 12l4 4 4-4" />
+              </svg>
+              Download JSON
+            </button>
+
+            <button className="dv-tbtn" onClick={handleUndo} disabled={undoStack.length === 0} title="Undo last action">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="13" height="13">
+                <path d="M3 7v6h6M21 17a9 9 0 00-9-9 9 9 0 00-6 2.3L3 13" />
+              </svg>
+              Undo
+            </button>
+            <button className="dv-tbtn" onClick={handleRedo} disabled={redoStack.length === 0} title="Redo last action">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="13" height="13">
+                <path d="M21 7v6h-6M3 17a9 9 0 019-9 9 9 0 016 2.3l3 2.7" />
+              </svg>
+              Redo
+            </button>
 
             <div className="dv-export-group" ref={exportMenuRef}>
               <button
@@ -2733,12 +2930,12 @@ export default function DesignerView({ onBack }) {
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="12" height="12">
                   <path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
                 </svg>
-                {isDetectingZones ? "Detecting..." : "Auto-Detect Zones (CV)"}
+                {isDetectingZones ? "Detecting..." : "Auto-Detect Zones"}
               </button>
             </div>
 
             {mode === "zone" && (
-              <span className="dv-zone-hint" style={{ fontSize: "11px", color: "#F59E0B", background: "#F59E0B15", padding: "3px 10px", borderRadius: "99px", border: "0.5px solid #F59E0B55" }}>
+              <span className="dv-zone-hint" style={{ fontSize: "15px", color: "#F59E0B", background: "#F59E0B15", padding: "3px 10px", borderRadius: "99px", border: "0.5px solid #F59E0B55" }}>
                 {drawingPoints.length === 0
                   ? "Click to place first point"
                   : drawingPoints.length < 3
@@ -2831,10 +3028,10 @@ export default function DesignerView({ onBack }) {
                 }}
                 style={{ width: "40px", padding: "3px 6px", background: "#0d1117", border: "0.5px solid #2e3d55", borderRadius: "4px", color: "#e8edf5", fontSize: "11.5px", textAlign: "center" }}
               />
-              <span style={{ fontSize: 10, marginRight: 4 }}>px/m</span>
+              <span style={{ fontSize: 14, marginRight: 4 }}>px/m</span>
               <button
                 className={`dv-tbtn ${mode === "calibrate" ? "dv-tbtn--active" : ""}`}
-                style={{ fontSize: 11, padding: "3px 8px", height: 24, display: "flex", alignItems: "center" }}
+                style={{ fontSize: 15, padding: "3px 8px", height: 24, display: "flex", alignItems: "center" }}
                 onClick={() => {
                   if (mode === "calibrate") {
                     setMode("place"); setCalPts([]); draw();
@@ -2872,15 +3069,19 @@ export default function DesignerView({ onBack }) {
               </svg>
               Proposal Summary
             </button>
-          </div>
 
-          {/* Far Right: Clear Map Floor plan */}
-          <button className="dv-tbtn dv-tbtn--danger" onClick={removeFloorPlan} title="Clear Floor Plan Image" style={{ borderColor: "rgba(239, 68, 68, 0.25)", color: "#ef4444", background: "rgba(239, 68, 68, 0.05)" }}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="12" height="12" style={{ marginRight: 4 }}>
-              <polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14H6L5 6" />
-            </svg>
-            Clear Floor
-          </button>
+            <button
+              className="dv-tbtn dv-tbtn--danger"
+              onClick={clearFloorCameras}
+              title="Remove all cameras from floor (keeps floor plan)"
+              style={{ borderColor: "rgba(239, 68, 68, 0.25)", color: "#ef4444", background: "rgba(239, 68, 68, 0.05)" }}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="12" height="12" style={{ marginRight: 4 }}>
+                <polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14H6L5 6" />
+              </svg>
+              Clear Floor
+            </button>
+          </div>
 
         </div>
       </div>
@@ -2950,7 +3151,7 @@ export default function DesignerView({ onBack }) {
               <div 
                 className="dv-dori-legend__title"
                 style={{
-                  fontSize: "10px",
+                  fontSize: "14px",
                   fontWeight: "800",
                   textTransform: "uppercase",
                   letterSpacing: "0.08em",
@@ -2965,7 +3166,7 @@ export default function DesignerView({ onBack }) {
                   <circle cx="12" cy="12" r="10" />
                   <circle cx="12" cy="12" r="4" />
                 </svg>
-                DORI Zones (EN 62676-4)
+                DORI Zones 
               </div>
               <div 
                 className="dv-dori-legend__items"
@@ -3133,113 +3334,102 @@ export default function DesignerView({ onBack }) {
           )}
 
           {selectedPlaced && (
-            <div className="dv-selected-bar" style={{ pointerEvents: "auto", display: "flex", flexDirection: "column", gap: 12, width: 820 }}>
-              {/* Row 1: Camera Basic Info */}
-              <div style={{ display: "flex", alignItems: "center", width: "100%", gap: 12 }}>
-                <CameraIcon type={selectedPlaced.camera.type} size={18} color={TYPE_COLORS[selectedPlaced.camera.type]} />
-                <strong style={{ fontSize: 14, color: "#ffffff", fontWeight: "700" }}>{selectedPlaced.camera.brand} {selectedPlaced.camera.model}</strong>
-                <span className="dv-sep-txt">·</span>
-                <span style={{ fontSize: 12.5 }}>
-                  <span style={{ color: "rgba(255, 255, 255, 0.5)", fontWeight: "500" }}>HFOV </span>
-                  <strong style={{ color: "#ffffff", fontWeight: "700" }}>{Math.round(selectedPlaced.camera.hfov)}°</strong>
-                </span>
-                <span className="dv-sep-txt">·</span>
-                <span style={{ fontSize: 12.5 }}>
-                  <span style={{ color: "rgba(255, 255, 255, 0.5)", fontWeight: "500" }}>Range </span>
-                  <strong style={{ color: "#ffffff", fontWeight: "700" }}>{selectedPlaced.camera.rangeDay} m</strong>
-                </span>
-                <span className="dv-sep-txt">·</span>
-                <span style={{ fontSize: 12.5 }}>
-                  <span style={{ color: "rgba(255, 255, 255, 0.5)", fontWeight: "500" }}>Dir </span>
-                  <strong style={{ color: "#ffffff", fontWeight: "700" }}>{Math.round(selectedPlaced.direction)}°</strong>
-                </span>
-                {(() => {
-                  const cz = zones.find(z => z.polygon.length >= 3 && pointInPolygon(selectedPlaced.x, selectedPlaced.y, z.polygon));
-                  return cz ? (
-                    <span style={{ marginLeft: 8, fontSize: 11, padding: "2px 9px", borderRadius: 12, background: cz.color + "22", color: cz.color, border: `0.5px solid ${cz.color}55`, fontWeight: 700 }}>
-                      ● {cz.name}
-                    </span>
-                  ) : null;
-                })()}
+            <div className="dv-selected-bar" style={{ pointerEvents: "auto" }}>
+              {/* Column 1: Camera Basic Info */}
+              <div style={{ display: "flex", flexDirection: "column", width: 250, gap: 12, flexShrink: 0 }}>
+                <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", width: "100%" }}>
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+                    <div style={{ marginTop: 2 }}>
+                      <CameraIcon type={selectedPlaced.camera.type} size={18} color={TYPE_COLORS[selectedPlaced.camera.type]} />
+                    </div>
+                    <strong style={{ fontSize: 16, color: "#ffffff", fontWeight: "700", lineHeight: 1.3 }}>{selectedPlaced.camera.brand} {selectedPlaced.camera.model}</strong>
+                  </div>
+                  <button
+                    onClick={() => setShowConfigDrawer(!showConfigDrawer)}
+                    style={{
+                      background: "none", border: "none", color: "rgba(255, 255, 255, 0.5)",
+                      fontSize: showConfigDrawer ? 16 : 14, cursor: "pointer", padding: "4px",
+                      display: "flex", alignItems: "center", justifyContent: "center", transition: "color 0.15s ease",
+                      flexShrink: 0,
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.color = "#ffffff"}
+                    onMouseLeave={e => e.currentTarget.style.color = "rgba(255, 255, 255, 0.5)"}
+                    title={showConfigDrawer ? "Hide Configuration" : "Configure Camera"}
+                  >
+                    {showConfigDrawer ? "✕" : (
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" width="16" height="16">
+                        <circle cx="12" cy="12" r="3" />
+                        <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z" />
+                      </svg>
+                    )}
+                  </button>
+                </div>
+
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px 12px", background: "rgba(255,255,255,0.03)", padding: 12, borderRadius: 8, border: "1px solid rgba(255,255,255,0.05)" }}>
+                  <div style={{ display: "flex", flexDirection: "column" }}>
+                    <span style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", fontWeight: 700, textTransform: "uppercase" }}>HFOV</span>
+                    <span style={{ fontSize: 14, color: "#fff", fontWeight: 600 }}>{Math.round(selectedPlaced.camera.hfov)}°</span>
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column" }}>
+                    <span style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", fontWeight: 700, textTransform: "uppercase" }}>Range</span>
+                    <span style={{ fontSize: 14, color: "#fff", fontWeight: 600 }}>{selectedPlaced.camera.rangeDay} m</span>
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column" }}>
+                    <span style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", fontWeight: 700, textTransform: "uppercase" }}>Direction</span>
+                    <span style={{ fontSize: 14, color: "#fff", fontWeight: 600 }}>{Math.round(selectedPlaced.direction)}°</span>
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column" }}>
+                    <span style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", fontWeight: 700, textTransform: "uppercase" }}>Zone</span>
+                    {(() => {
+                      const cz = zones.find(z => z.polygon.length >= 3 && pointInPolygon(selectedPlaced.x, selectedPlaced.y, z.polygon));
+                      return cz ? (
+                        <span style={{ fontSize: 13, color: cz.color, fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 100 }}>{cz.name}</span>
+                      ) : <span style={{ fontSize: 13, color: "rgba(255,255,255,0.3)" }}>None</span>;
+                    })()}
+                  </div>
+                </div>
 
                 {/* Varifocal zoom slider */}
                 {selectedPlaced.camera.isVarifocal && (
-                  <>
-                    <span className="dv-sep-txt">·</span>
-                    <div className="dv-selected-bar__zoom" style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-                      <label style={{ fontSize: 11, color: "#c084fc", fontWeight: 700, letterSpacing: "0.03em" }}>ZOOM:</label>
-                      <input
-                        type="range"
-                        min={selectedPlaced.camera.focalLength}
-                        max={selectedPlaced.camera.focalLengthMax}
-                        step="0.1"
-                        value={selectedPlaced.currentFocalLength || selectedPlaced.camera.focalLength}
-                        onChange={e => handleVarifocalChange(selectedIdx, Number(e.target.value))}
-                        style={{ width: 80, height: 4, cursor: "pointer", accentColor: "#a855f7", verticalAlign: "middle" }}
-                      />
-                      <span style={{ fontFamily: "monospace", fontSize: 12, color: "#c084fc", fontWeight: 600 }}>
-                        {(selectedPlaced.currentFocalLength || selectedPlaced.camera.focalLength).toFixed(1)} mm
-                      </span>
-                    </div>
-                  </>
+                  <div className="dv-selected-bar__zoom" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", background: "rgba(168, 85, 247, 0.1)", padding: "8px 12px", borderRadius: 8, border: "1px solid rgba(168, 85, 247, 0.2)" }}>
+                    <label style={{ fontSize: 13, color: "#c084fc", fontWeight: 700, letterSpacing: "0.03em" }}>ZOOM</label>
+                    <input
+                      type="range"
+                      min={selectedPlaced.camera.focalLength}
+                      max={selectedPlaced.camera.focalLengthMax}
+                      step="0.1"
+                      value={selectedPlaced.currentFocalLength || selectedPlaced.camera.focalLength}
+                      onChange={e => handleVarifocalChange(selectedIdx, Number(e.target.value))}
+                      style={{ flex: 1, height: 4, cursor: "pointer", accentColor: "#a855f7", margin: "0 10px" }}
+                    />
+                    <span style={{ fontFamily: "monospace", fontSize: 13, color: "#c084fc", fontWeight: 600 }}>
+                      {(selectedPlaced.currentFocalLength || selectedPlaced.camera.focalLength).toFixed(1)} mm
+                    </span>
+                  </div>
                 )}
-                
-                <div style={{ flex: 1 }} />
-                
-                {/* Toggle configuration panel */}
-                <button
-                  onClick={() => setShowConfigDrawer(!showConfigDrawer)}
-                  style={{
-                    background: "none",
-                    border: "none",
-                    color: "rgba(255, 255, 255, 0.5)",
-                    fontSize: showConfigDrawer ? 16 : 14,
-                    cursor: "pointer",
-                    padding: "4px",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    transition: "color 0.15s ease",
-                  }}
-                  onMouseEnter={e => e.currentTarget.style.color = "#ffffff"}
-                  onMouseLeave={e => e.currentTarget.style.color = "rgba(255, 255, 255, 0.5)"}
-                  title={showConfigDrawer ? "Hide Configuration" : "Configure Camera"}
-                >
-                  {showConfigDrawer ? "✕" : (
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" width="16" height="16">
-                      <circle cx="12" cy="12" r="3" />
-                      <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z" />
-                    </svg>
-                  )}
-                </button>
               </div>
 
-              {/* Row 2: Collapsible Scenario & Accessories Settings */}
+              {/* Column 2: Collapsible Scenario & Accessories Settings */}
               {showConfigDrawer && (
                 <div style={{
-                  display: "grid",
-                  gridTemplateColumns: "1.15fr 1fr",
-                  gap: 16,
-                  background: "#080c14",
-                  border: "0.5px solid #1e2d3e",
-                  borderRadius: 8,
-                  padding: "12px 16px",
-                  width: "100%",
+                  display: "flex", flexDirection: "column",
+                  gap: 12, background: "#080c14", border: "0.5px solid #1e2d3e",
+                  borderRadius: 8, padding: "12px 16px", width: 280,
                   animation: "dvSlideDown 0.2s ease-out forwards",
                 }}>
                   {/* Column 1: Scenarios */}
                   <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                    <div style={{ fontSize: 11, fontWeight: 800, color: "#3b82f6", letterSpacing: "0.05em", textTransform: "uppercase" }}>Recording Scenarios</div>
+                    <div style={{ fontSize: 15, fontWeight: 800, color: "#3b82f6", letterSpacing: "0.05em", textTransform: "uppercase" }}>Recording Scenarios</div>
                     
                     {/* Recording Mode */}
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6 }}>
-                      <span style={{ fontSize: 12, color: "rgba(255, 255, 255, 0.5)", fontWeight: "500" }}>Schedule:</span>
+                      <span style={{ fontSize: 16, color: "rgba(255, 255, 255, 0.5)", fontWeight: "500" }}>Schedule:</span>
                       <select
                         value={selectedPlaced.recordingMode || "continuous"}
                         onChange={e => handleCameraConfigChange(selectedIdx, "recordingMode", e.target.value)}
                         style={{
                           background: "#0d1117", border: "0.5px solid #2e3d55", borderRadius: 6,
-                          color: "#e8edf5", fontSize: 12, padding: "4px 8px", outline: "none", width: 130, height: 28, cursor: "pointer"
+                          color: "#e8edf5", fontSize: 16, padding: "4px 8px", outline: "none", width: 130, height: 28, cursor: "pointer"
                         }}
                       >
                         <option value="continuous">Continuous 24/7</option>
@@ -3251,13 +3441,13 @@ export default function DesignerView({ onBack }) {
 
                     {/* FPS */}
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6 }}>
-                      <span style={{ fontSize: 12, color: "rgba(255, 255, 255, 0.5)", fontWeight: "500" }}>Frame Rate:</span>
+                      <span style={{ fontSize: 16, color: "rgba(255, 255, 255, 0.5)", fontWeight: "500" }}>Frame Rate:</span>
                       <select
                         value={selectedPlaced.fps || 25}
                         onChange={e => handleCameraConfigChange(selectedIdx, "fps", Number(e.target.value))}
                         style={{
                           background: "#0d1117", border: "0.5px solid #2e3d55", borderRadius: 6,
-                          color: "#e8edf5", fontSize: 12, padding: "4px 8px", outline: "none", width: 130, height: 28, cursor: "pointer"
+                          color: "#e8edf5", fontSize: 16, padding: "4px 8px", outline: "none", width: 130, height: 28, cursor: "pointer"
                         }}
                       >
                         <option value="15">15 FPS</option>
@@ -3268,13 +3458,13 @@ export default function DesignerView({ onBack }) {
 
                     {/* Lighting */}
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6 }}>
-                      <span style={{ fontSize: 12, color: "rgba(255, 255, 255, 0.5)", fontWeight: "500" }}>Environment:</span>
+                      <span style={{ fontSize: 16, color: "rgba(255, 255, 255, 0.5)", fontWeight: "500" }}>Environment:</span>
                       <select
                         value={selectedPlaced.lighting || "normal"}
                         onChange={e => handleCameraConfigChange(selectedIdx, "lighting", e.target.value)}
                         style={{
                           background: "#0d1117", border: "0.5px solid #2e3d55", borderRadius: 6,
-                          color: "#e8edf5", fontSize: 12, padding: "4px 8px", outline: "none", width: 130, height: 28, cursor: "pointer"
+                          color: "#e8edf5", fontSize: 16, padding: "4px 8px", outline: "none", width: 130, height: 28, cursor: "pointer"
                         }}
                       >
                         <option value="normal">Daytime / Normal</option>
@@ -3285,18 +3475,18 @@ export default function DesignerView({ onBack }) {
                   </div>
 
                   {/* Column 2: Mounting & Accessories */}
-                  <div style={{ display: "flex", flexDirection: "column", gap: 8, borderLeft: "0.5px solid #1e2d3e", paddingLeft: 16 }}>
-                    <div style={{ fontSize: 11, fontWeight: 800, color: "#f59e0b", letterSpacing: "0.05em", textTransform: "uppercase" }}>Mount & Accessories</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8, borderTop: "0.5px solid #1e2d3e", paddingTop: 16 }}>
+                    <div style={{ fontSize: 15, fontWeight: 800, color: "#f59e0b", letterSpacing: "0.05em", textTransform: "uppercase" }}>Mount & Accessories</div>
                     
                     {/* Mounting Bracket */}
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6 }}>
-                      <span style={{ fontSize: 12, color: "rgba(255, 255, 255, 0.5)", fontWeight: "500" }}>Bracket:</span>
+                      <span style={{ fontSize: 16, color: "rgba(255, 255, 255, 0.5)", fontWeight: "500" }}>Bracket:</span>
                       <select
                         value={selectedPlaced.mounting || "default"}
                         onChange={e => handleCameraConfigChange(selectedIdx, "mounting", e.target.value)}
                         style={{
                           background: "#0d1117", border: "0.5px solid #2e3d55", borderRadius: 6,
-                          color: "#e8edf5", fontSize: 12, padding: "4px 8px", outline: "none", width: 110, height: 28, cursor: "pointer"
+                          color: "#e8edf5", fontSize: 16, padding: "4px 8px", outline: "none", width: 110, height: 28, cursor: "pointer"
                         }}
                       >
                         <option value="default">None</option>
@@ -3309,7 +3499,7 @@ export default function DesignerView({ onBack }) {
 
                     {/* Accessories Checkboxes */}
                     <div style={{ display: "flex", flexDirection: "column", gap: 5, marginTop: 4 }}>
-                      <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "#cbd5e1", cursor: "pointer" }}>
+                      <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 16, color: "#cbd5e1", cursor: "pointer" }}>
                         <input
                           type="checkbox"
                           checked={!!selectedPlaced.includeBackbox}
@@ -3318,7 +3508,7 @@ export default function DesignerView({ onBack }) {
                         />
                         Weatherproof Backbox 
                       </label>
-                      <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "#cbd5e1", cursor: "pointer" }}>
+                      <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 16, color: "#cbd5e1", cursor: "pointer" }}>
                         <input
                           type="checkbox"
                           checked={!!selectedPlaced.includePoe}
@@ -3330,12 +3520,6 @@ export default function DesignerView({ onBack }) {
                     </div>
                   </div>
                 </div>
-              )}
-              
-              {!showConfigDrawer && (
-                <span className="dv-selected-bar__hint" style={{ width: "100%", textAlign: "center", marginLeft: 0, fontSize: 12 }}>
-                  Drag handle to rotate · Drag body to move · Click "Configure" to set mounts & schedules
-                </span>
               )}
             </div>
           )}
@@ -3354,7 +3538,7 @@ export default function DesignerView({ onBack }) {
             position: "absolute",
             top: 0,
             bottom: 0,
-            right: inspectorExpanded ? 265 : 48,
+            right: inspectorExpanded ? 252 : 48,
             zIndex: 9,
             boxShadow: "-8px 0 24px rgba(0,0,0,0.35)",
             transition: "right 0.3s cubic-bezier(0.4, 0, 0.2, 1)"
@@ -3400,7 +3584,7 @@ export default function DesignerView({ onBack }) {
                 {/* Close Cross Button */}
                 <button
                   className="dv-inspector-close-btn"
-                  onClick={() => setInspectorExpanded(false)}
+                  onClick={() => { setInspectorExpanded(false); setSelectedModel(null); }}
                   title="Collapse Inspector"
                   style={{
                     position: "absolute",
@@ -3409,8 +3593,8 @@ export default function DesignerView({ onBack }) {
                     transform: "translateY(-50%)",
                     background: "none",
                     border: "none",
-                    color: "#7a8499",
-                    fontSize: "14px",
+                    color: "rgba(255, 255, 255, 0.5)",
+                    fontSize: "18px",
                     fontWeight: "750",
                     cursor: "pointer",
                     display: "flex",
@@ -3434,7 +3618,7 @@ export default function DesignerView({ onBack }) {
                     {/* Brand and Type Custom Dropdowns */}
                     <div className="dv-library__filters" style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "14px" }}>
                       <input className="dv-search" placeholder="Search models…"
-                        value={searchQuery} onChange={e => setSearchQuery(e.target.value)} style={{ padding: "6px 8px", background: "#0d1117", border: "0.5px solid #2e3d55", borderRadius: 4, color: "#e8edf5", fontSize: 11, outline: "none" }} />
+                        value={searchQuery} onChange={e => setSearchQuery(e.target.value)} style={{ padding: "6px 8px", background: "#0d1117", border: "0.5px solid #2e3d55", borderRadius: 4, color: "#e8edf5", fontSize: 15, outline: "none" }} />
                       <div className="dv-filter-row" style={{ display: "flex", gap: "5px" }}>
                         {/* Custom Brand Dropdown */}
                         <div className="dv-custom-select-wrap" style={{ position: "relative", flex: 1 }}>
@@ -3443,8 +3627,8 @@ export default function DesignerView({ onBack }) {
                             style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%", textAlign: "left" }}
                             onClick={() => { setBrandMenuOpen(!brandMenuOpen); setTypeMenuOpen(false); }}
                           >
-                            <span>{brandFilter || "-- Brand --"}</span>
-                            <span style={{ fontSize: "8px", opacity: 0.7 }}>▼</span>
+                            <span>{brandFilter || "Brand"}</span>
+                            <span style={{ fontSize: "12px", opacity: 0.7 }}>▼</span>
                           </button>
                           {brandMenuOpen && (
                             <div className="dv-custom-dropdown" style={{
@@ -3457,12 +3641,12 @@ export default function DesignerView({ onBack }) {
                                 className="dv-custom-dropdown-item"
                                 style={{
                                   width: "100%", background: "none", border: "none", color: "#cbd5e1",
-                                  padding: "6px 8px", textAlign: "left", fontSize: "11px", cursor: "pointer",
+                                  padding: "6px 8px", textAlign: "left", fontSize: "15px", cursor: "pointer",
                                   borderRadius: "4px", display: "block"
                                 }}
                                 onClick={() => { setBrandFilter(null); setBrandMenuOpen(false); }}
                               >
-                                -- Brand --
+                                All Brands
                               </button>
                               {brands.map(b => (
                                 <button
@@ -3471,7 +3655,7 @@ export default function DesignerView({ onBack }) {
                                   style={{
                                     width: "100%", background: b === brandFilter ? "rgba(24, 95, 165, 0.15)" : "none",
                                     border: "none", color: b === brandFilter ? "#5aabf0" : "#cbd5e1",
-                                    padding: "6px 8px", textAlign: "left", fontSize: "11px", cursor: "pointer",
+                                    padding: "6px 8px", textAlign: "left", fontSize: "15px", cursor: "pointer",
                                     borderRadius: "4px", display: "block"
                                   }}
                                   onClick={() => { setBrandFilter(b); setBrandMenuOpen(false); }}
@@ -3491,9 +3675,9 @@ export default function DesignerView({ onBack }) {
                             onClick={() => { setTypeMenuOpen(!typeMenuOpen); setBrandMenuOpen(false); }}
                           >
                             <span>
-                              {typeFilter ? `${TYPE_ICONS[typeFilter] || "⊙"} ${typeFilter.charAt(0).toUpperCase() + typeFilter.slice(1)}` : "-- Type --"}
+                              {typeFilter ? `${TYPE_ICONS[typeFilter]} ${typeFilter.charAt(0).toUpperCase() + typeFilter.slice(1)}` : "Type"}
                             </span>
-                            <span style={{ fontSize: "8px", opacity: 0.7 }}>▼</span>
+                            <span style={{ fontSize: "12px", opacity: 0.7 }}>▼</span>
                           </button>
                           {typeMenuOpen && (
                             <div className="dv-custom-dropdown" style={{
@@ -3505,21 +3689,21 @@ export default function DesignerView({ onBack }) {
                                 className="dv-custom-dropdown-item"
                                 style={{
                                   width: "100%", background: "none", border: "none", color: "#cbd5e1",
-                                  padding: "6px 8px", textAlign: "left", fontSize: "11px", cursor: "pointer",
+                                  padding: "6px 8px", textAlign: "left", fontSize: "15px", cursor: "pointer",
                                   borderRadius: "4px", display: "block"
                                 }}
                                 onClick={() => { setTypeFilter(null); setTypeMenuOpen(false); }}
                               >
-                                -- Type --
+                                All Types
                               </button>
-                              {["dome", "bullet", "ptz", "fisheye", "eyeball","turret", "thermal"].map(t => (
+                              {["dome", "bullet", "ptz", "fisheye", "box", "thermal"].map(t => (
                                 <button
                                   key={t}
                                   className="dv-custom-dropdown-item"
                                   style={{
                                     width: "100%", background: t === typeFilter ? "rgba(24, 95, 165, 0.15)" : "none",
                                     border: "none", color: t === typeFilter ? "#5aabf0" : "#cbd5e1",
-                                    padding: "6px 8px", textAlign: "left", fontSize: "11px", cursor: "pointer",
+                                    padding: "6px 8px", textAlign: "left", fontSize: "15px", cursor: "pointer",
                                     borderRadius: "4px", display: "block"
                                   }}
                                   onClick={() => { setTypeFilter(t); setTypeMenuOpen(false); }}
@@ -3551,7 +3735,7 @@ export default function DesignerView({ onBack }) {
 
                     {!selectedModel && (
                       <div className="dv-cam-selector__hint dv-cam-selector__hint--empty"
-                        style={{ padding: "6px 10px 8px", borderTop: "1px solid #1e2d3e", marginTop: 4, fontSize: 10, color: "#7a8499", textAlign: "center" }}>
+                        style={{ padding: "6px 10px 8px", borderTop: "1px solid #1e2d3e", marginTop: 4, fontSize: 14, color: "rgba(255, 255, 255, 0.5)", textAlign: "center" }}>
                         Drag a card onto the canvas to place · Click to preview FOV
                       </div>
                     )}
@@ -3562,7 +3746,7 @@ export default function DesignerView({ onBack }) {
                     
                     <div className="dv-zone-scroller">
                       {zones.length === 0 ? (
-                        <div style={{ padding: "10px 8px", fontSize: 10, color: "#7a8499", textAlign: "center" }}>
+                        <div style={{ padding: "10px 8px", fontSize: 14, color: "rgba(255, 255, 255, 0.5)", textAlign: "center" }}>
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" width="22" height="22" style={{ opacity: 0.25, display: "block", margin: "0 auto 6px" }}>
                             <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6" />
                           </svg>
@@ -3676,8 +3860,8 @@ export default function DesignerView({ onBack }) {
                   </svg>
                 </div>
                 <div>
-                  <div className="dv-stats-panel__title" style={{ fontSize: 14, fontWeight: 700, color: "#fff" }}>Calibrate Map Scale</div>
-                  <div className="dv-stats-panel__sub" style={{ fontSize: 11, color: "#7a8499" }}>Define real-world distance</div>
+                  <div className="dv-stats-panel__title" style={{ fontSize: 18, fontWeight: 700, color: "#fff" }}>Calibrate Map Scale</div>
+                  <div className="dv-stats-panel__sub" style={{ fontSize: 15, color: "rgba(255, 255, 255, 0.5)" }}>Define real-world distance</div>
                 </div>
               </div>
               <button className="dv-stats-panel__close" onClick={() => {
@@ -3690,13 +3874,13 @@ export default function DesignerView({ onBack }) {
             </div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-              <p style={{ fontSize: 12, color: "#94a3b8", lineHeight: 1.5 }}>
+              <p style={{ fontSize: 16, color: "rgba(255, 255, 255, 0.5)", lineHeight: 1.5 }}>
                 You have drawn a line of <strong style={{ color: "#f59e0b" }}>{Math.round(calibrateDistPx)} pixels</strong> on the map.
                 Specify the physical distance in meters to calculate the scale.
               </p>
 
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                <label style={{ fontSize: 11, fontWeight: 600, color: "#cbd5e1" }}>Real-World Distance (meters)</label>
+                <label style={{ fontSize: 15, fontWeight: 600, color: "#cbd5e1" }}>Real-World Distance (meters)</label>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   <input
                     type="number"
@@ -3709,14 +3893,14 @@ export default function DesignerView({ onBack }) {
                       border: "1px solid #2e3d55",
                       borderRadius: 4,
                       color: "#e8edf5",
-                      fontSize: 13,
+                      fontSize: 17,
                       padding: "8px 10px",
                       outline: "none"
                     }}
                     placeholder="e.g. 5.0"
                     autoFocus
                   />
-                  <span style={{ fontSize: 13, color: "#94a3b8" }}>meters</span>
+                  <span style={{ fontSize: 17, color: "rgba(255, 255, 255, 0.5)" }}>meters</span>
                 </div>
               </div>
 
@@ -3734,10 +3918,10 @@ export default function DesignerView({ onBack }) {
                     background: "transparent",
                     border: "1px solid #2e3d55",
                     borderRadius: 4,
-                    color: "#94a3b8",
+                    color: "rgba(255, 255, 255, 0.5)",
                     padding: "8px 16px",
                     cursor: "pointer",
-                    fontSize: 12
+                    fontSize: 16
                   }}
                 >
                   Cancel
@@ -3766,7 +3950,7 @@ export default function DesignerView({ onBack }) {
                     fontWeight: 700,
                     padding: "8px 16px",
                     cursor: "pointer",
-                    fontSize: 12
+                    fontSize: 16
                   }}
                 >
                   Apply Scale
@@ -4004,13 +4188,14 @@ function ProjectStatsPanel({
               borderBottom: activeTab === "perf" ? "2px solid #3b82f6" : "2px solid transparent",
               color: activeTab === "perf" ? "#3b82f6" : "rgba(255, 255, 255, 0.5)",
               fontWeight: 700,
-              fontSize: 12,
+              fontSize: 16,
               cursor: "pointer",
               transition: "all 0.2s"
             }}
           >
             Storage & Performance
           </button>
+          {/* 
           <button
             onClick={() => setActiveTab("bom")}
             style={{
@@ -4020,34 +4205,35 @@ function ProjectStatsPanel({
               borderBottom: activeTab === "bom" ? "2px solid #a855f7" : "2px solid transparent",
               color: activeTab === "bom" ? "#a855f7" : "rgba(255, 255, 255, 0.5)",
               fontWeight: 700,
-              fontSize: 12,
+              fontSize: 16,
               cursor: "pointer",
               transition: "all 0.2s"
             }}
           >
             Material & Quotation
           </button>
+          */}
         </div>
 
         <div className="dv-stats-panel__content" style={{ maxHeight: "calc(80vh - 120px)", overflowY: "auto", padding: "16px 20px 20px" }}>
           {activeTab === "bom" ? (
             <div className="dv-bom-container" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <span style={{ fontSize: 13, fontWeight: 700, color: "#e8edf5" }}>Surveillance Proposal & Sales Quotation</span>
-                <span style={{ fontSize: 11, color: "#7a8499" }}>Tax and installation calculated separately</span>
+                <span style={{ fontSize: 17, fontWeight: 700, color: "#e8edf5" }}>Surveillance Proposal & Sales Quotation</span>
+                <span style={{ fontSize: 15, color: "rgba(255, 255, 255, 0.5)" }}>Tax and installation calculated separately</span>
               </div>
               
               <div className="dv-bom-table-wrapper" style={{ overflowX: "auto", borderRadius: 6, border: "1px solid #1e2d3e" }}>
-                <table className="dv-bom-table" style={{ width: "100%", borderCollapse: "collapse", fontSize: 11, color: "#cbd5e1" }}>
+                <table className="dv-bom-table" style={{ width: "100%", borderCollapse: "collapse", fontSize: 15, color: "#cbd5e1" }}>
                   <thead>
                     <tr style={{ background: "#0f172a", borderBottom: "1px solid #1e2d3e", textAlign: "left" }}>
-                      <th style={{ padding: "10px 12px", color: "#94a3b8", fontWeight: 700 }}>Item Type</th>
-                      <th style={{ padding: "10px 12px", color: "#94a3b8", fontWeight: 700 }}>Model / Description</th>
-                      <th style={{ padding: "10px 12px", color: "#94a3b8", fontWeight: 700, textAlign: "center" }}>Qty</th>
-                      <th style={{ padding: "10px 12px", color: "#94a3b8", fontWeight: 700 }}>Accessories & Mount</th>
-                      <th style={{ padding: "10px 12px", color: "#94a3b8", fontWeight: 700, textAlign: "right" }}>Camera Price (₹)</th>
-                      <th style={{ padding: "10px 12px", color: "#94a3b8", fontWeight: 700, textAlign: "right" }}>Acc. Price (₹)</th>
-                      <th style={{ padding: "10px 12px", color: "#94a3b8", fontWeight: 700, textAlign: "right" }}>Total (₹)</th>
+                      <th style={{ padding: "10px 12px", color: "rgba(255, 255, 255, 0.5)", fontWeight: 700 }}>Item Type</th>
+                      <th style={{ padding: "10px 12px", color: "rgba(255, 255, 255, 0.5)", fontWeight: 700 }}>Model / Description</th>
+                      <th style={{ padding: "10px 12px", color: "rgba(255, 255, 255, 0.5)", fontWeight: 700, textAlign: "center" }}>Qty</th>
+                      <th style={{ padding: "10px 12px", color: "rgba(255, 255, 255, 0.5)", fontWeight: 700 }}>Accessories & Mount</th>
+                      <th style={{ padding: "10px 12px", color: "rgba(255, 255, 255, 0.5)", fontWeight: 700, textAlign: "right" }}>Camera Price (₹)</th>
+                      <th style={{ padding: "10px 12px", color: "rgba(255, 255, 255, 0.5)", fontWeight: 700, textAlign: "right" }}>Acc. Price (₹)</th>
+                      <th style={{ padding: "10px 12px", color: "rgba(255, 255, 255, 0.5)", fontWeight: 700, textAlign: "right" }}>Total (₹)</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -4086,12 +4272,12 @@ function ProjectStatsPanel({
 
                         return (
                           <tr key={groupKey} style={{ borderBottom: "1px solid #1e2d3e", background: idx % 2 === 0 ? "#0d1117" : "#090d13" }}>
-                            <td style={{ padding: "10px 12px", textTransform: "uppercase", fontWeight: 700, fontSize: 10, color: "#94a3b8" }}>
+                            <td style={{ padding: "10px 12px", textTransform: "uppercase", fontWeight: 700, fontSize: 14, color: "rgba(255, 255, 255, 0.5)" }}>
                               {p.camera.type || "dome"}
                             </td>
                             <td style={{ padding: "10px 12px" }}>
                               <div style={{ fontWeight: 600, color: "#f8fafc" }}>{p.camera.brand} {p.camera.model}</div>
-                              <div style={{ fontSize: 9, color: "#7a8499", marginTop: 2 }}>
+                              <div style={{ fontSize: 13, color: "rgba(255, 255, 255, 0.5)", marginTop: 2 }}>
                                 {p.recordingMode || "continuous"} · {p.fps || 25} FPS · {p.lighting || "normal"}
                               </div>
                             </td>
@@ -4101,7 +4287,7 @@ function ProjectStatsPanel({
                             </td>
                             <td style={{ padding: "10px 12px", textAlign: "right" }}>
                               <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 4 }}>
-                                <span style={{ color: "#7a8499" }}>₹</span>
+                                <span style={{ color: "rgba(255, 255, 255, 0.5)" }}>₹</span>
                                 <input
                                   type="number"
                                   placeholder="—"
@@ -4127,7 +4313,7 @@ function ProjectStatsPanel({
                                     color: "#e8edf5",
                                     padding: "2px 4px",
                                     textAlign: "right",
-                                    fontSize: 11,
+                                    fontSize: 15,
                                     fontFamily: "monospace",
                                     outline: "none",
                                   }}
@@ -4136,7 +4322,7 @@ function ProjectStatsPanel({
                             </td>
                             <td style={{ padding: "10px 12px", textAlign: "right" }}>
                               <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 4 }}>
-                                <span style={{ color: "#7a8499" }}>₹</span>
+                                <span style={{ color: "rgba(255, 255, 255, 0.5)" }}>₹</span>
                                 <input
                                   type="number"
                                   placeholder="—"
@@ -4161,7 +4347,7 @@ function ProjectStatsPanel({
                                     color: "#e8edf5",
                                     padding: "2px 4px",
                                     textAlign: "right",
-                                    fontSize: 11,
+                                    fontSize: 15,
                                     fontFamily: "monospace",
                                     outline: "none",
                                   }}
@@ -4180,16 +4366,16 @@ function ProjectStatsPanel({
                       <>
                         {/* Infrastructure rows */}
                         <tr style={{ borderBottom: "1px solid #1e2d3e", background: "#090d13" }}>
-                          <td style={{ padding: "10px 12px", textTransform: "uppercase", fontWeight: 700, fontSize: 10, color: "#f59e0b" }}>NVR</td>
+                          <td style={{ padding: "10px 12px", textTransform: "uppercase", fontWeight: 700, fontSize: 14, color: "#f59e0b" }}>NVR</td>
                           <td style={{ padding: "10px 12px" }}>
                             <div style={{ fontWeight: 600, color: "#f8fafc" }}>{hardware.nvr}</div>
-                            <div style={{ fontSize: 9, color: "#7a8499", marginTop: 2 }}>Storage & Central Management Server</div>
+                            <div style={{ fontSize: 13, color: "rgba(255, 255, 255, 0.5)", marginTop: 2 }}>Storage & Central Management Server</div>
                           </td>
                           <td style={{ padding: "10px 12px", textAlign: "center", fontWeight: 700 }}>1</td>
                           <td style={{ padding: "10px 12px", color: "#cbd5e1" }}>—</td>
                           <td style={{ padding: "10px 12px", textAlign: "right" }}>
                             <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 4 }}>
-                              <span style={{ color: "#7a8499" }}>₹</span>
+                              <span style={{ color: "rgba(255, 255, 255, 0.5)" }}>₹</span>
                               <input
                                 type="number"
                                 placeholder="—"
@@ -4204,29 +4390,29 @@ function ProjectStatsPanel({
                                   color: "#e8edf5",
                                   padding: "2px 4px",
                                   textAlign: "right",
-                                  fontSize: 11,
+                                  fontSize: 15,
                                   fontFamily: "monospace",
                                   outline: "none",
                                 }}
                               />
                             </div>
                           </td>
-                          <td style={{ padding: "10px 12px", textAlign: "right", color: "#7a8499" }}>—</td>
+                          <td style={{ padding: "10px 12px", textAlign: "right", color: "rgba(255, 255, 255, 0.5)" }}>—</td>
                           <td style={{ padding: "10px 12px", textAlign: "right", fontFamily: "monospace", color: "#a855f7", fontWeight: 700 }}>
                             {nvrPrice !== "" ? `₹${Number(nvrPrice).toLocaleString("en-IN")}` : "—"}
                           </td>
                         </tr>
                         <tr style={{ borderBottom: "1px solid #1e2d3e", background: "#0d1117" }}>
-                          <td style={{ padding: "10px 12px", textTransform: "uppercase", fontWeight: 700, fontSize: 10, color: "#f59e0b" }}>SWITCH</td>
+                          <td style={{ padding: "10px 12px", textTransform: "uppercase", fontWeight: 700, fontSize: 14, color: "#f59e0b" }}>SWITCH</td>
                           <td style={{ padding: "10px 12px" }}>
                             <div style={{ fontWeight: 600, color: "#f8fafc" }}>8-Port PoE Switch</div>
-                            <div style={{ fontSize: 9, color: "#7a8499", marginTop: 2 }}>Power-over-Ethernet switch</div>
+                            <div style={{ fontSize: 13, color: "rgba(255, 255, 255, 0.5)", marginTop: 2 }}>Power-over-Ethernet switch</div>
                           </td>
                           <td style={{ padding: "10px 12px", textAlign: "center", fontWeight: 700 }}>{hardware.switchesCount}</td>
                           <td style={{ padding: "10px 12px", color: "#cbd5e1" }}>—</td>
                           <td style={{ padding: "10px 12px", textAlign: "right" }}>
                             <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 4 }}>
-                              <span style={{ color: "#7a8499" }}>₹</span>
+                              <span style={{ color: "rgba(255, 255, 255, 0.5)" }}>₹</span>
                               <input
                                 type="number"
                                 placeholder="—"
@@ -4241,14 +4427,14 @@ function ProjectStatsPanel({
                                   color: "#e8edf5",
                                   padding: "2px 4px",
                                   textAlign: "right",
-                                  fontSize: 11,
+                                  fontSize: 15,
                                   fontFamily: "monospace",
                                   outline: "none",
                                 }}
                               />
                             </div>
                           </td>
-                          <td style={{ padding: "10px 12px", textAlign: "right", color: "#7a8499" }}>—</td>
+                          <td style={{ padding: "10px 12px", textAlign: "right", color: "rgba(255, 255, 255, 0.5)" }}>—</td>
                           <td style={{ padding: "10px 12px", textAlign: "right", fontFamily: "monospace", color: "#a855f7", fontWeight: 700 }}>
                             {switchUnitPrice !== "" ? `₹${(Number(switchUnitPrice) * hardware.switchesCount).toLocaleString("en-IN")}` : "—"}
                           </td>
@@ -4286,20 +4472,20 @@ function ProjectStatsPanel({
                 return (
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginTop: 4 }}>
                     <div style={{ background: "#0d1117", border: "1px solid #1e2d3e", borderRadius: 6, padding: "10px 12px", display: "flex", flexDirection: "column" }}>
-                      <span style={{ fontSize: 9, color: "#94a3b8", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em" }}>Camera & Mounts</span>
-                      <span style={{ fontSize: 16, fontFamily: "monospace", color: "#f8fafc", fontWeight: 800, marginTop: 4 }}>
+                      <span style={{ fontSize: 13, color: "rgba(255, 255, 255, 0.5)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em" }}>Camera & Mounts</span>
+                      <span style={{ fontSize: 20, fontFamily: "monospace", color: "#f8fafc", fontWeight: 800, marginTop: 4 }}>
                         {camHasAny ? `₹${Math.round(camTotal).toLocaleString("en-IN")}` : "—"}
                       </span>
                     </div>
                     <div style={{ background: "#0d1117", border: "1px solid #1e2d3e", borderRadius: 6, padding: "10px 12px", display: "flex", flexDirection: "column" }}>
-                      <span style={{ fontSize: 9, color: "#94a3b8", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em" }}>Infrastructure (NVR & PoE)</span>
-                      <span style={{ fontSize: 16, fontFamily: "monospace", color: "#f8fafc", fontWeight: 800, marginTop: 4 }}>
+                      <span style={{ fontSize: 13, color: "rgba(255, 255, 255, 0.5)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em" }}>Infrastructure (NVR & PoE)</span>
+                      <span style={{ fontSize: 20, fontFamily: "monospace", color: "#f8fafc", fontWeight: 800, marginTop: 4 }}>
                         {infraHasAny ? `₹${Math.round(infraTotal).toLocaleString("en-IN")}` : "—"}
                       </span>
                     </div>
                     <div style={{ background: "#1e1b4b", border: "1px solid #4338ca", borderRadius: 6, padding: "10px 12px", display: "flex", flexDirection: "column" }}>
-                      <span style={{ fontSize: 9, color: "#c084fc", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em" }}>Grand Surveillance Total</span>
-                      <span style={{ fontSize: 18, fontFamily: "monospace", color: "#c084fc", fontWeight: 900, marginTop: 2 }}>
+                      <span style={{ fontSize: 13, color: "#c084fc", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em" }}>Grand Surveillance Total</span>
+                      <span style={{ fontSize: 22, fontFamily: "monospace", color: "#c084fc", fontWeight: 900, marginTop: 2 }}>
                         {showGrand ? `₹${Math.round(grandTotal).toLocaleString("en-IN")}` : "—"}
                       </span>
                     </div>
@@ -4330,7 +4516,7 @@ function ProjectStatsPanel({
                   <div style={{ display: "flex", gap: 4, margin: "6px 0 4px" }}>
                     {["h265", "h264"].map(c => (
                       <button key={c} onClick={() => setCodec(c)} style={{
-                        fontSize: 9, padding: "2px 7px", borderRadius: 3,
+                        fontSize: 13, padding: "2px 7px", borderRadius: 3,
                         cursor: "pointer", border: "0.5px solid",
                         background: codec === c ? "#3b82f622" : "transparent",
                         borderColor: codec === c ? "#3b82f6" : "#2e3d55",
@@ -4354,7 +4540,7 @@ function ProjectStatsPanel({
                   </div>
 
                   <div className="dv-stats-card__slider">
-                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#7a8499", marginBottom: 4 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14, color: "rgba(255, 255, 255, 0.5)", marginBottom: 4 }}>
                       <span>Retention Period</span>
                       <span style={{ color: "#3b82f6", fontWeight: 700 }}>{retentionDays} Days</span>
                     </div>

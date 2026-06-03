@@ -4,7 +4,6 @@ from datetime import datetime
 import threading
 import asyncio
 import psutil
-from .websocket_manager import manager
 from .email_alerts import alert_device_offline, alert_unexpected_reboot
 from .uptime_tracker import record_uptime_snapshot, get_uptime_report
 
@@ -16,14 +15,7 @@ alerts_col = db["infrastructure_alerts"]
 
 
 def _broadcast_safe(payload: dict):
-    loop = manager.loop if hasattr(manager, 'loop') and manager.loop else None
-    if not loop:
-        try:
-            loop = asyncio.get_event_loop()
-        except Exception:
-            pass
-    if loop and loop.is_running():
-        asyncio.run_coroutine_threadsafe(manager.broadcast(payload), loop)
+    pass
 
 
 def _get_uptime_info():
