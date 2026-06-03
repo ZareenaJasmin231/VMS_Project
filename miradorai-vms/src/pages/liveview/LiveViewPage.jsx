@@ -10,6 +10,135 @@ function getAuthHeaders() {
   return token ? { "Authorization": "Bearer " + token } : {};
 }
 
+// Global alerts state & WebSocket manager to persist alerts during page changes
+const globalAlertsManager = {
+  alerts: [],
+  alertCounts: {},
+  loading: true,
+  subscribers: new Set(),
+  ws: null,
+  cleanupTimer: null,
+  fetchPromise: null,
+
+  async fetchInitial() {
+    if (this.fetchPromise) return this.fetchPromise;
+
+    this.fetchPromise = (async () => {
+      try {
+        const res = await fetch(`${API}/api/alerts?limit=1000`, {
+          headers: getAuthHeaders()
+        });
+        const data = await res.json();
+        const filtered = (data.alerts || [])
+          .filter((a) => a.status === "Active")
+          .filter(isAlertAllowed);
+
+        const counts = {};
+        filtered.forEach((alert) => {
+          const ip = (alert.ip || "").replace(/_/g, ".");
+          if (ip) counts[ip] = (counts[ip] || 0) + 1;
+        });
+
+        this.alerts = filtered;
+        this.alertCounts = counts;
+        this.loading = false;
+        this.notify();
+      } catch (e) {
+        console.error("[Alerts Cache] fetch failed:", e);
+        this.loading = false;
+        this.notify();
+      }
+    })();
+
+    return this.fetchPromise;
+  },
+
+  subscribe(callback) {
+    this.subscribers.add(callback);
+    if (this.cleanupTimer) {
+      clearTimeout(this.cleanupTimer);
+      this.cleanupTimer = null;
+    }
+
+    // Start HTTP polling
+    this.startPolling();
+
+    // Trigger initial fetch if never fetched
+    this.fetchInitial();
+
+    // Send current state
+    callback({
+      alerts: this.alerts,
+      alertCounts: this.alertCounts,
+      loading: this.loading
+    });
+  },
+
+  unsubscribe(callback) {
+    this.subscribers.delete(callback);
+    if (this.subscribers.size === 0) {
+      // Keep polling active for 30 seconds after unmounting
+      this.cleanupTimer = setTimeout(() => {
+        this.stopPolling();
+      }, 30000);
+    }
+  },
+
+  notify() {
+    for (const callback of this.subscribers) {
+      try {
+        callback({
+          alerts: this.alerts,
+          alertCounts: this.alertCounts,
+          loading: this.loading
+        });
+      } catch (err) {
+        console.error('[Alerts Cache] Notify error:', err);
+      }
+    }
+  },
+
+  startPolling() {
+    if (this.pollTimer) return;
+
+    const runPoll = async () => {
+      try {
+        const res = await fetch(`${API}/api/alerts?limit=1000`, {
+          headers: getAuthHeaders()
+        });
+        const data = await res.json();
+        const filtered = (data.alerts || [])
+          .filter((a) => a.status === "Active")
+          .filter(isAlertAllowed);
+
+        const counts = {};
+        filtered.forEach((alert) => {
+          const ip = (alert.ip || "").replace(/_/g, ".");
+          if (ip) counts[ip] = (counts[ip] || 0) + 1;
+        });
+
+        if (JSON.stringify(filtered) !== JSON.stringify(this.alerts)) {
+          this.alerts = filtered;
+          this.alertCounts = counts;
+          this.notify();
+        }
+      } catch (e) {
+        console.error("[Alerts Cache] poll failed:", e);
+      }
+    };
+
+    this.pollTimer = setInterval(runPoll, 5000);
+  },
+
+  stopPolling() {
+    if (this.pollTimer) {
+      clearInterval(this.pollTimer);
+      this.pollTimer = null;
+    }
+    this.cleanupTimer = null;
+  }
+};
+
 function loadDevices() {
   try { return JSON.parse(localStorage.getItem("miradorai_devices") || "[]"); }
   catch { return []; }
@@ -73,16 +202,16 @@ function MaskOverlay({ ip }) {
       .catch(() => {});
   }, [ip]);
 
-  useEffect(() => {
-    if (!ip) return;
-    const interval = setInterval(() => {
-      fetch(`${API}/api/masks/${encodeURIComponent(ip)}`)
-        .then(r => r.json())
-        .then(data => setMasks((data.masks || []).filter(m => m.enabled !== false)))
-        .catch(() => {});
-    }, 5000);
-    return () => clearInterval(interval);
-  }, [ip]);
+  // useEffect(() => {
+  //   if (!ip) return;
+  //   const interval = setInterval(() => {
+  //     fetch(`${API}/api/masks/${encodeURIComponent(ip)}`)
+  //       .then(r => r.json())
+  //       .then(data => setMasks((data.masks || []).filter(m => m.enabled !== false)))
+  //       .catch(() => {});
+  //   }, 5000);
+  //   return () => clearInterval(interval);
+  // }, [ip]);
 
   if (!masks.length) return null;
 
@@ -367,12 +496,12 @@ function AlertPopup({ ip, alerts, onClose }) {
                     className={`alp-save-btn alp-save-btn--${status || "idle"}`}
                     onClick={() => handleSave(playingAlert)}
                     disabled={status === "saving" || status === "saved"}
-                    title="Save encrypted clip to server"
+                    title="Download clip"
                   >
                     {status === "saving" && (
                       <>
                         <div className="alp-spinner alp-spinner--sm" />
-                        Saving…
+                        Downloading…
                       </>
                     )}
                     {status === "saved" && (
@@ -380,18 +509,18 @@ function AlertPopup({ ip, alerts, onClose }) {
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="13" height="13">
                           <polyline points="20 6 9 17 4 12"/>
                         </svg>
-                        Saved
+                        Downloaded
                       </>
                     )}
                     {status === "error" && "⚠ Retry"}
                     {!status && (
                       <>
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="13" height="13">
-                          <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/>
-                          <polyline points="17 21 17 13 7 13 7 21"/>
-                          <polyline points="7 3 7 8 15 8"/>
+                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                          <polyline points="7 10 12 15 17 10" />
+                          <line x1="12" y1="15" x2="12" y2="3" />
                         </svg>
-                        Save Clip
+                        Download
                       </>
                     )}
                   </button>
@@ -437,7 +566,7 @@ function AlertPopup({ ip, alerts, onClose }) {
                         className={`alp-save-btn alp-save-btn--sm alp-save-btn--${status || "idle"}`}
                         onClick={() => handleSave(alert)}
                         disabled={status === "saving" || status === "saved"}
-                        title="Save encrypted clip"
+                        title="Download clip"
                       >
                         {status === "saving" && <div className="alp-spinner alp-spinner--sm" />}
                         {status === "saved"  && (
@@ -448,8 +577,9 @@ function AlertPopup({ ip, alerts, onClose }) {
                         {status === "error"  && "⚠"}
                         {!status && (
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="11" height="11">
-                            <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/>
-                            <polyline points="17 21 17 13 7 13 7 21"/>
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                            <polyline points="7 10 12 15 17 10" />
+                            <line x1="12" y1="15" x2="12" y2="3" />
                           </svg>
                         )}
                       </button>
@@ -476,86 +606,30 @@ function AlertPopup({ ip, alerts, onClose }) {
   );
 }
 // ── AlertsPanel ───────────────────────────────────────────────────
-function AlertsPanel({ onAlertCountUpdate, onTotalAlertCountChange, isOpen }) {
-  const [alerts,  setAlerts]  = useState([]);
-  const [loading, setLoading] = useState(true);
-  const wsRef = useRef(null);
-
-  const normalizeIp = (ip) => (ip || "").replace(/_/g, ".");
+function AlertsPanel({ onTotalAlertCountChange, isOpen }) {
+  const [alertsState, setAlertsState] = useState({
+    alerts: globalAlertsManager.alerts,
+    loading: globalAlertsManager.loading
+  });
 
   useEffect(() => {
-    onTotalAlertCountChange?.(alerts.length);
-  }, [alerts, onTotalAlertCountChange]);
+    onTotalAlertCountChange?.(alertsState.alerts.length);
+  }, [alertsState.alerts, onTotalAlertCountChange]);
 
-  const fetchAlerts = useCallback(async () => {
-    try {
-      const res  = await fetch(`${API}/api/alerts?limit=1000`, {
-        headers: getAuthHeaders()
+  useEffect(() => {
+    const handleUpdate = (state) => {
+      setAlertsState({
+        alerts: state.alerts,
+        loading: state.loading
       });
-      const data = await res.json();
-      const filtered = (data.alerts || [])
-        .filter((a) => a.status === "Active")
-        .filter(isAlertAllowed);
-      setAlerts(filtered);
-    } catch (e) {
-      console.error("[Alerts] fetch failed:", e);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchAlerts();
-  }, [fetchAlerts]);
-
-  useEffect(() => {
-    if (wsRef.current) return;
-
-    const ws = new WebSocket(`${import.meta.env.VITE_WS_URL}/ws/events`);
-    wsRef.current = ws;
-
-    ws.onopen = () => {
-      console.log("✅ WS CONNECTED");
     };
-
-    ws.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        if (!isAlertAllowed(data)) return;
-
-        const normIp = normalizeIp(data.ip);
-
-        setAlerts((prev) => {
-          const exists = prev.some((e) => e.received_at === data.received_at);
-          if (exists) return prev;
-          return [data, ...prev];
-        });
-
-        onAlertCountUpdate?.((prev) => ({
-          ...prev,
-          [normIp]: (prev[normIp] || 0) + 1,
-        }));
-
-        setLoading(false);
-      } catch (err) {
-        console.error("[WS] parse error:", err);
-      }
-    };
-
-    ws.onerror = (err) => {
-      console.error("[WS] error:", err);
-    };
-
-    ws.onclose = () => {
-      console.log("❌ WS CLOSED");
-      wsRef.current = null;
-    };
-
+    globalAlertsManager.subscribe(handleUpdate);
     return () => {
-      ws.close();
-      wsRef.current = null;
+      globalAlertsManager.unsubscribe(handleUpdate);
     };
   }, []);
+
+  const { alerts, loading } = alertsState;
 
   return (
     <div className={`lv-alerts-panel ${!isOpen ? "lv-alerts-panel--collapsed" : ""}`}>
@@ -607,10 +681,12 @@ function AlertsPanel({ onAlertCountUpdate, onTotalAlertCountChange, isOpen }) {
                   <span className="lv-alert-card__value">{alert.type || "—"}</span>
                 </div>
 
+                {/* 
                 <div className="lv-alert-card__row">
                   <span className="lv-alert-card__label">Event</span>
                   <span className="lv-alert-card__value">{alert.scenario || "—"}</span>
                 </div>
+                */}
 
                 {(alert.type === "OccupancyCount" || alert.scenario === "OccupancyCount") && (
                   <div className="lv-alert-card__row">
@@ -810,7 +886,7 @@ export default function LiveViewPage() {
       }
     };
     fetchRecordingStatus();
-    const interval = setInterval(fetchRecordingStatus, 8000);
+    const interval = setInterval(fetchRecordingStatus, 30000);
     return () => clearInterval(interval);
   }, []);
 
@@ -845,28 +921,15 @@ export default function LiveViewPage() {
     };
   }, []);
 
-  // Pre-populate alert counts from DB on page load
+  // Subscribe to global alert counts
   useEffect(() => {
-    const loadInitialCounts = async () => {
-      try {
-        const res  = await fetch(`${API}/api/alerts?limit=1000`, {
-          headers: getAuthHeaders()
-        });
-        const data = await res.json();
-        const counts = {};
-        (data.alerts || [])
-          .filter((a) => a.status === "Active")
-          .filter(isAlertAllowed)
-          .forEach((alert) => {
-            const ip = (alert.ip || "").replace(/_/g, ".");
-            if (ip) counts[ip] = (counts[ip] || 0) + 1;
-          });
-        setAlertCounts(counts);
-      } catch (e) {
-        console.error("[AlertCounts] load failed:", e);
-      }
+    const handleUpdate = (state) => {
+      setAlertCounts(state.alertCounts);
     };
-    loadInitialCounts();
+    globalAlertsManager.subscribe(handleUpdate);
+    return () => {
+      globalAlertsManager.unsubscribe(handleUpdate);
+    };
   }, []);
 
   // Request fullscreen when fsDevice is set
@@ -1193,7 +1256,6 @@ export default function LiveViewPage() {
 
         {/* ── Alerts panel ── */}
         <AlertsPanel
-          onAlertCountUpdate={setAlertCounts}
           onTotalAlertCountChange={setTotalAlertsCount}
           isOpen={alertsPanelOpen}
         />

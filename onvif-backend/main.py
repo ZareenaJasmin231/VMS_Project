@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Request, APIRouter
+from fastapi import FastAPI, HTTPException, Request, APIRouter, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from pydantic import BaseModel
@@ -29,7 +29,6 @@ from ome_service import register_stream
 from maps_router import router as maps_router
 from designer_router import router as designer_router
 
-from monitoring.websocket_manager import manager
 from forensic_api import forensic_router
 
 
@@ -58,7 +57,6 @@ from monitoring.router import router as infrastructure_router
 from monitoring.scheduler import scheduler as infrastructure_scheduler
 from license.license_store import load_license
 from license.license_validator import validate_license
-from fastapi import WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from urllib.parse import urlparse, urlunparse, quote
 
@@ -107,7 +105,7 @@ async def watch_mongo_changes():
             if last_id:
                 query["_id"] = {"$gt": last_id}
 
-            docs = list(watch_collection.find(query).sort("_id", 1))
+            docs = await asyncio.to_thread(lambda: list(watch_collection.find(query).sort("_id", 1)))
 
             for doc in docs:
                 last_id = doc["_id"]
@@ -200,8 +198,8 @@ OME_HOST_IP   = os.environ.get("OME_HOST_IP", "localhost")
 OME_WS_PORT   = os.environ.get("OME_WS_PORT", "3333")
 HOST_IP = os.environ.get("HOST_IP", "127.0.0.1")
 OME_WHIP_BASE = os.environ.get("OME_WHIP_BASE", f"http://{HOST_IP}:3333/app")
-WATCHDOG_INTERVAL      = 5
-WATCHDOG_MAX_RETRIES   = 20
+WATCHDOG_INTERVAL      = 20
+WATCHDOG_MAX_RETRIES   = 3
 WATCHDOG_BACKOFF_RESET = 10
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -557,8 +555,27 @@ def event_playback(ip: str, time: str, request: Request = None, stream: int = 0)
     stream=0 (default): returns JSON with clipUrl
     stream=1: returns video/mp4 bytes directly (used by <video src="...">)
     """
-    import re, tempfile, subprocess, os
+    import re, tempfile, subprocess, os, urllib.parse, json
     from datetime import datetime, timezone, timedelta
+
+    if stream == 0:
+        if request:
+            base_url = str(request.base_url).rstrip("/")
+        else:
+            base_url = "http://192.168.126.200"
+
+        encoded_time = urllib.parse.quote(time)
+        clipUrl = f"{base_url}/api/event-playback/mp4?ip={ip}&time={encoded_time}"
+        print(f"[STREAM=0 INSTANT] Returning clipUrl in 1ms: {clipUrl}")
+        return Response(
+            content=json.dumps({"clipUrl": clipUrl}).encode(),
+            media_type="application/json",
+            headers={
+                "Access-Control-Allow-Origin":  "*",
+                "Access-Control-Allow-Methods": "GET, OPTIONS",
+                "Access-Control-Allow-Headers": "*",
+            },
+        )
 
     CHUNK_SECONDS = 300
 
@@ -840,6 +857,7 @@ def event_playback(ip: str, time: str, request: Request = None, stream: int = 0)
                     {"$set": {
                         "ip":         ip,
                         "time":       time,
+                        "trigger_time": time,
                         "date":       clip_date,
                         "file_path":  clip_enc_path.replace("\\", "/"),
                         "saved_at":   datetime.utcnow(),
@@ -851,6 +869,11 @@ def event_playback(ip: str, time: str, request: Request = None, stream: int = 0)
                 print(f"[CLIP] ⚠ Auto-save failed (non-fatal): {save_err}")
         else:
             print(f"[CLIP] ℹ Clip already exists: {clip_enc_path}")
+
+        # stream=2 → return the path to the extracted mp4 file (does not delete it)
+        if stream == 2:
+            print(f"[STREAM=2] Returning temp file path: {output_path}")
+            return output_path
 
         # ── 10. Return URL or video bytes based on stream param ───────
         # stream=1 → return video bytes directly (for <video src="...">)
@@ -884,34 +907,34 @@ def event_playback(ip: str, time: str, request: Request = None, stream: int = 0)
                 },
             )
 
-        # stream=0 → return JSON with playable URL
-        try:
-            os.remove(output_path)
-        except Exception:
-            pass
-
-        # Dynamically build base URL from the incoming request, fallback to old static IP if request not provided
+        # stream=0 → return JSON with playable URL pointing to the dynamic MP4 endpoint
         if request:
             base_url = str(request.base_url).rstrip("/")
         else:
             base_url = "http://192.168.126.200"
 
         encoded_time = urllib.parse.quote(time)
-        clipUrl = f"{base_url}/api/event-playback/hls/{ip}/{encoded_time}/index.m3u8"
+        clipUrl = f"{base_url}/api/event-playback/mp4?ip={ip}&time={encoded_time}"
 
-        print(f"[STREAM=0] Returning JSON with HLS clipUrl: {clipUrl}")
+        # Clean up the output path file since we are not using it (it will be created fresh on request to /mp4)
+        try:
+            os.remove(output_path)
+        except Exception:
+            pass
+
+        print(f"[STREAM=0] Returning JSON with instant MP4 clipUrl: {clipUrl}")
 
         return Response(
-                    content=json.dumps({
-                        "clipUrl": clipUrl,
-                    }).encode(),
-                    media_type="application/json",
-                    headers={
-                        "Access-Control-Allow-Origin":  "*",
-                        "Access-Control-Allow-Methods": "GET, OPTIONS",
-                        "Access-Control-Allow-Headers": "*",
-                    },
-                )
+            content=json.dumps({
+                "clipUrl": clipUrl,
+            }).encode(),
+            media_type="application/json",
+            headers={
+                "Access-Control-Allow-Origin":  "*",
+                "Access-Control-Allow-Methods": "GET, OPTIONS",
+                "Access-Control-Allow-Headers": "*",
+            },
+        )
     except Exception as e:
         import traceback
         traceback.print_exc()
@@ -921,6 +944,47 @@ def event_playback(ip: str, time: str, request: Request = None, stream: int = 0)
             media_type="application/json",
             headers={"Access-Control-Allow-Origin": "*"},
         )
+
+
+@app.get("/api/event-playback/mp4")
+def event_playback_mp4_endpoint(ip: str, time: str, background_tasks: BackgroundTasks):
+    """
+    Serve the sliced 20-second MP4 file directly to the browser.
+    Caches the sliced MP4 files in a cache folder to make repeat playbacks instant.
+    """
+    import shutil
+
+    ip_clean = ip.strip().replace(".", "_")
+    safe_time = time.replace(":", "-").replace("T", "_").replace(" ", "_")
+
+    cache_dir = os.path.join(recorder.get_recordings_dir(), "playback_cache")
+    os.makedirs(cache_dir, exist_ok=True)
+    cache_file = os.path.join(cache_dir, f"{ip_clean}_{safe_time}.mp4")
+
+    headers = {
+        "Cache-Control": "public, max-age=86400",
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, OPTIONS",
+        "Access-Control-Allow-Headers": "*",
+    }
+
+    if os.path.exists(cache_file) and os.path.getsize(cache_file) > 1000:
+        print(f"[CACHE HIT] Serving pre-sliced MP4 instantly: {cache_file}")
+        return FileResponse(cache_file, media_type="video/mp4", headers=headers)
+
+    print(f"[CACHE MISS] Slicing video for {ip} at {time}...")
+    temp_file_path = event_playback(ip=ip, time=time, stream=2)
+    if isinstance(temp_file_path, Response):
+        return temp_file_path
+
+    try:
+        shutil.copy2(temp_file_path, cache_file)
+        print(f"[CACHE] Sliced MP4 cached successfully: {cache_file}")
+    except Exception as e:
+        print(f"[CACHE ERROR] Failed to cache file: {e}")
+
+    background_tasks.add_task(os.unlink, temp_file_path)
+    return FileResponse(cache_file, media_type="video/mp4", headers=headers)
 
 
 @app.get("/api/event-playback/hls/{ip}/{time_str}/{filename}")
@@ -971,8 +1035,8 @@ def event_playback_hls(ip: str, time_str: str, filename: str):
         hls_dir = os.path.join(recorder.get_recordings_dir(), "hls_playback", ip_folder, alert_local_date, clip_ts)
         hls_file_path = os.path.join(hls_dir, filename)
 
-        # ── 2. Dynamic generation if index.m3u8 or requested file is missing ──
-        if not os.path.exists(hls_file_path) or filename == "index.m3u8":
+        # ── 2. Dynamic generation if requested file is missing ──
+        if not os.path.exists(hls_file_path):
             CHUNK_SECONDS = 300
             
             # Find candidate camera IDs
@@ -1209,11 +1273,11 @@ def event_playback_hls(ip: str, time_str: str, filename: str):
 async def system_health_collector():
     while True:
         try:
-            cpu = psutil.cpu_percent()
-            ram = psutil.virtual_memory().percent
-            disk = psutil.disk_usage('/').percent
+            cpu = await asyncio.to_thread(psutil.cpu_percent)
+            ram = await asyncio.to_thread(lambda: psutil.virtual_memory().percent)
+            disk = await asyncio.to_thread(lambda: psutil.disk_usage('/').percent)
 
-            _db["health_logs"].insert_one({
+            await asyncio.to_thread(_db["health_logs"].insert_one, {
                 "type": "system",
                 "cpu": cpu,
                 "ram": ram,
@@ -1229,206 +1293,22 @@ async def camera_health_collector():
     while True:
         try:
             for cam in devices:
-                _db["health_logs"].insert_one({
+                payload = {
                     "type": "camera",
                     "ip": cam.get("ip"),
                     "status": "online" if cam.get("enabled") else "offline",
                     "timestamp": datetime.utcnow()
-                })
+                }
+                await asyncio.to_thread(_db["health_logs"].insert_one, payload)
         except Exception as e:
             print("[CAM HEALTH ERROR]", e)
 
         await asyncio.sleep(10)            
-@app.websocket("/ws/events")
-async def websocket_events(websocket: WebSocket):
-    try:
-        print("🔥 WS HIT")
-
-        await websocket.accept()
-        connected_clients.append(websocket)
-
-        print(f"✅ WS Connected | Total: {len(connected_clients)}")
-
-        while True:
-            await asyncio.sleep(10)   # ✅ KEEP CONNECTION ALIVE
-
-    except WebSocketDisconnect:
-        print("❌ WS Disconnected")
-
-    except Exception as e:
-        print(f"❌ WS ERROR: {e}")
-
-    finally:
-        if websocket in connected_clients:
-            connected_clients.remove(websocket)
-
 async def broadcast_event(event):
-    dead = []
-
-    for client in connected_clients:
-        try:
-            await client.send_json(event)
-        except Exception:
-            dead.append(client)
-
-    for d in dead:
-        if d in connected_clients:
-            connected_clients.remove(d)
-log_clients = []
-
-@app.websocket("/ws/logs")
-async def websocket_logs(websocket: WebSocket):
-    await websocket.accept()
-    log_clients.append(websocket)
-
-    print(f"📡 Logs WS Connected: {len(log_clients)}")
-
-    try:
-        while True:
-            await asyncio.sleep(10)
-    except WebSocketDisconnect:
-        log_clients.remove(websocket)
-        print("❌ Logs WS Disconnected")
+    pass
 
 async def broadcast_log(log):
-    for client in log_clients:
-        try:
-            await client.send_json(log)
-        except:
-            pass
-
-# ------------------------------------------------------------------
-# WebSocket: Dashboard (replaces 10s polling)
-# ------------------------------------------------------------------
-dashboard_clients = []
-
-@app.websocket("/ws/dashboard")
-async def websocket_dashboard(websocket: WebSocket):
-    await websocket.accept()
-    dashboard_clients.append(websocket)
-    print(f"📊 Dashboard WS Connected: {len(dashboard_clients)}")
-
-    try:
-        while True:
-            try:
-                # Build dashboard payload
-                summary_data = {}
-                camera_health_data = []
-
-                if cameras_col is not None and analytics_col is not None:
-                    total_cameras = cameras_col.count_documents({})
-                    active_streams = cameras_col.count_documents({"enabled": {"$ne": False}})
-                    today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
-                    alarms_today = analytics_col.count_documents({"received_at": {"$gte": today_start}})
-
-                    latest_health = _db["health_logs"].find_one(
-                        {"type": "system"}, sort=[("timestamp", -1)]
-                    )
-                    cpu = latest_health.get("cpu", 0) if latest_health else 0
-                    ram = latest_health.get("ram", 0) if latest_health else 0
-                    disk = latest_health.get("disk", 0) if latest_health else 0
-
-                    alerts = []
-                    if cpu > 85: alerts.append("High CPU Usage")
-                    if ram > 85: alerts.append("High RAM Usage")
-                    if disk > 90: alerts.append("Disk Almost Full")
-
-                    status = "Healthy"
-                    if cpu > 85 or ram > 85 or disk > 90: status = "Critical"
-                    elif cpu > 60 or ram > 60 or disk > 75: status = "Warning"
-
-                    summary_data = {
-                        "total_cameras": total_cameras,
-                        "active_streams": active_streams,
-                        "alarms_today": alarms_today,
-                        "cpu": cpu, "ram": ram, "disk": disk,
-                        "alerts": alerts, "status": status
-                    }
-
-                    # Camera health from camera_health collection
-                    try:
-                        raw_health = list(_db["camera_health"].find({}, {"_id": 0}))
-                        valid_cameras = list(cameras_col.find({}, {"_id": 0, "ip": 1}))
-                        valid_ips = [c["ip"].replace(".", "_") for c in valid_cameras]
-                        camera_health_data = [
-                            d for d in raw_health
-                            if any(ip in d.get("stream", "") for ip in valid_ips)
-                            and "cam0" in d.get("stream", "")
-                        ]
-                    except Exception:
-                        camera_health_data = []
-
-                await websocket.send_json({
-                    "type": "dashboard_update",
-                    "summary": summary_data,
-                    "camera_health": camera_health_data
-                })
-
-            except Exception as e:
-                print(f"[WS Dashboard] Data build error: {e}")
-
-            await asyncio.sleep(5)
-
-    except WebSocketDisconnect:
-        pass
-    except Exception as e:
-        print(f"[WS Dashboard] Error: {e}")
-    finally:
-        if websocket in dashboard_clients:
-            dashboard_clients.remove(websocket)
-        print(f"📊 Dashboard WS Disconnected: {len(dashboard_clients)} remaining")
-
-
-
-@app.websocket("/api/infrastructure/ws")
-async def infrastructure_ws(websocket: WebSocket):
-    await manager.connect(websocket)
-
-    try:
-        while True:
-            await asyncio.sleep(10)
-
-    except WebSocketDisconnect:
-        manager.disconnect(websocket)
-# ------------------------------------------------------------------
-# WebSocket: Backup Status (replaces 3s polling)
-# ------------------------------------------------------------------
-backup_ws_clients = []
-
-@app.websocket("/ws/backup-status")
-async def websocket_backup_status(websocket: WebSocket):
-    await websocket.accept()
-    backup_ws_clients.append(websocket)
-    print(f"💾 Backup WS Connected: {len(backup_ws_clients)}")
-
-    try:
-        while True:
-            try:
-                from backup_service import backup_state, get_storage_usage, get_local_path, is_network_available, auto_watcher_active, NETWORK_BASE_DIR
-                state = dict(backup_state)
-                state["storage_usage"] = get_storage_usage()
-                state["local_path"] = str(get_local_path())
-                state["network_path"] = str(NETWORK_BASE_DIR)
-                state["network_available"] = is_network_available()
-                state["auto_active"] = auto_watcher_active
-
-                await websocket.send_json({
-                    "type": "backup_status",
-                    **state
-                })
-            except Exception as e:
-                print(f"[WS Backup] Error: {e}")
-
-            await asyncio.sleep(2)
-
-    except WebSocketDisconnect:
-        pass
-    except Exception as e:
-        print(f"[WS Backup] Error: {e}")
-    finally:
-        if websocket in backup_ws_clients:
-            backup_ws_clients.remove(websocket)
-        print(f"💾 Backup WS Disconnected: {len(backup_ws_clients)} remaining")
+    pass
 # ------------------------------------------------------------------
 # OME readiness wait
 # ------------------------------------------------------------------
@@ -1482,10 +1362,11 @@ async def stream_watchdog():
                 else:
                     continue
 
-            if not stream_exists_in_ome(stream_name):
+            exists = await asyncio.to_thread(stream_exists_in_ome, stream_name)
+            if not exists:
                 print(f"[WATCHDOG] ⚠️  Stream {stream_name} is down — re-registering...")
                 try:
-                    result      = register_stream(stream_name, rtsp_url)
+                    result      = await asyncio.to_thread(register_stream, stream_name, rtsp_url)
                     status_code = result.get("statusCode", 0) if isinstance(result, dict) else 0
                     if status_code in (200, 201):
                         print(f"[WATCHDOG] ✅ Re-registered {stream_name}")
@@ -1497,6 +1378,7 @@ async def stream_watchdog():
                     else:
                         _watchdog_failures[stream_name] = fail_count + 1
                         print(f"[WATCHDOG] ❌ Re-register failed for {stream_name}: {result}")
+                        await asyncio.sleep(10)
                         if _watchdog_failures[stream_name] >= WATCHDOG_MAX_RETRIES:
                             print(f"[WATCHDOG] 🚫 Giving up on {stream_name}")
                 except Exception as e:
@@ -3270,9 +3152,8 @@ async def manual_save_clip(request: Request):
 
         clip_enc_path = os.path.join(clip_dir, f"{ip_folder}_{clip_ts}.enc")
 
-        # Call event_playback internally to get the raw mp4 bytes
-        # We do this by calling the function directly
-        resp = event_playback(ip=ip, time=time_str)
+        # Call event_playback internally with stream=1 to get the raw mp4 bytes
+        resp = event_playback(ip=ip, time=time_str, stream=1)
 
         if resp.status_code != 200:
             raise HTTPException(status_code=404, detail="Recording not found for this alert")
@@ -3289,6 +3170,7 @@ async def manual_save_clip(request: Request):
             {"$set": {
                 "ip":         ip,
                 "time":       time_str,
+                "trigger_time": time_str,
                 "date":       clip_date,
                 "file_path":  clip_enc_path.replace("\\", "/"),
                 "saved_at":   dt.utcnow(),
