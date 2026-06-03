@@ -829,46 +829,46 @@ def event_playback(ip: str, time: str, request: Request = None, stream: int = 0)
                 headers={"Access-Control-Allow-Origin": "*"},
             )
 
-        # ── 9. Save clip as encrypted .enc ────────────────────────────
-        event_clips_col = _db["event_clips"]
-
-        clips_base    = os.path.join(recorder.get_recordings_dir(), "event_clips")
-        ip_folder     = ip.strip().replace(".", "_")
-        clip_date     = alert_local_date
-        clip_ts       = alert_dt.strftime("%H-%M-%S")
-        clip_dir      = os.path.join(clips_base, ip_folder, clip_date)
-        os.makedirs(clip_dir, exist_ok=True)
-
-        clip_filename = f"{ip_folder}_{clip_ts}.enc"
-        clip_enc_path = os.path.join(clip_dir, clip_filename)
-
-        already_saved = os.path.exists(clip_enc_path)
-        if not already_saved:
-            try:
-                with open(output_path, "rb") as f:
-                    raw_mp4 = f.read()
-                encrypted_clip = encrypt_service._aes_encrypt(raw_mp4)
-                with open(clip_enc_path, "wb") as f:
-                    f.write(encrypted_clip)
-                print(f"[CLIP] ✅ Saved encrypted clip: {clip_enc_path}")
-
-                event_clips_col.update_one(
-                    {"ip": ip, "time": time},
-                    {"$set": {
-                        "ip":         ip,
-                        "time":       time,
-                        "trigger_time": time,
-                        "date":       clip_date,
-                        "file_path":  clip_enc_path.replace("\\", "/"),
-                        "saved_at":   datetime.utcnow(),
-                        "size_bytes": os.path.getsize(clip_enc_path),
-                    }},
-                    upsert=True
-                )
-            except Exception as save_err:
-                print(f"[CLIP] ⚠ Auto-save failed (non-fatal): {save_err}")
-        else:
-            print(f"[CLIP] ℹ Clip already exists: {clip_enc_path}")
+        # ── 9. Save clip as encrypted .enc (Commented out - do not auto-save on view) ──
+        # event_clips_col = _db["event_clips"]
+        # 
+        # clips_base    = os.path.join(recorder.get_recordings_dir(), "event_clips")
+        # ip_folder     = ip.strip().replace(".", "_")
+        # clip_date     = alert_local_date
+        # clip_ts       = alert_dt.strftime("%H-%M-%S")
+        # clip_dir      = os.path.join(clips_base, ip_folder, clip_date)
+        # os.makedirs(clip_dir, exist_ok=True)
+        # 
+        # clip_filename = f"{ip_folder}_{clip_ts}.enc"
+        # clip_enc_path = os.path.join(clip_dir, clip_filename)
+        # 
+        # already_saved = os.path.exists(clip_enc_path)
+        # if not already_saved:
+        #     try:
+        #         with open(output_path, "rb") as f:
+        #             raw_mp4 = f.read()
+        #         encrypted_clip = encrypt_service._aes_encrypt(raw_mp4)
+        #         with open(clip_enc_path, "wb") as f:
+        #             f.write(encrypted_clip)
+        #         print(f"[CLIP] ✅ Saved encrypted clip: {clip_enc_path}")
+        # 
+        #         event_clips_col.update_one(
+        #             {"ip": ip, "time": time},
+        #             {"$set": {
+        #                 "ip":         ip,
+        #                 "time":       time,
+        #                 "trigger_time": time,
+        #                 "date":       clip_date,
+        #                 "file_path":  clip_enc_path.replace("\\", "/"),
+        #                 "saved_at":   datetime.utcnow(),
+        #                 "size_bytes": os.path.getsize(clip_enc_path),
+        #             }},
+        #             upsert=True
+        #         )
+        #     except Exception as save_err:
+        #         print(f"[CLIP] ⚠ Auto-save failed (non-fatal): {save_err}")
+        # else:
+        #     print(f"[CLIP] ℹ Clip already exists: {clip_enc_path}")
 
         # stream=2 → return the path to the extracted mp4 file (does not delete it)
         if stream == 2:
@@ -957,34 +957,34 @@ def event_playback_mp4_endpoint(ip: str, time: str, background_tasks: Background
     ip_clean = ip.strip().replace(".", "_")
     safe_time = time.replace(":", "-").replace("T", "_").replace(" ", "_")
 
-    cache_dir = os.path.join(recorder.get_recordings_dir(), "playback_cache")
-    os.makedirs(cache_dir, exist_ok=True)
-    cache_file = os.path.join(cache_dir, f"{ip_clean}_{safe_time}.mp4")
+    # cache_dir = os.path.join(recorder.get_recordings_dir(), "playback_cache")
+    # os.makedirs(cache_dir, exist_ok=True)
+    # cache_file = os.path.join(cache_dir, f"{ip_clean}_{safe_time}.mp4")
 
     headers = {
-        "Cache-Control": "public, max-age=86400",
+        "Cache-Control": "no-store",
         "Access-Control-Allow-Origin": "*",
         "Access-Control-Allow-Methods": "GET, OPTIONS",
         "Access-Control-Allow-Headers": "*",
     }
 
-    if os.path.exists(cache_file) and os.path.getsize(cache_file) > 1000:
-        print(f"[CACHE HIT] Serving pre-sliced MP4 instantly: {cache_file}")
-        return FileResponse(cache_file, media_type="video/mp4", headers=headers)
+    # if os.path.exists(cache_file) and os.path.getsize(cache_file) > 1000:
+    #     print(f"[CACHE HIT] Serving pre-sliced MP4 instantly: {cache_file}")
+    #     return FileResponse(cache_file, media_type="video/mp4", headers=headers)
 
-    print(f"[CACHE MISS] Slicing video for {ip} at {time}...")
+    print(f"[CACHE BYPASSED] Slicing video for {ip} at {time}...")
     temp_file_path = event_playback(ip=ip, time=time, stream=2)
     if isinstance(temp_file_path, Response):
         return temp_file_path
 
-    try:
-        shutil.copy2(temp_file_path, cache_file)
-        print(f"[CACHE] Sliced MP4 cached successfully: {cache_file}")
-    except Exception as e:
-        print(f"[CACHE ERROR] Failed to cache file: {e}")
+    # try:
+    #     shutil.copy2(temp_file_path, cache_file)
+    #     print(f"[CACHE] Sliced MP4 cached successfully: {cache_file}")
+    # except Exception as e:
+    #     print(f"[CACHE ERROR] Failed to cache file: {e}")
 
     background_tasks.add_task(os.unlink, temp_file_path)
-    return FileResponse(cache_file, media_type="video/mp4", headers=headers)
+    return FileResponse(temp_file_path, media_type="video/mp4", headers=headers)
 
 
 @app.get("/api/event-playback/hls/{ip}/{time_str}/{filename}")

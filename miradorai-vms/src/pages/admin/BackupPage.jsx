@@ -7,8 +7,8 @@ import {
 } from 'react-icons/fa';
 import './BackupPage.css';
 
-const API     = "http://localhost:8000/api/backup";
-const CAM_API = "http://localhost:8000/api/cameras";
+const API     = "http://localhost:80/api/backup";
+const CAM_API = "http://localhost:80/api/cameras";
 
 // ── Destination options ───────────────────────────────────────────────────────
 const DEST_OPTIONS = [
@@ -35,7 +35,7 @@ const SectionCard = ({ icon, title, enabled, onToggle, badge, children }) => (
   <div className="backup-section-card">
     <div className="card-header">
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1 }}>
-        <span style={{ color: 'var(--teal)', fontSize: 18 }}>{icon}</span>
+        <span style={{ color: 'var(--teal)', fontSize: 22 }}>{icon}</span>
         <h2>{title}</h2>
         {badge && <span className="card-badge">{badge}</span>}
       </div>
@@ -62,10 +62,10 @@ const DestinationModal = ({ onConfirm, onCancel }) => {
   return (
     <div className="modal-overlay">
       <div className="modal-content">
-        <h2 style={{ fontSize: 18, fontWeight: 700, margin: '0 0 8px' }}>
+        <h2 style={{ fontSize: 22, fontWeight: 700, margin: '0 0 8px' }}>
           Select Destination
         </h2>
-        <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '0 0 20px' }}>
+        <p style={{ fontSize: 17, color: 'var(--text-secondary)', margin: '0 0 20px' }}>
           Choose where to save the recordings (.enc + .meta files).
         </p>
 
@@ -84,7 +84,7 @@ const DestinationModal = ({ onConfirm, onCancel }) => {
 
         {selected === 'custom' && (
           <div style={{ marginBottom: 20 }}>
-            <label style={{ fontSize: 12, color: 'var(--text-secondary)', display: 'block', marginBottom: 6 }}>
+            <label style={{ fontSize: 16, color: 'var(--text-secondary)', display: 'block', marginBottom: 6 }}>
               Custom Path (e.g. E:\Backup or \\server\share)
             </label>
             <input
@@ -136,8 +136,29 @@ export default function BackupPage() {
     cameras: [], start_date: '', end_date: '', format: 'ENC'
   });
 
-  const [retention, setRetention]               = useState({ days: 7, cameras: [] });
+  const [groups, setGroups] = useState(() => {
+    try {
+      const saved = localStorage.getItem("miradorai_groups");
+      return saved ? JSON.parse(saved) : [];
+    } catch { return []; }
+  });
+
+  const [devices, setDevices] = useState(() => {
+    try {
+      const saved = localStorage.getItem("miradorai_devices");
+      return saved ? JSON.parse(saved) : [];
+    } catch { return []; }
+  });
+
+  const [defaultRetention, setDefaultRetention] = useState(() => {
+    try {
+      const saved = localStorage.getItem("miradorai_default_retention");
+      return saved ? parseInt(saved, 10) : 5;
+    } catch { return 5; }
+  });
+
   const [retentionPreview, setRetentionPreview] = useState(null);
+  const [retentionAlert, setRetentionAlert] = useState(null);
 
   const [restore, setRestore]       = useState({
     cameras: [], start_date: '', end_date: '', use_smart_restore: false
@@ -182,28 +203,23 @@ export default function BackupPage() {
             setNetworkSaved(!!cfg.network.path);
           }
           if (cfg.auto)           setAutoEnabled(cfg.auto.enabled ?? false);
-          if (cfg.retention_days) setRetention(r => ({ ...r, days: cfg.retention_days }));
+          if (cfg.retention_days) setDefaultRetention(cfg.retention_days);
         }
       } catch { notify('error', 'Connection failed.'); }
     };
     init();
 
-    let ws;
-    let reconnectTimer;
-
-    const connect = () => {
-      ws = new WebSocket(`${import.meta.env.VITE_WS_URL}/ws/backup-status`);
-      ws.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          if (data.type === "backup_status") setStatus(data);
-        } catch {}
-      };
-      ws.onclose = () => { reconnectTimer = setTimeout(connect, 5000); };
-      ws.onerror = () => ws.close();
+    const fetchStatus = async () => {
+      try {
+        const res = await fetch(`${API}/status`);
+        if (res.ok) {
+          const data = await res.json();
+          setStatus(data);
+        }
+      } catch {}
     };
-
-    connect();
+    fetchStatus();
+    const statusPoll = setInterval(fetchStatus, 3000);
 
     const logPoll = setInterval(async () => {
       try {
@@ -213,9 +229,8 @@ export default function BackupPage() {
     }, 10000);
 
     return () => {
-      clearTimeout(reconnectTimer);
+      clearInterval(statusPoll);
       clearInterval(logPoll);
-      if (ws) ws.close();
     };
   }, []);
 
@@ -281,11 +296,112 @@ export default function BackupPage() {
     finally { setLoad('manual', false); }
   };
 
+  const updateGroupRetention = (groupId, days) => {
+    setRetentionPreview(null);
+    setRetentionAlert(null);
+    if (groupId === 'default') {
+      setDefaultRetention(days);
+      localStorage.setItem('miradorai_default_retention', days.toString());
+    } else {
+      const updated = groups.map(g => g.id === groupId ? { ...g, retention_days: days } : g);
+      setGroups(updated);
+      localStorage.setItem('miradorai_groups', JSON.stringify(updated));
+    }
+    // Updated silently, wait for "Apply" button to save and notify
+  };
+
+  const handleApplyRetention = async () => {
+    if (!networkSaved) return notify('error', 'Save network first.');
+    setLoad('saveRetain', true);
+    setRetentionAlert(null);
+    const cameraConfigs = getCameraConfigs();
+    try {
+      // Step 1: Save retention rules to backend config
+      const saveRes = await fetch(`${API}/retention/save`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          retention_days: defaultRetention,
+          camera_configs: cameraConfigs,
+          retention_enabled: true // Always treat it as enabled when applying
+        })
+      });
+      
+      if (!saveRes.ok) {
+        const errData = await saveRes.json();
+        notify('error', errData.message || 'Failed to save retention rules.');
+        setLoad('saveRetain', false);
+        return;
+      }
+
+      // Step 2: Immediately execute deletion purge sweep
+      const enforceRes = await fetch(`${API}/retention/enforce`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          retention_days: defaultRetention,
+          camera_configs: cameraConfigs
+        })
+      });
+      const d = await enforceRes.json();
+      if (enforceRes.ok && d.status !== 'error') {
+        notify('success', d.message);
+        setRetentionPreview(null);
+      } else {
+        const errMsg = d.message || 'Retention cannot happen as some files are not stored in the backup.';
+        notify('error', errMsg);
+        setRetentionAlert({
+          message: errMsg,
+          missing: d.missing_files || []
+        });
+      }
+    } catch {
+      notify('error', 'Failed to apply retention rules.');
+    } finally {
+      setLoad('saveRetain', false);
+    }
+  };
+
+  const getCameraConfigs = () => {
+    return cameras.map(cam => {
+      const matchedDevice = devices.find(d => d.ip === cam.ip || d.name === cam.name);
+      const groupId = matchedDevice?.group_id || 'default';
+      let days = defaultRetention;
+      
+      if (matchedDevice && matchedDevice.retention_days !== undefined && matchedDevice.retention_days !== "inherit") {
+        days = parseInt(matchedDevice.retention_days, 10);
+      } else if (groupId !== 'default') {
+        const groupObj = groups.find(g => g.id === groupId);
+        if (groupObj && groupObj.retention_days !== undefined) {
+          days = parseInt(groupObj.retention_days, 10);
+        }
+      }
+      
+      return { ip: cam.ip, days };
+    });
+  };
+
   const handleRetentionPreview = async () => {
     setLoad('retPrev', true);
+    setRetentionAlert(null);
+    const cameraConfigs = getCameraConfigs();
     try {
-      const res = await fetch(`${API}/retention/preview?days=${retention.days}`);
-      setRetentionPreview(await res.json());
+      const res = await fetch(`${API}/retention/preview`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          retention_days: defaultRetention,
+          camera_configs: cameraConfigs
+        })
+      });
+      const data = await res.json();
+      setRetentionPreview(data);
+      if (data.missing_in_backup_count > 0) {
+        setRetentionAlert({
+          message: `Retention cannot happen for all files because ${data.missing_in_backup_count} file(s) are not stored in the network backup.`,
+          missing: data.missing_files || []
+        });
+      }
     } catch { notify('error', 'Preview failed.'); }
     finally { setLoad('retPrev', false); }
   };
@@ -293,14 +409,29 @@ export default function BackupPage() {
   const handleRetentionEnforce = async () => {
     if (!networkSaved) return notify('error', 'Save network first.');
     setLoad('retain', true);
+    setRetentionAlert(null);
+    const cameraConfigs = getCameraConfigs();
     try {
       const res = await fetch(`${API}/retention/enforce`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ retention_days: retention.days, cameras: retention.cameras })
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          retention_days: defaultRetention,
+          camera_configs: cameraConfigs
+        })
       });
       const d = await res.json();
-      res.ok ? notify('success', d.message) : notify('error', d.detail);
-      setRetentionPreview(null);
+      if (res.ok && d.status !== 'error') {
+        notify('success', d.message);
+        setRetentionPreview(null);
+      } else {
+        const errMsg = d.message || 'Retention cannot happen as some files are not stored in the backup.';
+        notify('error', errMsg);
+        setRetentionAlert({
+          message: errMsg,
+          missing: d.missing_files || []
+        });
+      }
     } catch { notify('error', 'Failed.'); }
     finally { setLoad('retain', false); }
   };
@@ -468,38 +599,124 @@ export default function BackupPage() {
           {/* 4. Retention */}
           <SectionCard icon={<FaHistory />} title="Retention Policy">
             <div className="input-group">
-            <label>Apply to Cameras</label>
-            <div className="camera-selector">
-              {cameras.map(c => (
-                <div key={c.id} className="cam-item">
-                  <input type="checkbox" checked={retention.cameras.includes(c.ip)} onChange={() => toggleCamera(setRetention, c.ip)} />
-                  <span>{c.name || c.ip}</span>
-                </div>
-              ))}
+              <label style={{ fontSize: '17px', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '8px' }}>
+                Group-Level Retention Rules
+              </label>
+              
+              <div className="group-retention-table-wrap">
+                <table className="group-retention-table">
+                  <thead>
+                    <tr>
+                      <th>Camera Group</th>
+                      <th style={{ textAlign: 'center' }}>Active Cameras</th>
+                      <th style={{ textAlign: 'right' }}>Retention Period</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {/* Default Group Row */}
+                    <tr>
+                      <td style={{ fontWeight: 600 }}>Default / Unassigned</td>
+                      <td style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
+                        {devices.filter(d => !d.group_id || d.group_id === 'default').length} cams
+                      </td>
+                      <td style={{ textAlign: 'right' }}>
+                        <select 
+                          className="backup-select" 
+                          style={{ width: '130px', display: 'inline-block', fontSize: '16px', padding: '4px 8px' }}
+                          value={defaultRetention} 
+                          onChange={e => updateGroupRetention('default', parseInt(e.target.value, 10))}
+                        >
+                          <option value={5}>5 Days</option>
+                          <option value={10}>10 Days</option>
+                          <option value={15}>15 Days</option>
+                          <option value={30}>30 Days</option>
+                          <option value={60}>60 Days</option>
+                          <option value={120}>120 Days</option>
+                        </select>
+                      </td>
+                    </tr>
+                    
+                    {/* Custom User Groups */}
+                    {groups.map(g => {
+                      const camCount = devices.filter(d => d.group_id === g.id).length;
+                      return (
+                        <tr key={g.id}>
+                          <td style={{ fontWeight: 600 }}>{g.name}</td>
+                          <td style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
+                            {camCount} cam{camCount !== 1 ? 's' : ''}
+                          </td>
+                          <td style={{ textAlign: 'right' }}>
+                            <select 
+                              className="backup-select" 
+                              style={{ width: '130px', display: 'inline-block', fontSize: '16px', padding: '4px 8px' }}
+                              value={g.retention_days ?? 5} 
+                              onChange={e => updateGroupRetention(g.id, parseInt(e.target.value, 10))}
+                            >
+                              <option value={5}>5 Days</option>
+                              <option value={10}>10 Days</option>
+                              <option value={15}>15 Days</option>
+                              <option value={30}>30 Days</option>
+                              <option value={60}>60 Days</option>
+                              <option value={120}>120 Days</option>
+                            </select>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </div>
-          </div>
-          <div className="input-group">
-            <label>Local Retention Period</label>
-            <div style={{ display: 'flex', gap: 8 }}>
-              {[7, 30, 90].map(d => (
-                <button 
-                  key={d} 
-                  onClick={() => setRetention(r => ({ ...r, days: d }))} 
-                  className={`btn-secondary ${retention.days === d ? 'active' : ''}`}
-                  style={retention.days === d ? { borderColor: 'var(--teal)', color: 'var(--teal)' } : {}}
-                >
-                  {d} Days
-                </button>
-              ))}
-            </div>
-          </div>
+
+            {retentionPreview && (
+              <div className="help-box success" style={{ marginTop: 14, background: 'rgba(20, 184, 166, 0.08)', borderColor: 'var(--teal)' }}>
+                <strong style={{ color: 'var(--teal)' }}>Preview Results:</strong> {retentionPreview.count} file(s) found exceeding group retention periods.
+                {retentionPreview.count > 0 && (
+                  <ul style={{ margin: '8px 0 0 16px', padding: 0, fontSize: '15px', color: 'var(--text-secondary)' }}>
+                    {retentionPreview.files.map((f, idx) => (
+                      <li key={idx} style={{ marginBottom: '4px' }}>
+                        {f.file} ({f.camera}) - Modified: {f.modified}
+                        {f.backed_up ? (
+                          <span style={{ color: 'var(--teal)', marginLeft: 8, fontWeight: 600 }}>✓ Verified in Backup</span>
+                        ) : (
+                          <span style={{ color: 'var(--red)', marginLeft: 8, fontWeight: 600 }}>⚠️ Missing from Backup</span>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
+
+            {retentionAlert && (
+              <div className="help-box error" style={{ marginTop: 14, background: 'rgba(239, 68, 68, 0.08)', borderColor: 'var(--red)' }}>
+                <strong style={{ color: 'var(--red)', display: 'block', marginBottom: '4px' }}>⚠️ Retention Halted:</strong>
+                <span style={{ fontSize: '16px', color: 'var(--text-secondary)' }}>{retentionAlert.message}</span>
+                {retentionAlert.missing && retentionAlert.missing.length > 0 && (
+                  <div style={{ marginTop: 8 }}>
+                    <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '4px' }}>Files missing from network backup:</div>
+                    <ul style={{ margin: '0 0 0 16px', padding: 0, fontSize: '15px', color: 'var(--text-secondary)' }}>
+                      {retentionAlert.missing.map((f, idx) => (
+                        <li key={idx} style={{ color: 'var(--text-secondary)' }}>{f}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Commented out as requested: Preview Purge & Enforce Now are no longer needed
             <div style={{ display: 'flex', gap: 12, marginTop: 20 }}>
-              <button className="btn-secondary" onClick={handleRetentionPreview} disabled={loading.retPrev}>Preview</button>
+              <button className="btn-secondary" onClick={handleRetentionPreview} disabled={loading.retPrev}>Preview Purge</button>
               <button className="btn-primary" onClick={handleRetentionEnforce} disabled={loading.retain}>Enforce Now</button>
+            </div>
+            */}
+            <div style={{ display: 'flex', gap: 12, marginTop: 20 }}>
+              <button className="btn-primary" onClick={handleApplyRetention} disabled={loading.saveRetain}>Apply Retention Rules</button>
             </div>
           </SectionCard>
 
-          {/* 5. Restore */}
+          {/* 5. Restore
           <SectionCard icon={<FaDownload />} title="Data Recovery">
             <div className="input-group">
               <label>Restore From Cameras</label>
@@ -526,6 +743,7 @@ export default function BackupPage() {
               Start Restoration
             </button>
           </SectionCard>
+          */}
         </div>
       </div>
 

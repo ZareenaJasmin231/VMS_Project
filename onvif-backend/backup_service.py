@@ -34,6 +34,7 @@ backup_state = {
 }
 auto_watcher_active   = False
 _auto_backup_task: Optional[asyncio.Task] = None
+_auto_retention_task: Optional[asyncio.Task] = None
 
 # ── Config helpers ────────────────────────────────────────────────────────────
 def load_config() -> dict:
@@ -47,6 +48,7 @@ def load_config() -> dict:
                            "username": "", "password": "", "path": ""},
         "auto":           {"enabled": False},
         "retention_days": 7,
+        "retention_enabled": False,
     }
 
 def save_config(data: dict):
@@ -185,8 +187,14 @@ class ManualBackupRequest(BaseModel):
     format:           str = "ENC"
     destination_path: str = ""   # D:\, C:\, Z:\, custom path — empty = NETWORK_BASE_DIR
 
+class CameraRetentionItem(BaseModel):
+    ip: str
+    days: int
+
 class RetentionRequest(BaseModel):
-    retention_days: int = 7
+    retention_days: Optional[int] = 7
+    camera_configs: Optional[list[CameraRetentionItem]] = None
+    retention_enabled: Optional[bool] = None
 
 class RestoreRequest(BaseModel):
     cameras:           list[str]
@@ -242,8 +250,92 @@ async def auto_backup_polling():
     print("[AutoBackup] ⏹ Polling stopped")
 
 
+async def auto_retention_polling():
+    """
+    Background worker that runs a retention sweep every 60 seconds.
+    Reads current camera and group retention settings from backup_config.json.
+    """
+    print("[AutoRetention] ▶ Automatic retention service active")
+    while auto_watcher_active:
+        try:
+            cfg = load_config()
+            if not cfg.get("retention_enabled", False):
+                await asyncio.sleep(5)
+                continue
+
+            if is_network_available():
+                retention_days = cfg.get("retention_days", 7)
+                camera_configs = cfg.get("camera_configs", [])
+
+                camera_map = {}
+                for item in camera_configs:
+                    norm_ip = item.get("ip", "").replace(".", "_")
+                    if norm_ip:
+                        camera_map[norm_ip] = item.get("days", retention_days)
+
+                local = get_local_path()
+                moved, failed = 0, 0
+
+                for f in local.rglob("*"):
+                    if not f.is_file() or f.suffix.lower() not in RECORDING_EXTENSIONS:
+                        continue
+                    
+                    parts = f.parts
+                    camera_folder = parts[-3] if len(parts) >= 3 else "unknown"
+
+                    days = retention_days
+                    if camera_folder in camera_map:
+                        days = camera_map[camera_folder]
+                    elif camera_folder != "unknown":
+                        for norm_ip, c_days in camera_map.items():
+                            if norm_ip in camera_folder:
+                                days = c_days
+                                break
+
+                    cutoff = datetime.now() - timedelta(minutes=days)
+                    if datetime.fromtimestamp(f.stat().st_mtime) < cutoff:
+                        # Safety pre-check: Is the file already backed up on network?
+                        backed_up = False
+                        try:
+                            rel = f.relative_to(local)
+                            dest = NETWORK_BASE_DIR / rel
+                            backed_up = dest.is_file()
+                        except Exception:
+                            pass
+
+                        if backed_up:
+                            f.unlink()
+                            moved += 1
+                        else:
+                            # Not in backup yet. Try to back it up first, and only delete if successful!
+                            if copy_file_to_network(f):
+                                f.unlink()
+                                moved += 1
+                            else:
+                                failed += 1
+
+                if moved > 0:
+                    print(f"[AutoRetention] Swept and archived {moved} expired recording(s) locally.")
+                    append_log(
+                        f"Auto-Retention (Sweep) — automatically archived and purged {moved} expired file(s) locally.",
+                        "Success" if failed == 0 else "Warning"
+                    )
+        except Exception as e:
+            print(f"[AutoRetention] Automated retention loop error: {e}")
+
+        # Sleep for 60 seconds between sweeps with high-responsiveness interrupt
+        for _ in range(60):
+            if not auto_watcher_active:
+                break
+            if not load_config().get("retention_enabled", False):
+                break
+            await asyncio.sleep(1)
+
+    print("[AutoRetention] ⏹ Automatic retention service stopped")
+
+
 def start_auto_watcher():
-    global auto_watcher_active, _auto_backup_task
+    global auto_watcher_active, _auto_backup_task, _auto_retention_task
     if auto_watcher_active:
         return
     if not is_network_available():
@@ -251,17 +343,21 @@ def start_auto_watcher():
         return
     auto_watcher_active = True
     _auto_backup_task = asyncio.create_task(auto_backup_polling())
+    _auto_retention_task = asyncio.create_task(auto_retention_polling())
     asyncio.create_task(_agent("/start"))
     print(f"[AutoBackup] ✓ Watching: {get_local_path()} → {NETWORK_BASE_DIR}")
-    append_log("Auto backup polling started", "Info")
+    append_log("Auto backup & retention polling started", "Info")
 
 
 def stop_auto_watcher():
-    global auto_watcher_active, _auto_backup_task
+    global auto_watcher_active, _auto_backup_task, _auto_retention_task
     auto_watcher_active = False
     if _auto_backup_task and not _auto_backup_task.done():
         _auto_backup_task.cancel()
+    if _auto_retention_task and not _auto_retention_task.done():
+        _auto_retention_task.cancel()
     _auto_backup_task = None
+    _auto_retention_task = None
     asyncio.create_task(_agent("/stop"))
     append_log("Auto backup stopped", "Info")
 
@@ -477,7 +573,7 @@ async def start_manual_backup(req: ManualBackupRequest, background_tasks: Backgr
 # ── Retention ─────────────────────────────────────────────────────────────────
 @backup_router.get("/retention/preview")
 async def preview_retention(days: int = 7):
-    cutoff = datetime.now() - timedelta(days=days)
+    cutoff = datetime.now() - timedelta(minutes=days)
     local  = get_local_path()
     files  = []
     try:
@@ -498,38 +594,181 @@ async def preview_retention(days: int = 7):
     return {"count": len(files), "files": files[:20]}
 
 
-@backup_router.post("/retention/enforce")
-async def enforce_retention(req: RetentionRequest):
-    if not is_network_available():
-        raise HTTPException(status_code=400, detail="Network storage not accessible.")
-    cutoff        = datetime.now() - timedelta(days=req.retention_days)
-    local         = get_local_path()
-    moved, failed = 0, 0
+@backup_router.post("/retention/preview")
+async def preview_retention_post(req: RetentionRequest):
+    camera_map = {}
+    if req.camera_configs:
+        for item in req.camera_configs:
+            norm_ip = item.ip.replace(".", "_")
+            camera_map[norm_ip] = item.days
+
+    local = get_local_path()
+    files = []
+    missing_in_backup_count = 0
+    missing_files = []
     try:
         for f in local.rglob("*"):
             if not f.is_file() or f.suffix.lower() not in RECORDING_EXTENSIONS:
                 continue
+            
+            parts = f.parts
+            camera_folder = parts[-3] if len(parts) >= 3 else "unknown"
+            
+            days = req.retention_days
+            if camera_folder in camera_map:
+                days = camera_map[camera_folder]
+            elif camera_folder != "unknown":
+                for norm_ip, c_days in camera_map.items():
+                    if norm_ip in camera_folder:
+                        days = c_days
+                        break
+            
+            cutoff = datetime.now() - timedelta(minutes=days)
+            mtime = datetime.fromtimestamp(f.stat().st_mtime)
+            if mtime < cutoff:
+                # Check if it exists in the network backup
+                backed_up = False
+                try:
+                    rel = f.relative_to(local)
+                    dest = NETWORK_BASE_DIR / rel
+                    backed_up = dest.is_file()
+                except Exception:
+                    pass
+
+                files.append({
+                    "file":     f.name,
+                    "camera":   camera_folder,
+                    "modified": mtime.strftime("%Y-%m-%d %H:%M"),
+                    "backed_up": backed_up
+                })
+                if not backed_up:
+                    missing_in_backup_count += 1
+                    missing_files.append(f"{camera_folder}/{f.name}")
+    except Exception as e:
+        print(f"[BACKUP] Preview error: {e}")
+    return {
+        "count": len(files),
+        "files": files[:20],
+        "missing_in_backup_count": missing_in_backup_count,
+        "missing_files": missing_files[:10]
+    }
+
+
+@backup_router.post("/retention/enforce")
+async def enforce_retention(req: RetentionRequest):
+    if not is_network_available():
+        raise HTTPException(status_code=400, detail="Network storage not accessible.")
+    
+    camera_map = {}
+    if req.camera_configs:
+        for item in req.camera_configs:
+            norm_ip = item.ip.replace(".", "_")
+            camera_map[norm_ip] = item.days
+
+    local = get_local_path()
+    expired_files = []
+    missing_files = []
+    
+    try:
+        for f in local.rglob("*"):
+            if not f.is_file() or f.suffix.lower() not in RECORDING_EXTENSIONS:
+                continue
+            
+            parts = f.parts
+            camera_folder = parts[-3] if len(parts) >= 3 else "unknown"
+            
+            days = req.retention_days
+            if camera_folder in camera_map:
+                days = camera_map[camera_folder]
+            elif camera_folder != "unknown":
+                for norm_ip, c_days in camera_map.items():
+                    if norm_ip in camera_folder:
+                        days = c_days
+                        break
+
+            cutoff = datetime.now() - timedelta(minutes=days)
             if datetime.fromtimestamp(f.stat().st_mtime) < cutoff:
-                if copy_file_to_network(f):
+                # Check if it exists in the network backup
+                backed_up = False
+                try:
+                    rel = f.relative_to(local)
+                    dest = NETWORK_BASE_DIR / rel
+                    backed_up = dest.is_file()
+                except Exception:
+                    pass
+                
+                expired_files.append(f)
+                if not backed_up:
+                    missing_files.append(f"{camera_folder}/{f.name}")
+    except Exception as e:
+        print(f"[BACKUP] Scan error: {e}")
+
+    # Safety Halt: If any expired files are NOT stored in the backup, cancel retention!
+    if missing_files:
+        append_log(
+            f"Retention halted — {len(missing_files)} file(s) are missing from network backup.",
+            "Error"
+        )
+        return {
+            "status": "error",
+            "error_type": "missing_backups",
+            "message": "Retention cannot happen as some files are not stored in the backup.",
+            "missing_files": missing_files[:10]
+        }
+
+    # Second Pass: Safely purge the local recordings (since they are fully backed up)
+    moved = 0
+    failed = 0
+    try:
+        for f in expired_files:
+            try:
+                # Double-check existence in backup one last time before unlinking
+                rel = f.relative_to(local)
+                dest = NETWORK_BASE_DIR / rel
+                if dest.is_file():
                     f.unlink()
                     moved += 1
                 else:
                     failed += 1
+            except Exception:
+                failed += 1
     except Exception as e:
-        print(f"[BACKUP] Retention error: {e}")
+        print(f"[BACKUP] Purge error: {e}")
 
     cfg = load_config()
     cfg["retention_days"] = req.retention_days
+    if req.camera_configs:
+        cfg["camera_configs"] = [item.dict() for item in req.camera_configs]
     save_config(cfg)
+    
     append_log(
-        f"Retention ({req.retention_days}d) — moved {moved}, failed {failed}",
+        f"Retention enforced — local files purged: {moved}, failed: {failed}",
         "Success" if failed == 0 else "Warning",
     )
     return {
         "status":  "success",
         "moved":   moved,
         "failed":  failed,
-        "message": f"Moved {moved} file(s) older than {req.retention_days} days to network.",
+        "message": f"Enforced retention rules successfully. Purged {moved} expired file(s) already verified in network storage.",
+    }
+
+
+@backup_router.post("/retention/save")
+async def save_retention_settings(req: RetentionRequest):
+    cfg = load_config()
+    if req.retention_days is not None:
+        cfg["retention_days"] = req.retention_days
+    if req.camera_configs is not None:
+        cfg["camera_configs"] = [item.dict() for item in req.camera_configs]
+    if req.retention_enabled is not None:
+        cfg["retention_enabled"] = req.retention_enabled
+    save_config(cfg)
+    
+    status_msg = "enabled" if cfg.get("retention_enabled", False) else "disabled"
+    append_log(f"Retention configuration updated (Enabled: {status_msg})", "Info")
+    return {
+        "status": "success",
+        "message": f"Retention settings saved successfully. Background sweep is {status_msg}."
     }
 
 

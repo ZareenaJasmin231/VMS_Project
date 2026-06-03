@@ -20,7 +20,7 @@
 }
 
 .backup-page-title {
-  font-size: 26px;
+  font-size: 30px;
   font-weight: 700;
   margin: 0 0 4px;
   background: linear-gradient(135deg, #fff 0%, var(--teal) 100%);
@@ -30,7 +30,7 @@
 }
 
 .backup-page-desc {
-  font-size: 13px;
+  font-size: 17px;
   color: var(--text-secondary);
   margin: 0;
   max-width: 600px;
@@ -55,7 +55,7 @@
 
 .stat-pill label {
   display: block;
-  font-size: 10px;
+  font-size: 14px;
   text-transform: uppercase;
   color: var(--text-muted);
   font-weight: 700;
@@ -68,7 +68,7 @@
   align-items: center;
   gap: 8px;
   font-weight: 600;
-  font-size: 14px;
+  font-size: 18px;
   color: var(--text-primary);
 }
 
@@ -102,7 +102,7 @@
   background: var(--teal-subtle);
   border: 1px solid var(--teal-glow);
   border-radius: var(--radius-md);
-  font-size: 12px;
+  font-size: 16px;
   color: var(--text-secondary);
   align-items: center;
 }
@@ -143,7 +143,7 @@
 }
 
 .card-header h2 {
-  font-size: 15px;
+  font-size: 19px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -152,7 +152,7 @@
 }
 
 .card-badge {
-  font-size: 10px;
+  font-size: 14px;
   padding: 2px 8px;
   border-radius: 12px;
   background: var(--teal-subtle);
@@ -180,7 +180,7 @@
 }
 
 .input-group label {
-  font-size: 12px;
+  font-size: 16px;
   font-weight: 600;
   color: var(--text-secondary);
 }
@@ -191,7 +191,7 @@
   border-radius: var(--radius-md);
   padding: 10px 14px;
   color: var(--text-primary);
-  font-size: 13px;
+  font-size: 17px;
   outline: none;
   transition: var(--transition);
 }
@@ -228,7 +228,7 @@
   border-radius: var(--radius-sm);
   cursor: pointer;
   transition: var(--transition);
-  font-size: 12px;
+  font-size: 16px;
   color: var(--text-secondary);
 }
 
@@ -251,7 +251,7 @@
   gap: 8px;
   padding: 10px 20px;
   border-radius: var(--radius-md);
-  font-size: 13px;
+  font-size: 17px;
   font-weight: 600;
   cursor: pointer;
   transition: var(--transition);
@@ -295,7 +295,7 @@
   display: flex;
   justify-content: space-between;
   margin-bottom: 6px;
-  font-size: 12px;
+  font-size: 16px;
   font-weight: 600;
   color: var(--text-secondary);
 }
@@ -321,7 +321,7 @@
   right: 24px;
   padding: 12px 20px;
   border-radius: var(--radius-md);
-  font-size: 13px;
+  font-size: 17px;
   font-weight: 600;
   z-index: 2000;
   animation: toast-in 0.3s cubic-bezier(0.18, 0.89, 0.32, 1.28);
@@ -398,14 +398,14 @@
 }
 
 .dest-label {
-  font-size: 13px;
+  font-size: 17px;
   font-weight: 700;
   color: var(--text-primary);
   margin-bottom: 2px;
 }
 
 .dest-sub {
-  font-size: 10px;
+  font-size: 14px;
   color: var(--text-muted);
 }
 
@@ -415,7 +415,7 @@
   background: var(--bg-base);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  font-size: 12px;
+  font-size: 16px;
   color: var(--text-secondary);
   line-height: 1.6;
   margin-bottom: 20px;
@@ -431,4 +431,43 @@
   background: var(--bg-elevated);
   padding: 2px 4px;
   border-radius: 4px;
+}
+
+/* ── Group Retention Table ────────────────────────────────────── */
+.group-retention-table-wrap {
+  background: var(--bg-base);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  margin-top: 10px;
+}
+
+.group-retention-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 17px;
+}
+
+.group-retention-table th, 
+.group-retention-table td {
+  padding: 12px 16px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+
+.group-retention-table th {
+  background: rgba(255, 255, 255, 0.01);
+  color: var(--text-muted);
+  font-size: 15px;
+  text-transform: uppercase;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+}
+
+.group-retention-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.group-retention-table tbody tr:hover {
+  background: var(--bg-hover);
 }
