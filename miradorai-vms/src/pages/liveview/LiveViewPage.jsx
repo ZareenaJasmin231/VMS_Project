@@ -479,7 +479,6 @@ function AlertPopup({ ip, alerts, onClose }) {
 function AlertsPanel({ onAlertCountUpdate, onTotalAlertCountChange, isOpen }) {
   const [alerts,  setAlerts]  = useState([]);
   const [loading, setLoading] = useState(true);
-  const wsRef = useRef(null);
 
   const normalizeIp = (ip) => (ip || "").replace(/_/g, ".");
 
@@ -489,7 +488,7 @@ function AlertsPanel({ onAlertCountUpdate, onTotalAlertCountChange, isOpen }) {
 
   const fetchAlerts = useCallback(async () => {
     try {
-      const res  = await fetch(`${API}/api/alerts?limit=1000`, {
+      const res  = await fetch(`${API}/api/alerts?limit=100`, {
         headers: getAuthHeaders()
       });
       const data = await res.json();
@@ -497,65 +496,27 @@ function AlertsPanel({ onAlertCountUpdate, onTotalAlertCountChange, isOpen }) {
         .filter((a) => a.status === "Active")
         .filter(isAlertAllowed);
       setAlerts(filtered);
+
+      const counts = {};
+      filtered.forEach((alert) => {
+        const ip = normalizeIp(alert.ip);
+        if (ip) {
+          counts[ip] = (counts[ip] || 0) + 1;
+        }
+      });
+      onAlertCountUpdate?.(counts);
     } catch (e) {
       console.error("[Alerts] fetch failed:", e);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [onAlertCountUpdate]);
 
   useEffect(() => {
     fetchAlerts();
+    const interval = setInterval(fetchAlerts, 5000);
+    return () => clearInterval(interval);
   }, [fetchAlerts]);
-
-  useEffect(() => {
-    if (wsRef.current) return;
-
-    const ws = new WebSocket(`${import.meta.env.VITE_WS_URL}/ws/events`);
-    wsRef.current = ws;
-
-    ws.onopen = () => {
-      console.log("✅ WS CONNECTED");
-    };
-
-    ws.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        if (!isAlertAllowed(data)) return;
-
-        const normIp = normalizeIp(data.ip);
-
-        setAlerts((prev) => {
-          const exists = prev.some((e) => e.received_at === data.received_at);
-          if (exists) return prev;
-          return [data, ...prev];
-        });
-
-        onAlertCountUpdate?.((prev) => ({
-          ...prev,
-          [normIp]: (prev[normIp] || 0) + 1,
-        }));
-
-        setLoading(false);
-      } catch (err) {
-        console.error("[WS] parse error:", err);
-      }
-    };
-
-    ws.onerror = (err) => {
-      console.error("[WS] error:", err);
-    };
-
-    ws.onclose = () => {
-      console.log("❌ WS CLOSED");
-      wsRef.current = null;
-    };
-
-    return () => {
-      ws.close();
-      wsRef.current = null;
-    };
-  }, []);
 
   return (
     <div className={`lv-alerts-panel ${!isOpen ? "lv-alerts-panel--collapsed" : ""}`}>
@@ -849,7 +810,7 @@ export default function LiveViewPage() {
   useEffect(() => {
     const loadInitialCounts = async () => {
       try {
-        const res  = await fetch(`${API}/api/alerts?limit=1000`, {
+        const res  = await fetch(`${API}/api/alerts?limit=100`, {
           headers: getAuthHeaders()
         });
         const data = await res.json();
@@ -911,7 +872,7 @@ export default function LiveViewPage() {
   // ── Open alert popup for a specific camera IP ─────────────────
   const openAlertPopup = useCallback(async (ip) => {
     try {
-      const res  = await fetch(`${API}/api/alerts?limit=1000`, {
+      const res  = await fetch(`${API}/api/alerts?limit=100`, {
         headers: getAuthHeaders()
       });
       const data = await res.json();

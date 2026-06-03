@@ -22,22 +22,7 @@ def log_terminal(user_email, user_role, command, project_folder, exit_code=0, ou
 
         terminal_logs_col.insert_one(doc)
 
-        # 🔥 SEND TO WEBSOCKET
-        try:
-            from main import broadcast_log, manager
 
-            loop = manager.loop if hasattr(manager, 'loop') and manager.loop else None
-
-            if loop and loop.is_running():
-                asyncio.run_coroutine_threadsafe(
-                    broadcast_log(doc),
-                    loop
-                )
-            else:
-                print("No running event loop for broadcast")
-
-        except Exception as e:
-            print("WS broadcast failed:", e)
 
     except Exception as e:
         print("Terminal log failed:", e)

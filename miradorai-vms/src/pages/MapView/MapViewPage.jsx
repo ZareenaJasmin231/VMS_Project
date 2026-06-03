@@ -694,9 +694,9 @@ export default function MapViewPage() {
 
   const [alertCounts, setAlertCounts] = useState({});
 
-  // Fetch initial active alert counts and subscribe to live websocket events
+  // Fetch active alert counts periodically (replaces websocket)
   useEffect(() => {
-    const loadInitialCounts = async () => {
+    const loadCounts = async () => {
       try {
         const res = await fetch(`${API}/api/alerts?limit=1000`, {
           headers: getAuthHeaders()
@@ -715,38 +715,10 @@ export default function MapViewPage() {
         console.error("[AlertCounts] load failed:", e);
       }
     };
-    loadInitialCounts();
+    loadCounts();
 
-    const ws = new WebSocket(`${import.meta.env.VITE_WS_URL}/ws/events`);
-    ws.onopen = () => {
-      console.log("✅ WS CONNECTED (Map View)");
-    };
-    ws.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        if (!isAlertAllowed(data)) return;
-
-        const normIp = (data.ip || "").replace(/_/g, ".");
-        if (normIp) {
-          setAlertCounts((prev) => ({
-            ...prev,
-            [normIp]: (prev[normIp] || 0) + 1,
-          }));
-        }
-      } catch (err) {
-        console.error("[WS] parse error:", err);
-      }
-    };
-    ws.onerror = (err) => {
-      console.error("[WS] error:", err);
-    };
-    ws.onclose = () => {
-      console.log("❌ WS CLOSED (Map View)");
-    };
-
-    return () => {
-      ws.close();
-    };
+    const interval = setInterval(loadCounts, 5000);
+    return () => clearInterval(interval);
   }, []);
 
 

@@ -58,12 +58,10 @@ from monitoring.router import router as infrastructure_router
 from monitoring.scheduler import scheduler as infrastructure_scheduler
 from license.license_store import load_license
 from license.license_validator import validate_license
-from fastapi import WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from urllib.parse import urlparse, urlunparse, quote
 
 
-connected_clients = []
 import sys
 from utils.terminal_logger import log_terminal
 
@@ -95,39 +93,7 @@ class LoggerWrapper:
 
 sys.stdout = LoggerWrapper()
 
-async def watch_mongo_changes():
-    print("[WS] 👀 Polling MongoDB for alerts...")
 
-    last_id = None
-
-    while True:
-        try:
-            query = {}
-
-            if last_id:
-                query["_id"] = {"$gt": last_id}
-
-            docs = list(watch_collection.find(query).sort("_id", 1))
-
-            for doc in docs:
-                last_id = doc["_id"]
-
-                print("[WS] 🚨 New alert (polling)")
-
-                await broadcast_event({
-                    "ip": doc.get("ip"),
-                    "serial": doc.get("serial"),
-                    "time": doc.get("time"),
-                    "scenario": doc.get("scenario"),
-                    "type": doc.get("type"),
-                    "status": doc.get("status", "Active"),
-                    "received_at": doc.get("received_at"),
-                })
-
-        except Exception as e:
-            print("[WS ERROR]", e)
-
-        await asyncio.sleep(1) 
          # check every 1 second# ------------------------------------------------------------------
 # App creation — MUST come before any .include_router() calls
 # ------------------------------------------------------------------
@@ -1239,196 +1205,7 @@ async def camera_health_collector():
             print("[CAM HEALTH ERROR]", e)
 
         await asyncio.sleep(10)            
-@app.websocket("/ws/events")
-async def websocket_events(websocket: WebSocket):
-    try:
-        print("🔥 WS HIT")
 
-        await websocket.accept()
-        connected_clients.append(websocket)
-
-        print(f"✅ WS Connected | Total: {len(connected_clients)}")
-
-        while True:
-            await asyncio.sleep(10)   # ✅ KEEP CONNECTION ALIVE
-
-    except WebSocketDisconnect:
-        print("❌ WS Disconnected")
-
-    except Exception as e:
-        print(f"❌ WS ERROR: {e}")
-
-    finally:
-        if websocket in connected_clients:
-            connected_clients.remove(websocket)
-
-async def broadcast_event(event):
-    dead = []
-
-    for client in connected_clients:
-        try:
-            await client.send_json(event)
-        except Exception:
-            dead.append(client)
-
-    for d in dead:
-        if d in connected_clients:
-            connected_clients.remove(d)
-log_clients = []
-
-@app.websocket("/ws/logs")
-async def websocket_logs(websocket: WebSocket):
-    await websocket.accept()
-    log_clients.append(websocket)
-
-    print(f"📡 Logs WS Connected: {len(log_clients)}")
-
-    try:
-        while True:
-            await asyncio.sleep(10)
-    except WebSocketDisconnect:
-        log_clients.remove(websocket)
-        print("❌ Logs WS Disconnected")
-
-async def broadcast_log(log):
-    for client in log_clients:
-        try:
-            await client.send_json(log)
-        except:
-            pass
-
-# ------------------------------------------------------------------
-# WebSocket: Dashboard (replaces 10s polling)
-# ------------------------------------------------------------------
-dashboard_clients = []
-
-@app.websocket("/ws/dashboard")
-async def websocket_dashboard(websocket: WebSocket):
-    await websocket.accept()
-    dashboard_clients.append(websocket)
-    print(f"📊 Dashboard WS Connected: {len(dashboard_clients)}")
-
-    try:
-        while True:
-            try:
-                # Build dashboard payload
-                summary_data = {}
-                camera_health_data = []
-
-                if cameras_col is not None and analytics_col is not None:
-                    total_cameras = cameras_col.count_documents({})
-                    active_streams = cameras_col.count_documents({"enabled": {"$ne": False}})
-                    today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
-                    alarms_today = analytics_col.count_documents({"received_at": {"$gte": today_start}})
-
-                    latest_health = _db["health_logs"].find_one(
-                        {"type": "system"}, sort=[("timestamp", -1)]
-                    )
-                    cpu = latest_health.get("cpu", 0) if latest_health else 0
-                    ram = latest_health.get("ram", 0) if latest_health else 0
-                    disk = latest_health.get("disk", 0) if latest_health else 0
-
-                    alerts = []
-                    if cpu > 85: alerts.append("High CPU Usage")
-                    if ram > 85: alerts.append("High RAM Usage")
-                    if disk > 90: alerts.append("Disk Almost Full")
-
-                    status = "Healthy"
-                    if cpu > 85 or ram > 85 or disk > 90: status = "Critical"
-                    elif cpu > 60 or ram > 60 or disk > 75: status = "Warning"
-
-                    summary_data = {
-                        "total_cameras": total_cameras,
-                        "active_streams": active_streams,
-                        "alarms_today": alarms_today,
-                        "cpu": cpu, "ram": ram, "disk": disk,
-                        "alerts": alerts, "status": status
-                    }
-
-                    # Camera health from camera_health collection
-                    try:
-                        raw_health = list(_db["camera_health"].find({}, {"_id": 0}))
-                        valid_cameras = list(cameras_col.find({}, {"_id": 0, "ip": 1}))
-                        valid_ips = [c["ip"].replace(".", "_") for c in valid_cameras]
-                        camera_health_data = [
-                            d for d in raw_health
-                            if any(ip in d.get("stream", "") for ip in valid_ips)
-                            and "cam0" in d.get("stream", "")
-                        ]
-                    except Exception:
-                        camera_health_data = []
-
-                await websocket.send_json({
-                    "type": "dashboard_update",
-                    "summary": summary_data,
-                    "camera_health": camera_health_data
-                })
-
-            except Exception as e:
-                print(f"[WS Dashboard] Data build error: {e}")
-
-            await asyncio.sleep(5)
-
-    except WebSocketDisconnect:
-        pass
-    except Exception as e:
-        print(f"[WS Dashboard] Error: {e}")
-    finally:
-        if websocket in dashboard_clients:
-            dashboard_clients.remove(websocket)
-        print(f"📊 Dashboard WS Disconnected: {len(dashboard_clients)} remaining")
-
-
-
-@app.websocket("/api/infrastructure/ws")
-async def infrastructure_ws(websocket: WebSocket):
-    await manager.connect(websocket)
-
-    try:
-        while True:
-            await asyncio.sleep(10)
-
-    except WebSocketDisconnect:
-        manager.disconnect(websocket)
-# ------------------------------------------------------------------
-# WebSocket: Backup Status (replaces 3s polling)
-# ------------------------------------------------------------------
-backup_ws_clients = []
-
-@app.websocket("/ws/backup-status")
-async def websocket_backup_status(websocket: WebSocket):
-    await websocket.accept()
-    backup_ws_clients.append(websocket)
-    print(f"💾 Backup WS Connected: {len(backup_ws_clients)}")
-
-    try:
-        while True:
-            try:
-                from backup_service import backup_state, get_storage_usage, get_local_path, is_network_available, auto_watcher_active, NETWORK_BASE_DIR
-                state = dict(backup_state)
-                state["storage_usage"] = get_storage_usage()
-                state["local_path"] = str(get_local_path())
-                state["network_path"] = str(NETWORK_BASE_DIR)
-                state["network_available"] = is_network_available()
-                state["auto_active"] = auto_watcher_active
-
-                await websocket.send_json({
-                    "type": "backup_status",
-                    **state
-                })
-            except Exception as e:
-                print(f"[WS Backup] Error: {e}")
-
-            await asyncio.sleep(2)
-
-    except WebSocketDisconnect:
-        pass
-    except Exception as e:
-        print(f"[WS Backup] Error: {e}")
-    finally:
-        if websocket in backup_ws_clients:
-            backup_ws_clients.remove(websocket)
-        print(f"💾 Backup WS Disconnected: {len(backup_ws_clients)} remaining")
 # ------------------------------------------------------------------
 # OME readiness wait
 # ------------------------------------------------------------------
@@ -1567,8 +1344,6 @@ async def _analytics_poll_loop(ip: str, port: int, username: str, password: str)
                     if watch_collection is not None:
                         watch_collection.insert_one(bosch_alert)
 
-                    # Send live websocket alert
-                    await broadcast_event(bosch_alert)
 
                     print(f"[BOSCH UI ALERT] {ip} → {bosch_alert['type']}")
 
@@ -1763,7 +1538,6 @@ async def startup():
     asyncio.create_task(camera_health_collector())
     enabled_count = sum(1 for d in devices if d.get("enabled") is not False)
     print(f"[STARTUP] 🎥 Recording started for {enabled_count}/{len(devices)} enabled camera(s)")
-    asyncio.create_task(watch_mongo_changes())
 
     print(f"[STARTUP] ✓ Stream health monitoring started")
 
