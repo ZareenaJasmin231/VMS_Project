@@ -15,6 +15,18 @@ function loadDevices() {
   catch { return []; }
 }
 
+function getCameraNameByIpOrSerial(ipOrSerial) {
+  if (!ipOrSerial) return "";
+  const norm = ipOrSerial.replace(/_/g, ".");
+  const devices = loadDevices();
+  const found = devices.find(d => 
+    (d.ip && d.ip.replace(/_/g, ".") === norm) || 
+    (d.serial && d.serial === ipOrSerial) ||
+    String(d.id) === String(ipOrSerial)
+  );
+  return found ? found.name : "";
+}
+
 const GRID_OPTIONS = [
   { id: "2x2", label: "2x2 Grid", rows: 2, cols: 2 },
   { id: "2x3", label: "2x3 Grid", rows: 2, cols: 3 },
@@ -318,7 +330,11 @@ function AlertPopup({ ip, alerts, onClose }) {
             <span className="alp-title">
               {playingAlert
                 ? "Event Playback"
-                : `Alerts — ${(ip || "").replace(/_/g, ".")}`}
+                : (() => {
+                    const name = getCameraNameByIpOrSerial(ip);
+                    const formattedIp = (ip || "").replace(/_/g, ".");
+                    return name ? `Alerts — ${name} (${formattedIp})` : `Alerts — ${formattedIp}`;
+                  })()}
             </span>
           </div>
           <button className="alp-close-btn" onClick={onClose}>✕</button>
@@ -552,14 +568,17 @@ function AlertsPanel({ onAlertCountUpdate, onTotalAlertCountChange, isOpen }) {
               ? alert.time.split("T")[1]?.split("+")[0]
               : null;
 
+            const cameraName = getCameraNameByIpOrSerial(alert.ip || alert.serial);
+            const displayId = (alert.ip || alert.serial || "Unknown").replace(/_/g, ".");
+
             return (
               <div
                 key={i}
                 className={`lv-alert-card ${typeClass} ${isActive ? "lv-alert-card--active" : ""}`}
               >
                 <div className="lv-alert-card__top">
-                  <span className="lv-alert-card__serial">
-                    {alert.serial || "Unknown"}
+                  <span className="lv-alert-card__serial" title={displayId}>
+                    {cameraName ? `${cameraName} (${displayId})` : displayId}
                   </span>
                 </div>
 

@@ -486,10 +486,15 @@
   display: flex;
   align-items: center;
   gap: 9px;
-  flex: 0 0 210px;
+  flex: 0 0 240px;
   min-width: 0;
-  padding-right: 16px;                              /* ← add this */
-  border-right: 1px solid var(--border-light, #1e2230); /* ← add this */
+  padding-right: 16px;
+  border-right: 1px solid var(--border-light, #1e2230);
+}
+
+.dm-cred-cam-info {
+  min-width: 0;
+  flex: 1;
 }
 
 .dm-cred-cam-icon {
@@ -523,7 +528,7 @@
 
 .dm-cred-fields {
   display: flex;
-  gap: 8px;
+  gap: 12px;
   flex: 1;
   min-width: 0;
 }

@@ -50,12 +50,12 @@ const ADMIN_ONLY_NAV = [
     page: "media-player",
     icon: ICONS.playback,
   },
-  // // ✅ FORENSIC SEARCH
-  // {
-  //   section: "Forensic Search",
-  //   page: "forensic-search",
-  //   icon: ICONS.forensicSearch,
-  // },
+  // ✅ FORENSIC SEARCH
+  {
+    section: "Forensic Search",
+    page: "forensic-search",
+    icon: ICONS.forensicSearch,
+  },
   {
     section: "Designer View",
     page: "designer-view",
@@ -93,7 +93,7 @@ const SETTINGS_NAV = {
   icon: ICONS.settings,
   items: [
     { label: "Device Management", page: "add-devices", icon: ICONS.addDevice },
-    { label: "Camera Management", page: "cameras", icon: ICONS.cameras },
+    { label: "Group Management", page: "cameras", icon: ICONS.cameras },
     { label: "Storage Management", page: "storage-mgmt", icon: ICONS.storage },
     { label: "Recording Method", page: "rec-method", icon: ICONS.recording },
     { label: "Privacy Masking", page: "masking", icon: ICONS.masking },

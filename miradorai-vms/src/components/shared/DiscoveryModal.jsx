@@ -567,7 +567,7 @@ export default function DiscoveryModal({
                             <path d="M17 9l5-3v12l-5-3"/>
                           </svg>
                         </div>
-                        <div>
+                        <div className="dm-cred-cam-info">
                           <div className="dm-cred-cam-name">{device.name || `Camera @ ${device.ip}`}</div>
                           <div className="dm-cred-cam-ip">{device.ip}</div>
                         </div>
@@ -588,7 +588,6 @@ export default function DiscoveryModal({
                           <button
                             type="button"
                             className="dm-select-btn"
-                            style={{ height: "30px", padding: "0 10px" }}
                             onClick={(e) => {
                               e.stopPropagation();
                               setOpenDropdownId(openDropdownId === device.id ? null : device.id);

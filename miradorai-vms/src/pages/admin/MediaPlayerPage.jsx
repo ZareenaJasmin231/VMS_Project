@@ -54,6 +54,32 @@ export default function MediaPlayerPage() {
   const [recordingCameras, setRecordingCameras] = useState([]);
   const [selectedCam, setSelectedCam] = useState(null);
 
+  const getCameraInfo = useCallback((camId) => {
+    if (!camId) return { name: "No camera selected", ip: "" };
+    if (camId === "Uploaded File") return { name: "Uploaded File", ip: "" };
+    const normalized = camId.replace(/_/g, ".");
+    const found = cameras.find(
+      (c) =>
+        (c.ip && c.ip.replace(/_/g, ".") === normalized) ||
+        String(c.id) === String(camId) ||
+        c.name === camId
+    );
+    if (found) {
+      return {
+        name: found.name || `Camera ${normalized}`,
+        ip: found.ip || normalized
+      };
+    }
+    return {
+      name: `Camera ${normalized}`,
+      ip: normalized
+    };
+  }, [cameras]);
+
+  const selectedCamInfo = useMemo(() => {
+    return getCameraInfo(selectedCam?.stream_key);
+  }, [selectedCam, getCameraInfo]);
+
   const configCameraId = selectedCam ?
     (cameras.find(c => c.ip === selectedCam.stream_key || String(c.id) === String(selectedCam.stream_key) || c.name === selectedCam.stream_key)?.id || selectedCam.stream_key)
     : null;
@@ -708,9 +734,22 @@ export default function MediaPlayerPage() {
                 disabled={recordingCameras.length === 0}
               >
                 <div className="mp-cam-dot" />
-                <span className="mp-cam-select-val">
-                  {selectedCam?.stream_key || "No cameras found"}
-                </span>
+                <div className="mp-cam-select-val">
+                  {selectedCam ? (
+                    <div className="mp-cam-select-val-container">
+                      <span className="mp-cam-select-name">
+                        {selectedCamInfo.name}
+                      </span>
+                      {selectedCamInfo.ip && (
+                        <span className="mp-cam-select-ip">
+                          {selectedCamInfo.ip}
+                        </span>
+                      )}
+                    </div>
+                  ) : (
+                    "No cameras found"
+                  )}
+                </div>
                 <svg
                   className={`mp-cam-chevron ${camDropdownOpen ? "open" : ""}`}
                   viewBox="0 0 24 24"
@@ -726,33 +765,39 @@ export default function MediaPlayerPage() {
 
               {camDropdownOpen && (
                 <div className="mp-cam-menu">
-                  {recordingCameras.map((camId) => (
-                    <div
-                      key={camId}
-                      className={`mp-cam-menu-item ${selectedCam?.stream_key === camId ? "active" : ""}`}
-                      onClick={() => {
-                        setSelectedCam({ stream_key: camId, name: camId });
-                        setPlayingFile(null);
-                        setCamDropdownOpen(false);
-                      }}
-                    >
-                      <div className={`mp-cam-dot ${selectedCam?.stream_key === camId ? "on" : ""}`} />
-                      <span>{camId}</span>
-                      {selectedCam?.stream_key === camId && (
-                        <svg
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2.5"
-                          width="11"
-                          height="11"
-                          style={{ marginLeft: "auto", color: "var(--amber)", flexShrink: 0 }}
-                        >
-                          <path d="M20 6L9 17l-5-5" />
-                        </svg>
-                      )}
-                    </div>
-                  ))}
+                  {recordingCameras.map((camId) => {
+                    const info = getCameraInfo(camId);
+                    return (
+                      <div
+                        key={camId}
+                        className={`mp-cam-menu-item ${selectedCam?.stream_key === camId ? "active" : ""}`}
+                        onClick={() => {
+                          setSelectedCam({ stream_key: camId, name: camId });
+                          setPlayingFile(null);
+                          setCamDropdownOpen(false);
+                        }}
+                      >
+                        <div className={`mp-cam-dot ${selectedCam?.stream_key === camId ? "on" : ""}`} />
+                        <div className="mp-cam-menu-item-info">
+                          <span className="mp-cam-menu-item-name">{info.name}</span>
+                          <span className="mp-cam-menu-item-ip">{info.ip}</span>
+                        </div>
+                        {selectedCam?.stream_key === camId && (
+                          <svg
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2.5"
+                            width="11"
+                            height="11"
+                            style={{ marginLeft: "auto", color: "var(--amber)", flexShrink: 0 }}
+                          >
+                            <path d="M20 6L9 17l-5-5" />
+                          </svg>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -867,7 +912,7 @@ export default function MediaPlayerPage() {
                 <>
                   <div className="mp-overlay-top">
                     <span className="mp-cam-label">
-                      {playingFile.camera_id} — {playingFile.date}
+                      {getCameraInfo(playingFile.camera_id).name} — {playingFile.date}
                     </span>
                     <span className="mp-time-overlay">
                       {getAbsoluteTime(currentTime) || fmt(currentTime)}
@@ -1098,7 +1143,7 @@ export default function MediaPlayerPage() {
         >
           <div className="mp-export-modal">
             <div className="mp-export-header">
-              <span className="mp-export-title">Export Recordings — {selectedCam?.stream_key || "Camera"}</span>
+              <span className="mp-export-title">Export Recordings — {selectedCamInfo.name || "Camera"}</span>
               <button
                 className="mp-export-close"
                 onClick={() => { if (!exporting) setShowExportModal(false); }}

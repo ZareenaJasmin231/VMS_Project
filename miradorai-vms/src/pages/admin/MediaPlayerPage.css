@@ -185,7 +185,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 7px 10px;
+  padding: 6px 10px;
   background: var(--bg-raised);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-sm);
@@ -219,6 +219,27 @@
 
 .mp-cam-select-val {
   flex: 1;
+  overflow: hidden;
+}
+
+.mp-cam-select-val-container {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.25;
+}
+
+.mp-cam-select-name {
+  font-weight: 500;
+  color: var(--text-primary);
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mp-cam-select-ip {
+  font-size: 11px;
+  color: var(--text-hint);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -268,6 +289,31 @@
   color: var(--text-secondary);
   cursor: pointer;
   transition: background var(--transition), color var(--transition);
+}
+
+.mp-cam-menu-item-info {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.25;
+  flex: 1;
+  overflow: hidden;
+}
+
+.mp-cam-menu-item-name {
+  font-weight: 500;
+  color: var(--text-primary);
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mp-cam-menu-item-ip {
+  font-size: 11px;
+  color: var(--text-hint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .mp-cam-menu-item:hover {
