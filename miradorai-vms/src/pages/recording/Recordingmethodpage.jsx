@@ -16,6 +16,7 @@ const DEFAULT_CONTINUOUS = {
   schedule: "Always",
   availableProfiles: [],
   availableSchedules: [],
+  motion_only: false,
 };
 
 function loadGroups() {
@@ -40,13 +41,65 @@ function injectAuth(url, user, pass) {
   } catch { return url; }
 }
 
+function stripRtspCredentials(url) {
+  if (!url) return "";
+  try {
+    return url.replace(/^rtsp:\/\/([^@]+@)?/, "rtsp://");
+  } catch { return url; }
+}
+
 export default function RecordingMethodPage() {
+  const initialDevices = (() => {
+    try {
+      const saved = localStorage.getItem("miradorai_devices");
+      if (saved) {
+        return JSON.parse(saved).map((localCam, idx) => ({
+          ...localCam,
+          group_id: localCam.group_id || "default",
+          ome_stream: localCam.ome_stream || (localCam.ip ? `${localCam.ip.replace(/\./g, "_")}_cam${localCam.channel || 0}` : `cam_${localCam.id || idx}`),
+        }));
+      }
+    } catch (e) {}
+    return [];
+  })();
+
+  const buildRecSettings = (deviceList, currentSchedules = []) => {
+    const settings = {};
+    deviceList.forEach((cam) => {
+      const profiles = cam.stream_profiles || [];
+      let pVal = cam.active_rec_profile || cam.recording_profile || "MAIN_STREAM";
+      if (profiles.length > 0 && pVal !== "MAIN_STREAM" && pVal !== "SUB_STREAM") {
+        const sortedMain = [...profiles].sort((a, b) => ((b.width || 0) * (b.height || 0)) - ((a.width || 0) * (a.height || 0)) || (b.bitrate || 0) - (a.bitrate || 0));
+        const sortedSub = [...profiles].sort((a, b) => ((a.width || 0) * (a.height || 0)) - ((b.width || 0) * (b.height || 0)) || (a.bitrate || 0) - (b.bitrate || 0));
+        if (pVal === sortedMain[0]?.token) pVal = "MAIN_STREAM";
+        else if (pVal === sortedSub[0]?.token) pVal = "SUB_STREAM";
+      }
+      settings[cam.ome_stream] = {
+        continuous: {
+          ...DEFAULT_CONTINUOUS,
+          profile: pVal,
+          availableProfiles: [
+            { token: "MAIN_STREAM", label: "Main Stream", isGeneric: true },
+            { token: "SUB_STREAM", label: "Sub Stream", isGeneric: true }
+          ],
+          schedule: cam.assigned_schedule_id || "Always",
+          motion_only: !!cam.motion_only,
+          availableSchedules: [
+            { id: "Always", name: "Always" },
+            ...(Array.isArray(currentSchedules) ? currentSchedules.map(s => ({ id: s.id, name: s.name })) : [])
+          ]
+        },
+      };
+    });
+    return settings;
+  };
+
   const [filter, setFilter] = useState("");
   const [selectedId, setSelectedId] = useState(null);
-  const [devices, setDevices] = useState([]);
+  const [devices, setDevices] = useState(initialDevices);
   const [groups] = useState(loadGroups);
   const [loading, setLoading] = useState(false);
-  const [recSettings, setRecSettings] = useState({});
+  const [recSettings, setRecSettings] = useState(() => buildRecSettings(initialDevices));
   const [schedules, setSchedules] = useState([]);
   const [selectedGroup, setSelectedGroup] = useState(null);
   const [checkedGroups, setCheckedGroups] = useState([]);
@@ -78,8 +131,24 @@ export default function RecordingMethodPage() {
 
   useEffect(() => {
     const init = async () => {
-      const schs = await fetchSchedules();
-      await fetchDevices(schs);
+      const [schs] = await Promise.all([
+        fetchSchedules(),
+        fetchDevices()
+      ]);
+      if (schs && schs.length > 0) {
+        setRecSettings(prev => {
+          const next = { ...prev };
+          Object.keys(next).forEach(key => {
+            if (next[key]?.continuous) {
+              next[key].continuous.availableSchedules = [
+                { id: "Always", name: "Always" },
+                ...schs.map(s => ({ id: s.id, name: s.name }))
+              ];
+            }
+          });
+          return next;
+        });
+      }
     };
     init();
   }, []);
@@ -92,6 +161,18 @@ export default function RecordingMethodPage() {
       const data = await res.json();
       const schs = Array.isArray(data) ? data : [];
       setSchedules(schs);
+      
+      setRecSettings(prev => {
+        const next = { ...prev };
+        Object.keys(next).forEach(key => {
+          next[key].continuous.availableSchedules = [
+            { id: "Always", name: "Always" },
+            ...schs.map(s => ({ id: s.id, name: s.name }))
+          ];
+        });
+        return next;
+      });
+      
       return schs;
     } catch (err) {
       console.error(err);
@@ -100,7 +181,8 @@ export default function RecordingMethodPage() {
   };
 
   const fetchDevices = async (currentSchedules = []) => {
-    setLoading(true);
+    if (devices.length === 0) setLoading(true);
+    
     try {
       let localDevices = [];
       try {
@@ -143,36 +225,16 @@ export default function RecordingMethodPage() {
       }));
 
       const finalData = [...combinedDevices, ...backendOnly];
+      
+      // Update state
       setDevices(finalData);
-
-      const initialSettings = {};
-      finalData.forEach((cam) => {
-        const profiles = cam.stream_profiles || [];
-        let pVal = cam.active_rec_profile || cam.recording_profile || "MAIN_STREAM";
-        if (profiles.length > 0 && pVal !== "MAIN_STREAM" && pVal !== "SUB_STREAM") {
-          const sortedMain = [...profiles].sort((a, b) => ((b.width || 0) * (b.height || 0)) - ((a.width || 0) * (a.height || 0)) || (b.bitrate || 0) - (a.bitrate || 0));
-          const sortedSub = [...profiles].sort((a, b) => ((a.width || 0) * (a.height || 0)) - ((b.width || 0) * (b.height || 0)) || (a.bitrate || 0) - (b.bitrate || 0));
-          if (pVal === sortedMain[0]?.token) pVal = "MAIN_STREAM";
-          else if (pVal === sortedSub[0]?.token) pVal = "SUB_STREAM";
-        }
-
-        initialSettings[cam.ome_stream] = {
-          continuous: {
-            ...DEFAULT_CONTINUOUS,
-            profile: pVal,
-            availableProfiles: [
-              { token: "MAIN_STREAM", label: "Main Stream", isGeneric: true },
-              { token: "SUB_STREAM", label: "Sub Stream", isGeneric: true }
-            ],
-            schedule: cam.assigned_schedule_id || "Always",
-            availableSchedules: [
-              { id: "Always", name: "Always" },
-              ...(Array.isArray(currentSchedules) ? currentSchedules.map(s => ({ id: s.id, name: s.name })) : [])
-            ]
-          },
-        };
-      });
-      setRecSettings(initialSettings);
+      try {
+        localStorage.setItem("miradorai_devices", JSON.stringify(finalData));
+      } catch (e) {
+        console.error("[RM] LS Save error", e);
+      }
+      setRecSettings(buildRecSettings(finalData, currentSchedules));
+      
     } catch (err) {
       console.error("[RM] Global fetch error:", err);
     } finally {
@@ -291,7 +353,19 @@ export default function RecordingMethodPage() {
           profileToken = data.profile || "SUB_STREAM";
         }
 
-        if (authedRtsp) {
+        const hasMultipleProfiles = cam.stream_profiles && cam.stream_profiles.length >= 2;
+        const currentRtspClean = stripRtspCredentials(cam.recording_rtsp || cam.rtsp_url);
+        const targetRtspClean = stripRtspCredentials(authedRtsp);
+        const rtspUrlChanged = targetRtspClean && currentRtspClean && (targetRtspClean !== currentRtspClean);
+
+        const profileChanged = hasMultipleProfiles && 
+                               (profileToken !== cam.active_rec_profile) && 
+                               (profileToken !== cam.recording_profile);
+
+        const needsStreamAssign = rtspUrlChanged || profileChanged;
+
+        if (authedRtsp && needsStreamAssign) {
+          console.log(`[RM] Re-assigning stream for ${cam.ip} (profile/RTSP changed)`);
           await fetch(`${STREAM_API}/api/streams/assign`, {
             method: "POST",
             headers: getAuthHeaders(),
@@ -310,6 +384,8 @@ export default function RecordingMethodPage() {
               ome_stream: cam.ome_stream,
             }),
           });
+        } else {
+          console.log(`[RM] Skipping stream re-assignment for ${cam.ip} (unchanged)`);
         }
 
         await fetch(`${BACKEND}/api/recordings/assign-schedule`, {
@@ -318,6 +394,7 @@ export default function RecordingMethodPage() {
           body: JSON.stringify({
             camera_id: tid,
             schedule_id: data.schedule,
+            motion_only: !!data.motion_only,
           }),
         });
       });
@@ -333,7 +410,8 @@ export default function RecordingMethodPage() {
               continuous: {
                 ...next[tid].continuous,
                 profile: template.continuous.profile,
-                schedule: template.continuous.schedule
+                schedule: template.continuous.schedule,
+                motion_only: template.continuous.motion_only
               }
             };
           }
@@ -466,7 +544,12 @@ export default function RecordingMethodPage() {
                           {(recSettings[cam.ome_stream]?.continuous?.profile || cam.active_rec_profile) === "MAIN_STREAM" ? "MAIN" : "SUB"}
                         </span>
                       </div>
-                      <div className="rm-item-mode">{(!cam.assigned_schedule_id || cam.assigned_schedule_id === "Always") ? "Continuous" : "Scheduled"}</div>
+                      <div className="rm-item-mode">
+                        {(() => {
+                          const baseMode = (!cam.assigned_schedule_id || cam.assigned_schedule_id === "Always") ? "Continuous" : "Scheduled";
+                          return cam.motion_only ? `${baseMode} (Motion)` : baseMode;
+                        })()}
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -625,6 +708,37 @@ export default function RecordingMethodPage() {
                       </li>
                     </ul>
                   )}
+                </div>
+              </div>
+
+              <div className="rm-h-sep" style={{ color: "rgba(255, 255, 255, 0.5)" }}>|</div>
+
+              <div className="rm-h-field" style={{ display: "flex", alignItems: "center", gap: "10px", padding: "0 5px" }}>
+                <label htmlFor="motion-only-checkbox" className="rm-h-label" style={{ color: "rgba(255, 255, 255, 0.5)", marginRight: "5px", cursor: "pointer" }}>
+                  Record on Motion Only
+                </label>
+                <div style={{ display: "flex", alignItems: "center" }}>
+                  <input
+                    type="checkbox"
+                    id="motion-only-checkbox"
+                    checked={(() => {
+                      const currentTarget = selectedId 
+                        ? recSettings[selectedId]?.continuous 
+                        : recSettings[checkedCams[0]]?.continuous;
+                      return !!currentTarget?.motion_only;
+                    })()}
+                    onChange={(e) => {
+                      updateSection("continuous", { motion_only: e.target.checked });
+                    }}
+                    style={{
+                      width: "18px",
+                      height: "18px",
+                      cursor: "pointer",
+                      accentColor: "#3b82f6",
+                      borderRadius: "4px",
+                      border: "1px solid rgba(255, 255, 255, 0.2)"
+                    }}
+                  />
                 </div>
               </div>
 

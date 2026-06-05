@@ -92,6 +92,7 @@ export default function MediaPlayerPage() {
   const [playing, setPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
+  const [motionMarkers, setMotionMarkers] = useState([]);
   const [volume, setVolume] = useState(0.8);
   const [speed, setSpeed] = useState(1);
   const [selectedDate, setSelectedDate] = useState(
@@ -182,6 +183,7 @@ export default function MediaPlayerPage() {
             date: rec.date,
             start_time: rec.start_time,
             size: rec.file_size || "—",
+            file_path: rec.file_path,
           })));
         }
       } catch { if (!cancelled) setFiles([]); }
@@ -276,6 +278,60 @@ export default function MediaPlayerPage() {
 
   useEffect(() => { if (videoRef.current) videoRef.current.volume = volume; }, [volume]);
   useEffect(() => { if (videoRef.current) videoRef.current.playbackRate = speed; }, [speed]);
+
+  // ── Fetch motion alerts for timeline highlighting ──────────────
+  useEffect(() => {
+    if (!playingFile || !duration || playingFile.camera_id === "Uploaded File") {
+      setMotionMarkers([]);
+      return;
+    }
+
+    let cancelled = false;
+    const fetchMotionAlerts = async () => {
+      try {
+        const info = getCameraInfo(playingFile.camera_id);
+        if (!info.ip) return;
+        
+        // Fetch up to 1000 alerts including software motion
+        const res = await fetch(`${STREAM_API}/api/alerts?limit=1000&include_software_motion=true`, {
+          headers: authHeaders()
+        });
+        if (res.ok && !cancelled) {
+          const data = await res.json();
+          const alertsList = data.alerts || [];
+          
+          // Parse start time of current playing video
+          const match = playingFile.start_time.match(/(\d{2})[-:_](\d{2})[-:_](\d{2})/);
+          if (!match) return;
+          const [_, hh, mm, ss] = match;
+          const fileStart = new Date(`${playingFile.date}T${hh}:${mm}:${ss}`);
+          const fileStartMs = fileStart.getTime();
+          const fileEndMs = fileStartMs + duration * 1000;
+          
+          const markers = [];
+          alertsList.forEach((alert) => {
+            // Filter by camera IP and source "software_motion"
+            const alertIpNormalized = alert.ip?.replace(/_/g, ".");
+            const camIpNormalized = info.ip.replace(/_/g, ".");
+            
+            if (alertIpNormalized === camIpNormalized && alert.source === "software_motion") {
+              const alertTimeMs = new Date(alert.time).getTime();
+              if (alertTimeMs >= fileStartMs && alertTimeMs <= fileEndMs) {
+                const offsetSeconds = (alertTimeMs - fileStartMs) / 1000;
+                markers.push(offsetSeconds);
+              }
+            }
+          });
+          setMotionMarkers(markers);
+        }
+      } catch (err) {
+        console.error("Error fetching motion alerts for timeline:", err);
+      }
+    };
+
+    fetchMotionAlerts();
+    return () => { cancelled = true; };
+  }, [playingFile, duration, getCameraInfo]);
 
   // ── Revoke blob URL on unmount to avoid memory leaks ──────────
   useEffect(() => {
@@ -875,7 +931,23 @@ export default function MediaPlayerPage() {
                           </svg>
                         </div>
                         <div>
-                          <div className="mp-file-name">{file.start_time}</div>
+                          <div className="mp-file-name" style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                            {file.start_time}
+                            {file.file_path && file.file_path.includes("_motion_based") && (
+                              <span style={{
+                                fontSize: "10px",
+                                padding: "2px 5px",
+                                background: "rgba(239, 68, 68, 0.2)",
+                                color: "#f87171",
+                                border: "1px solid rgba(239, 68, 68, 0.4)",
+                                borderRadius: "3px",
+                                fontWeight: "600",
+                                textTransform: "uppercase"
+                              }}>
+                                Motion
+                              </span>
+                            )}
+                          </div>
                           {file.size !== "—" && (
                             <div className="mp-file-meta">{file.size}</div>
                           )}
@@ -1091,6 +1163,19 @@ export default function MediaPlayerPage() {
                     className="mp-timescale-fill"
                     style={{ width: `${(currentTime / duration) * 100}%` }}
                   />
+
+                  {/* Motion Markers */}
+                  {motionMarkers.map((offset, idx) => {
+                    const pct = (offset / duration) * 100;
+                    return (
+                      <div
+                        key={idx}
+                        className="mp-timescale-motion-marker"
+                        style={{ left: `${pct}%` }}
+                        title={`Motion Detected at ${getAbsoluteTime(offset) || fmt(offset)}`}
+                      />
+                    );
+                  })}
 
                   {/* Tick marks and labels */}
                   {timelineTicks.map((t, i) => {

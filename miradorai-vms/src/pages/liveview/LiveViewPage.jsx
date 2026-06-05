@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import WebRTCPlayer from "../../components/shared/WebRTCPlayer";
 import Hls from "hls.js";
 import "./LiveViewPage.css";
@@ -66,9 +66,11 @@ function isAlertAllowed(alert) {
     const key = t.toLowerCase();
     if (key.includes("motion"))       return type.includes("motion")       || scenario.includes("motion");
     if (key.includes("tamper"))       return type.includes("tamper")       || scenario.includes("tamper");
-    if (key.includes("object"))       return type.includes("object")       || type.includes("objectinarea");
+    if (key.includes("object"))       return type.includes("object")       || type.includes("objectinarea") || type.includes("detection");
     if (key.includes("occupancy"))    return type.includes("occupancy")    || scenario.includes("occupancy");
     if (key.includes("linecrossing")) return type.includes("linecrossing") || type.includes("crossing");
+    if (key.includes("loitering"))    return type.includes("loitering")    || scenario.includes("loitering");
+    if (key.includes("intrusion"))    return type.includes("intrusion")    || scenario.includes("intrusion");
     return true;
   });
 }
@@ -495,6 +497,7 @@ function AlertPopup({ ip, alerts, onClose }) {
 function AlertsPanel({ onAlertCountUpdate, onTotalAlertCountChange, isOpen }) {
   const [alerts,  setAlerts]  = useState([]);
   const [loading, setLoading] = useState(true);
+  const [zoomedImage, setZoomedImage] = useState(null);
 
   const normalizeIp = (ip) => (ip || "").replace(/_/g, ".");
 
@@ -530,7 +533,7 @@ function AlertsPanel({ onAlertCountUpdate, onTotalAlertCountChange, isOpen }) {
 
   useEffect(() => {
     fetchAlerts();
-    const interval = setInterval(fetchAlerts, 5000);
+    const interval = setInterval(fetchAlerts, 2000);
     return () => clearInterval(interval);
   }, [fetchAlerts]);
 
@@ -570,68 +573,101 @@ function AlertsPanel({ onAlertCountUpdate, onTotalAlertCountChange, isOpen }) {
 
             const cameraName = getCameraNameByIpOrSerial(alert.ip || alert.serial);
             const displayId = (alert.ip || alert.serial || "Unknown").replace(/_/g, ".");
+            const thumbnailUrl = `${API}/api/alerts/thumbnail?ip=${alert.ip}&time=${alert.time || alert.received_at}`;
 
             return (
               <div
                 key={i}
                 className={`lv-alert-card ${typeClass} ${isActive ? "lv-alert-card--active" : ""}`}
               >
-                <div className="lv-alert-card__top">
-                  <span className="lv-alert-card__serial" title={displayId}>
-                    {cameraName ? `${cameraName} (${displayId})` : displayId}
-                  </span>
+                <div className="lv-alert-card__layout">
+                  <div className="lv-alert-card__info">
+                    <div className="lv-alert-card__top">
+                      <span className="lv-alert-card__serial" title={displayId}>
+                        {cameraName ? `${cameraName} (${displayId})` : displayId}
+                      </span>
+                    </div>
+
+                    <div className="lv-alert-card__row">
+                      <span className="lv-alert-card__label">Type</span>
+                      <span className="lv-alert-card__value">{alert.type || "—"}</span>
+                    </div>
+
+                    <div className="lv-alert-card__row">
+                      <span className="lv-alert-card__label">Event</span>
+                      <span className="lv-alert-card__value">{alert.scenario || "—"}</span>
+                    </div>
+
+                    {(alert.type === "OccupancyCount" || alert.scenario === "OccupancyCount") && (
+                      <div className="lv-alert-card__row">
+                        <span className="lv-alert-card__label">People</span>
+                        <span className="lv-alert-card__value">
+                          👥 {alert.human ?? alert.total ?? "—"}
+                        </span>
+                      </div>
+                    )}
+
+                    {timeOnly && (
+                      <div className="lv-alert-card__row">
+                        <span className="lv-alert-card__label">Time</span>
+                        <span className="lv-alert-card__value lv-alert-card__value--time">
+                          {timeOnly}
+                        </span>
+                      </div>
+                    )}
+
+                    {alert.class && (
+                      <div className="lv-alert-card__row">
+                        <span className="lv-alert-card__label">Class</span>
+                        <span className="lv-alert-card__value lv-alert-card__value--human">
+                          👤 {alert.class}
+                        </span>
+                      </div>
+                    )}
+
+                    {alert.object_id && (
+                      <div className="lv-alert-card__row">
+                        <span className="lv-alert-card__label">Object ID</span>
+                        <span className="lv-alert-card__value">{alert.object_id}</span>
+                      </div>
+                    )}
+
+                    <div className="lv-alert-card__time">{alert.received_at}</div>
+                  </div>
+
+                  <div className="lv-alert-card__thumbnail-container">
+                    <img
+                      src={`${API}/api/alerts/thumbnail?ip=${alert.ip}&time=${alert.time || alert.received_at}&crop=1`}
+                      alt="Alert preview"
+                      className="lv-alert-card__thumbnail"
+                      onClick={() => setZoomedImage({
+                        url: `${API}/api/alerts/thumbnail?ip=${alert.ip}&time=${alert.time || alert.received_at}&crop=0`,
+                        cameraName,
+                        ip: displayId,
+                        type: alert.type || alert.scenario,
+                        time: timeOnly || alert.received_at
+                      })}
+                    />
+                  </div>
                 </div>
-
-                <div className="lv-alert-card__row">
-                  <span className="lv-alert-card__label">Type</span>
-                  <span className="lv-alert-card__value">{alert.type || "—"}</span>
-                </div>
-
-                <div className="lv-alert-card__row">
-                  <span className="lv-alert-card__label">Event</span>
-                  <span className="lv-alert-card__value">{alert.scenario || "—"}</span>
-                </div>
-
-                {(alert.type === "OccupancyCount" || alert.scenario === "OccupancyCount") && (
-                  <div className="lv-alert-card__row">
-                    <span className="lv-alert-card__label">People</span>
-                    <span className="lv-alert-card__value">
-                      👥 {alert.human ?? alert.total ?? "—"}
-                    </span>
-                  </div>
-                )}
-
-                {timeOnly && (
-                  <div className="lv-alert-card__row">
-                    <span className="lv-alert-card__label">Time</span>
-                    <span className="lv-alert-card__value lv-alert-card__value--time">
-                      {timeOnly}
-                    </span>
-                  </div>
-                )}
-
-                {alert.class && (
-                  <div className="lv-alert-card__row">
-                    <span className="lv-alert-card__label">Class</span>
-                    <span className="lv-alert-card__value lv-alert-card__value--human">
-                      👤 {alert.class}
-                    </span>
-                  </div>
-                )}
-
-                {alert.object_id && (
-                  <div className="lv-alert-card__row">
-                    <span className="lv-alert-card__label">Object ID</span>
-                    <span className="lv-alert-card__value">{alert.object_id}</span>
-                  </div>
-                )}
-
-                <div className="lv-alert-card__time">{alert.received_at}</div>
               </div>
             );
           })
         )}
       </div>
+
+      {/* Zoom Modal Overlay */}
+      {zoomedImage && (
+        <div className="lv-image-modal" onClick={() => setZoomedImage(null)}>
+          <div className="lv-image-modal__content" onClick={(e) => e.stopPropagation()}>
+            <button className="lv-image-modal__close" onClick={() => setZoomedImage(null)}>✕</button>
+            <img src={zoomedImage.url} alt="Alert Zoom" className="lv-image-modal__img" />
+            <div className="lv-image-modal__caption">
+              <strong>{zoomedImage.cameraName || zoomedImage.ip}</strong> — {zoomedImage.type} ({zoomedImage.time})
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -916,12 +952,23 @@ export default function LiveViewPage() {
   const onlineCams    = activeCams.filter((d) => d.ws_url);
   const disabledCount = devices.length - activeCams.length;
 
+  const sortedActiveCams = useMemo(() => {
+    return [...activeCams].sort((a, b) => {
+      const aCount = alertCounts[a.ip] || 0;
+      const bCount = alertCounts[b.ip] || 0;
+      if (aCount > 0 && bCount === 0) return -1;
+      if (bCount > 0 && aCount === 0) return 1;
+      if (aCount !== bCount) return bCount - aCount;
+      return 0;
+    });
+  }, [activeCams, alertCounts]);
+
   const currentGridOption = GRID_OPTIONS.find(o => o.id === layout) || GRID_OPTIONS[3]; // Default to 3x3
   const rows = currentGridOption.rows;
   const cols = currentGridOption.cols;
   const gridSize = rows * cols;
 
-  const totalPages = Math.max(1, Math.ceil(activeCams.length / gridSize));
+  const totalPages = Math.max(1, Math.ceil(sortedActiveCams.length / gridSize));
   
   // Bound currentPage
   useEffect(() => {
@@ -930,7 +977,7 @@ export default function LiveViewPage() {
     }
   }, [totalPages, currentPage]);
 
-  const pageCams = activeCams.slice((currentPage - 1) * gridSize, currentPage * gridSize);
+  const pageCams = sortedActiveCams.slice((currentPage - 1) * gridSize, currentPage * gridSize);
 
   const handleLayoutChange = (layoutId) => {
     setLayout(layoutId);
@@ -1122,10 +1169,11 @@ export default function LiveViewPage() {
                 {Array.from({ length: gridSize }).map((_, i) => {
                   const cam = pageCams[i];
                   const absIndex = (currentPage - 1) * gridSize + i;
+                  const hasAlert = cam ? (alertCounts[cam.ip] > 0) : false;
                   return (
                     <div
                       key={i}
-                      className={`lv-cell ${selected === absIndex ? "lv-cell--selected" : ""}`}
+                      className={`lv-cell ${selected === absIndex ? "lv-cell--selected" : ""} ${hasAlert ? "lv-cell--alert" : ""}`}
                       onClick={() => setSelected(selected === absIndex ? null : absIndex)}
                     >
                       {cam

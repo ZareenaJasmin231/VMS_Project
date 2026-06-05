@@ -34,6 +34,16 @@ TOPIC_MAP: dict[str, str] = {
     "tns1:Device/Trigger":                             "Motion",
 }
 
+# Topics to IGNORE (stream stats/technical status, not alerts)
+IGNORE_TOPICS = {
+    "tns1:Monitoring/Profile/ActiveConnections",
+    "tns1:Device/Trigger/Relay",
+    "tns1:Device/Trigger/DigitalInput",
+    "tns1:VideoSource/ImageTooBright/AnalyticsService",
+    "tns1:VideoSource/ImageTooDark/AnalyticsService",
+    "tns1:VideoSource/SignalLoss/AnalyticsService",
+}
+
 # ── Persistent subscription cache  { ip → {...} } ────────────────────────────
 _subscriptions: dict[str, dict] = {}
 _SUB_LIFETIME_SECONDS = 300   # 5 minutes; renew 60 s before expiry
@@ -89,10 +99,27 @@ def _safe_str(value: Any) -> str:
 
 
 def _map_event_type(topic: str) -> str:
+    topic_lower = topic.lower()
+    if "motion" in topic_lower:
+        return "Motion"
+    if "objectinfield" in topic_lower or "objectsinside" in topic_lower or "fielddetector" in topic_lower:
+        return "Object Detection"
+    if "crossingline" in topic_lower or "linedetector" in topic_lower or "linecrossing" in topic_lower or "crossed" in topic_lower:
+        return "LineCrossing"
+    if "loitering" in topic_lower:
+        return "Loitering"
+    if "tamper" in topic_lower:
+        return "Tamper"
+
     for key, label in TOPIC_MAP.items():
         if key in topic:
             return label
     parts = topic.replace("//", "/").rstrip("/").split("/")
+    if len(parts) >= 2:
+        category = parts[-2]
+        if category.lower() in ("iva", "ruleengine", "videosource", "device", "monitoring"):
+            return parts[-1]
+        return category
     return parts[-1] if parts else "Unknown"
 
 
@@ -316,17 +343,20 @@ def pull_bosch_events(
             continue   # event ended / no trigger
 
         # ── Filter out technical system/network status logs ───────────
+        if topic in IGNORE_TOPICS:
+            continue
+
         event_type = _map_event_type(topic)
-        allowed_types = {"Motion", "Object Detection", "LineCrossing", "Tamper"}
-        if event_type == "Unknown" or event_type not in allowed_types:
-            continue   # Discard technical network status logs (like ActiveConnections)
+
+        scenario_name = topic.split("/")[-1] if "/" in topic else "Detect Any Object"
 
         events.append({
-            "event_type": event_type,
-            "topic":      topic,
-            "utc_time":   utc_time,
-            "source":     "bosch",
-            "raw":        raw,
+            "event_type":    event_type,
+            "scenario_name": scenario_name,
+            "topic":         topic,
+            "utc_time":      utc_time,
+            "source":        "bosch",
+            "raw":           raw,
         })
 
     if events:

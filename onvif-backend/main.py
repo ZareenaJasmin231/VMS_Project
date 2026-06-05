@@ -112,6 +112,16 @@ app.add_middleware(
 features_router = APIRouter(prefix="/api/camera", tags=["camera-features"], dependencies=[Depends(verify_token)])
 
 # ------------------------------------------------------------------
+# Serve face detection static images
+# ------------------------------------------------------------------
+from fastapi.staticfiles import StaticFiles
+import os
+
+faces_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static", "faces")
+os.makedirs(faces_dir, exist_ok=True)
+app.mount("/api/faces", StaticFiles(directory=faces_dir), name="faces")
+
+# ------------------------------------------------------------------
 # Register all routers — app exists at this point
 # ------------------------------------------------------------------
 app.include_router(recording_router)
@@ -431,6 +441,7 @@ def load_devices():
                     "active_rec_profile":  d.get("active_rec_profile", ""),
                     "recording_profile":   d.get("recording_profile", ""),
                     "assigned_schedule_id": d.get("assigned_schedule_id", "Always"),
+                    "motion_only":          d.get("motion_only", False),
                 } for d in deduped if d.get("ip") and d.get("rtsp_url")]
                 
                 save_devices(final_list)
@@ -612,7 +623,9 @@ def event_playback(ip: str, time: str, request: Request = None, stream: int = 0)
                 elapsed     = alert_local_secs - chunk_secs
                 print(f"DB chunk    : {doc['start_time']}  elapsed={elapsed:.0f}s")
 
-                if elapsed <= CHUNK_SECONDS + 30:
+                actual_duration = float(doc.get("duration_seconds", CHUNK_SECONDS))
+
+                if elapsed <= actual_duration + 2:
                     enc_path = doc.get("file_path", "").replace("\\", "/")
                     print(f"DB chunk OK : {enc_path}")
                 else:
@@ -988,7 +1001,9 @@ def event_playback_hls(ip: str, time_str: str, filename: str):
                     chunk_secs  = ch * 3600 + cm * 60 + cs
                     elapsed     = alert_local_secs - chunk_secs
 
-                    if elapsed <= CHUNK_SECONDS + 30:
+                    actual_duration = float(doc.get("duration_seconds", CHUNK_SECONDS))
+
+                    if elapsed <= actual_duration + 2:
                         enc_path = doc.get("file_path", "").replace("\\", "/")
                 except Exception:
                     pass
@@ -1351,10 +1366,10 @@ async def _analytics_poll_loop(ip: str, port: int, username: str, password: str)
 
             elif not result["success"]:
                 consecutive_failures += 1
-
-                if consecutive_failures >= 10:
-                    print(f"[ANALYTICS] ✗ Giving up on {ip} after 10 failures")
-                    break
+                if consecutive_failures % 10 == 0:
+                    print(f"[ANALYTICS] ✗ Failed to poll {ip} {consecutive_failures} times. Retrying in 10s...")
+                    await asyncio.sleep(10)
+                    continue
 
         except asyncio.CancelledError:
             print(f"[ANALYTICS] ⏹ Stopped for {ip}")
@@ -1363,6 +1378,9 @@ async def _analytics_poll_loop(ip: str, port: int, username: str, password: str)
         except Exception as e:
             print(f"[ANALYTICS] ❌ {ip}: {e}")
             consecutive_failures += 1
+            if consecutive_failures % 10 == 0:
+                await asyncio.sleep(10)
+                continue
 
         await asyncio.sleep(5)
 # ------------------------------------------------------------------
@@ -1534,6 +1552,12 @@ async def startup():
     _health_monitor_task = asyncio.create_task(start_health_monitoring(devices, cameras_col))
     encrypt_service.start_watcher()
     recorder.start_recording_all(devices)
+    try:
+        import motion_detector
+        motion_detector.manager.start()
+        print("[STARTUP] ✓ Motion detector manager started")
+    except Exception as e:
+        print(f"[STARTUP] ❌ Failed to start motion detector manager: {e}")
     asyncio.create_task(system_health_collector())
     asyncio.create_task(camera_health_collector())
     enabled_count = sum(1 for d in devices if d.get("enabled") is not False)
@@ -1543,7 +1567,12 @@ async def startup():
 
 @app.on_event("shutdown")
 async def shutdown():
-    print("[SHUTDOWN] Stopping recorders and encryption watcher...")
+    print("[SHUTDOWN] Stopping recorders, motion detectors, and encryption watcher...")
+    try:
+        import motion_detector
+        motion_detector.manager.stop()
+    except Exception as e:
+        print(f"[SHUTDOWN] Error stopping motion detector manager: {e}")
     recorder.stop_all()
     encrypt_service.stop_watcher()
 
@@ -2822,14 +2851,26 @@ async def get_dashboard_events(limit: int = 20):
 #         return {"cameras": [], "brands": []}
 
 @app.get("/api/alerts", dependencies=[Depends(verify_token)])
-async def get_alerts(limit: int = 50):
+async def get_alerts(
+    limit: int = 50,
+    camera_ip: str = None,
+    include_software_motion: bool = False
+):
     if _db is None:
         return {"alerts": []}
 
     try:
         mqtt_col = _db["mqtt_logs"]
+        
+        query = {}
+        if camera_ip:
+            query["ip"] = camera_ip
+            
+        if not include_software_motion:
+            query["source"] = {"$ne": "software_motion"}
+            
         docs = list(
-            mqtt_col.find({}, {"_id": 0})
+            mqtt_col.find(query, {"_id": 0})
             .sort("_id", -1)
             .limit(limit)
         )
@@ -2853,6 +2894,7 @@ async def get_alerts(limit: int = 50):
                     "status":      d.get("status", "Active"),
                     "received_at": d.get("received_at"),
                     "topic":       d.get("topic", ""),
+                    "source":      d.get("source"),
                 })
             else:
                 # Original MQTT/Axis nested format
@@ -2878,6 +2920,7 @@ async def get_alerts(limit: int = 50):
                     "object_id": data.get("objectId"),
                     "status":    "Active",
                     "received_at": d.get("received_at"),
+                    "source":    d.get("source"),
                 })
 
         return {"alerts": formatted}
@@ -2885,6 +2928,342 @@ async def get_alerts(limit: int = 50):
     except Exception as e:
         print(f"[ALERTS] ❌ {e}")
         return {"alerts": []}
+    
+@app.get("/api/alerts/thumbnail")
+# def get_alert_thumbnail(ip: str, time: str, request: Request = None):
+def get_alert_thumbnail(ip: str, time: str, crop: int = 1, request: Request = None):
+    """
+    Returns a JPEG crop/frame for an alert.
+    If the alert has a bounding box stored in the db, we crop around it.
+    """
+    import re, tempfile, subprocess, os
+    from datetime import datetime, timezone, timedelta
+    
+    headers = {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, OPTIONS",
+        "Access-Control-Allow-Headers": "*",
+    }
+
+    # Helper function for fallback SVG silhouette
+    def fallback_svg(alert_type="Alert"):
+        svg = f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 90" width="120" height="90">
+  <rect width="120" height="90" fill="#0F172A" rx="4"/>
+  <circle cx="60" cy="40" r="16" fill="#1E293B" stroke="#38BDF8" stroke-width="1.5"/>
+  <path d="M48,68 L72,68 C72,60 48,60 48,68 Z" fill="#38BDF8"/>
+  <text x="60" y="80" font-size="8" fill="#94A3B8" font-family="monospace" text-anchor="middle">{alert_type[:18]}</text>
+</svg>"""
+        return Response(content=svg, media_type="image/svg+xml", headers=headers)
+
+    try:
+        print("\n========== ALERT THUMBNAIL ==========")
+        print("IP   :", ip)
+        print("TIME :", time)
+        print("CROP :", crop)
+
+
+        # ── 1. Parse timestamp ────────────────────────────────────────
+        t = time.strip()
+        if " " in t:
+            t = t.replace(" ", "+")
+        t = re.sub(r"([+-])(\d{2})(\d{2})$", r"\1\2:\3", t)
+
+        try:
+            alert_dt = datetime.fromisoformat(t)
+        except ValueError:
+            t_clean  = re.sub(r"[+-]\d{2}:\d{2}$", "", t).rstrip("Z").strip()
+            alert_dt = datetime.fromisoformat(t_clean)
+
+        alert_local_hms  = alert_dt.strftime("%H-%M-%S")
+        alert_local_date = alert_dt.strftime("%Y-%m-%d")
+        alert_local_secs = (
+            alert_dt.hour * 3600 + alert_dt.minute * 60 + alert_dt.second
+        )
+
+        if alert_dt.tzinfo is not None:
+            alert_utc = alert_dt.astimezone(timezone.utc).replace(tzinfo=None)
+        else:
+            alert_utc = alert_dt
+
+        # ── 2. Find any bbox coordinates in the db ────────────────────
+        bbox = None
+        alert_type_str = "Alert"
+        try:
+            ip_norm = ip.strip().replace(".", "_")
+            alert_doc = _db["mqtt_logs"].find_one({
+                "ip": ip_norm,
+                "received_at": {"$regex": f"^{re.escape(time[:16])}"}
+            })
+            if not alert_doc:
+                alert_doc = _db["mqtt_logs"].find_one({
+                    "ip": ip_norm,
+                    "time": {"$regex": f"^{re.escape(time[:16])}"}
+                })
+            
+            if alert_doc:
+                alert_type_str = alert_doc.get("type", "Alert")
+                msg_data = alert_doc.get("message", {}).get("data", {})
+                
+                if isinstance(msg_data, dict):
+                    box_data = msg_data.get("box") or msg_data.get("bbox") or msg_data.get("rect") or msg_data.get("rectangle")
+                    if box_data:
+                        if isinstance(box_data, list) and len(box_data) == 4:
+                            bbox = box_data
+                        elif isinstance(box_data, dict):
+                            x = box_data.get("x")
+                            y = box_data.get("y")
+                            w = box_data.get("w") or box_data.get("width")
+                            h = box_data.get("h") or box_data.get("height")
+                            if all(v is not None for v in [x, y, w, h]):
+                                bbox = [x, y, w, h]
+        except Exception as db_err:
+            print("[ALERT THUMBNAIL] DB search error:", db_err)
+
+        # ── 3. Find the best chunk in DB ──────────────────────────────
+        CHUNK_SECONDS = 300
+        ip_prefix = ip.strip().replace(".", "_")
+        recordings_col = _db["recordings"]
+
+        all_cam_ids = recordings_col.distinct(
+            "camera_id",
+            {"camera_id": {"$regex": f"^{re.escape(ip_prefix)}"}}
+        )
+        if not all_cam_ids:
+            all_cam_ids = [ip_prefix, ip.strip()]
+
+        def find_best_chunk_db(date_str, hms_str):
+            best = None
+            for cam_id in all_cam_ids:
+                candidate = recordings_col.find_one(
+                    {
+                        "camera_id":  cam_id,
+                        "date":       date_str,
+                        "start_time": {"$lte": hms_str},
+                    },
+                    sort=[("start_time", -1)],
+                )
+                if candidate:
+                    if best is None or candidate["start_time"] > best["start_time"]:
+                        best = candidate
+            return best
+
+        doc = find_best_chunk_db(alert_local_date, alert_local_hms)
+
+        if not doc:
+            prev = (alert_dt - timedelta(days=1)).strftime("%Y-%m-%d")
+            doc  = find_best_chunk_db(prev, "23-59-59")
+
+        if not doc:
+            doc = find_best_chunk_db(
+                alert_utc.strftime("%Y-%m-%d"),
+                alert_utc.strftime("%H-%M-%S"),
+            )
+
+        enc_path = None
+        if doc:
+            try:
+                parts = re.split(r"[-:]", doc["start_time"])
+                ch, cm, cs = int(parts[0]), int(parts[1]), int(parts[2])
+                chunk_secs  = ch * 3600 + cm * 60 + cs
+                elapsed     = alert_local_secs - chunk_secs
+
+                if elapsed <= CHUNK_SECONDS + 30:
+                    enc_path = doc.get("file_path", "").replace("\\", "/")
+            except Exception:
+                pass
+
+        # Filesystem fallback scan
+        if not enc_path:
+            rec_dir   = recorder.get_recordings_dir()
+            best_file = None
+            best_diff = None
+
+            for cam_folder in os.listdir(rec_dir):
+                if not cam_folder.startswith(ip_prefix):
+                    continue
+                date_dir = os.path.join(rec_dir, cam_folder, alert_local_date)
+                if not os.path.isdir(date_dir):
+                    continue
+                for fname in os.listdir(date_dir):
+                    if not fname.endswith(".enc"):
+                        continue
+                    stem = fname.replace(".enc", "")
+                    try:
+                        fparts = re.split(r"[-:]", stem)
+                        fh, fm, fs = int(fparts[0]), int(fparts[1]), int(fparts[2])
+                        file_secs  = fh * 3600 + fm * 60 + fs
+                    except Exception:
+                        continue
+                    diff = alert_local_secs - file_secs
+                    if 0 <= diff <= CHUNK_SECONDS + 30:
+                        if best_diff is None or diff < best_diff:
+                            best_diff = diff
+                            best_file = os.path.join(date_dir, fname)
+
+            if best_file:
+                enc_path = best_file
+                stem     = os.path.basename(best_file).replace(".enc", "")
+                fparts   = re.split(r"[-:]", stem)
+                fh, fm, fs = int(fparts[0]), int(fparts[1]), int(fparts[2])
+                elapsed  = alert_local_secs - (fh * 3600 + fm * 60 + fs)
+
+        if not enc_path or not os.path.exists(enc_path):
+            print(f"[ALERT THUMBNAIL] No recording found for {ip} at {time}")
+            return fallback_svg(alert_type_str)
+
+        # ── 4. Decrypt ────────────────────────────────────────────────
+        try:
+            decrypted_bytes = b""
+            # Read first 8MB
+            for chunk in encrypt_service.decrypt_file_stream(enc_path):
+                decrypted_bytes += chunk
+                if len(decrypted_bytes) > 8 * 1024 * 1024:
+                    break
+        except Exception as dec_err:
+            print(f"[ALERT THUMBNAIL] Decryption failed: {dec_err}")
+            return fallback_svg(alert_type_str)
+
+        if len(decrypted_bytes) < 1000:
+            return fallback_svg(alert_type_str)
+
+        # ── 5. Extract frame ──────────────────────────────────────────
+        jpg_tmp = tempfile.NamedTemporaryFile(suffix=".jpg", delete=False)
+        jpg_path = jpg_tmp.name
+        jpg_tmp.close()
+
+        vf_filters = []
+        if bbox:
+            bx, by, bw, bh = bbox
+            try:
+                if any(isinstance(v, float) and 0.0 <= v <= 1.0 for v in [bx, by, bw, bh]):
+                    vf_filters.append(f"scale=640:360")
+                    bx_px = max(0, int(bx * 640))
+                    by_px = max(0, int(by * 360))
+                    bw_px = max(20, int(bw * 640))
+                    bh_px = max(20, int(bh * 360))
+                    vf_filters.append(f"drawbox=x={bx_px}:y={by_px}:w={bw_px}:h={bh_px}:color=0x22C55E@0.8:t=2")
+                    # pad_w = int(bw_px * 0.25)
+                    # pad_h = int(bh_px * 0.25)
+                    # crop_x = max(0, bx_px - pad_w)
+                    # crop_y = max(0, by_px - pad_h)
+                    # crop_w = min(640 - crop_x, bw_px + 2 * pad_w)
+                    # crop_h = min(360 - crop_y, bh_px + 2 * pad_h)
+                    # vf_filters.append(f"crop={crop_w}:{crop_h}:{crop_x}:{crop_y}")
+                    if crop == 1:
+                        pad_w = int(bw_px * 0.25)
+                        pad_h = int(bh_px * 0.25)
+                        crop_x = max(0, bx_px - pad_w)
+                        crop_y = max(0, by_px - pad_h)
+                        crop_w = min(640 - crop_x, bw_px + 2 * pad_w)
+                        crop_h = min(360 - crop_y, bh_px + 2 * pad_h)
+                        vf_filters.append(f"crop={crop_w}:{crop_h}:{crop_x}:{crop_y}")                    
+                else:
+                    vf_filters.append(f"drawbox=x={bx}:y={by}:w={bw}:h={bh}:color=0x22C55E@0.8:t=2")
+                    # pad_w = int(bw * 0.25)
+                    # pad_h = int(bh * 0.25)
+                    # crop_x = max(0, int(bx - pad_w))
+                    # crop_y = max(0, int(by - pad_h))
+                    # crop_w = min(1920 - crop_x, int(bw + 2 * pad_w))
+                    # crop_h = min(1080 - crop_y, int(bh + 2 * pad_h))
+                    # vf_filters.append(f"crop={crop_w}:{crop_h}:{crop_x}:{crop_y}")
+                    if crop == 1:
+                        pad_w = int(bw * 0.25)
+                        pad_h = int(bh * 0.25)
+                        crop_x = max(0, int(bx - pad_w))
+                        crop_y = max(0, int(by - pad_h))
+                        crop_w = min(1920 - crop_x, int(bw + 2 * pad_w))
+                        crop_h = min(1080 - crop_y, int(bh + 2 * pad_h))
+                        vf_filters.append(f"crop={crop_w}:{crop_h}:{crop_x}:{crop_y}")
+                    else:
+                        vf_filters.append("scale=640:-1")
+            except Exception as filter_err:
+                print("[ALERT THUMBNAIL] Filter parse error:", filter_err)
+                vf_filters = ["scale=320:-1"]
+        else:
+            vf_filters.append("scale=320:-1")
+
+        ffmpeg_cmd = [
+            "ffmpeg", "-y",
+            "-ss", str(max(0, elapsed)),
+            "-i", "pipe:0",
+            "-vframes", "1",
+            "-vf", ",".join(vf_filters),
+            "-f", "image2",
+            jpg_path
+        ]
+
+        proc = subprocess.Popen(
+            ffmpeg_cmd,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE
+        )
+        try:
+            _, stderr_data = proc.communicate(input=decrypted_bytes, timeout=15)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.communicate()
+            return fallback_svg(alert_type_str)
+
+        if proc.returncode == 0 and os.path.exists(jpg_path) and os.path.getsize(jpg_path) > 200:
+            with open(jpg_path, "rb") as f:
+                img_data = f.read()
+            try:
+                os.remove(jpg_path)
+            except Exception:
+                pass
+
+            return Response(
+                content=img_data,
+                media_type="image/jpeg",
+                headers={
+                    "Content-Length":              str(len(img_data)),
+                    "Cache-Control":               "max-age=60",
+                    "Access-Control-Allow-Origin": "*",
+                }
+            )
+        else:
+            ffmpeg_cmd_retry = [
+                "ffmpeg", "-y",
+                "-i", "pipe:0",
+                "-vframes", "1",
+                "-vf", ",".join(vf_filters),
+                "-f", "image2",
+                jpg_path
+            ]
+            proc_retry = subprocess.Popen(
+                ffmpeg_cmd_retry,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL
+            )
+            proc_retry.communicate(input=decrypted_bytes, timeout=15)
+            if proc_retry.returncode == 0 and os.path.exists(jpg_path) and os.path.getsize(jpg_path) > 200:
+                with open(jpg_path, "rb") as f:
+                    img_data = f.read()
+                try:
+                    os.remove(jpg_path)
+                except Exception:
+                    pass
+                return Response(
+                    content=img_data,
+                    media_type="image/jpeg",
+                    headers={
+                        "Content-Length":              str(len(img_data)),
+                        "Cache-Control":               "max-age=60",
+                        "Access-Control-Allow-Origin": "*",
+                    }
+                )
+
+        try:
+            os.remove(jpg_path)
+        except Exception:
+            pass
+        return fallback_svg(alert_type_str)
+
+    except Exception as e:
+        print(f"[ALERT THUMBNAIL] Error: {e}")
+        return fallback_svg("Error")
 # @app.get("/api/alerts")
 # def get_alerts(limit: int = 50):
 #     try:

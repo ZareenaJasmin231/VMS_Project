@@ -435,6 +435,7 @@ class Schedule(BaseModel):
 class AssignScheduleRequest(BaseModel):
     camera_id:   str
     schedule_id: str | int | None
+    motion_only: bool = False
 
 def _doc_to_dict(doc: dict) -> dict:
     doc.pop("_id", None)
@@ -680,11 +681,31 @@ def assign_schedule(req: AssignScheduleRequest):
     # Update camera in 'cameras' collection
     _db["cameras"].update_one(
         {"ome_stream": req.camera_id},
-        {"$set": {"assigned_schedule_id": req.schedule_id}}
+        {"$set": {
+            "assigned_schedule_id": req.schedule_id,
+            "motion_only": req.motion_only
+        }}
     )
     # Also update in recorder if active
-    recorder.update_camera_data(req.camera_id, {"assigned_schedule_id": req.schedule_id})
+    recorder.update_camera_data(req.camera_id, {
+        "assigned_schedule_id": req.schedule_id,
+        "motion_only": req.motion_only
+    })
     
+    # Sync motion detector manager immediately
+    try:
+        import motion_detector
+        motion_detector.manager.trigger_sync()
+    except Exception as e:
+        print(f"[API] Error triggering motion detector sync: {e}")
+        
+    # Sync main app devices list
+    try:
+        import main
+        main.devices = main.load_devices()
+    except Exception as e:
+        print(f"[API] Error reloading devices in main: {e}")
+        
     return {"message": "Schedule assigned to camera"}
 
 
@@ -842,7 +863,7 @@ def play_recording(
                     print(f"[PLAY] Error remuxing TS to MP4: {remux_err}")
                     if os.path.exists(temp_mp4_path):
                         os.unlink(temp_mp4_path)
-                    raise HTTPException(status_code=500, detail="Failed to remux TS segment")
+                    raise HTTPException(status_code=415, detail=f"Failed to remux TS segment: {remux_err}")
                 
                 background_tasks.add_task(os.unlink, temp_mp4_path)
                 
@@ -903,7 +924,10 @@ def play_recording(
             
         else:
             # Fallback for CBC: Decrypt the whole file into memory first, then slice
-            stream = _decrypt(enc_path)
+            try:
+                stream = _decrypt(enc_path)
+            except RuntimeError as e:
+                raise HTTPException(status_code=415, detail=str(e))
             data = stream.getvalue()
             real_file_size = len(data)
             
@@ -992,24 +1016,23 @@ def list_camera_recordings(camera_id_or_path: str, date: str = Query(None)):
     
     if not docs:
         # Try as a storage path / folder name
-        # We search for recordings whose file_path contains this folder name
-        # or starts with the container_path of a storage location.
-        loc = locations_collection.find_one({"display_path": camera_id_or_path})
-        c_path = loc["container_path"] if loc else camera_id_or_path
-        
-        # Regex to find the folder name anywhere in the path, surrounded by slashes or at boundaries
-        # Also handle potential leading slash in the database file_path
-        safe_name = re.escape(c_path.replace("\\", "/"))
-        # Only return .enc files, not .meta or .mp4
-        query = {
-            "$and": [
-                {"file_path": {"$regex": f"/{safe_name}/|^{safe_name}/"}},
-                {"file_path": {"$regex": "\\.enc$"}}
-            ]
-        }
-        if date:
-            query["date"] = date
-        docs = list(_collection.find(query).sort("created_at", -1))
+        try:
+            loc = locations_collection.find_one({"display_path": camera_id_or_path})
+            c_path = loc["container_path"] if loc else camera_id_or_path
+            
+            safe_name = re.escape(c_path.replace("\\", "/"))
+            query = {
+                "$and": [
+                    {"file_path": {"$regex": f"/{safe_name}/|^{safe_name}/"}},
+                    {"file_path": {"$regex": "\\.enc$"}}
+                ]
+            }
+            if date:
+                query["date"] = date
+            docs = list(_collection.find(query).sort("created_at", -1))
+        except Exception as e:
+            print(f"[RECORDINGS] Fallback query failed for '{camera_id_or_path}': {e}")
+            docs = []
 
     return [_doc_to_dict(d) for d in docs]
 

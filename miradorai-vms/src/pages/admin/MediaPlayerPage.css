@@ -1267,3 +1267,19 @@
 .mp-timescale-playhead-flag {
   animation: timescale-glow 2s ease-in-out infinite;
 }
+
+/* ── Motion Markers on Timescale Track ─────────────────────────── */
+.mp-timescale-motion-marker {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background: #ef4444; /* Vivid motion red */
+  opacity: 0.85;
+  z-index: 4;
+  pointer-events: auto; /* Allow hover title tooltip */
+  cursor: help;
+  transform: translateX(-50%);
+  box-shadow: 0 0 6px rgba(239, 68, 68, 0.6);
+  border-radius: 2px;
+}

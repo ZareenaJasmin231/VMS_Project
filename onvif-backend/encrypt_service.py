@@ -159,6 +159,8 @@ def _parse_path(input_path: str):
     camera_id = os.path.basename(os.path.dirname(os.path.dirname(input_path)))
     
     stem = filename.replace(".mp4", "").replace(".enc", "")
+    if stem.endswith("_motion_based"):
+        stem = stem[:-13]
     
     # If the filename contains an underscore (e.g. YYYY-MM-DD_HH-MM-SS or cameraName_HH-MM-SS),
     # extract the time part from the last segment.
@@ -169,10 +171,75 @@ def _parse_path(input_path: str):
 
     return camera_id, date_dir, time_part
 
+import subprocess
+import json
+
+def _get_video_duration_seconds(path: str) -> float:
+    try:
+        probe_path = path
+        temp_decrypted = None
+        if path.endswith(".enc"):
+            temp_decrypted = path + ".temp.mp4"
+            if decrypt_file(path, temp_decrypted):
+                probe_path = temp_decrypted
+            else:
+                probe_path = None
+
+        if not probe_path or not os.path.exists(probe_path):
+            return 0.0
+
+        cmd = [
+            "ffprobe",
+            "-v", "quiet",
+            "-print_format", "json",
+            "-show_format",
+            probe_path
+        ]
+
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True
+        )
+
+        data = json.loads(result.stdout)
+        duration = float(data["format"]["duration"])
+
+        if temp_decrypted and os.path.exists(temp_decrypted):
+            try:
+                os.remove(temp_decrypted)
+            except:
+                pass
+
+        return duration
+
+    except Exception as e:
+        print(f"[ENCRYPT] Failed to read duration: {e}")
+        if temp_decrypted and os.path.exists(temp_decrypted):
+            try:
+                os.remove(temp_decrypted)
+            except:
+                pass
+        return 0.0
+
 
 def _save_metadata_to_db(camera_id, date_part, time_part, output_path):
     try:
         file_size = os.path.getsize(output_path) if os.path.exists(output_path) else 0
+
+        from datetime import timedelta
+
+        duration_seconds = _get_video_duration_seconds(output_path)
+
+        start_dt = datetime.strptime(
+            f"{date_part} {time_part}",
+            "%Y-%m-%d %H-%M-%S"
+        )
+
+        end_dt = start_dt + timedelta(seconds=duration_seconds)
+
+        end_time = end_dt.strftime("%H-%M-%S")
+
         metadata_collection.update_one(
             {
                 "camera_id":  camera_id,
@@ -182,13 +249,15 @@ def _save_metadata_to_db(camera_id, date_part, time_part, output_path):
             {
                 "$set": {
                     "file_path":  output_path.replace("\\", "/"),
+                    "duration_seconds": duration_seconds,
+                    "end_time": end_time,
                     "file_size":  file_size,
                     "created_at": datetime.utcnow(),
                 }
             },
             upsert=True
         )
-        print(f"[ENCRYPT] 📄 Saved to MongoDB (Upserted): {camera_id} / {date_part} / {time_part} file_size={file_size}")
+        print(f"[ENCRYPT] 📄 Saved to MongoDB (Upserted): {camera_id} / {date_part} / {time_part} file_size={file_size} duration={duration_seconds} end_time={end_time}")
     except Exception as e:
         print(f"[ENCRYPT] ❌ MongoDB upsert FAILED: {e}")
 
@@ -299,9 +368,20 @@ def encrypt_file(input_path: str) -> bool:
             print(f"[ENCRYPT] Path parse error {input_path}: {e}")
             return False
 
+    motion_only = False
+    try:
+        cam_doc = _db["cameras"].find_one({"ome_stream": camera_id})
+        if cam_doc and cam_doc.get("motion_only"):
+            motion_only = True
+    except Exception as e:
+        print(f"[ENCRYPT] Error querying camera {camera_id}: {e}")
+
     out_dir = os.path.dirname(input_path)
     os.makedirs(out_dir, exist_ok=True)
-    output_path = os.path.join(out_dir, f"{time_part}.enc")
+    if motion_only:
+        output_path = os.path.join(out_dir, f"{time_part}_motion_based.enc")
+    else:
+        output_path = os.path.join(out_dir, f"{time_part}.enc")
 
     # Healing step for non-segment files (segments are healthy by design and faststart is not needed until final play)
     if not is_segment:

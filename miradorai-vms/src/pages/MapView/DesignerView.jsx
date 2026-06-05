@@ -8,7 +8,7 @@ import { drawStorageReport } from "./ReportLogic.js";
 import logoImg from "../../assets/logo.jpg";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
-const API = "http://192.168.126.200:80";
+const API = import.meta.env.VITE_API_URL || "http://192.168.126.38:80";
 const MAP_ID = "default";
 const FLOOR_ID = "floor_1";
 const PIXELS_PER_METRE = 22;
@@ -1112,6 +1112,8 @@ export default function DesignerView({ onBack }) {
   const mouseDownPosRef = useRef(null);
   const saveTimerRef = useRef(null);
   const draggingCamZoneRef = useRef(null);
+  const draggingDraftZoneIdRef = useRef(null);
+  const draggingDraftVertexIdxRef = useRef(null);
 
   const [ppm, setPpm] = useState(PIXELS_PER_METRE);
   const ppmRef = useRef(ppm);
@@ -1184,6 +1186,17 @@ export default function DesignerView({ onBack }) {
   const [undoStack, setUndoStack] = useState([]);
   const [redoStack, setRedoStack] = useState([]);
 
+  const [slides, setSlides] = useState([]);
+  const slidesRef = useRef([]);
+  useEffect(() => { slidesRef.current = slides; }, [slides]);
+
+  const [activeSlideId, setActiveSlideId] = useState(null);
+  const activeSlideIdRef = useRef(null);
+  useEffect(() => { activeSlideIdRef.current = activeSlideId; }, [activeSlideId]);
+
+  const [editingSlideId, setEditingSlideId] = useState(null);
+  const [editingSlideName, setEditingSlideName] = useState("");
+
   const recordState = useCallback((p = placedRef.current, z = zonesRef.current) => {
     const snapshot = {
       placed: JSON.parse(JSON.stringify(p)),
@@ -1192,6 +1205,8 @@ export default function DesignerView({ onBack }) {
     setUndoStack(prev => [...prev, snapshot]);
     setRedoStack([]);
   }, []);
+
+
 
 
 
@@ -1436,20 +1451,32 @@ export default function DesignerView({ onBack }) {
     // ── Draft (CV Detected) Zones ────────────────────────────────────────────
     draftZonesRef.current.forEach(zone => {
       if (zone.polygon.length < 2) return;
+
+      // Calculate blink phase (opacity oscillating between 0.25 and 0.85)
+      const blinkTime = Date.now() * 0.005; // speed multiplier
+      const opacity = 0.35 + 0.35 * Math.sin(blinkTime);
+
       ctx.save();
       ctx.beginPath();
       zone.polygon.forEach((p, i) => { if (i === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y); });
       ctx.closePath();
-      // ctx.fillStyle = zone.color + "10"; ctx.fill();
-      ctx.strokeStyle = zone.color + "77";
-      ctx.lineWidth = 1.5;
-      ctx.setLineDash([4, 4]);
+      
+      // Subtle constant background fill
+      ctx.fillStyle = zone.color + "14";
+      ctx.fill();
+
+      ctx.strokeStyle = zone.color;
+      ctx.globalAlpha = opacity;
+      ctx.lineWidth = 2.0;
+      ctx.setLineDash([6, 4]);
       ctx.stroke(); ctx.setLineDash([]);
       
       zone.polygon.forEach(p => {
-        ctx.beginPath(); ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
-        ctx.fillStyle = zone.color; ctx.globalAlpha = 0.4; ctx.fill();
-        ctx.strokeStyle = "#fff"; ctx.lineWidth = 1; ctx.stroke(); ctx.globalAlpha = 1;
+        ctx.beginPath(); ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
+        ctx.fillStyle = zone.color;
+        ctx.globalAlpha = opacity;
+        ctx.fill();
+        ctx.strokeStyle = "#fff"; ctx.lineWidth = 1; ctx.stroke();
       });
 
       // Calculate center to show a nice little label
@@ -1458,6 +1485,7 @@ export default function DesignerView({ onBack }) {
       cx /= zone.polygon.length;
       cy /= zone.polygon.length;
       ctx.fillStyle = zone.color;
+      ctx.globalAlpha = opacity;
       ctx.font = "bold 9px monospace";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
@@ -1697,18 +1725,138 @@ export default function DesignerView({ onBack }) {
 
   // ── Restore layout on mount ───────────────────────────────────────────────
   useEffect(() => {
-    apiLoadLayout().then(data => {
-      if (!data) return;
-      if (data.ppm) setPpm(data.ppm);
-      if (data.placed?.length) { placedRef.current = data.placed; setPlaced(data.placed); }
-      if (data.zones?.length) { zonesRef.current = data.zones; setZones(data.zones); }
-      if (data.floor_plan) {
-        const img = new Image();
-        img.onload = () => { floorImgRef.current = img; setHasFloor(true); setTimeout(fitImage, 50); };
-        img.src = data.floor_plan;
+    const savedSlidesStr = localStorage.getItem(`miradorai_slides_${MAP_ID}`);
+    const savedActiveId = localStorage.getItem(`miradorai_active_slide_${MAP_ID}`);
+
+    if (savedSlidesStr) {
+      try {
+        const parsedSlides = JSON.parse(savedSlidesStr);
+        setSlides(parsedSlides);
+        slidesRef.current = parsedSlides;
+
+        const activeId = (savedActiveId && parsedSlides.find(s => s.id === savedActiveId))
+          ? savedActiveId
+          : (parsedSlides.length > 0 ? parsedSlides[0].id : null);
+
+        if (activeId) {
+          setActiveSlideId(activeId);
+          activeSlideIdRef.current = activeId;
+          const activeSlide = parsedSlides.find(s => s.id === activeId);
+          if (activeSlide) {
+            setPpm(activeSlide.ppm || PIXELS_PER_METRE);
+            ppmRef.current = activeSlide.ppm || PIXELS_PER_METRE;
+
+            placedRef.current = activeSlide.placed || [];
+            setPlaced(activeSlide.placed || []);
+
+            zonesRef.current = activeSlide.zones || [];
+            setZones(activeSlide.zones || []);
+
+            draftZonesRef.current = activeSlide.draftZones || [];
+            setDraftZones(activeSlide.draftZones || []);
+
+            if (activeSlide.floorPlan) {
+              const img = new Image();
+              img.onload = () => {
+                floorImgRef.current = img;
+                setHasFloor(true);
+                setTimeout(fitImage, 50);
+              };
+              img.src = activeSlide.floorPlan;
+            }
+          }
+        }
+      } catch (err) {
+        console.error("Failed to load slides from localStorage", err);
       }
-    });
+    } else {
+      apiLoadLayout().then(data => {
+        const defaultSlide = {
+          id: "slide_" + Date.now(),
+          name: "Floor Draft 1",
+          floorPlan: (data && data.floor_plan) || null,
+          placed: (data && data.placed) || [],
+          zones: (data && data.zones) || [],
+          draftZones: [],
+          ppm: (data && data.ppm) || PIXELS_PER_METRE
+        };
+
+        setSlides([defaultSlide]);
+        slidesRef.current = [defaultSlide];
+        setActiveSlideId(defaultSlide.id);
+        activeSlideIdRef.current = defaultSlide.id;
+
+        if (data) {
+          if (data.ppm) {
+            setPpm(data.ppm);
+            ppmRef.current = data.ppm;
+          }
+          if (data.placed?.length) {
+            placedRef.current = data.placed;
+            setPlaced(data.placed);
+          }
+          if (data.zones?.length) {
+            zonesRef.current = data.zones;
+            setZones(data.zones);
+          }
+          if (data.floor_plan) {
+            const img = new Image();
+            img.onload = () => {
+              floorImgRef.current = img;
+              setHasFloor(true);
+              setTimeout(fitImage, 50);
+            };
+            img.src = data.floor_plan;
+          }
+        }
+      });
+    }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Auto-save slides list and active slide ID to localStorage
+  useEffect(() => {
+    if (slides.length > 0) {
+      localStorage.setItem(`miradorai_slides_${MAP_ID}`, JSON.stringify(slides));
+    }
+  }, [slides]);
+
+  useEffect(() => {
+    if (activeSlideId) {
+      localStorage.setItem(`miradorai_active_slide_${MAP_ID}`, activeSlideId);
+    }
+  }, [activeSlideId]);
+
+  // Reactive Sync: Keep active slide inside slides list in sync with current canvas editor states
+  useEffect(() => {
+    if (!activeSlideId) return;
+    setSlides(prevSlides => {
+      const idx = prevSlides.findIndex(s => s.id === activeSlideId);
+      if (idx === -1) return prevSlides;
+      
+      const currentSlide = prevSlides[idx];
+      const hasFloorImg = floorImgRef.current ? floorImgRef.current.src : null;
+      if (
+        currentSlide.ppm === ppm &&
+        currentSlide.floorPlan === hasFloorImg &&
+        JSON.stringify(currentSlide.placed) === JSON.stringify(placed) &&
+        JSON.stringify(currentSlide.zones) === JSON.stringify(zones) &&
+        JSON.stringify(currentSlide.draftZones) === JSON.stringify(draftZones)
+      ) {
+        return prevSlides;
+      }
+      
+      const updated = [...prevSlides];
+      updated[idx] = {
+        ...currentSlide,
+        ppm,
+        placed,
+        zones,
+        draftZones,
+        floorPlan: hasFloorImg
+      };
+      return updated;
+    });
+  }, [placed, zones, draftZones, ppm, activeSlideId]);
 
   // ── Camera model fetch ────────────────────────────────────────────────────
   useEffect(() => {
@@ -1767,7 +1915,22 @@ export default function DesignerView({ onBack }) {
   useEffect(() => {
     if (rafRef.current) cancelAnimationFrame(rafRef.current);
     rafRef.current = requestAnimationFrame(draw);
-  }, [draw, placed, zones, drawingPoints, activeZoneId, highlightedCamId]);
+  }, [draw, placed, zones, drawingPoints, activeZoneId, highlightedCamId, draftZones]);
+
+  useEffect(() => {
+    if (draftZones.length === 0) return;
+    let active = true;
+    const tick = () => {
+      if (!active) return;
+      draw();
+      requestAnimationFrame(tick);
+    };
+    const localRaf = requestAnimationFrame(tick);
+    return () => {
+      active = false;
+      cancelAnimationFrame(localRaf);
+    };
+  }, [draftZones, draw]);
 
   useEffect(() => {
     const obs = new ResizeObserver(draw);
@@ -1801,6 +1964,177 @@ export default function DesignerView({ onBack }) {
   useEffect(() => {
     fitImage();
   }, [inspectorExpanded, fitImage]);
+
+  const renameSlide = useCallback((slideId, newName) => {
+    setSlides(prev => prev.map(s => s.id === slideId ? { ...s, name: newName } : s));
+  }, []);
+
+  const switchSlide = useCallback((slideId) => {
+    const targetSlide = slidesRef.current.find(s => s.id === slideId);
+    if (!targetSlide) return;
+
+    recordState();
+
+    setActiveSlideId(slideId);
+
+    setPpm(targetSlide.ppm || PIXELS_PER_METRE);
+    ppmRef.current = targetSlide.ppm || PIXELS_PER_METRE;
+
+    placedRef.current = targetSlide.placed || [];
+    setPlaced(targetSlide.placed || []);
+
+    zonesRef.current = targetSlide.zones || [];
+    setZones(targetSlide.zones || []);
+
+    draftZonesRef.current = targetSlide.draftZones || [];
+    setDraftZones(targetSlide.draftZones || []);
+
+    drawingPointsRef.current = [];
+    setDrawingPoints([]);
+    setSelectedIdx(null);
+    setActiveZoneId(null);
+    activeZoneIdRef.current = null;
+
+    if (targetSlide.floorPlan) {
+      const img = new Image();
+      img.onload = () => {
+        floorImgRef.current = img;
+        setHasFloor(true);
+        setTimeout(fitImage, 50);
+      };
+      img.src = targetSlide.floorPlan;
+    } else {
+      floorImgRef.current = null;
+      setHasFloor(false);
+      draw();
+    }
+
+    apiSaveFloorPlan(targetSlide.floorPlan);
+    apiSaveLayout({
+      placed: targetSlide.placed || [],
+      zones: targetSlide.zones || [],
+      ppm: targetSlide.ppm || PIXELS_PER_METRE
+    });
+  }, [recordState, fitImage, draw]);
+
+  const deleteSlide = useCallback((slideId, e) => {
+    if (e) e.stopPropagation();
+
+    if (slidesRef.current.length <= 1) {
+      alert("You must keep at least one floor draft.");
+      return;
+    }
+
+    recordState();
+
+    const currentSlides = slidesRef.current;
+    const index = currentSlides.findIndex(s => s.id === slideId);
+    const updatedSlides = currentSlides.filter(s => s.id !== slideId);
+    setSlides(updatedSlides);
+
+    if (activeSlideIdRef.current === slideId) {
+      const newActiveIdx = Math.max(0, index - 1);
+      const newActiveSlide = updatedSlides[newActiveIdx];
+      if (newActiveSlide) {
+        setActiveSlideId(newActiveSlide.id);
+
+        setPpm(newActiveSlide.ppm || PIXELS_PER_METRE);
+        ppmRef.current = newActiveSlide.ppm || PIXELS_PER_METRE;
+
+        placedRef.current = newActiveSlide.placed || [];
+        setPlaced(newActiveSlide.placed || []);
+
+        zonesRef.current = newActiveSlide.zones || [];
+        setZones(newActiveSlide.zones || []);
+
+        draftZonesRef.current = newActiveSlide.draftZones || [];
+        setDraftZones(newActiveSlide.draftZones || []);
+
+        drawingPointsRef.current = [];
+        setDrawingPoints([]);
+        setSelectedIdx(null);
+        setActiveZoneId(null);
+        activeZoneIdRef.current = null;
+
+        if (newActiveSlide.floorPlan) {
+          const img = new Image();
+          img.onload = () => {
+            floorImgRef.current = img;
+            setHasFloor(true);
+            setTimeout(fitImage, 50);
+          };
+          img.src = newActiveSlide.floorPlan;
+        } else {
+          floorImgRef.current = null;
+          setHasFloor(false);
+          draw();
+        }
+
+        apiSaveFloorPlan(newActiveSlide.floorPlan);
+        apiSaveLayout({
+          placed: newActiveSlide.placed || [],
+          zones: newActiveSlide.zones || [],
+          ppm: newActiveSlide.ppm || PIXELS_PER_METRE
+        });
+      }
+    }
+  }, [recordState, fitImage, draw]);
+
+  const addNewSlide = useCallback((floorPlan = null, floorPlanName = null) => {
+    recordState();
+
+    const newSlideId = "slide_" + Date.now();
+    const newSlideName = floorPlanName || `Floor Draft ${slidesRef.current.length + 1}`;
+    
+    const newSlide = {
+      id: newSlideId,
+      name: newSlideName,
+      floorPlan,
+      placed: [],
+      zones: [],
+      draftZones: [],
+      ppm: PIXELS_PER_METRE
+    };
+
+    setSlides(prev => [...prev, newSlide]);
+    setActiveSlideId(newSlideId);
+
+    setPpm(PIXELS_PER_METRE);
+    ppmRef.current = PIXELS_PER_METRE;
+
+    placedRef.current = [];
+    setPlaced([]);
+    zonesRef.current = [];
+    setZones([]);
+    draftZonesRef.current = [];
+    setDraftZones([]);
+    drawingPointsRef.current = [];
+    setDrawingPoints([]);
+    setSelectedIdx(null);
+    setActiveZoneId(null);
+    activeZoneIdRef.current = null;
+
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current);
+    }
+
+    if (floorPlan) {
+      const img = new Image();
+      img.onload = () => {
+        floorImgRef.current = img;
+        setHasFloor(true);
+        setTimeout(fitImage, 50);
+      };
+      img.src = floorPlan;
+    } else {
+      floorImgRef.current = null;
+      setHasFloor(false);
+      draw();
+    }
+
+    apiSaveFloorPlan(floorPlan);
+    apiSaveLayout({ placed: [], zones: [], ppm: PIXELS_PER_METRE });
+  }, [recordState, fitImage, draw]);
 
   const applyZoom = useCallback((delta, cx, cy) => {
     const prev = scaleRef.current;
@@ -2274,6 +2608,30 @@ export default function DesignerView({ onBack }) {
 
     if (nearRotHandle(p.x, p.y)) { recordState(); rotatingIdxRef.current = selectedIdx; return; }
 
+    // Check if clicked near a vertex of a draft zone to start dragging it
+    if (draftZonesRef.current.length > 0) {
+      const grabRadius = 12 / scaleRef.current;
+      let foundZoneId = null;
+      let foundVertexIdx = null;
+      for (const zone of draftZonesRef.current) {
+        if (!zone.polygon) continue;
+        for (let i = 0; i < zone.polygon.length; i++) {
+          const pt = zone.polygon[i];
+          if (Math.hypot(p.x - pt.x, p.y - pt.y) < grabRadius) {
+            foundZoneId = zone.id;
+            foundVertexIdx = i;
+            break;
+          }
+        }
+        if (foundZoneId !== null) break;
+      }
+      if (foundZoneId !== null) {
+        draggingDraftZoneIdRef.current = foundZoneId;
+        draggingDraftVertexIdxRef.current = foundVertexIdx;
+        return;
+      }
+    }
+
     const idx = nearestPlaced(p.x, p.y);
     if (idx >= 0) {
       recordState();
@@ -2329,6 +2687,23 @@ export default function DesignerView({ onBack }) {
     setMouseMapPos(p);
     mouseMapPosRef.current = p;
 
+    if (draggingDraftZoneIdRef.current !== null && draggingDraftVertexIdxRef.current !== null) {
+      const zoneId = draggingDraftZoneIdRef.current;
+      const vertexIdx = draggingDraftVertexIdxRef.current;
+      const updatedDrafts = draftZonesRef.current.map(zone => {
+        if (zone.id === zoneId) {
+          const newPolygon = [...zone.polygon];
+          newPolygon[vertexIdx] = { x: p.x, y: p.y };
+          return { ...zone, polygon: newPolygon };
+        }
+        return zone;
+      });
+      draftZonesRef.current = updatedDrafts;
+      setDraftZones(updatedDrafts);
+      draw();
+      return;
+    }
+
     if (modeRef.current === "calibrate") {
       draw();
       return;
@@ -2366,6 +2741,31 @@ export default function DesignerView({ onBack }) {
     const idx = nearestPlaced(p.x, p.y);
     if (idx !== hoveredIdx) { setHoveredIdx(idx >= 0 ? idx : null); }
     draw();
+
+    // Update cursor style
+    if (modeRef.current !== "pan") {
+      let cursor = "crosshair";
+      if (draftZonesRef.current.length > 0) {
+        const grabRadius = 12 / scaleRef.current;
+        let nearVertex = false;
+        for (const zone of draftZonesRef.current) {
+          if (!zone.polygon) continue;
+          for (const pt of zone.polygon) {
+            if (Math.hypot(p.x - pt.x, p.y - pt.y) < grabRadius) {
+              nearVertex = true;
+              break;
+            }
+          }
+          if (nearVertex) break;
+        }
+        if (nearVertex) {
+          cursor = "move";
+        }
+      }
+      if (e.target) {
+        e.target.style.cursor = cursor;
+      }
+    }
   }, [draw, hoveredIdx]); // eslint-disable-line
 
   const onMouseUp = useCallback(() => {
@@ -2376,6 +2776,8 @@ export default function DesignerView({ onBack }) {
     panStartRef.current = null;
     mouseDownPosRef.current = null;
     draggingCamZoneRef.current = null;
+    draggingDraftZoneIdRef.current = null;
+    draggingDraftVertexIdxRef.current = null;
     if (wasDragging || wasRotating) {
       scheduleSave(placedRef.current, zonesRef.current, ppmRef.current);
     }
@@ -2423,53 +2825,11 @@ export default function DesignerView({ onBack }) {
   // ── Floor plan import ─────────────────────────────────────────────────────
   function handleFileChange(e) {
     const file = e.target.files[0]; if (!file) return;
-    
-    const proceedWithImport = () => {
-      recordState();
-      const reader = new FileReader();
-      reader.onload = ev => {
-        const img = new Image();
-        img.onload = () => {
-          floorImgRef.current = img;
-          setHasFloor(true);
-          
-          // Clear any pending debounced saves to prevent previous zones/cameras from overwriting this empty state
-          if (saveTimerRef.current) {
-            clearTimeout(saveTimerRef.current);
-          }
-          
-          // Clear previous map layout data when importing a new floor plan
-          placedRef.current = [];
-          setPlaced([]);
-          zonesRef.current = [];
-          setZones([]);
-          draftZonesRef.current = [];
-          setDraftZones([]);
-          drawingPointsRef.current = [];
-          setDrawingPoints([]);
-          setSelectedIdx(null);
-          setActiveZoneId(null);
-          activeZoneIdRef.current = null;
-          
-          fitImage();
-          apiSaveFloorPlan(ev.target.result);
-          apiSaveLayout({ placed: [], zones: [], ppm: ppmRef.current });
-        };
-        img.src = ev.target.result;
-      };
-      reader.readAsDataURL(file);
+    const reader = new FileReader();
+    reader.onload = ev => {
+      addNewSlide(ev.target.result, file.name.replace(/\.[^/.]+$/, ""));
     };
-
-    if (placedRef.current.length > 0 || zonesRef.current.length > 0) {
-      showConfirm(
-        "Import New Floor Plan",
-        "Importing a new floor plan will clear all currently placed cameras and zones. Do you want to proceed?",
-        proceedWithImport
-      );
-    } else {
-      proceedWithImport();
-    }
-    
+    reader.readAsDataURL(file);
     e.target.value = "";
   }
 
@@ -3089,13 +3449,300 @@ export default function DesignerView({ onBack }) {
       {/* ── Body ── */}
       <div className="dv-body">
 
+        {/* ── Left Sidebar (Layout Slides like PowerPoint/Docs) ── */}
+        <div 
+          className="dv-slides-sidebar"
+          style={{
+            width: "220px",
+            background: "#0d1117",
+            borderRight: "0.5px solid #1e2d3e",
+            display: "flex",
+            flexDirection: "column",
+            flexShrink: 0,
+            overflow: "hidden",
+            userSelect: "none"
+          }}
+        >
+          <div 
+            style={{
+              padding: "12px 14px",
+              borderBottom: "0.5px solid #1e2d3e",
+              fontSize: "11px",
+              fontWeight: "700",
+              textTransform: "uppercase",
+              letterSpacing: "0.05em",
+              color: "#7a8499",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between"
+            }}
+          >
+            <span>Floor Drafts ({slides.length})</span>
+            <button
+              onClick={() => addNewSlide(null)}
+              style={{
+                background: "rgba(59, 130, 246, 0.15)",
+                border: "1px solid rgba(59, 130, 246, 0.4)",
+                borderRadius: "4px",
+                color: "#60a5fa",
+                fontSize: "10px",
+                padding: "2px 6px",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: "2px",
+                transition: "all 0.15s ease"
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = "rgba(59, 130, 246, 0.25)"; }}
+              onMouseLeave={e => { e.currentTarget.style.background = "rgba(59, 130, 246, 0.15)"; }}
+              title="Add a new blank floor layout draft"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="10" height="10">
+                <line x1="12" y1="5" x2="12" y2="19" />
+                <line x1="5" y1="12" x2="19" y2="12" />
+              </svg>
+              New
+            </button>
+          </div>
+
+          <div 
+            style={{
+              flex: 1,
+              overflowY: "auto",
+              padding: "10px",
+              display: "flex",
+              flexDirection: "column",
+              gap: "12px",
+              scrollbarWidth: "thin",
+              scrollbarColor: "#2e3d55 transparent"
+            }}
+          >
+            {slides.map((slide, sIdx) => {
+              const isActive = slide.id === activeSlideId;
+              const camCount = slide.placed?.length || 0;
+              const zoneCount = slide.zones?.length || 0;
+
+              return (
+                <div
+                  key={slide.id}
+                  onClick={() => switchSlide(slide.id)}
+                  style={{
+                    display: "flex",
+                    gap: "8px",
+                    cursor: "pointer",
+                    position: "relative",
+                    transition: "all 0.2s ease",
+                    padding: "4px",
+                    borderRadius: "6px",
+                    background: isActive ? "rgba(59, 130, 246, 0.05)" : "transparent"
+                  }}
+                >
+                  {/* Slide index number */}
+                  <div 
+                    style={{
+                      fontSize: "11px",
+                      fontWeight: "700",
+                      color: isActive ? "#3b82f6" : "#4b5563",
+                      width: "14px",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center"
+                    }}
+                  >
+                    {sIdx + 1}
+                  </div>
+
+                  {/* Thumbnail Card Frame */}
+                  <div 
+                    className={`dv-slide-card ${isActive ? "active" : ""}`}
+                    style={{
+                      flex: 1,
+                      display: "flex",
+                      flexDirection: "column",
+                      background: "#10151f",
+                      border: isActive ? "1.5px solid #3b82f6" : "1px solid #1e2d3e",
+                      borderRadius: "6px",
+                      overflow: "hidden",
+                      transition: "all 0.15s ease",
+                      boxShadow: isActive ? "0 0 10px rgba(59, 130, 246, 0.15)" : "none"
+                    }}
+                    onMouseEnter={e => {
+                      if (!isActive) {
+                        e.currentTarget.style.borderColor = "#2e3d55";
+                      }
+                    }}
+                    onMouseLeave={e => {
+                      if (!isActive) {
+                        e.currentTarget.style.borderColor = "#1e2d3e";
+                      }
+                    }}
+                  >
+                    {/* Thumbnail Image area */}
+                    <div 
+                      style={{
+                        height: "80px",
+                        background: "#070a0f",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        position: "relative",
+                        borderBottom: "1px solid #1e2d3e",
+                        overflow: "hidden"
+                      }}
+                    >
+                      {slide.floorPlan ? (
+                        <img 
+                          src={slide.floorPlan} 
+                          alt={slide.name} 
+                          style={{
+                            width: "100%",
+                            height: "100%",
+                            objectFit: "contain",
+                            opacity: 0.85
+                          }}
+                        />
+                      ) : (
+                        <div 
+                          style={{
+                            display: "flex",
+                            flexDirection: "column",
+                            alignItems: "center",
+                            gap: "4px",
+                            color: "#4b5563"
+                          }}
+                        >
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="16" height="16">
+                            <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                            <circle cx="8.5" cy="8.5" r="1.5" />
+                            <polyline points="21 15 16 10 5 21" />
+                          </svg>
+                          <span style={{ fontSize: "9px" }}>No Floor Plan</span>
+                        </div>
+                      )}
+
+                      {/* Floating actions menu (e.g. Delete button on hover) */}
+                      {slides.length > 1 && (
+                        <button
+                          onClick={(e) => deleteSlide(slide.id, e)}
+                          style={{
+                            position: "absolute",
+                            top: "4px",
+                            right: "4px",
+                            background: "rgba(239, 68, 68, 0.8)",
+                            border: "none",
+                            borderRadius: "4px",
+                            color: "#ffffff",
+                            padding: "2px",
+                            cursor: "pointer",
+                            opacity: 0,
+                            transition: "opacity 0.15s ease",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center"
+                          }}
+                          className="dv-slide-delete-btn"
+                          title="Delete layout draft"
+                        >
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="10" height="10">
+                            <polyline points="3 6 5 6 21 6" />
+                            <path d="M19 6l-1 14H6L5 6" />
+                            <line x1="10" y1="11" x2="10" y2="17" />
+                            <line x1="14" y1="11" x2="14" y2="17" />
+                          </svg>
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Thumbnail description info */}
+                    <div style={{ padding: "6px 8px", display: "flex", flexDirection: "column", gap: "2px" }}>
+                      {editingSlideId === slide.id ? (
+                        <input
+                          type="text"
+                          value={editingSlideName}
+                          onChange={e => setEditingSlideName(e.target.value)}
+                          onBlur={() => {
+                            if (editingSlideName.trim()) {
+                              renameSlide(slide.id, editingSlideName.trim());
+                            }
+                            setEditingSlideId(null);
+                          }}
+                          onKeyDown={e => {
+                            if (e.key === "Enter") {
+                              if (editingSlideName.trim()) {
+                                renameSlide(slide.id, editingSlideName.trim());
+                              }
+                              setEditingSlideId(null);
+                            } else if (e.key === "Escape") {
+                              setEditingSlideId(null);
+                            }
+                          }}
+                          onClick={e => e.stopPropagation()}
+                          autoFocus
+                          style={{
+                            background: "#070a0f",
+                            border: "1px solid #3b82f6",
+                            borderRadius: "3px",
+                            color: "#ffffff",
+                            fontSize: "11px",
+                            padding: "1px 4px",
+                            width: "100%",
+                            outline: "none"
+                          }}
+                        />
+                      ) : (
+                        <div 
+                          onDoubleClick={(e) => {
+                            e.stopPropagation();
+                            setEditingSlideId(slide.id);
+                            setEditingSlideName(slide.name);
+                          }}
+                          style={{
+                            fontSize: "11px",
+                            fontWeight: "600",
+                            color: isActive ? "#60a5fa" : "#e2e8f0",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between"
+                          }}
+                          title="Double click to rename"
+                        >
+                          <span>{slide.name}</span>
+                          <svg 
+                            viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="10" height="10" 
+                            style={{ opacity: 0.3, cursor: "pointer" }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setEditingSlideId(slide.id);
+                              setEditingSlideName(slide.name);
+                            }}
+                          >
+                            <path d="M12 20h9M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z" />
+                          </svg>
+                        </div>
+                      )}
+
+                      {/* Counts stats line */}
+                      <div style={{ fontSize: "9.5px", color: "#6b7280", marginTop: "2px" }}>
+                        {camCount} Cam{camCount !== 1 ? "s" : ""} • {zoneCount} Zone{zoneCount !== 1 ? "s" : ""}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
         {/* ── Canvas ── */}
         <div className="dv-canvas-wrap" ref={wrapRef}
           onDragOver={e => e.preventDefault()}
           onDrop={onDrop}
         >
           <canvas ref={canvasRef} className="dv-canvas"
-            style={{ cursor: mode === "pan" ? "grab" : "crosshair" }}
+            style={{ cursor: mode === "pan" ? "grab" : undefined }}
             onMouseDown={onMouseDown}
             onMouseMove={onMouseMove}
             onMouseUp={onMouseUp}

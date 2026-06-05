@@ -1891,4 +1891,41 @@
   opacity: 1 !important;
 }
 
- 
+/* ── Slides left sidebar styles ── */
+.dv-slides-sidebar {
+  transition: width 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.dv-slide-card {
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.dv-slide-card.active {
+  box-shadow: 0 0 12px rgba(59, 130, 246, 0.25);
+  transform: translateY(-1px);
+}
+
+.dv-slide-card:hover {
+  transform: translateY(-1px);
+}
+
+.dv-slide-card:hover .dv-slide-delete-btn {
+  opacity: 1 !important;
+}
+
+.dv-slide-delete-btn:hover {
+  background: #ef4444 !important;
+  color: #ffffff !important;
+  transform: scale(1.05);
+}
+
+.dv-slide-card img {
+  transition: transform 0.3s ease;
+}
+
+.dv-slide-card:hover img {
+  transform: scale(1.02);
+}

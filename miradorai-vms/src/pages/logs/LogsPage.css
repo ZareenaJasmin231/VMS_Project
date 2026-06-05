@@ -228,6 +228,12 @@
   color: var(--blue);
 }
 
+.log-tag.system {
+  background: rgba(99, 102, 241, 0.1);
+  color: #818cf8;
+}
+
+
 .log-output pre {
   margin: 0;
   font-family: var(--font-mono);
@@ -304,7 +310,27 @@
   word-break: break-word;
   max-height: 80px;
   overflow-y: auto;
+  margin-top: 6px;
 }
+
+.log-details-toggle {
+  background: rgba(99, 102, 241, 0.1);
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  color: #818cf8;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 4px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.log-details-toggle:hover {
+  background: rgba(99, 102, 241, 0.2);
+  border-color: rgba(99, 102, 241, 0.5);
+  color: #a5b4fc;
+}
+
 
 /* Custom Category Dropdown Styles */
 .logs-custom-select {

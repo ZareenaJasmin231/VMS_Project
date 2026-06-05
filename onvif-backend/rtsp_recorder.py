@@ -35,12 +35,85 @@ _recorders:  dict[str, threading.Thread] = {}
 _stop_flags: dict[str, threading.Event]  = {}
 _vf_filters: dict[str, str]              = {}
 _camera_data: dict[str, dict]             = {}
+_motion_events: dict[str, threading.Event] = {}
+_actively_recording_streams = set()
 
-# ── MongoDB for schedules ──────────────────────────────────────────
+_latest_face_urls: dict[str, str] = {}
+_last_trigger_log_times: dict[str, float] = {}
+
+# ── MongoDB (shared client for all recorder operations) ─────────────
 MONGO_URI    = os.environ.get("MONGO_URI", "mongodb://mongo:27017/")
-_mongo       = MongoClient(MONGO_URI)
+_mongo       = MongoClient(MONGO_URI, maxPoolSize=10)
 _db          = _mongo["mirador-vms"]
 _schedules   = _db["schedules"]
+
+def trigger_motion(stream_name: str, face_url: str | None = None):
+    """Trigger a motion recording chunk for the given stream_name."""
+    meta = _camera_data.get(stream_name, {})
+    if not meta.get("motion_only", False):
+        return
+
+    if stream_name not in _motion_events:
+        _motion_events[stream_name] = threading.Event()
+    _motion_events[stream_name].set()
+    
+    local_time_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    print(f"[RECORDER] [{local_time_str}] 💥 Motion trigger received for {stream_name} (face_url: {face_url})")
+    
+    if face_url:
+        _latest_face_urls[stream_name] = face_url
+    else:
+        _latest_face_urls.pop(stream_name, None)
+        
+    # Save log to ui_logs collection so it appears on the Logs page
+    try:
+        from datetime import timedelta
+        ui_logs_col = _db["ui_logs"]
+        
+        now = time.time()
+        last_log_time = _last_trigger_log_times.get(stream_name, 0)
+        
+        # If face_url is present, check if we logged a trigger in the last 15 seconds without a face_url, and update it
+        if face_url:
+            recent_log = ui_logs_col.find_one(
+                {
+                    "category": "recording",
+                    "details.camera_id": stream_name,
+                    "details.event": "motion_trigger",
+                    "details.face_url": None,
+                    "timestamp": {"$gte": (datetime.utcnow() - timedelta(seconds=15)).isoformat() + "Z"}
+                },
+                sort=[("timestamp", -1)]
+            )
+            if recent_log:
+                ui_logs_col.update_one(
+                    {"_id": recent_log["_id"]},
+                    {"$set": {"details.face_url": face_url}}
+                )
+                print(f"[RECORDER] Attached face_url {face_url} to recent motion log.")
+                return
+        
+        # Debounce writing new logs: 15 seconds per camera
+        if now - last_log_time < 15:
+            return
+            
+        _last_trigger_log_times[stream_name] = now
+        
+        ui_logs_col.insert_one({
+            "user_email": "system",
+            "user_role": "system",
+            "action": f"[RECORDER] [{local_time_str}] 💥 Motion trigger received for {stream_name} (Motion is detected).",
+            "category": "recording",
+            "details": {
+                "camera_id": stream_name, 
+                "event": "motion_trigger",
+                "face_url": face_url
+            },
+            "timestamp": datetime.utcnow().isoformat() + "Z"
+        })
+    except Exception as e:
+        print(f"[RECORDER] Failed to log motion trigger to DB: {e}")
+
 
 def is_schedule_on(schedule_id: str | int | None, now: datetime) -> bool:
     """
@@ -105,8 +178,28 @@ def update_camera_data(stream_name: str, new_data: dict):
     """Update metadata for an active camera (e.g. its assigned schedule)."""
     if stream_name not in _camera_data:
         _camera_data[stream_name] = {}
+        
+    old_motion_only = _camera_data[stream_name].get("motion_only")
+    old_schedule = _camera_data[stream_name].get("assigned_schedule_id")
+    
     _camera_data[stream_name].update(new_data)
     print(f"[RECORDER] 🔄 Metadata updated for {stream_name}: {new_data}")
+    
+    # If the camera is active and settings changed, force restart it to apply in real-time
+    if stream_name in _recorders:
+        new_motion_only = _camera_data[stream_name].get("motion_only")
+        new_schedule = _camera_data[stream_name].get("assigned_schedule_id")
+        
+        # Check if they actually changed
+        if (old_motion_only is not None and old_motion_only != new_motion_only) or \
+           (old_schedule is not None and old_schedule != new_schedule):
+            rtsp_url = _camera_data[stream_name].get("rtsp_url")
+            if rtsp_url:
+                print(f"[RECORDER] 🔄 Settings changed for active camera {stream_name}. Force restarting...")
+                # We start a new thread to avoid blocking the API request during join
+                def restart_target():
+                    start_camera(stream_name, rtsp_url, _camera_data[stream_name], vf_filter=_vf_filters.get(stream_name, ""))
+                threading.Thread(target=restart_target, daemon=True, name=f"restart-{stream_name}").start()
 
 
 def get_recordings_dir() -> str:
@@ -161,17 +254,69 @@ def _record_loop(
             stop_event.wait(30)
             continue
 
+        # ── Check Motion-Only Mode ──────────────────────────────────
+        motion_only = meta.get("motion_only", False)
+        if motion_only:
+            if stream_name not in _motion_events:
+                _motion_events[stream_name] = threading.Event()
+            # Clear any pending triggers before waiting
+            _motion_events[stream_name].clear()
+            print(f"[RECORDER] 🔍 {stream_name} is in motion-only mode. Waiting for motion trigger...")
+            
+            triggered = False
+            while not stop_event.is_set():
+                if _motion_events[stream_name].wait(timeout=1.0):
+                    _motion_events[stream_name].clear()
+                    triggered = True
+                    break
+            
+            if not triggered or stop_event.is_set():
+                continue
+            
+            # Recalculate 'now' after waiting for motion, so timestamps match the trigger
+            now = datetime.now()
+
         date_str  = now.strftime("%Y-%m-%d")
         time_str  = now.strftime("%H-%M-%S")
         timestamp = f"{date_str}_{time_str}"
+        if motion_only:
+            filename = f"{timestamp}_motion_based.mp4"
+        else:
+            filename = f"{timestamp}.mp4"
 
         # ── Use the current effective recordings dir (respects runtime override) ──
         recordings_dir = get_recordings_dir()
         out_dir  = os.path.join(recordings_dir, stream_name, date_str)
         os.makedirs(out_dir, exist_ok=True)
-        out_file = os.path.join(out_dir, f"{timestamp}.mp4")
+        out_file = os.path.join(out_dir, filename)
 
-        print(f"[RECORDER] 💾 Recording {stream_name} -> {out_dir}")
+        local_time_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        if motion_only:
+            face_url = _latest_face_urls.pop(stream_name, None)
+            print(f"[RECORDER] [{local_time_str}] 🏃 Motion triggered for {stream_name}! Starting 5-minute recording (File: {filename}, Face: {face_url})...")
+            
+            # Save log to ui_logs collection
+            try:
+                _db["ui_logs"].insert_one({
+                    "user_email": "system",
+                    "user_role": "system",
+                    "action": f"[RECORDER] [{local_time_str}] 🏃 Motion triggered for {stream_name}! Starting 5-minute recording (File: {filename})...",
+                    "category": "recording",
+                    "details": {
+                        "camera_id": stream_name, 
+                        "event": "recording_started", 
+                        "duration": CHUNK_SECONDS,
+                        "file_name": filename,
+                        "face_url": face_url
+                    },
+                    "timestamp": datetime.utcnow().isoformat() + "Z"
+                })
+            except Exception as e:
+                print(f"[RECORDER] Failed to log recording start to DB: {e}")
+
+        if motion_only:
+            print(f"[RECORDER] [{local_time_str}] 💾 Recording {stream_name} -> {out_dir}")
 
         # ── Re-fetch mask filter each chunk so newly drawn masks apply immediately ──
         current_vf = vf_filter
@@ -195,11 +340,14 @@ def _record_loop(
                 "-c:v",            "libx264",
                 "-preset",         "ultrafast",
                 "-crf",            "23",
-                "-an",
+                "-c:a",            "aac",
+                "-map",            "0:v",
+                "-map",            "0:a?",
                 "-f",              "segment",
                 "-segment_time",   "10",
                 "-segment_format", "mpegts",
-                "-reset_timestamps", "1",
+                "-movflags", "+faststart",
+                "-avoid_negative_ts", "make_zero",
                 "-y",
                 os.path.join(out_dir, f"temp_{time_str}_%03d.ts")
             ]
@@ -211,15 +359,19 @@ def _record_loop(
                 "-i",              rtsp_url,
                 "-t",              str(CHUNK_SECONDS),
                 "-c:v",            "copy",
-                "-an",
+                "-c:a",            "aac",
+                "-map",            "0:v",
+                "-map",            "0:a?",
                 "-f",              "segment",
                 "-segment_time",   "10",
                 "-segment_format", "mpegts",
-                "-reset_timestamps", "1",
+                "-movflags", "+faststart",
+                "-avoid_negative_ts", "make_zero",
                 "-y",
                 os.path.join(out_dir, f"temp_{time_str}_%03d.ts")
             ]
 
+        _actively_recording_streams.add(stream_name)
         try:
             proc = subprocess.Popen(
                 cmd,
@@ -243,7 +395,8 @@ def _record_loop(
                 print(f"[RECORDER] ⚠ ffmpeg exited {returncode} for {stream_name}: {stderr_out[-200:]}")
                 time.sleep(5)
             else:
-                print(f"[RECORDER] ✅ Chunk saved: {out_file}")
+                if motion_only:
+                    print(f"[RECORDER] [{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] ✅ Chunk saved: {out_file}")
 
         except FileNotFoundError:
             print(f"[RECORDER] ❌ ffmpeg not found. Install ffmpeg and ensure it is on PATH.")
@@ -251,16 +404,13 @@ def _record_loop(
         except Exception as exc:
             print(f"[RECORDER] ❌ Unexpected error for {stream_name}: {exc}")
             time.sleep(5)
+        finally:
+            _actively_recording_streams.discard(stream_name)
 
     print(f"[RECORDER] ⏹ Stopped recorder for {stream_name}")
     _camera_data.pop(stream_name, None)
 
 
-def update_camera_data(stream_name: str, patch: dict):
-    """Update metadata for an active camera without restarting it."""
-    if stream_name in _camera_data:
-        _camera_data[stream_name].update(patch)
-        print(f"[RECORDER] 📝 Updated metadata for {stream_name}: {patch}")
 # _segmenters:  dict[str, subprocess.Popen] = {}
 
 

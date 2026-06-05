@@ -92,7 +92,7 @@ services:
       - BACKUP_NETWORK_DIR=/network_backup
     volumes:
       - ./devices_data:/app/data
-      - D:/REC:/recordings
+      - E:/REC:/recordings
       - C:/vmsrecording_backup:/network_backup
       - D:/:/mnt/dest_d        # ← add this
       - C:/:/mnt/dest_c        # ← add this
