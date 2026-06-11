@@ -43,7 +43,7 @@ def detect_zones_from_base64(base64_str: str):
             area = cv2.contourArea(contour)
             
             # Filter noise (rooms too small or covering almost entire floor plan)
-            if area < (total_area * 0.002) or area > (total_area * 0.4):
+            if area < (total_area * 0.002) or area > (total_area * 0.95):
                 continue
             
             # Simplify polygon coordinates to get clean rectangular/polygonal shapes

@@ -11,7 +11,6 @@ class MonitoringScheduler:
         self.interval = interval
         self.stop_event = threading.Event()
         self.thread = None
-        self._stream_loop_started = False  # guard against double-start
 
     def _loop(self):
         print(f"[MONITOR] Background monitoring started (interval={self.interval}s)")
@@ -24,21 +23,7 @@ class MonitoringScheduler:
 
             self.stop_event.wait(self.interval)
 
-    def _run_stream_health_in_thread(self):
-        """
-        Run the async stream_health loop inside a *dedicated* event loop
-        on its own daemon thread. Completely isolated from FastAPI's main
-        loop so there are no cross-loop conflicts.
-        """
-        from .stream_health import run_stream_health_loop
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        try:
-            loop.run_until_complete(run_stream_health_loop())
-        except Exception as e:
-            print(f"[STREAM_HEALTH] Thread crashed: {e}")
-        finally:
-            loop.close()
+
 
     def start(self):
         if self.thread and self.thread.is_alive():
@@ -55,16 +40,6 @@ class MonitoringScheduler:
         seed_thread = threading.Thread(target=seed_task, daemon=True)
         seed_thread.start()
 
-        # ── Start stream health poller (async loop on its own thread) ─────
-        if not self._stream_loop_started:
-            self._stream_loop_started = True
-            sh_thread = threading.Thread(
-                target=self._run_stream_health_in_thread,
-                daemon=True,
-                name="stream-health-poller"
-            )
-            sh_thread.start()
-            print("[MONITOR] Stream health poller thread started.")
 
         # ── Start the main node-status monitoring loop ────────────────────
         self.stop_event.clear()

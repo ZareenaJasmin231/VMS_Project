@@ -538,17 +538,23 @@ export default function RecordingMethodPage() {
                       onChange={(e) => { e.stopPropagation(); toggleCam(cam.ome_stream); }}
                     />
                     <div className="rm-item-info">
-                      <div className="rm-item-name">
-                        {cam.name || cam.ip}
+                      <div className="rm-item-header">
+                        <span className="rm-item-name" title={cam.name || cam.ip}>
+                          {cam.name || "Unnamed Camera"}
+                        </span>
                         <span className="rm-stream-badge">
                           {(recSettings[cam.ome_stream]?.continuous?.profile || cam.active_rec_profile) === "MAIN_STREAM" ? "MAIN" : "SUB"}
                         </span>
                       </div>
-                      <div className="rm-item-mode">
-                        {(() => {
-                          const baseMode = (!cam.assigned_schedule_id || cam.assigned_schedule_id === "Always") ? "Continuous" : "Scheduled";
-                          return cam.motion_only ? `${baseMode} (Motion)` : baseMode;
-                        })()}
+                      <div className="rm-item-sub">
+                        {cam.ip && <span className="rm-item-ip">{cam.ip}</span>}
+                        {cam.ip && <span className="rm-item-dot">•</span>}
+                        <span className="rm-item-mode">
+                          {(() => {
+                            const baseMode = (!cam.assigned_schedule_id || cam.assigned_schedule_id === "Always") ? "Continuous" : "Scheduled";
+                            return cam.motion_only ? `${baseMode} (Motion)` : baseMode;
+                          })()}
+                        </span>
                       </div>
                     </div>
                   </div>

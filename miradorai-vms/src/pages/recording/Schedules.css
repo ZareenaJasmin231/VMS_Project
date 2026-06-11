@@ -76,6 +76,7 @@
   z-index: 100 !important;
   background: var(--bg-elevated) !important;
   box-shadow: 0 1px 0 var(--border); 
+  color: #ffffff !important;
 }
 
 /* ── Actions row (New / Remove) ──────────────────────────────── */

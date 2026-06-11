@@ -1,13 +1,18 @@
-from pymongo import MongoClient
+from app.core.database import mongo_client
 import os
 import asyncio
 from .websocket_manager import manager
 
 MONGO_URI = os.environ.get("MONGO_URI", "mongodb://localhost:27017/")
-client = MongoClient(MONGO_URI)
-db = client["mirador-vms"]
-nodes_col = db["infrastructure_nodes"]
-edges_col = db["infrastructure_edges"]
+client = mongo_client
+db = client["mirador-vms"] if client else None
+
+if db is not None:
+    nodes_col = db["infrastructure_nodes"]
+    edges_col = db["infrastructure_edges"]
+else:
+    nodes_col = None
+    edges_col = None
 
 
 def _broadcast_safe(payload: dict):

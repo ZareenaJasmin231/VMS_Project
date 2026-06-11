@@ -3,16 +3,6 @@ import "./ForensicSearchPage.css";
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:80";
 
-const DEFAULT_CAMERAS = [
-  { id: "entrance_dome_1",  name: "Entrance Dome 1",    type: "dome"   },
-  { id: "entrance_dome_2",  name: "Entrance Dome 2",    type: "dome"   },
-  { id: "hallway_wall",     name: "Corridor Wall",      type: "bullet" },
-  { id: "lobby_room_1",     name: "Lobby Room 1",       type: "dome"   },
-  { id: "office_room_2",    name: "Office Room 2",      type: "dome"   },
-  { id: "conf_room_3",      name: "Conference Room 3",  type: "dome"   },
-  { id: "breakroom_room_4", name: "Breakroom Room 4",   type: "dome"   },
-];
-
 const COLORS = [
   { name: "white",  hex: "#f8fafc", textDark: true  },
   { name: "black",  hex: "#0f172a", textDark: false },
@@ -32,10 +22,6 @@ function getAuthHeaders() {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
-/**
- * Build an authenticated API URL.
- * Appends token as a query param only if a token exists (safe for <video src> and <img src>).
- */
 function authUrl(path) {
   const token = localStorage.getItem("miradorai_token");
   const separator = path.includes("?") ? "&" : "?";
@@ -75,10 +61,6 @@ function ColorDot({ name }) {
   );
 }
 
-/**
- * Detection card thumbnail — loads from /video/thumbnail endpoint.
- * On error, shows the SVG silhouette inline so the card never breaks.
- */
 function DetectionThumbnail({ detectionId, appearance }) {
   const [failed, setFailed] = useState(false);
   const top    = appearance?.top_color_name    || "white";
@@ -94,17 +76,12 @@ function DetectionThumbnail({ detectionId, appearance }) {
 
   if (failed) {
     return (
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        viewBox="0 0 100 100"
-        className="card-thumbnail-svg"
-      >
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" className="card-thumbnail-svg">
         <rect width="100" height="100" fill="#1E293B" rx="0"/>
         <circle cx="50" cy="28" r="14" fill="#CBD5E1"/>
         <path d="M22,78 C22,52 78,52 78,78 L68,78 L68,56 L32,56 L32,78 Z" fill={topHex}/>
         <path d="M32,78 L46,78 L46,98 L32,98 Z" fill={botHex}/>
         <path d="M54,78 L68,78 L68,98 L54,98 Z" fill={botHex}/>
-        {/* corner brackets */}
         <path d="M8,22 L8,8 L22,8"  stroke="#38BDF8" strokeWidth="2.5" fill="none"/>
         <path d="M92,22 L92,8 L78,8" stroke="#38BDF8" strokeWidth="2.5" fill="none"/>
         <path d="M8,78 L8,92 L22,92" stroke="#38BDF8" strokeWidth="2.5" fill="none"/>
@@ -120,6 +97,149 @@ function DetectionThumbnail({ detectionId, appearance }) {
       className="card-thumbnail-img"
       onError={() => setFailed(true)}
     />
+  );
+}
+
+// ── Indexer Status Panel ──────────────────────────────────────────────────────
+function IndexerStatusPanel({ status }) {
+  if (!status) return null;
+
+  const isIndexing = status.is_indexing;
+  const total      = status.total_detections_indexed || 0;
+  const tracks     = status.total_active_tracks || 0;
+  const hasML      = status.has_ml_libraries;
+  const lastCamera = status.last_indexed_camera || "—";
+  const lastSweep  = status.last_sweep
+    ? new Date(status.last_sweep).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
+    : "Not started";
+
+  return (
+    <div className="indexer-status-panel">
+      <div className="status-panel-header">
+        <span className={`status-live-dot ${isIndexing ? "pulsing" : ""}`} />
+        <span className="status-panel-title">
+          {isIndexing ? "Indexing…" : "AI Indexer"}
+        </span>
+        <span className={`status-engine-badge ${hasML ? "ml-active" : "ml-fallback"}`}>
+          {hasML ? "YOLOv8" : "No ML"}
+        </span>
+      </div>
+      <div className="status-panel-grid">
+        <div className="status-stat">
+          <div className="stat-value">{total.toLocaleString()}</div>
+          <div className="stat-label">Detections</div>
+        </div>
+        <div className="status-stat">
+          <div className="stat-value">{tracks.toLocaleString()}</div>
+          <div className="stat-label">Tracks</div>
+        </div>
+      </div>
+      <div className="status-panel-meta">
+        <div className="meta-row">
+          <span>Last camera</span>
+          <span className="meta-val">{lastCamera}</span>
+        </div>
+        <div className="meta-row">
+          <span>Last sweep</span>
+          <span className="meta-val">{lastSweep}</span>
+        </div>
+        {status.device_mode && (
+          <div className="meta-row">
+            <span>Mode</span>
+            <span className="meta-val">{status.device_mode}</span>
+          </div>
+        )}
+        {status.last_error && (
+          <div className="meta-row meta-error">
+            <span>Error</span>
+            <span className="meta-val">{status.last_error.slice(0, 40)}…</span>
+          </div>
+        )}
+      </div>
+      {isIndexing && status.current_file && (
+        <div className="status-current-file">
+          <span className="current-file-label">Processing:</span>
+          <span className="current-file-name">
+            {status.current_file.split("/").pop().split("\\").pop()}
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── ReIndex Modal ─────────────────────────────────────────────────────────────
+function ReindexModal({ cameras, onClose, onTrigger }) {
+  const [camId, setCamId]     = useState(cameras[0]?.id || "");
+  const [startDate, setStart] = useState(new Date(Date.now() - 7 * 86400000).toISOString().split("T")[0]);
+  const [endDate, setEnd]     = useState(new Date().toISOString().split("T")[0]);
+  const [busy, setBusy]       = useState(false);
+  const [done, setDone]       = useState(false);
+
+  const handleTrigger = async () => {
+    if (!camId) return;
+    setBusy(true);
+    // await onTrigger(camId, startDate, endDate);
+        // If 'all', loop through all cameras and trigger them sequentially
+    if (camId === "all") {
+      for (const cam of cameras) {
+        await onTrigger(cam.id, startDate, endDate);
+      }
+    } else {
+      await onTrigger(camId, startDate, endDate);
+    }
+    
+    setBusy(false);
+    setDone(true);
+    setTimeout(onClose, 1500);
+  };
+
+  return (
+    <div className="reindex-modal-overlay" onClick={onClose}>
+      <div className="reindex-modal" onClick={e => e.stopPropagation()}>
+        <div className="modal-header">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#38bdf8" strokeWidth="2.2">
+            <path d="M21 2v6h-6M3 12a9 9 0 0 1 15-6.7L21 8M3 22v-6h6M21 12a9 9 0 0 1-15 6.7L3 16"/>
+          </svg>
+          Trigger Re-Index
+          <button className="modal-close" onClick={onClose}>✕</button>
+        </div>
+        <div className="modal-body">
+          <div className="modal-field">
+            <label>Camera</label>
+            <select value={camId} onChange={e => setCamId(e.target.value)} className="datetime-input">
+               <option value="all">-- All Cameras --</option>
+              
+              {cameras.map(c => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+          </div>
+          <div className="modal-field">
+            <label>From Date</label>
+            <input type="date" className="datetime-input" value={startDate} onChange={e => setStart(e.target.value)}/>
+          </div>
+          <div className="modal-field">
+            <label>To Date</label>
+            <input type="date" className="datetime-input" value={endDate} onChange={e => setEnd(e.target.value)}/>
+          </div>
+        </div>
+        <div className="modal-footer">
+          {done ? (
+            <div className="modal-success">✅ Reindex task started!</div>
+          ) : (
+            <button
+              className="scan-btn"
+              style={{ width: "100%", justifyContent: "center" }}
+              onClick={handleTrigger}
+              disabled={busy}
+            >
+              {busy ? <><div className="loading-spinner" style={{width:14,height:14,borderWidth:2}}/> Starting…</> : "Start Re-Index"}
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -141,16 +261,20 @@ export default function ForensicSearchPage() {
   const [results,      setResults]      = useState([]);
   const [loading,      setLoading]      = useState(false);
   const [statusData,   setStatusData]   = useState(null);
+  const [hasSearched,  setHasSearched]  = useState(false);
 
   // Tracking workspace state
   const [activeTrack,  setActiveTrack]  = useState(null);
   const [trackLoading, setTrackLoading] = useState(false);
 
   // Video player state
-  const [playbackMode, setPlaybackMode] = useState("unified"); // "unified" | "clip"
-  const [selectedClip, setSelectedClip] = useState(null);     // clip object from activeTrack.clippings
+  const [playbackMode, setPlaybackMode] = useState("unified");
+  const [selectedClip, setSelectedClip] = useState(null);
   const [videoError,   setVideoError]   = useState(false);
   const [videoLoading, setVideoLoading] = useState(false);
+
+  // ReIndex modal
+  const [showReindex,  setShowReindex]  = useState(false);
 
   const videoRef = useRef(null);
 
@@ -165,8 +289,8 @@ export default function ForensicSearchPage() {
     fetchCameras();
     fetchStatus();
 
-    // Poll indexer status every 10 seconds to keep it dynamic
-    const pollId = setInterval(fetchStatus, 10000);
+    // Poll indexer status every 8 seconds
+    const pollId = setInterval(fetchStatus, 8000);
     return () => clearInterval(pollId);
   }, []);
 
@@ -174,7 +298,6 @@ export default function ForensicSearchPage() {
 
   const fetchCameras = async () => {
     let camList = [];
-
     try {
       const res  = await fetch(`${API_BASE}/api/cameras`, { headers: getAuthHeaders() });
       if (res.ok) {
@@ -184,21 +307,19 @@ export default function ForensicSearchPage() {
             id:   cam.ome_stream || cam.id || cam.ip,
             name: cam.device_name || cam.name || cam.ip,
             type: (cam.model || "dome").toLowerCase(),
-          }));
+          })).filter(c => c.id);
         }
       }
-    } catch (_) { /* fall through to localStorage */ }
+    } catch (_) {}
 
     if (!camList.length) {
       try {
-        const saved = localStorage.getItem("miradorai_devices");
+        const saved    = localStorage.getItem("miradorai_devices");
         const enrolled = saved ? JSON.parse(saved) : [];
         camList = enrolled.length > 0
-          ? enrolled.map(c => ({ id: c.ome_stream || c.id || c.ip, name: c.name || c.ip, type: "dome" }))
-          : DEFAULT_CAMERAS;
-      } catch (_) {
-        camList = DEFAULT_CAMERAS;
-      }
+          ? enrolled.map(c => ({ id: c.ome_stream || c.id || c.ip, name: c.name || c.ip, type: "dome" })).filter(c=>c.id)
+          : [];
+      } catch (_) {}
     }
 
     setCamerasList(camList);
@@ -210,8 +331,10 @@ export default function ForensicSearchPage() {
   const fetchStatus = async () => {
     try {
       const res  = await fetch(`${API_BASE}/api/forensic/index-status`, { headers: getAuthHeaders() });
-      const data = await res.json();
-      setStatusData(data);
+      if (res.ok) {
+        const data = await res.json();
+        setStatusData(data);
+      }
     } catch (_) {}
   };
 
@@ -221,6 +344,7 @@ export default function ForensicSearchPage() {
     setLoading(true);
     setResults([]);
     setActiveTrack(null);
+    setHasSearched(true);
     try {
       const activeCams  = Object.keys(selectedCams).filter(k => selectedCams[k]);
       const cameraQuery = activeCams.length ? `&cameras=${activeCams.join(",")}` : "";
@@ -237,8 +361,6 @@ export default function ForensicSearchPage() {
       const res  = await fetch(`${API_BASE}/api/forensic/search?${qs}`, { headers: getAuthHeaders() });
       const data = await res.json();
       if (data.success) setResults(data.results || []);
-      
-      // Instantly refresh index status when searching
       fetchStatus();
     } catch (err) {
       console.error("[FORENSIC] Search failed:", err);
@@ -247,25 +369,30 @@ export default function ForensicSearchPage() {
     }
   };
 
+  // ── Reindex trigger ───────────────────────────────────────────────────────
+
+  const handleReindex = async (camId, startDate, endDate) => {
+    try {
+      await fetch(
+        `${API_BASE}/api/forensic/reindex?camera_id=${encodeURIComponent(camId)}&start_date=${startDate}&end_date=${endDate}`,
+        { method: "POST", headers: getAuthHeaders() }
+      );
+    } catch (e) {
+      console.error("[FORENSIC] Reindex failed:", e);
+    }
+  };
+
   // ── Video Player Control ──────────────────────────────────────────────────
 
-  /**
-   * Imperatively set video src and play.
-   * Using videoRef.current.src directly is the most reliable cross-browser approach
-   * for dynamically changing video sources — avoids React re-render timing issues
-   * that cause the <source> approach to stall/spin.
-   */
   const setVideoSource = useCallback((url) => {
     const vid = videoRef.current;
     if (!vid) return;
     setVideoError(false);
     setVideoLoading(true);
     vid.pause();
-    vid.src = url;       // set src directly on the element
-    vid.load();          // trigger load
-    vid.play().catch(() => {
-      // Autoplay blocked by browser policy — user can click play manually
-    });
+    vid.src = url;
+    vid.load();
+    vid.play().catch(() => {});
   }, []);
 
   const handlePlayUnified = useCallback(() => {
@@ -281,18 +408,16 @@ export default function ForensicSearchPage() {
     setVideoSource(authUrl(clip.video_url));
   }, [setVideoSource]);
 
-  // When workspace first opens → auto-play unified track
   useEffect(() => {
     if (activeTrack && !trackLoading) {
-      // Small delay to let DOM mount
       const t = setTimeout(() => handlePlayUnified(), 150);
       return () => clearTimeout(t);
     }
-  }, [activeTrack, trackLoading]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [activeTrack, trackLoading]); // eslint-disable-line
 
   // ── Track Resolver ────────────────────────────────────────────────────────
 
-  const handleSelectDetection = async (detId) => {
+  const handleSelectDetection = async (detIdsArray) => {
     setTrackLoading(true);
     setActiveTrack(null);
     setVideoError(false);
@@ -300,7 +425,7 @@ export default function ForensicSearchPage() {
       const res  = await fetch(`${API_BASE}/api/forensic/track`, {
         method:  "POST",
         headers: { "Content-Type": "application/json", ...getAuthHeaders() },
-        body:    JSON.stringify({ detection_id: detId }),
+        body:    JSON.stringify({ detection_ids: detIdsArray, detection_id: detIdsArray[0] }),
       });
       const data = await res.json();
       if (data.success) {
@@ -328,20 +453,34 @@ export default function ForensicSearchPage() {
     document.body.removeChild(link);
   };
 
-  // ── Group results by track_id for subject-level display ───────────────────
-  // Each unique subject appears once; the card shows their earliest detection thumbnail.
+  // ── Group results by person_cluster_id (Cross-Camera Identity) ──────────
   const groupedSubjects = (() => {
     const map = new Map();
     for (const det of results) {
-      const key = det.track_id || det.detection_id;
+      // Use person_cluster_id if available, fallback to track_id or detection_id
+      const key = det.person_cluster_id && det.person_cluster_id !== "Unknown" 
+                  ? det.person_cluster_id 
+                  : (det.track_id || det.detection_id);
+                  
       if (!map.has(key)) {
-        map.set(key, { ...det, _count: 1 });
+        map.set(key, { 
+            ...det, 
+            _count: 1,
+            _detection_ids: [det.detection_id],
+            _cluster_label: key
+        });
       } else {
-        map.get(key)._count += 1;
+        const group = map.get(key);
+        group._count += 1;
+        group._detection_ids.push(det.detection_id);
       }
     }
     return Array.from(map.values());
   })();
+
+  const totalIndexed = statusData?.total_detections_indexed || 0;
+  const isIndexing   = statusData?.is_indexing || false;
+  const hasML        = statusData?.has_ml_libraries;
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -351,373 +490,429 @@ export default function ForensicSearchPage() {
       <div className="page-header" style={{ padding: "16px 20px 8px 20px" }}>
         <div>
           <h1 className="page-title">Forensic <span>Scan</span></h1>
-          <p className="page-desc">Run AI Multi-Camera Forensic searches across all cameras.</p>
+          <p className="page-desc">AI Multi-Camera Forensic Search — powered by YOLOv8 real detection.</p>
         </div>
+        {/* Live indexed count badge */}
+        {totalIndexed > 0 && (
+          <div className="indexed-count-badge">
+            <span className={`indexed-dot ${isIndexing ? "pulsing" : ""}`}/>
+            {totalIndexed.toLocaleString()} detections indexed
+          </div>
+        )}
       </div>
 
       <div className="forensic-container">
-        {/* ── SIDEBAR ────────────────────────────────────────────────────────── */}
-      <aside className="forensic-sidebar">
-        <div className="sidebar-title">
-          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2.2">
-            <circle cx="11" cy="11" r="8"/>
-            <path d="m21 21-4.35-4.35M11 8v6M8 11h6"/>
-          </svg>
-          Forensic Scan
-        </div>
-
-        {/* Target Category */}
-        <div className="filter-group">
-          <div className="filter-label">Target Category</div>
-          <select className="datetime-input" value={objectType} onChange={e => setObjectType(e.target.value)}>
-            <option value="person">Person (Re-ID Tracker)</option>
-            <option value="vehicle">Vehicle (Plate Index)</option>
-          </select>
-        </div>
-
-        {/* Date Range */}
-        <div className="filter-group">
-          <div className="filter-label">From Date</div>
-          <input type="date" className="datetime-input" value={startDate} onChange={e => setStartDate(e.target.value)}/>
-        </div>
-        <div className="filter-group">
-          <div className="filter-label">To Date</div>
-          <input type="date" className="datetime-input" value={endDate} onChange={e => setEndDate(e.target.value)}/>
-        </div>
-
-        {/* Camera Checklist */}
-        <div className="filter-group">
-          <div className="filter-label" style={{ display: "flex", justifyContent: "space-between" }}>
-            <span>Cameras</span>
-            <span
-              style={{ cursor: "pointer", color: "#38bdf8", fontSize: "0.72rem" }}
-              onClick={() => {
-                const allOn = camerasList.every(c => selectedCams[c.id]);
-                const next  = {};
-                camerasList.forEach(c => { next[c.id] = !allOn; });
-                setSelectedCams(next);
-              }}
-            >
-              {camerasList.every(c => selectedCams[c.id]) ? "Deselect All" : "Select All"}
-            </span>
+        {/* ── SIDEBAR ──────────────────────────────────────────────────────── */}
+        <aside className="forensic-sidebar">
+          <div className="sidebar-title">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2.2">
+              <circle cx="11" cy="11" r="8"/>
+              <path d="m21 21-4.35-4.35M11 8v6M8 11h6"/>
+            </svg>
+            Forensic Scan
           </div>
-          <div className="cam-selector-box">
-            {camerasList.map(cam => (
-              <label key={cam.id} className="cam-checkbox-row">
-                <input
-                  type="checkbox"
-                  checked={!!selectedCams[cam.id]}
-                  onChange={() => setSelectedCams(p => ({ ...p, [cam.id]: !p[cam.id] }))}
-                />
-                <CameraIcon type={cam.type} size={13}/>
-                <span>{cam.name}</span>
-              </label>
-            ))}
-          </div>
-        </div>
 
-        {/* Person Attributes */}
-        {objectType === "person" ? (
-          <>
+          {/* Indexer Status */}
+          <IndexerStatusPanel status={statusData} />
+
+          {/* Target Category */}
+          <div className="filter-group">
+            <div className="filter-label">Target Category</div>
+            <select className="datetime-input" value={objectType} onChange={e => setObjectType(e.target.value)}>
+              <option value="person">Person (Re-ID Tracker)</option>
+              <option value="vehicle">Vehicle (Plate Index)</option>
+            </select>
+          </div>
+
+          {/* Date Range */}
+          <div className="filter-group">
+            <div className="filter-label">From Date</div>
+            <input type="date" className="datetime-input" value={startDate} onChange={e => setStartDate(e.target.value)}/>
+          </div>
+          <div className="filter-group">
+            <div className="filter-label">To Date</div>
+            <input type="date" className="datetime-input" value={endDate} onChange={e => setEndDate(e.target.value)}/>
+          </div>
+
+          {/* Camera Checklist */}
+          <div className="filter-group">
+            <div className="filter-label" style={{ display: "flex", justifyContent: "space-between" }}>
+              <span>Cameras</span>
+              <span
+                style={{ cursor: "pointer", color: "#38bdf8", fontSize: "0.72rem" }}
+                onClick={() => {
+                  const allOn = camerasList.every(c => selectedCams[c.id]);
+                  const next  = {};
+                  camerasList.forEach(c => { next[c.id] = !allOn; });
+                  setSelectedCams(next);
+                }}
+              >
+                {camerasList.every(c => selectedCams[c.id]) ? "Deselect All" : "Select All"}
+              </span>
+            </div>
+            <div className="cam-selector-box">
+              {camerasList.length === 0 ? (
+                <div className="no-cams-msg">No cameras enrolled</div>
+              ) : (
+                camerasList.map(cam => (
+                  <label key={cam.id} className="cam-checkbox-row">
+                    <input
+                      type="checkbox"
+                      checked={!!selectedCams[cam.id]}
+                      onChange={() => setSelectedCams(p => ({ ...p, [cam.id]: !p[cam.id] }))}
+                    />
+                    <CameraIcon type={cam.type} size={13}/>
+                    <span>{cam.name}</span>
+                  </label>
+                ))
+              )}
+            </div>
+          </div>
+
+          {/* Person Attributes */}
+          {objectType === "person" ? (
+            <>
+              <div className="filter-group">
+                <div className="filter-label">Upper Color</div>
+                <ColorSwatches value={topColor} onChange={setTopColor}/>
+              </div>
+              <div className="filter-group">
+                <div className="filter-label">Lower Color</div>
+                <ColorSwatches value={bottomColor} onChange={setBottomColor}/>
+              </div>
+              <div className="filter-group">
+                <div className="filter-label">Gender</div>
+                <select className="datetime-input" value={gender} onChange={e => setGender(e.target.value)}>
+                  <option value="any">Any Gender</option>
+                  <option value="male">Male</option>
+                  <option value="female">Female</option>
+                </select>
+              </div>
+              <div className="filter-group">
+                <div className="filter-label">Bag Carrying</div>
+                <select className="datetime-input" value={bag} onChange={e => setBag(e.target.value)}>
+                  <option value="any">Any Baggage</option>
+                  <option value="backpack">Backpack</option>
+                  <option value="handbag">Handbag / Purse</option>
+                  <option value="none">No Bag</option>
+                </select>
+              </div>
+            </>
+          ) : (
             <div className="filter-group">
-              <div className="filter-label">Upper Color</div>
+              <div className="filter-label">Vehicle Color</div>
               <ColorSwatches value={topColor} onChange={setTopColor}/>
             </div>
-            <div className="filter-group">
-              <div className="filter-label">Lower Color</div>
-              <ColorSwatches value={bottomColor} onChange={setBottomColor}/>
-            </div>
-            <div className="filter-group">
-              <div className="filter-label">Gender</div>
-              <select className="datetime-input" value={gender} onChange={e => setGender(e.target.value)}>
-                <option value="any">Any Gender</option>
-                <option value="male">Male</option>
-                <option value="female">Female</option>
-              </select>
-            </div>
-            <div className="filter-group">
-              <div className="filter-label">Bag Carrying</div>
-              <select className="datetime-input" value={bag} onChange={e => setBag(e.target.value)}>
-                <option value="any">Any Baggage</option>
-                <option value="backpack">Backpack</option>
-                <option value="handbag">Handbag / Purse</option>
-                <option value="none">No Bag</option>
-              </select>
-            </div>
-          </>
-        ) : (
-          <div className="filter-group">
-            <div className="filter-label">Vehicle Color</div>
-            <ColorSwatches value={topColor} onChange={setTopColor}/>
-          </div>
-        )}
-
-        <button className="scan-btn" onClick={handleSearch} disabled={loading}>
-          {loading ? (
-            <><div className="loading-spinner" style={{ width: 16, height: 16, borderWidth: 2 }}/> Scanning...</>
-          ) : (
-            <>
-              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5">
-                <path d="M5 12H3l9-9 9 9h-2M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7"/>
-              </svg>
-              Run Forensic Scan
-            </>
           )}
-        </button>
 
-        {/* Indexer Status
-        {statusData && (
-          <div className="status-badge">
-            <div className="status-row">
-              <span>Indexer</span>
-              <span className="status-val" style={{ color: "#22c55e" }}>● Active</span>
-            </div>
-            <div className="status-row">
-              <span>Mode</span>
-              <span className="status-val">{statusData.device_mode}</span>
-            </div>
-            <div className="status-row">
-              <span>Total Indexed</span>
-              <span className="status-val">{statusData.total_detections_indexed?.toLocaleString()}</span>
-            </div>
-            <div className="status-row">
-              <span>Active Tracks</span>
-              <span className="status-val">{statusData.total_active_tracks?.toLocaleString()}</span>
-            </div>
-          </div>
-        )}
-        */}
-      </aside>
-
-      {/* ── RESULTS MAIN ───────────────────────────────────────────────────── */}
-      <div className="forensic-main">
-        <div className="forensic-header">
-          <div className="header-title-section">
-            <div className="header-main-title">Visual Forensic Results</div>
-            <div className="header-subtitle">
-              {results.length > 0
-                ? `${groupedSubjects.length} unique subject${groupedSubjects.length !== 1 ? "s" : ""} resolved across ${results.length} detections`
-                : "Matched subjects appear as cards. Click any card to view full camera tracking path."}
-            </div>
-          </div>
-          {results.length > 0 && (
-            <span className="results-count-badge">{results.length} Detections</span>
-          )}
-        </div>
-
-        <div className="forensic-grid-wrap">
-          {loading ? (
-            <div className="grid-empty-state">
-              <div className="scan-radar">
-                <div className="radar-ring r1"/>
-                <div className="radar-ring r2"/>
-                <div className="radar-ring r3"/>
-                <div className="radar-dot"/>
-              </div>
-              <div className="loading-text" style={{ fontSize: "1rem" }}>Executing AI Multi-Camera Forensic Scan...</div>
-              <div style={{ fontSize: "0.78rem", color: "#475569" }}>Querying index across all selected channels</div>
-            </div>
-          ) : groupedSubjects.length > 0 ? (
-            <div className="detections-grid">
-              {groupedSubjects.map(det => (
-                <DetectionCard
-                  key={det.track_id || det.detection_id}
-                  det={det}
-                  onClick={() => handleSelectDetection(det.detection_id)}
-                />
-              ))}
-            </div>
-          ) : (
-            <div className="grid-empty-state">
-              <svg className="radar-sweep-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2">
-                <circle cx="12" cy="12" r="10"/>
-                <path d="M12 2a10 10 0 0110 10"/>
-                <line x1="12" y1="12" x2="22" y2="12"/>
-              </svg>
-              <div style={{ fontSize: "1rem", fontWeight: 600 }}>No Forensic Searches Yet</div>
-              <div style={{ fontSize: "0.82rem", color: "#475569", maxWidth: 280, textAlign: "center", lineHeight: 1.6 }}>
-                Configure visual attributes in the left panel and click "Run Forensic Scan" to search the index.
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* ── TRACK WORKSPACE OVERLAY ─────────────────────────────────────────── */}
-      {(trackLoading || activeTrack) && (
-        <div className="forensic-workspace">
-          {/* Workspace Header */}
-          <div className="workspace-header">
-            <button className="ws-back-btn" onClick={() => { setActiveTrack(null); setTrackLoading(false); }}>
-              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5">
-                <path d="M19 12H5M12 19l-7-7 7-7"/>
-              </svg>
-              Back to Results
-            </button>
-
-            {activeTrack && (
-              <div className="ws-title">
-                <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="2.5">
-                  <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
-                </svg>
-                Forensic Auto-Track —{" "}
-                <span style={{ color: "#94a3b8", fontWeight: 500 }}>{activeTrack.camera_sequence?.join(" → ")}</span>
-              </div>
-            )}
-
-            {activeTrack && (
-              <span style={{ fontSize: "0.75rem", color: "#475569", fontWeight: 600 }}>
-                ID: {activeTrack.track_id}
-              </span>
-            )}
-          </div>
-
-          {/* Workspace Body */}
-          <div className="ws-body">
-            {trackLoading ? (
-              <div className="ws-player-loading" style={{ flex: 1 }}>
-                <div className="loading-spinner"/>
-                <div className="loading-text">Resolving Multi-Camera Track Sequence...</div>
-                <div style={{ fontSize: "0.75rem", color: "#475569" }}>Compiling chronological camera path</div>
-              </div>
-            ) : activeTrack ? (
+          <button className="scan-btn" onClick={handleSearch} disabled={loading}>
+            {loading ? (
+              <><div className="loading-spinner" style={{ width: 16, height: 16, borderWidth: 2 }}/> Scanning...</>
+            ) : (
               <>
-                {/* ── Left: Video Player ── */}
-                <div className="ws-left-panel">
-                  <div className="ws-player-container">
-                    {videoLoading && !videoError && (
-                      <div className="video-spinner-overlay">
-                        <div className="loading-spinner"/>
-                      </div>
-                    )}
-                    {videoError && (
-                      <div className="video-error-overlay">
-                        <svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="#ef4444" strokeWidth="1.5">
-                          <circle cx="12" cy="12" r="10"/>
-                          <path d="M12 8v4M12 16h.01"/>
-                        </svg>
-                        <div>Could not load video clip</div>
-                        <div style={{ fontSize: "0.72rem", color: "#64748b" }}>
-                          Check that FFmpeg is installed and the API is reachable
-                        </div>
-                      </div>
-                    )}
-                    {/* Video element — src set imperatively via setVideoSource() */}
-                    <video
-                      ref={videoRef}
-                      className="ws-video-element"
-                      controls
-                      playsInline
-                      onWaiting={() => setVideoLoading(true)}
-                      onCanPlay={() => setVideoLoading(false)}
-                      onPlaying={() => setVideoLoading(false)}
-                      onError={() => { setVideoLoading(false); setVideoError(true); }}
-                    />
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <path d="M5 12H3l9-9 9 9h-2M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7"/>
+                </svg>
+                Run Forensic Scan
+              </>
+            )}
+          </button>
 
-                    {/* HUD Overlay */}
-                    <div className="ws-hud-overlay">
-                      <span className="hud-rec-dot"/>
-                      {playbackMode === "unified"
-                        ? <span><span className="hud-track-tag">MASTER TRACK</span> · {activeTrack.clippings?.length} cameras</span>
-                        : <span><span className="hud-track-tag">CLIP</span> · {selectedClip?.camera_name}</span>
-                      }
-                    </div>
-                  </div>
+          {/* Re-Index Button */}
+          {camerasList.length > 0 && (
+            <button
+              className="reindex-btn"
+              onClick={() => setShowReindex(true)}
+              title="Manually trigger YOLOv8 re-indexing for a camera"
+            >
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.2">
+                <path d="M21 2v6h-6M3 12a9 9 0 0 1 15-6.7L21 8M3 22v-6h6M21 12a9 9 0 0 1-15 6.7L3 16"/>
+              </svg>
+              Manual Re-Index
+            </button>
+          )}
+        </aside>
 
-                  {/* Action Buttons */}
-                  <div className="ws-actions-row">
-                    <button
-                      className={`ws-action-btn ${playbackMode === "unified" ? "active-primary" : "outline"}`}
-                      onClick={handlePlayUnified}
-                    >
-                      <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor">
-                        <path d="M8 5v14l11-7z"/>
-                      </svg>
-                      Play Full Track
-                    </button>
-                    <button className="ws-action-btn export-btn" onClick={handleDownloadTrack}>
-                      <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2.5">
-                        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/>
-                      </svg>
-                      Export Evidence (MP4)
-                    </button>
-                  </div>
+        {/* ── RESULTS MAIN ──────────────────────────────────────────────────── */}
+        <div className="forensic-main">
+          <div className="forensic-header">
+            <div className="header-title-section">
+              <div className="header-main-title">Visual Forensic Results</div>
+              <div className="header-subtitle">
+                {results.length > 0
+                  ? `${groupedSubjects.length} unique subject${groupedSubjects.length !== 1 ? "s" : ""} resolved across ${results.length} detections`
+                  : "Matched subjects appear as cards. Click any card to view full camera tracking path."}
+              </div>
+            </div>
+            {results.length > 0 && (
+              <span className="results-count-badge">{results.length} Detections</span>
+            )}
+          </div>
 
-                  {/* Subject Attributes Summary */}
-                  {activeTrack.original_detection?.appearance && (
-                    <div className="subject-attr-panel">
-                      <div className="attr-panel-title">Subject Attributes</div>
-                      <div className="attr-grid">
-                        <AttrPill label="Top" value={activeTrack.original_detection.appearance.top_color_name}    showDot/>
-                        <AttrPill label="Bottom" value={activeTrack.original_detection.appearance.bottom_color_name} showDot/>
-                        <AttrPill label="Gender" value={activeTrack.original_detection.appearance.gender}/>
-                        <AttrPill label="Bag" value={activeTrack.original_detection.appearance.bag}/>
-                        <AttrPill
-                          label="Confidence"
-                          value={`${Math.round((activeTrack.original_detection.appearance.confidence || 0) * 100)}%`}
-                          highlight
-                        />
-                      </div>
-                    </div>
+          <div className="forensic-grid-wrap">
+            {loading ? (
+              <div className="grid-empty-state">
+                <div className="scan-radar">
+                  <div className="radar-ring r1"/>
+                  <div className="radar-ring r2"/>
+                  <div className="radar-ring r3"/>
+                  <div className="radar-dot"/>
+                </div>
+                <div className="loading-text" style={{ fontSize: "1rem" }}>Executing AI Multi-Camera Forensic Scan...</div>
+                <div style={{ fontSize: "0.78rem", color: "#475569" }}>Querying real YOLOv8 detections index</div>
+              </div>
+            ) : groupedSubjects.length > 0 ? (
+              <div className="detections-grid">
+                {groupedSubjects.map(det => (
+                  <DetectionCard
+                    key={det._cluster_label || det.detection_id}
+                    det={det}
+                    onClick={() => handleSelectDetection(det._detection_ids)}
+                  />
+                ))}
+              </div>
+            ) : hasSearched ? (
+              /* ── Empty state after a search ── */
+              <div className="grid-empty-state">
+                <svg viewBox="0 0 24 24" width="52" height="52" fill="none" stroke="#334155" strokeWidth="1.2">
+                  <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+                </svg>
+                <div style={{ fontSize: "1rem", fontWeight: 600, color: "#94a3b8" }}>
+                  No detections found
+                </div>
+                <div style={{ fontSize: "0.82rem", color: "#475569", maxWidth: 320, textAlign: "center", lineHeight: 1.7 }}>
+                  {totalIndexed === 0 ? (
+                    <>
+                      <strong style={{ color: "#f97316" }}>The forensic index is empty.</strong>
+                      <br/>
+                      The YOLOv8 indexer is running in the background and will process recordings automatically.
+                      <br/>
+                      You can also trigger a manual re-index using the button on the left.
+                    </>
+                  ) : hasML ? (
+                    <>
+                      No real detections match your filters.
+                      <br/>
+                      Try broadening the color or date range, or trigger a re-index for additional recordings.
+                    </>
+                  ) : (
+                    <>
+                      <strong style={{ color: "#f97316" }}>YOLOv8 not installed.</strong>
+                      <br/>
+                      Install <code>ultralytics</code> and <code>torch</code> in your backend venv, then restart the server.
+                    </>
                   )}
                 </div>
-
-                {/* ── Right: Timeline ── */}
-                <div className="ws-right-panel">
-                  <div className="timeline-section-title">
-                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5">
-                      <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+                {camerasList.length > 0 && (
+                  <button className="reindex-btn" style={{ marginTop: 16 }} onClick={() => setShowReindex(true)}>
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.2">
+                      <path d="M21 2v6h-6M3 12a9 9 0 0 1 15-6.7L21 8M3 22v-6h6M21 12a9 9 0 0 1-15 6.7L3 16"/>
                     </svg>
-                    Camera Timeline · {activeTrack.clippings?.length} stops
-                  </div>
-
-                  <div className="timeline-flow">
-                    {activeTrack.clippings?.map((clip, idx) => (
-                      <div key={clip.detection_id}>
-                        <div
-                          className={`timeline-node ${selectedClip?.detection_id === clip.detection_id ? "active" : ""}`}
-                          onClick={() => handlePlayClip(clip)}
-                        >
-                          {/* Clip thumbnail */}
-                          <div className="node-thumb">
-                            <TimelineThumbnail detectionId={clip.detection_id}/>
-                          </div>
-
-                          <div className="node-icon-wrap">
-                            <CameraIcon type={clip.camera_type} size={16}/>
-                          </div>
-
-                          <div className="node-details">
-                            <div className="node-cam-name">{clip.camera_name}</div>
-                            <div className="node-time">
-                              {clip.timestamp
-                                ? new Date(clip.timestamp).toLocaleString(undefined, {
-                                    month: "short", day: "numeric",
-                                    hour: "2-digit", minute: "2-digit", second: "2-digit"
-                                  })
-                                : clip.timestamp}
-                            </div>
-                          </div>
-
-                          <span className="node-play-badge">
-                            {selectedClip?.detection_id === clip.detection_id ? "▶ Playing" : `Clip ${idx + 1}`}
-                          </span>
-                        </div>
-                        {idx < activeTrack.clippings.length - 1 && (
-                          <div className="timeline-connector">
-                            <div className="connector-arrow"/>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
+                    Trigger Manual Re-Index
+                  </button>
+                )}
+              </div>
+            ) : (
+              /* ── Initial state (before first search) ── */
+              <div className="grid-empty-state">
+                <svg className="radar-sweep-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2">
+                  <circle cx="12" cy="12" r="10"/>
+                  <path d="M12 2a10 10 0 0110 10"/>
+                  <line x1="12" y1="12" x2="22" y2="12"/>
+                </svg>
+                <div style={{ fontSize: "1rem", fontWeight: 600 }}>No Forensic Searches Yet</div>
+                <div style={{ fontSize: "0.82rem", color: "#475569", maxWidth: 280, textAlign: "center", lineHeight: 1.6 }}>
+                  {totalIndexed > 0
+                    ? `${totalIndexed.toLocaleString()} real detections indexed. Set visual filters and click "Run Forensic Scan".`
+                    : "Configure visual attributes in the left panel and click \"Run Forensic Scan\" to search the index."}
                 </div>
-              </>
-            ) : null}
+              </div>
+            )}
           </div>
         </div>
-      )}
+
+        {/* ── TRACK WORKSPACE OVERLAY ──────────────────────────────────────── */}
+        {(trackLoading || activeTrack) && (
+          <div className="forensic-workspace">
+            {/* Workspace Header */}
+            <div className="workspace-header">
+              <button className="ws-back-btn" onClick={() => { setActiveTrack(null); setTrackLoading(false); }}>
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <path d="M19 12H5M12 19l-7-7 7-7"/>
+                </svg>
+                Back to Results
+              </button>
+
+              {activeTrack && (
+                <div className="ws-title">
+                  <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+                  </svg>
+                  Forensic Auto-Track —{" "}
+                  <span style={{ color: "#94a3b8", fontWeight: 500 }}>{activeTrack.camera_sequence?.join(" → ")}</span>
+                </div>
+              )}
+
+              {activeTrack && (
+                <span style={{ fontSize: "0.75rem", color: "#475569", fontWeight: 600 }}>
+                  ID: {activeTrack.track_id}
+                </span>
+              )}
+            </div>
+
+            {/* Workspace Body */}
+            <div className="ws-body">
+              {trackLoading ? (
+                <div className="ws-player-loading" style={{ flex: 1 }}>
+                  <div className="loading-spinner"/>
+                  <div className="loading-text">Resolving Multi-Camera Track Sequence...</div>
+                  <div style={{ fontSize: "0.75rem", color: "#475569" }}>Compiling chronological camera path</div>
+                </div>
+              ) : activeTrack ? (
+                <>
+                  {/* ── Left: Video Player ── */}
+                  <div className="ws-left-panel">
+                    <div className="ws-player-container">
+                      {videoLoading && !videoError && (
+                        <div className="video-spinner-overlay">
+                          <div className="loading-spinner"/>
+                        </div>
+                      )}
+                      {videoError && (
+                        <div className="video-error-overlay">
+                          <svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="#ef4444" strokeWidth="1.5">
+                            <circle cx="12" cy="12" r="10"/>
+                            <path d="M12 8v4M12 16h.01"/>
+                          </svg>
+                          <div>Could not load video clip</div>
+                          <div style={{ fontSize: "0.72rem", color: "#64748b" }}>
+                            Check that FFmpeg is installed and the recording file exists
+                          </div>
+                        </div>
+                      )}
+                      <video
+                        ref={videoRef}
+                        className="ws-video-element"
+                        controls
+                        playsInline
+                        onWaiting={() => setVideoLoading(true)}
+                        onCanPlay={() => setVideoLoading(false)}
+                        onPlaying={() => setVideoLoading(false)}
+                        onError={() => { setVideoLoading(false); setVideoError(true); }}
+                      />
+
+                      {/* HUD Overlay */}
+                      <div className="ws-hud-overlay">
+                        <span className="hud-rec-dot"/>
+                        {playbackMode === "unified"
+                          ? <span><span className="hud-track-tag">MASTER TRACK</span> · {activeTrack.clippings?.length} cameras</span>
+                          : <span><span className="hud-track-tag">CLIP</span> · {selectedClip?.camera_name}</span>
+                        }
+                      </div>
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="ws-actions-row">
+                      <button
+                        className={`ws-action-btn ${playbackMode === "unified" ? "active-primary" : "outline"}`}
+                        onClick={handlePlayUnified}
+                      >
+                        <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor">
+                          <path d="M8 5v14l11-7z"/>
+                        </svg>
+                        Play Full Track
+                      </button>
+                      <button className="ws-action-btn export-btn" onClick={handleDownloadTrack}>
+                        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2.5">
+                          <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/>
+                        </svg>
+                        Export Evidence (MP4)
+                      </button>
+                    </div>
+
+                    {/* Subject Attributes Summary */}
+                    {activeTrack.original_detection?.appearance && (
+                      <div className="subject-attr-panel">
+                        <div className="attr-panel-title">Subject Attributes</div>
+                        <div className="attr-grid">
+                          <AttrPill label="Top"    value={activeTrack.original_detection.appearance.top_color_name}    showDot/>
+                          <AttrPill label="Bottom" value={activeTrack.original_detection.appearance.bottom_color_name} showDot/>
+                          <AttrPill label="Gender" value={activeTrack.original_detection.appearance.gender}/>
+                          <AttrPill label="Bag"    value={activeTrack.original_detection.appearance.bag}/>
+                          <AttrPill
+                            label="Confidence"
+                            value={`${Math.round((activeTrack.original_detection.appearance.confidence || 0) * 100)}%`}
+                            highlight
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* ── Right: Timeline ── */}
+                  <div className="ws-right-panel">
+                    <div className="timeline-section-title">
+                      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5">
+                        <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+                      </svg>
+                      Camera Timeline · {activeTrack.clippings?.length} stops
+                    </div>
+
+                    <div className="timeline-flow">
+                      {activeTrack.clippings?.map((clip, idx) => (
+                        <div key={clip.detection_id}>
+                          <div
+                            className={`timeline-node ${selectedClip?.detection_id === clip.detection_id ? "active" : ""}`}
+                            onClick={() => handlePlayClip(clip)}
+                          >
+                            <div className="node-thumb">
+                              <TimelineThumbnail detectionId={clip.detection_id}/>
+                            </div>
+
+                            <div className="node-icon-wrap">
+                              <CameraIcon type={clip.camera_type} size={16}/>
+                            </div>
+
+                            <div className="node-details">
+                              <div className="node-cam-name">{clip.camera_name}</div>
+                              <div className="node-time">
+                                {clip.timestamp
+                                  ? new Date(clip.timestamp).toLocaleString(undefined, {
+                                      month: "short", day: "numeric",
+                                      hour: "2-digit", minute: "2-digit", second: "2-digit"
+                                    })
+                                  : clip.timestamp}
+                              </div>
+                            </div>
+
+                            <span className="node-play-badge">
+                              {selectedClip?.detection_id === clip.detection_id ? "▶ Playing" : `Clip ${idx + 1}`}
+                            </span>
+                          </div>
+                          {idx < activeTrack.clippings.length - 1 && (
+                            <div className="timeline-connector">
+                              <div className="connector-arrow"/>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              ) : null}
+            </div>
+          </div>
+        )}
       </div>
+
+      {/* ── ReIndex Modal ── */}
+      {showReindex && (
+        <ReindexModal
+          cameras={camerasList}
+          onClose={() => setShowReindex(false)}
+          onTrigger={handleReindex}
+        />
+      )}
     </div>
   );
 }
@@ -811,9 +1006,6 @@ function DetectionCard({ det, onClick }) {
   );
 }
 
-/**
- * Small thumbnail for the timeline clip nodes — same resilient load logic.
- */
 function TimelineThumbnail({ detectionId }) {
   const [failed, setFailed] = useState(false);
   if (failed) {

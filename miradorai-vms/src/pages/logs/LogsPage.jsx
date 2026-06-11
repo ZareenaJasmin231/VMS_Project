@@ -32,7 +32,53 @@ export default function LogsPage() {
   const [hasCustomToDate, setHasCustomToDate] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [expandedDetails, setExpandedDetails] = useState({});
+  const [cameras, setCameras] = useState([]);
   const logsPerPage = 15;
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("miradorai_devices");
+      if (saved) setCameras(JSON.parse(saved));
+    } catch (e) {}
+  }, []);
+
+  const getCameraName = (camId) => {
+    if (!camId) return "-";
+    const normalized = camId.replace(/_/g, ".");
+    const found = cameras.find(
+      (c) =>
+        (c.ip && c.ip.replace(/_/g, ".") === normalized) ||
+        String(c.id) === String(camId) ||
+        c.name === camId
+    );
+    return found ? found.name : normalized;
+  };
+
+  const formatActionText = (action) => {
+    if (!action) return "-";
+    let clean = action;
+    
+    // Strip [RECORDER] prefix and timestamp
+    clean = clean.replace(/^\[RECORDER\]\s*\[[^\]]+\]\s*/i, "");
+    
+    // Simplify common recording logs
+    if (clean.includes("Motion trigger received") || clean.includes("Motion is detected")) {
+      return "Motion Trigger Detected";
+    }
+    if (clean.includes("Starting") && clean.includes("recording")) {
+      const match = clean.match(/Starting\s+(\d+-minute)\s+recording/i);
+      if (match) {
+        return `Started ${match[1]} Recording`;
+      }
+      return "Started Recording";
+    }
+    
+    // Fallback cleanup
+    clean = clean.replace(/💥|🏃|🎬/g, "");
+    clean = clean.replace(/for\s+\d{1,3}[_.]\d{1,3}[_.]\d{1,3}[_.]\d{1,3}[!\s]*/ig, "");
+    clean = clean.replace(/\s+/g, " ").trim();
+    return clean.charAt(0).toUpperCase() + clean.slice(1);
+  };
 
   const [categoryDropdownOpen, setCategoryDropdownOpen] = useState(false);
   const categoryDropdownRef = useRef(null);
@@ -143,12 +189,6 @@ export default function LogsPage() {
           >
             Terminal Logs
           </button>
-          <button 
-            className={`logs-tab ${activeTab === "recordings" ? "active" : ""}`}
-            onClick={() => setActiveTab("recordings")}
-          >
-            🎥 Recordings
-          </button>
         </div>
       </div>
 
@@ -243,9 +283,9 @@ export default function LogsPage() {
                     <>
                       <th>Role</th>
                       {activeTab === "ui" && <th>Category</th>}
-                      {activeTab === "recordings" && <th>Camera</th>}
+                      {(activeTab === "recordings" || category === "recording") && <th>Camera</th>}
                       <th>Action</th>
-                      <th>{activeTab === "recordings" ? "Face / Details" : "Details"}</th>
+                      <th>{(activeTab === "recordings" || category === "recording") ? "Face / Details" : "Details"}</th>
                     </>
                   ) : (
                     <>
@@ -269,13 +309,16 @@ export default function LogsPage() {
                           </span>
                         </td>
                         {activeTab === "ui" && <td>{log.category?.toUpperCase()}</td>}
-                        {activeTab === "recordings" && (
-                          <td style={{ fontFamily: "monospace", fontSize: "12px", color: "var(--accent)" }}>
-                            {log.details?.camera_id || "-"}
+                        {(activeTab === "recordings" || category === "recording") && (
+                          <td>
+                            <div className="log-camera-cell">
+                              <span className="log-camera-name">{getCameraName(log.details?.camera_id)}</span>
+                              <span className="log-camera-ip">{log.details?.camera_id?.replace(/_/g, ".")}</span>
+                            </div>
                           </td>
                         )}
                         <td>
-                          <span>{log.action}</span>
+                          <span style={{ fontWeight: 500 }}>{formatActionText(log.action)}</span>
                         </td>
                         <td className="log-details-cell">
                           {(activeTab === "recordings" || log.category === "recording") ? (
@@ -297,32 +340,32 @@ export default function LogsPage() {
                                   onError={(e) => { e.target.style.display = 'none'; }}
                                 />
                               )}
-                              <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                              <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
                                 {log.details?.event && (
-                                  <span style={{
-                                    padding: "2px 8px",
-                                    borderRadius: "12px",
-                                    fontSize: "10px",
-                                    fontWeight: 600,
-                                    background: log.details.event === "recording_started" ? "rgba(34, 197, 94, 0.15)" : "rgba(245, 158, 11, 0.15)",
-                                    color: log.details.event === "recording_started" ? "#22c55e" : "#f59e0b",
-                                    border: `1px solid ${log.details.event === "recording_started" ? "rgba(34,197,94,0.3)" : "rgba(245,158,11,0.3)"}`
-                                  }}>
-                                    {log.details.event === "recording_started" ? "🎬 Recording Started" : "💥 Motion Detected"}
-                                  </span>
+                                  <div className={`log-event-badge ${log.details.event}`}>
+                                    <span className="log-event-dot" />
+                                    {log.details.event === "recording_started" ? "Recording Started" : "Motion Detected"}
+                                  </div>
                                 )}
                                 {log.details?.file_name && (
-                                  <span style={{ fontSize: "11px", color: "var(--text-secondary)", fontFamily: "monospace" }}>
-                                    📁 {log.details.file_name}
+                                  <span className="log-file-name">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="13" height="13">
+                                      <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+                                    </svg>
+                                    {log.details.file_name}
                                   </span>
                                 )}
                                 {log.details?.duration && (
-                                  <span style={{ fontSize: "11px", color: "var(--text-secondary)" }}>
-                                    ⏱ {log.details.duration}s
+                                  <span className="log-duration">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="12" height="12">
+                                      <circle cx="12" cy="12" r="10" />
+                                      <polyline points="12 6 12 12 16 14" />
+                                    </svg>
+                                    {log.details.duration}s
                                   </span>
                                 )}
                                 {!log.details?.face_url && log.details?.event === "motion_trigger" && (
-                                  <span style={{ fontSize: "11px", color: "var(--text-secondary)" }}>No face detected</span>
+                                  <span className="log-no-face">No face detected</span>
                                 )}
                               </div>
                             </div>

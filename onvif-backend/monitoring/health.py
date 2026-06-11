@@ -1,4 +1,4 @@
-from pymongo import MongoClient
+from app.core.database import mongo_client
 import os
 from datetime import datetime
 import threading
@@ -8,10 +8,15 @@ from .email_alerts import alert_device_offline, alert_unexpected_reboot
 from .uptime_tracker import record_uptime_snapshot, get_uptime_report
 
 MONGO_URI = os.environ.get("MONGO_URI", "mongodb://localhost:27017/")
-client = MongoClient(MONGO_URI)
-db = client["mirador-vms"]
-nodes_col = db["infrastructure_nodes"]
-alerts_col = db["infrastructure_alerts"]
+client = mongo_client
+db = client["mirador-vms"] if client else None if client else None
+
+if db is not None:
+    nodes_col = db["infrastructure_nodes"]
+    alerts_col = db["infrastructure_alerts"]
+else:
+    nodes_col = None
+    alerts_col = None
 
 
 def _broadcast_safe(payload: dict):

@@ -78,7 +78,7 @@ export default function MaskingPage() {
       {/* Main Content: Masking UI */}
       <main className="mp-main">
         {selectedCam ? (
-          <div className="mp-container">
+          <div className="masking-page-container">
             {/* Professional Top Bar */}
 
             <div className="mp-page-header">

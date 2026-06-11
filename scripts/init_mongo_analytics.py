@@ -5,9 +5,12 @@ Run this script to create all required collections and indexes for analytics
 """
 
 import pymongo
-from pymongo import MongoClient, ASCENDING, DESCENDING
+from pymongo import ASCENDING, DESCENDING
 from datetime import datetime
 import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../onvif-backend')))
+from app.core.database import mongo_client
 
 # Configuration
 MONGODB_URL = "mongodb://localhost:27017/"
@@ -23,8 +26,8 @@ def init_analytics_collections():
     print(f"📡 Connecting to MongoDB: {MONGODB_URL}")
     
     try:
-        # Connect to MongoDB
-        client = MongoClient(MONGODB_URL)
+        # Connect to MongoDB using shared pool
+        client = mongo_client
         db = client[DATABASE_NAME]
         
         # Test connection

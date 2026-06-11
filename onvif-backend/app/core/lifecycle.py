@@ -1,0 +1,257 @@
+import os
+import re
+import asyncio
+from contextlib import asynccontextmanager
+from fastapi import FastAPI
+import requests as http_requests
+from datetime import datetime
+
+from app.background_task_manager import task_manager
+from monitoring.scheduler import scheduler as infrastructure_scheduler
+from app.managers.stream_manager import devices, get_devices_by_ip, stream_watchdog
+from app.managers.health_manager import system_health_collector, camera_health_collector, analytics_poll_loop
+from app.core.database import cameras_col, analytics_subs_col
+from utils.terminal_logger import log_terminal
+from app.services.camera.ome_service import register_stream
+from app.services.storage import encrypt_service
+from app.services.storage import rtsp_recorder as recorder
+from app.background.stream_health import start_health_monitoring
+from app.managers.stream_manager import load_devices
+
+OME_API       = os.environ.get("OME_URL", "http://ome:8081/v1/vhosts/default/apps/app/streams")
+OME_AUTH      = "Basic bXl2bXNhY2Nlc3N0b2tlbg=="
+OME_WS_PORT   = os.environ.get("OME_WS_PORT", "3333")
+
+_analytics_tasks: dict[str, asyncio.Task] = {}
+_health_monitor_task = None
+
+async def _wait_for_ome(max_retries: int = 30, delay: int = 5):
+    import socket
+    for attempt in range(1, max_retries + 1):
+        try:
+            r = http_requests.get(OME_API, headers={"Authorization": OME_AUTH}, timeout=3)
+            if r.status_code in (200, 201, 404):
+                try:
+                    sock = socket.create_connection(("ome", int(OME_WS_PORT)), timeout=2)
+                    sock.close()
+                except Exception:
+                    raise Exception(f"WS port {OME_WS_PORT} not yet open")
+                print(f"[STARTUP] ✅ OME REST + WS ready (attempt {attempt})")
+                await asyncio.sleep(2)
+                return
+        except Exception as e:
+            print(f"[STARTUP] ⏳ Waiting for OME... attempt {attempt}/{max_retries}: {e}")
+        await asyncio.sleep(delay)
+    print("[STARTUP] ⚠ OME not ready after max retries — proceeding anyway")
+
+async def _startup_phase_1():
+    infrastructure_scheduler.start()
+    
+    from monitoring.diagnostics import run_diagnostics_loop
+    await task_manager.start_task('diagnostics', run_diagnostics_loop())
+
+    from monitoring.stream_health import run_stream_health_loop
+    await task_manager.start_task('stream_health', run_stream_health_loop())
+    
+    try:
+        from app.background.forensic_indexer_worker import start_background_indexer
+        start_background_indexer()
+        print("[STARTUP] ✅ Forensic YOLOv8 background indexer started.")
+    except Exception as e:
+        print(f"[STARTUP] ⚠ Forensic indexer failed to start: {e}")
+
+async def _startup_phase_2():
+    if cameras_col is not None:
+        try:
+            all_cams = list(cameras_col.find({}))
+
+            for cam in all_cams:
+                ip = cam.get("ip")
+                if not ip:
+                    continue
+                base_name = ip.replace(".", "_")
+                current   = cam.get("ome_stream", "")
+
+                if re.search(r"_cam\d+$", current):
+                    continue
+
+                if re.search(r"_[0-9a-f]{6}$", current):
+                    has_cam_n = cameras_col.find_one({
+                        "ip": ip,
+                        "ome_stream": re.compile(f"^{re.escape(base_name)}_cam\\d+$")
+                    })
+                    if not has_cam_n:
+                        conflict = cameras_col.find_one({
+                            "ome_stream": base_name,
+                            "_id": {"$ne": cam["_id"]}
+                        })
+                        if not conflict:
+                            cameras_col.update_one(
+                                {"_id": cam["_id"]},
+                                {"$set": {"ome_stream": base_name}}
+                            )
+                            print(f"[MIGRATION] 🚚 Renamed hash entry: {current} → {base_name}")
+                    continue
+
+                if current and current != base_name and not current.startswith(base_name + "_"):
+                    print(f"[MIGRATION] 🚚 Renaming stream: {current} → {base_name}")
+                    cameras_col.update_one({"_id": cam["_id"]}, {"$set": {"ome_stream": base_name}})
+
+            ghost_result = cameras_col.delete_many({
+                "$or": [
+                    {"rtsp_url": {"$exists": False}},
+                    {"rtsp_url": None},
+                    {"rtsp_url": ""},
+                ]
+            })
+            if ghost_result.deleted_count:
+                print(f"[MIGRATION] 🧹 Purged {ghost_result.deleted_count} ghost entry/entries with no rtsp_url")
+
+            all_cams = list(cameras_col.find({}))
+
+            cam_n_ips = {
+                cam.get("ip", "")
+                for cam in all_cams
+                if re.search(r"_cam\d+$", cam.get("ome_stream", ""))
+            }
+
+            ids_to_delete = []
+
+            for cam in all_cams:
+                stream = cam.get("ome_stream", "")
+                ip     = cam.get("ip", "")
+                base   = ip.replace(".", "_") if ip else ""
+
+                if re.search(r"_[0-9a-f]{6}$", stream) and ip in cam_n_ips:
+                    ids_to_delete.append(cam["_id"])
+                    print(f"[MIGRATION] 🗑 Removing superseded hash entry: {stream}")
+                    continue
+
+                if stream == base and ip in cam_n_ips:
+                    ids_to_delete.append(cam["_id"])
+                    print(f"[MIGRATION] 🗑 Removing plain IP entry: {stream} (camN exists for {ip})")
+
+            if ids_to_delete:
+                cameras_col.delete_many({"_id": {"$in": ids_to_delete}})
+                print(f"[MIGRATION] ✅ Removed {len(ids_to_delete)} stale entry/entries")
+
+            # Reload devices after all migration steps
+            import app.managers.stream_manager as sm
+            sm.devices = sm.load_devices()
+        except Exception as e:
+            print(f"[MIGRATION] ⚠ DB naming cleanup failed: {e}")
+
+    log_terminal(
+        "admin@gmail.com",
+        "admin",
+        "backend started",
+        "/app",
+        0,
+        "startup success"
+    )
+    global _health_monitor_task
+    import app.managers.stream_manager as sm
+    my_devices = sm.devices
+    print(f"[STARTUP] Starting with {len(my_devices)} saved devices")
+    await _wait_for_ome()
+
+    for device in my_devices:
+        stream_name = device.get("ome_stream")
+        rtsp_url    = device.get("rtsp_url")
+        if device.get("enabled") is False:
+            print(f"[STARTUP] ⏭ Skipping disabled camera: {stream_name}")
+            continue
+        if stream_name and rtsp_url:
+            print(f"[STARTUP] Registering stream: {stream_name}")
+            register_stream(stream_name, rtsp_url)
+
+    await task_manager.start_task('stream_watchdog', stream_watchdog())
+
+    if analytics_subs_col is not None:
+        for device in my_devices:
+            manuf = str(device.get("manufacturer", "")).lower()
+            model = str(device.get("model", "")).lower()
+            ip    = device.get("ip")
+            
+            if ip and ("bosch" in manuf or "bosch" in model or "dahua" in manuf or "dahua" in model):
+                existing_sub = analytics_subs_col.find_one({"ip": ip})
+                if not existing_sub or not existing_sub.get("enabled"):
+                    print(f"[ANALYTICS] 🔗 Auto-subscribed camera: {ip} ({manuf})")
+                    analytics_subs_col.update_one(
+                        {"ip": ip},
+                        {"$set": {
+                            "ip":       ip,
+                            "port":     device.get("port", 80),
+                            "username": device.get("username", ""),
+                            "password": device.get("password", ""),
+                            "manufacturer": manuf,
+                            "enabled":  True,
+                            "enabled_at": datetime.utcnow()
+                        }},
+                        upsert=True
+                    )
+                else:
+                    analytics_subs_col.update_one({"ip": ip}, {"$set": {"manufacturer": manuf}})
+
+        active_subs = list(analytics_subs_col.find({"enabled": True}))
+        for sub in active_subs:
+            sub_ip = sub.get("ip")
+            if sub_ip:
+                from app.managers.health_manager import analytics_poll_loop
+                t = await task_manager.start_task(
+                    f"analytics_{sub_ip}",
+                    analytics_poll_loop(
+                        sub_ip, sub.get("port", 80),
+                        sub.get("username", ""), sub.get("password", ""),
+                        sub.get("manufacturer", "bosch")
+                    )
+                )
+                _analytics_tasks[sub_ip] = t
+                print(f"[ANALYTICS] ♻ Restored for {sub_ip}")
+
+    _health_monitor_task = await task_manager.start_task('health_monitor', start_health_monitoring(my_devices, cameras_col))
+    encrypt_service.start_watcher()
+    recorder.start_recording_all(my_devices)
+    try:
+        from app.services.ai import motion_detector
+        motion_detector.manager.start()
+        print("[STARTUP] ✓ Motion detector manager started")
+    except Exception as e:
+        print(f"[STARTUP] ❌ Failed to start motion detector manager: {e}")
+    await task_manager.start_task('system_health', system_health_collector())
+    await task_manager.start_task('camera_health', camera_health_collector())
+    enabled_count = sum(1 for d in my_devices if d.get("enabled") is not False)
+    print(f"[STARTUP] 🎥 Recording started for {enabled_count}/{len(my_devices)} enabled camera(s)")
+
+    print(f"[STARTUP] ✓ Stream health monitoring started")
+
+async def _shutdown_phase_1():
+    print("[SHUTDOWN] Stopping recorders, motion detectors, and encryption watcher...")
+    try:
+        from app.services.ai import motion_detector
+        motion_detector.manager.stop()
+    except Exception as e:
+        print(f"[SHUTDOWN] Error stopping motion detector manager: {e}")
+    recorder.stop_all()
+    encrypt_service.stop_watcher()
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # --- STARTUP ---
+    await _startup_phase_1()
+    await _startup_phase_2()
+    yield
+    # --- SHUTDOWN ---
+    await _shutdown_phase_1()
+    # Shut down all central tasks with max 5s timeout
+    await task_manager.shutdown_all_tasks(timeout=5.0)
+    # Stop background indexer
+    try:
+        from app.background.forensic_indexer_worker import stop_background_indexer
+        stop_background_indexer()
+    except Exception as e:
+        print(f"[SHUTDOWN] Failed to stop indexer: {e}")
+    # Stop infrastructure scheduler
+    infrastructure_scheduler.stop()
+    # Find and kill orphan ffmpeg processes
+    task_manager.kill_orphan_ffmpegs()

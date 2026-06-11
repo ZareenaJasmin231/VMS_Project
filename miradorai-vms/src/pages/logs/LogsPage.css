@@ -179,23 +179,23 @@
 
 .logs-table th {
   background: rgba(255, 255, 255, 0.02);
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--text-muted);
   font-weight: 700;
-  font-size: 15px;
-  padding: 16px 20px;
+  font-size: 11px;
+  padding: 14px 16px;
   position: sticky;
   top: 0;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   text-transform: uppercase;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.08em;
   z-index: 10;
 }
 
 .logs-table td {
-  padding: 16px 20px;
+  padding: 14px 16px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.04);
-  font-size: 18px;
-  color: var(--text-primary);
+  font-size: 15px;
+  color: var(--text-secondary);
   vertical-align: middle;
 }
 
@@ -207,15 +207,35 @@
   padding: 40px;
   text-align: center;
   color: var(--text-muted);
-  font-size: 18px;
+  font-size: 15px;
+}
+
+.log-camera-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.log-camera-name {
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--text-primary);
+}
+
+.log-camera-ip {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--teal);
 }
 
 .log-tag {
   display: inline-block;
-  padding: 4px 8px;
+  padding: 2px 6px;
   border-radius: 4px;
-  font-size: 15px;
+  font-size: 11px;
   font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
 }
 
 .log-tag.admin {
@@ -421,4 +441,83 @@
   background: rgba(45, 212, 191, 0.15);
   color: var(--teal);
   font-weight: 600;
+}
+
+/* ── Event Badges ── */
+.log-event-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  align-self: flex-start; /* Prevent stretching */
+  border: 1px solid transparent;
+}
+
+.log-event-badge.recording_started {
+  background: rgba(16, 185, 129, 0.08);
+  color: #10b981;
+  border-color: rgba(16, 185, 129, 0.2);
+}
+
+.log-event-badge.recording_started .log-event-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #10b981;
+  box-shadow: 0 0 6px #10b981;
+}
+
+.log-event-badge.motion_trigger {
+  background: rgba(245, 158, 11, 0.08);
+  color: #f59e0b;
+  border-color: rgba(245, 158, 11, 0.2);
+}
+
+.log-event-badge.motion_trigger .log-event-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #ef4444; /* red pulse for motion */
+  box-shadow: 0 0 6px #ef4444;
+}
+
+/* ── Details text files and duration ── */
+.log-file-name {
+  font-size: 12px;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.log-file-name svg {
+  color: #f59e0b;
+  flex-shrink: 0;
+}
+
+.log-duration {
+  font-size: 11px;
+  color: var(--text-muted);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.log-duration svg {
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.log-no-face {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-style: italic;
+  margin-top: 2px;
 }

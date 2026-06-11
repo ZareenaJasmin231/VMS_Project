@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import "./DashboardPage.css";
 import {
   Camera,
@@ -246,7 +246,15 @@ const DashboardPage = () => {
   const [storage, setStorage] = useState({ total: 0, used: 0, free: 0, location: "—" });
   const [events, setEvents] = useState([]);
   const [cameras, setCameras] = useState([]);
+  const [activeRecorders, setActiveRecorders] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  const recordingCount = cameras.filter((cam) => {
+    if (cam.enabled === false) return false;
+    return activeRecorders.includes(cam.stream_key) || activeRecorders.includes(cam.ome_stream);
+  }).length;
+
+  const enabledCount = cameras.filter((cam) => cam.enabled !== false).length;
   const [cameraHealth, setCameraHealth] = useState([]);
 
   // ─── NEW: Report Generation States ─────────────────────────────────────────
@@ -260,6 +268,8 @@ const DashboardPage = () => {
   const [reportSuccessMsg, setReportSuccessMsg] = useState("");
   const [reportErrorMsg, setReportErrorMsg] = useState("");
   const reportPerPage = 10;
+
+  const reportRef = useRef(null);
 
   const reportTypeMap = {
     alerts: "Camera Up/Down History",
@@ -393,6 +403,9 @@ const DashboardPage = () => {
       setReportErrorMsg("An error occurred while generating the report.");
     } finally {
       setReportLoading(false);
+      setTimeout(() => {
+        reportRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 100);
     }
   };
 
@@ -434,17 +447,23 @@ const DashboardPage = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [sumRes, storRes, eventRes, camRes] = await Promise.all([
+        const [sumRes, storRes, eventRes, camRes, statusRes] = await Promise.all([
           fetch(`${API_BASE}/api/dashboard/summary`, { headers: getAuthHeaders() }),
           fetch(`${API_BASE}/api/storage/management`, { headers: getAuthHeaders() }),
           fetch(`${API_BASE}/api/dashboard/events`, { headers: getAuthHeaders() }),
-          fetch(`${API_BASE}/api/cameras/`, { headers: getAuthHeaders() })
+          fetch(`${API_BASE}/api/cameras/`, { headers: getAuthHeaders() }),
+          fetch(`${API_BASE}/api/recordings/status`, { headers: getAuthHeaders() }).catch(() => null)
         ]);
 
         const sumData = await sumRes.json();
         const storData = await storRes.json();
         const eventData = await eventRes.json();
         const camData = await camRes.json();
+
+        if (statusRes && statusRes.ok) {
+          const statusData = await statusRes.json();
+          setActiveRecorders(statusData.active_recorders || []);
+        }
 
         // Fetch history for the VMS host (assuming it's node-172-19-0-6 or similar)
         // We'll try to find the host node first or just fetch history if we have an ID
@@ -591,7 +610,7 @@ const DashboardPage = () => {
     },
     {
       title: "Recording Cameras",
-      value: `${cameras.filter(c => c.stream_status?.connected).length} / ${cameras.length}`,
+      value: `${recordingCount} / ${enabledCount}`,
       icon: <Server size={18} />,
       color: "#8b5cf6"
     }
@@ -637,7 +656,7 @@ const DashboardPage = () => {
           <div className="icon"><Server size={18} /></div>
           <div className="card-content">
             <p className="title">Recording Cameras</p>
-            <h3>{cameras.filter(c => c.stream_status?.connected).length} / {cameras.length}</h3>
+            <h3>{recordingCount} / {enabledCount}</h3>
           </div>
         </div>
       </div>
@@ -885,12 +904,13 @@ const DashboardPage = () => {
           </div>
         </div>
 
-        {reportSuccessMsg && <div className="report-alert success">{reportSuccessMsg}</div>}
-        {reportErrorMsg && <div className="report-alert error">{reportErrorMsg}</div>}
+        <div ref={reportRef} style={{ scrollMarginTop: "20px" }}>
+          {reportSuccessMsg && <div className="report-alert success">{reportSuccessMsg}</div>}
+          {reportErrorMsg && <div className="report-alert error">{reportErrorMsg}</div>}
 
-        {/* Report Results Table */}
-        {reportData.length > 0 && (
-          <div className="report-table-container">
+          {/* Report Results Table */}
+          {reportData.length > 0 && (
+            <div className="report-table-container">
             <div className="report-table-wrapper">
               <table className="report-table">
                 <thead>
@@ -1023,6 +1043,7 @@ const DashboardPage = () => {
             )}
           </div>
         )}
+        </div>
       </div>
     </div>
   );

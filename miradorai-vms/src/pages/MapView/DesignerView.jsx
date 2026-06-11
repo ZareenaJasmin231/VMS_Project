@@ -6,6 +6,8 @@ import HeatmapLayer from "./HeatmapLayer";
 import * as CctvCalc from "./CctvCalculators";
 import { drawStorageReport } from "./ReportLogic.js";
 import logoImg from "../../assets/logo.jpg";
+import * as pdfjsLib from "pdfjs-dist";
+pdfjsLib.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url).toString();
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const API = import.meta.env.VITE_API_URL || "http://192.168.126.38:80";
@@ -64,6 +66,7 @@ async function apiDeleteZone(zoneId) {
 }
 
 async function apiSaveFloorPlan(floorPlanDataUrl) {
+  if (!floorPlanDataUrl) return;
   try {
     await fetch(`${API}/api/designer/floor-plan`, {
       method: "POST",
@@ -644,9 +647,22 @@ function drawPlacedCamera(ctx, p, ppm, hovering, selected, zonesRef, activeZoneI
   let clipZone = null;
 
   if (zonesRef?.current) {
-    clipZone = zonesRef.current.find(
-      z => z.polygon?.length >= 3 && pointInPolygon(x, y, z.polygon)
-    ) || null;
+    if (activeZoneIdRef?.current) {
+      const activeZone = zonesRef.current.find(z => z.id === activeZoneIdRef.current);
+      if (activeZone && activeZone.polygon?.length >= 3 && pointInPolygon(x, y, activeZone.polygon)) {
+        clipZone = activeZone;
+      } else {
+        hideBeam = true;
+      }
+    } else {
+      const containedZones = zonesRef.current.filter(
+        z => z.polygon?.length >= 3 && pointInPolygon(x, y, z.polygon)
+      );
+      if (containedZones.length > 0) {
+        containedZones.sort((a, b) => getPolygonArea(a.polygon, ppm) - getPolygonArea(b.polygon, ppm));
+        clipZone = containedZones[0];
+      }
+    }
   }
 
   const startClip = () => {
@@ -1816,7 +1832,11 @@ export default function DesignerView({ onBack }) {
   // Auto-save slides list and active slide ID to localStorage
   useEffect(() => {
     if (slides.length > 0) {
-      localStorage.setItem(`miradorai_slides_${MAP_ID}`, JSON.stringify(slides));
+      try {
+        localStorage.setItem(`miradorai_slides_${MAP_ID}`, JSON.stringify(slides));
+      } catch (err) {
+        console.warn("Failed to save slides to localStorage due to quota limits", err);
+      }
     }
   }, [slides]);
 
@@ -2825,11 +2845,41 @@ export default function DesignerView({ onBack }) {
   // ── Floor plan import ─────────────────────────────────────────────────────
   function handleFileChange(e) {
     const file = e.target.files[0]; if (!file) return;
-    const reader = new FileReader();
-    reader.onload = ev => {
-      addNewSlide(ev.target.result, file.name.replace(/\.[^/.]+$/, ""));
-    };
-    reader.readAsDataURL(file);
+    const name = file.name.replace(/\.[^/.]+$/, "");
+    
+    if (file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")) {
+      const fileReader = new FileReader();
+      fileReader.onload = async function() {
+        try {
+          const typedarray = new Uint8Array(this.result);
+          const pdf = await pdfjsLib.getDocument({ data: typedarray }).promise;
+          const page = await pdf.getPage(1);
+          const viewport = page.getViewport({ scale: 2.0 });
+          
+          const canvas = document.createElement("canvas");
+          const context = canvas.getContext("2d");
+          canvas.height = viewport.height;
+          canvas.width = viewport.width;
+          
+          context.fillStyle = "#ffffff";
+          context.fillRect(0, 0, canvas.width, canvas.height);
+          
+          await page.render({ canvasContext: context, viewport: viewport }).promise;
+          const dataUrl = canvas.toDataURL("image/jpeg", 0.7);
+          addNewSlide(dataUrl, name);
+        } catch (err) {
+          console.error("Failed to parse PDF", err);
+          alert("Failed to parse PDF.");
+        }
+      };
+      fileReader.readAsArrayBuffer(file);
+    } else {
+      const reader = new FileReader();
+      reader.onload = ev => {
+        addNewSlide(ev.target.result, name);
+      };
+      reader.readAsDataURL(file);
+    }
     e.target.value = "";
   }
 
@@ -3115,7 +3165,7 @@ export default function DesignerView({ onBack }) {
               </svg>
               Import Floor Plan
             </button>
-            <input ref={fileInputRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handleFileChange} />
+            <input ref={fileInputRef} type="file" accept="image/*,.pdf" style={{ display: "none" }} onChange={handleFileChange} />
 
             {hasFloor && (
               <button className="dv-tbtn" style={{ borderColor: "#ef4444", color: "#ef4444", background: "rgba(239, 68, 68, 0.05)" }} onClick={removeFloorPlan} title="Delete Floor Plan">

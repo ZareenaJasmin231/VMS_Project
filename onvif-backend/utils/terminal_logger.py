@@ -1,12 +1,12 @@
 from datetime import datetime, timezone
-from pymongo import MongoClient
+from app.core.database import mongo_client
 import os
 import asyncio
 
 MONGO_URI = os.environ.get("MONGO_URI", "mongodb://mongo:27017/")
-mongo_client = MongoClient(MONGO_URI)
-db = mongo_client["mirador-vms"]
-terminal_logs_col = db["terminal_logs"]
+mongo_client = mongo_client
+db = mongo_client["mirador-vms"] if mongo_client else None
+terminal_logs_col = db["terminal_logs"] if db is not None else None
 
 def log_terminal(user_email, user_role, command, project_folder, exit_code=0, output=""):
     try:
@@ -20,9 +20,8 @@ def log_terminal(user_email, user_role, command, project_folder, exit_code=0, ou
             "timestamp": datetime.now(timezone.utc).isoformat()
         }
 
-        terminal_logs_col.insert_one(doc)
-
-
+        if terminal_logs_col is not None:
+            terminal_logs_col.insert_one(doc)
 
     except Exception as e:
         print("Terminal log failed:", e)

@@ -448,11 +448,7 @@ export default function DiscoveryModal({
                         </div>
                         <div className="dm-device-info">
                           <div className="dm-device-name">{device.name || `Camera @ ${device.ip}`}</div>
-                          <div className="dm-device-meta">
-                            {device.ip}
-                            {device.manufacturer && device.manufacturer !== "Unknown" && ` · ${device.manufacturer}`}
-                            {device.model        && device.model        !== "Unknown" && ` ${device.model}`}
-                          </div>
+
                         </div>
                         {isRegistering && sel
                           ? <RegBadge deviceId={device.id} />
@@ -551,7 +547,7 @@ export default function DiscoveryModal({
             <div className="dm-cred-body">
 
               <p className="dm-cred-hint">
-                Enter credentials for each camera. Leave blank if no authentication is required.
+                Enter credentials for each camera.
               </p>
 
               <div className="dm-cred-list">
@@ -569,21 +565,21 @@ export default function DiscoveryModal({
                         </div>
                         <div className="dm-cred-cam-info">
                           <div className="dm-cred-cam-name">{device.name || `Camera @ ${device.ip}`}</div>
-                          <div className="dm-cred-cam-ip">{device.ip}</div>
+
                         </div>
                       </div>
 
                       <div className="dm-cred-fields">
 
+
                         <input
-                          className="dm-cred-input"
-                          placeholder="Camera Name (optional)"
+                          className="dm-cred-input dm-cam-name-input"
+                          placeholder="Name (opt)"
                           tabIndex={baseTab}
                           value={deviceCreds[device.id]?.cameraName || ""}
                           onChange={(e) => updateCred(device.id, "cameraName", e.target.value)}
                           autoComplete="off"
                         />
-
                         <div className="dm-custom-select" style={{ flex: 1, minWidth: 0 }} ref={openDropdownId === device.id ? dropdownRef : null}>
                           <button
                             type="button"

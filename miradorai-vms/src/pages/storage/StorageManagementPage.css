@@ -1,8 +1,21 @@
-/* ── Table wrap ─────────────────────────────────── */
 .sm-table-wrap {
   flex-shrink: 0;
   overflow: auto;
   max-height: 220px;
+  padding-top: 0 !important;
+}
+
+.sm-table-wrap .m-table {
+  margin-top: 0 !important;
+}
+
+.sm-table-wrap .m-table th {
+  position: sticky;
+  top: 0;
+  z-index: 100 !important;
+  background: var(--bg-surface) !important; 
+  box-shadow: 0 1px 0 var(--border); 
+  color: #ffffff !important;
 }
 
 /* ── Disk icon cell ─────────────────────────────── */

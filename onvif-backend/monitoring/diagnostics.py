@@ -5,10 +5,10 @@ import os
 import platform
 import re
 from datetime import datetime
-from pymongo import MongoClient
+from app.core.database import mongo_client
 
 MONGO_URI       = os.environ.get("MONGO_URI", "mongodb://localhost:27017/")
-client          = MongoClient(MONGO_URI)
+client          = mongo_client
 db              = client["mirador-vms"]
 diagnostics_col = db["network_diagnostics"]
 nodes_col       = db["infrastructure_nodes"]   # FIX: write live fields back here

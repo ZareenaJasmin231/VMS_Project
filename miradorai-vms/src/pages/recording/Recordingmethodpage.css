@@ -55,18 +55,20 @@
   box-shadow: 0 0 0 3px rgba(45, 212, 191, 0.15);
 }
 
-/* ── Content Layout ─────────────────────────────────────────── */
+/* ── Page Layout Adjustments ────────────────────────────────── */
 .rm-content-layout {
   display: flex;
   gap: 24px;
   flex: 1;
   min-height: 0;
   margin-bottom: 24px;
+  padding: 0 12px;
 }
 
 /* ── Main Table Card ────────────────────────────────────────── */
 .rm-table-wrap.card {
   flex: 1;
+  min-width: 0;
   background: var(--bg-surface, #13161e);
   border: 1px solid var(--border-light, #2e3548);
   border-radius: var(--radius-lg, 12px);
@@ -75,23 +77,34 @@
   display: flex;
   flex-direction: column;
   justify-content: flex-start;
+  padding-top: 0 !important;
 }
 
 .m-table {
   width: 100%;
   border-collapse: collapse;
+  margin-top: 0 !important;
 }
 
 .m-table th {
   text-align: left;
-  padding: 16px 20px;
-  font-size: 15px;
+  padding: 14px 18px;
+  font-size: 14px;
   font-weight: 700;
-  color: rgba(255, 255, 255, 0.4);
+  color: #ffffff;
   text-transform: uppercase;
-  letter-spacing: 0.1em;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  letter-spacing: 0.08em;
+  border-bottom: 1px solid var(--border);
   background: rgba(255, 255, 255, 0.02);
+}
+
+.rm-table-wrap .m-table th {
+  position: sticky;
+  top: 0;
+  z-index: 100 !important;
+  background: var(--bg-surface) !important; 
+  box-shadow: 0 1px 0 var(--border); 
+  color: #ffffff !important;
 }
 
 .m-table tr {
@@ -107,9 +120,9 @@
 }
 
 .m-table td {
-  padding: 16px 20px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
-  font-size: 18px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border-dim);
+  font-size: 15px;
   vertical-align: middle;
 }
 
@@ -120,7 +133,8 @@
 
 /* ── Side Panel ─────────────────────────────────────────────── */
 .rm-side-panel {
-  width: 360px;
+  width: 340px;
+  flex-shrink: 0;
   background: linear-gradient(180deg, #0b1220 0%, #0a0f1a 100%);
   border-left: 1px solid rgba(255,255,255,0.06);
   border: 1px solid var(--border-light, #2e3548);
@@ -137,7 +151,7 @@
 }
 
 .rm-side-header {
-  padding: 24px;
+  padding: 20px 24px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   display: flex;
   justify-content: space-between;
@@ -146,14 +160,14 @@
 
 .rm-side-header h3 {
   margin: 0;
-  font-size: 22px;
+  font-size: 19px;
   font-weight: 700;
   color: #fff;
 }
 
 .close-btn {
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -179,9 +193,9 @@
 .rm-side-item {
   display: flex;
   align-items: center;
-  gap: 16px;
-  padding: 14px 18px;
-  border-radius: 10px;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: 8px;
   margin-bottom: 4px;
   cursor: pointer;
   transition: all 0.2s ease;
@@ -203,20 +217,30 @@
 
 .rm-item-info {
   flex: 1;
+  min-width: 0;
+}
+
+.rm-item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
 }
 
 .rm-item-name {
-  font-size: 18px;
+  font-size: 15px;
   font-weight: 600;
   color: #fff;
-  margin-bottom: 2px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+  min-width: 0;
 }
 
 .rm-stream-badge {
-  font-size: 14px;
+  font-size: 11px;
   padding: 2px 6px;
   border-radius: 4px;
   background: rgba(45, 212, 191, 0.1);
@@ -225,10 +249,29 @@
   font-weight: 700;
   letter-spacing: 0.05em;
   border: 1px solid rgba(45, 212, 191, 0.2);
+  flex-shrink: 0;
+}
+
+.rm-item-sub {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.rm-item-ip {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.4);
+  font-family: var(--font-mono);
+}
+
+.rm-item-dot {
+  color: rgba(255, 255, 255, 0.15);
+  font-size: 10px;
 }
 
 .rm-item-mode {
-  font-size: 15px;
+  font-size: 11px;
   color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -239,11 +282,11 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 4px 12px;
-  border-radius: 20px;
-  font-size: 16px;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 11px;
   font-weight: 700;
-  min-width: 44px;
+  min-width: 24px;
 }
 
 .count-badge.continuous {

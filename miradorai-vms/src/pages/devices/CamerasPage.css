@@ -6,6 +6,10 @@
   max-width: 100%;
   margin-right: 0;
 }
+
+.cam-table-wrap .m-table th {
+  color: #ffffff !important;
+}
 html, body, #root {
   height: 100%;
 }
@@ -24,8 +28,9 @@ html, body, #root {
   display: flex;
   gap: 16px;
   flex: 1;
+  height: 100%;
   min-height: 0;
-  align-items: flex-start; /* Fixes groups centering vertically */
+  align-items: stretch; /* Stretch children to fill the full vertical height */
   justify-content: flex-start;
 }
 .close-btn {

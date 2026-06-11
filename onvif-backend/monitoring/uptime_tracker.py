@@ -13,12 +13,18 @@ import os
 import psutil
 import asyncio
 from datetime import datetime
-from pymongo import MongoClient
+from app.core.database import mongo_client
 
-MONGO_URI = os.environ.get("MONGO_URI", "mongodb://localhost:27017/")
-client    = MongoClient(MONGO_URI)
-db        = client["mirador-vms"]
-uptime_col = db["device_uptime"]   # one doc per node_id
+MONGO_URI = os.environ.get("MONGO_URI", "mongodb://mongo:27017/")
+client    = mongo_client
+db        = client["mirador-vms"] if client else None
+
+if db is not None:
+    uptime_col = db["uptime_snapshots"]
+    events_col = db["uptime_events"]
+else:
+    uptime_col = None
+    events_col = None
 
 
 # ── Snapshot recording ────────────────────────────────────────────────────

@@ -17,13 +17,13 @@ import os
 import re
 from datetime import datetime, timezone
 
-from pymongo import MongoClient
+from app.core.database import mongo_client
 from .websocket_manager import manager
 
 MONGO_URI  = os.environ.get("MONGO_URI", "mongodb://localhost:27017/")
-_client    = MongoClient(MONGO_URI)
-_db        = _client["mirador-vms"]
-nodes_col  = _db["infrastructure_nodes"]
+_client    = mongo_client
+_db = _client["mirador-vms"] if _client else None
+nodes_col = _db["infrastructure_nodes"] if _db is not None else None
 
 # ─── How often to poll each camera (seconds) ─────────────────────────────────
 POLL_INTERVAL = 15

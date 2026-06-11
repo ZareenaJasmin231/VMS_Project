@@ -10,8 +10,8 @@ def get_device_id():
 
 def generate_license(device_id):
     payload = {
-        "plan": "BASIC_10",
-        "max_cameras": 10,
+        "plan": "BASIC_15",
+        "max_cameras": 15,
         "device_id": device_id,
         "exp": datetime.now(UTC) + timedelta(days=3650)
     }

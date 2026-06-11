@@ -626,3 +626,6 @@ input[type="password"]::-webkit-textfield-decoration-container {
 input[type="password"]::-webkit-contacts-auto-fill-button {
   display: none !important;
 }
+
+.dm-cam-name-input::placeholder { font-size: 11px; }
+.dm-cam-name-input { font-size: 12px; max-width: 120px; }

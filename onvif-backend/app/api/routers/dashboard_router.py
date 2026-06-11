@@ -1,0 +1,517 @@
+from fastapi import APIRouter, Depends, Response, HTTPException, Request
+import json
+from app.core.database import db as _db, analytics_col, watch_collection, cameras_col
+from app.core.security import verify_token
+from bson import ObjectId
+import math
+import os
+from datetime import datetime, timedelta
+from app.services.storage import rtsp_recorder as recorder
+from app.services.storage import encrypt_service
+
+router = APIRouter(prefix="/api", tags=["dashboard"])
+
+@router.get("/dashboard/summary", dependencies=[Depends(verify_token)])
+async def get_dashboard_summary():
+    if cameras_col is None or analytics_col is None:
+        return {}
+
+    total_cameras = cameras_col.count_documents({})
+
+    active_streams = cameras_col.count_documents({
+        "enabled": {"$ne": False}
+    })
+
+    today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+
+    alarms_today = analytics_col.count_documents({
+        "received_at": {"$gte": today_start}
+    })
+
+    latest_health = _db["health_logs"].find_one(
+        {"type": "system"},
+        sort=[("timestamp", -1)]
+    )
+
+    cpu = latest_health.get("cpu", 0) if latest_health else 0
+    ram = latest_health.get("ram", 0) if latest_health else 0
+    disk = latest_health.get("disk", 0) if latest_health else 0
+
+    # 🔥 ADD ALERT LOGIC
+    alerts = []
+
+    if cpu > 85:
+        alerts.append("High CPU Usage")
+
+    if ram > 85:
+        alerts.append("High RAM Usage")
+
+    if disk > 90:
+        alerts.append("Disk Almost Full")
+
+    # 🔥 SYSTEM STATUS
+    status = "Healthy"
+    if cpu > 85 or ram > 85 or disk > 90:
+        status = "Critical"
+    elif cpu > 60 or ram > 60 or disk > 75:
+        status = "Warning"
+
+    return {
+        "total_cameras": total_cameras,
+        "active_streams": active_streams,
+        "alarms_today": alarms_today,
+
+        "cpu": cpu,
+        "ram": ram,
+        "disk": disk,
+
+        "alerts": alerts,
+        "status": status
+    }
+
+@router.get("/action-rules", dependencies=[Depends(verify_token)])
+def get_action_rules():
+    rules = list(_db["action_rules"].find({}, {"_id": 0}))
+    return {"rules": rules}
+@router.get("/dashboard/events", dependencies=[Depends(verify_token)])
+async def get_dashboard_events(limit: int = 20):
+    if analytics_col is None:
+        return []
+    docs = list(
+        analytics_col.find({}, {"_id": 0})
+        .sort("received_at", -1)
+        .limit(limit)
+    )
+    for d in docs:
+        if "received_at" in d:
+            d["received_at"] = d["received_at"].isoformat()
+    return docs
+
+@router.get("/alerts", dependencies=[Depends(verify_token)])
+async def get_alerts(
+    limit: int = 50,
+    camera_ip: str = None,
+    include_software_motion: bool = False
+):
+    if _db is None:
+        return {"alerts": []}
+
+    try:
+        mqtt_col = _db["mqtt_logs"]
+        
+        query = {}
+        if camera_ip:
+            query["ip"] = camera_ip
+            
+        if not include_software_motion:
+            query["source"] = {"$ne": "software_motion"}
+            
+        docs = list(
+            mqtt_col.find(query, {"_id": 0})
+            .sort("_id", -1)
+            .limit(limit)
+        )
+
+        formatted = []
+        for d in docs:
+            # Bosch alerts are flat (written directly by _analytics_poll_loop)
+            if d.get("source") == "bosch":
+                t = d.get("type")
+                if not t or str(t).strip().lower() == "none":
+                    t = "Object Detection"
+                s = d.get("scenario")
+                if not s or str(s).strip().lower() == "none":
+                    s = "Detect Any Object"
+                formatted.append({
+                    "ip":          d.get("ip"),
+                    "serial":      d.get("serial"),
+                    "time":        d.get("time"),
+                    "scenario":    s,
+                    "type":        t,
+                    "status":      d.get("status", "Active"),
+                    "received_at": d.get("received_at"),
+                    "topic":       d.get("topic", ""),
+                    "source":      d.get("source"),
+                })
+            elif d.get("source") == "software_motion":
+                formatted.append({
+                    "ip":           d.get("ip"),
+                    "serial":       d.get("serial"),
+                    "time":         d.get("time"),
+                    "motion_start": d.get("motion_start"),
+                    "motion_end":   d.get("motion_end"),
+                    "scenario":     d.get("scenario", "Software Motion"),
+                    "type":         d.get("type", "Motion"),
+                    "status":       d.get("status", "Active"),
+                    "received_at":  d.get("received_at"),
+                    "source":       "software_motion",
+                    "face_url":     d.get("face_url"),
+                })
+            else:
+                # Original MQTT/Axis nested format
+                msg  = d.get("message", {})
+                data = msg.get("data", {})
+                
+                t = d.get("type") or data.get("scenarioType")
+                if not t or str(t).strip().lower() == "none":
+                    t = "Object Detection"
+                s = d.get("scenario") or data.get("scenario")
+                if not s or str(s).strip().lower() == "none":
+                    s = "Detect Any Object"
+                    
+                formatted.append({
+                    "ip":        d.get("ip"),
+                    "serial":    d.get("serial"),
+                    "time":      data.get("triggerTime") or d.get("time"),
+                    "scenario":  s,
+                    "type":      t,
+                    "human":     data.get("human"),
+                    "total":     data.get("total"),
+                    "class":     data.get("classTypes"),
+                    "object_id": data.get("objectId"),
+                    "status":    "Active",
+                    "received_at": d.get("received_at"),
+                    "source":    d.get("source"),
+                })
+
+        return {"alerts": formatted}
+
+    except Exception as e:
+        print(f"[ALERTS] ❌ {e}")
+        return {"alerts": []}
+    
+@router.get("/alerts/thumbnail")
+# def get_alert_thumbnail(ip: str, time: str, request: Request = None):
+def get_alert_thumbnail(ip: str, time: str, crop: int = 1, request: Request = None):
+    """
+    Returns a JPEG crop/frame for an alert.
+    If the alert has a bounding box stored in the db, we crop around it.
+    """
+    import re, tempfile, subprocess, os
+    from datetime import datetime, timezone, timedelta
+    
+    headers = {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, OPTIONS",
+        "Access-Control-Allow-Headers": "*",
+    }
+
+    # Helper function for fallback SVG silhouette
+    def fallback_svg(alert_type="Alert"):
+        svg = f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 90" width="120" height="90">
+  <rect width="120" height="90" fill="#0F172A" rx="4"/>
+  <circle cx="60" cy="40" r="16" fill="#1E293B" stroke="#38BDF8" stroke-width="1.5"/>
+  <path d="M48,68 L72,68 C72,60 48,60 48,68 Z" fill="#38BDF8"/>
+  <text x="60" y="80" font-size="8" fill="#94A3B8" font-family="monospace" text-anchor="middle">{alert_type[:18]}</text>
+</svg>"""
+        return Response(content=svg, media_type="image/svg+xml", headers=headers)
+
+    try:
+        print("\n========== ALERT THUMBNAIL ==========")
+        print("IP   :", ip)
+        print("TIME :", time)
+        print("CROP :", crop)
+
+
+        # ── 1. Parse timestamp ────────────────────────────────────────
+        t = time.strip()
+        if " " in t:
+            t = t.replace(" ", "+")
+        t = re.sub(r"([+-])(\d{2})(\d{2})$", r"\1\2:\3", t)
+
+        try:
+            alert_dt = datetime.fromisoformat(t)
+        except ValueError:
+            t_clean  = re.sub(r"[+-]\d{2}:\d{2}$", "", t).rstrip("Z").strip()
+            alert_dt = datetime.fromisoformat(t_clean)
+
+        # Ensure alert_dt is aware; if not, assume local system time
+        if alert_dt.tzinfo is None:
+            alert_dt = alert_dt.replace(tzinfo=datetime.now().astimezone().tzinfo)
+
+        # Convert alert_dt to local system time (since chunks are saved in local time)
+        alert_local = alert_dt.astimezone()
+        alert_local_naive = alert_local.replace(tzinfo=None)
+
+        alert_local_hms  = alert_local_naive.strftime("%H-%M-%S")
+        alert_local_date = alert_local_naive.strftime("%Y-%m-%d")
+        alert_local_secs = (
+            alert_local_naive.hour * 3600 + alert_local_naive.minute * 60 + alert_local_naive.second
+        )
+
+        alert_utc = alert_dt.astimezone(timezone.utc).replace(tzinfo=None)
+
+        # ── 2. Find any bbox coordinates in the db ────────────────────
+        bbox = None
+        alert_type_str = "Alert"
+        try:
+            ip_norm = ip.strip().replace(".", "_")
+            alert_doc = _db["mqtt_logs"].find_one({
+                "ip": ip_norm,
+                "received_at": {"$regex": f"^{re.escape(time[:16])}"}
+            })
+            if not alert_doc:
+                alert_doc = _db["mqtt_logs"].find_one({
+                    "ip": ip_norm,
+                    "time": {"$regex": f"^{re.escape(time[:16])}"}
+                })
+            
+            if alert_doc:
+                alert_type_str = alert_doc.get("type", "Alert")
+                msg_data = alert_doc.get("message", {}).get("data", {})
+                
+                if isinstance(msg_data, dict):
+                    box_data = msg_data.get("box") or msg_data.get("bbox") or msg_data.get("rect") or msg_data.get("rectangle")
+                    if box_data:
+                        if isinstance(box_data, list) and len(box_data) == 4:
+                            bbox = box_data
+                        elif isinstance(box_data, dict):
+                            x = box_data.get("x")
+                            y = box_data.get("y")
+                            w = box_data.get("w") or box_data.get("width")
+                            h = box_data.get("h") or box_data.get("height")
+                            if all(v is not None for v in [x, y, w, h]):
+                                bbox = [x, y, w, h]
+        except Exception as db_err:
+            print("[ALERT THUMBNAIL] DB search error:", db_err)
+
+        # ── 3. Find the best chunk in DB ──────────────────────────────
+        CHUNK_SECONDS = 300
+        ip_prefix = ip.strip().replace(".", "_")
+        recordings_col = _db["recordings"]
+
+        all_cam_ids = recordings_col.distinct(
+            "camera_id",
+            {"camera_id": {"$regex": f"^{re.escape(ip_prefix)}"}}
+        )
+        if not all_cam_ids:
+            all_cam_ids = [ip_prefix, ip.strip()]
+
+        def find_best_chunk_db(date_str, hms_str):
+            best = None
+            for cam_id in all_cam_ids:
+                candidate = recordings_col.find_one(
+                    {
+                        "camera_id":  cam_id,
+                        "date":       date_str,
+                        "start_time": {"$lte": hms_str},
+                    },
+                    sort=[("start_time", -1)],
+                )
+                if candidate:
+                    if best is None or candidate["start_time"] > best["start_time"]:
+                        best = candidate
+            return best
+
+        doc = find_best_chunk_db(alert_local_date, alert_local_hms)
+
+        if not doc:
+            prev = (alert_dt - timedelta(days=1)).strftime("%Y-%m-%d")
+            doc  = find_best_chunk_db(prev, "23-59-59")
+
+        if not doc:
+            doc = find_best_chunk_db(
+                alert_utc.strftime("%Y-%m-%d"),
+                alert_utc.strftime("%H-%M-%S"),
+            )
+
+        enc_path = None
+        if doc:
+            try:
+                doc_date_str = doc["date"]
+                doc_time_str = doc["start_time"]
+                
+                cy, cmo, cd = map(int, re.split(r"[-:]", doc_date_str))
+                ch, cm, cs = map(int, re.split(r"[-:]", doc_time_str))
+                
+                chunk_naive_dt = datetime(cy, cmo, cd, ch, cm, cs)
+                elapsed = (alert_local_naive - chunk_naive_dt).total_seconds()
+
+                actual_duration = float(doc.get("duration_seconds", CHUNK_SECONDS))
+
+                if elapsed <= actual_duration + 2:
+                    enc_path = doc.get("file_path", "").replace("\\", "/")
+            except Exception:
+                pass
+
+        # Filesystem fallback scan
+        if not enc_path:
+            rec_dir   = recorder.get_recordings_dir()
+            best_file = None
+            best_diff = None
+
+            for cam_folder in os.listdir(rec_dir):
+                if not cam_folder.startswith(ip_prefix):
+                    continue
+                date_dir = os.path.join(rec_dir, cam_folder, alert_local_date)
+                if not os.path.isdir(date_dir):
+                    continue
+                for fname in os.listdir(date_dir):
+                    if not fname.endswith(".enc"):
+                        continue
+                    stem = fname.replace(".enc", "")
+                    try:
+                        fparts = re.split(r"[-:]", stem)
+                        fh, fm, fs = int(fparts[0]), int(fparts[1]), int(fparts[2])
+                        file_naive_dt = datetime(alert_local_naive.year, alert_local_naive.month, alert_local_naive.day, fh, fm, fs)
+                        diff = (alert_local_naive - file_naive_dt).total_seconds()
+                    except Exception:
+                        continue
+                    if 0 <= diff <= CHUNK_SECONDS + 30:
+                        if best_diff is None or diff < best_diff:
+                            best_diff = diff
+                            best_file = os.path.join(date_dir, fname)
+
+            if best_file:
+                enc_path = best_file
+                stem     = os.path.basename(best_file).replace(".enc", "")
+                fparts   = re.split(r"[-:]", stem)
+                fh, fm, fs = int(fparts[0]), int(fparts[1]), int(fparts[2])
+                file_naive_dt = datetime(alert_local_naive.year, alert_local_naive.month, alert_local_naive.day, fh, fm, fs)
+                elapsed = (alert_local_naive - file_naive_dt).total_seconds()
+
+        is_minio = enc_path and enc_path.startswith("minio:")
+        if not enc_path or (not is_minio and not os.path.exists(enc_path)):
+            print(f"[ALERT THUMBNAIL] No recording found for {ip} at {time}")
+            return fallback_svg(alert_type_str)
+
+        # ── 4. Decrypt ────────────────────────────────────────────────
+        # Decryption will be streamed directly into ffmpeg stdin
+
+        # ── 5. Extract frame ──────────────────────────────────────────
+        jpg_tmp = tempfile.NamedTemporaryFile(suffix=".jpg", delete=False)
+        jpg_path = jpg_tmp.name
+        jpg_tmp.close()
+
+        vf_filters = []
+        if bbox:
+            try:
+                bx, by, bw, bh = [float(v) for v in bbox]
+                if any(0.0 <= v <= 1.0 for v in [bx, by, bw, bh]):
+                    vf_filters.append(f"scale=640:360")
+                    bx_px = max(0, int(bx * 640))
+                    by_px = max(0, int(by * 360))
+                    bw_px = max(20, int(bw * 640))
+                    bh_px = max(20, int(bh * 360))
+                    vf_filters.append(f"drawbox=x={bx_px}:y={by_px}:w={bw_px}:h={bh_px}:color=0x22C55E@0.8:t=2")
+                    if crop == 1:
+                        pad_w = int(bw_px * 0.25)
+                        pad_h = int(bh_px * 0.25)
+                        crop_x = max(0, bx_px - pad_w)
+                        crop_y = max(0, by_px - pad_h)
+                        crop_w = min(640 - crop_x, bw_px + 2 * pad_w)
+                        crop_h = min(360 - crop_y, bh_px + 2 * pad_h)
+                        vf_filters.append(f"crop={crop_w}:{crop_h}:{crop_x}:{crop_y}")                    
+                else:
+                    bx, by, bw, bh = int(bx), int(by), int(bw), int(bh)
+                    vf_filters.append(f"drawbox=x={bx}:y={by}:w={bw}:h={bh}:color=0x22C55E@0.8:t=2")
+                    if crop == 1:
+                        pad_w = int(bw * 0.25)
+                        pad_h = int(bh * 0.25)
+                        crop_x = max(0, int(bx - pad_w))
+                        crop_y = max(0, int(by - pad_h))
+                        crop_w = min(1920 - crop_x, int(bw + 2 * pad_w))
+                        crop_h = min(1080 - crop_y, int(bh + 2 * pad_h))
+                        vf_filters.append(f"crop={crop_w}:{crop_h}:{crop_x}:{crop_y}")
+                    else:
+                        vf_filters.append("scale=640:-1")
+            except Exception as filter_err:
+                print("[ALERT THUMBNAIL] Filter parse error:", filter_err)
+                vf_filters = ["scale=320:-1"]
+        else:
+            vf_filters.append("scale=320:-1")
+
+        ffmpeg_cmd = [
+            "ffmpeg", "-y",
+            "-ss", str(max(0, elapsed)),
+            "-i", "pipe:0",
+            "-vframes", "1",
+            "-vf", ",".join(vf_filters),
+            "-f", "image2",
+            jpg_path
+        ]
+
+        try:
+            from app.utils.ffmpeg_utils import stream_to_ffmpeg_sync
+            success, _ = stream_to_ffmpeg_sync(ffmpeg_cmd, encrypt_service.decrypt_file_stream(enc_path))
+        except Exception as dec_err:
+            print(f"[ALERT THUMBNAIL] Extraction failed: {dec_err}")
+            success = False
+
+        if success and os.path.exists(jpg_path) and os.path.getsize(jpg_path) > 200:
+            with open(jpg_path, "rb") as f:
+                img_data = f.read()
+            try:
+                os.remove(jpg_path)
+            except Exception:
+                pass
+
+            return Response(
+                content=img_data,
+                media_type="image/jpeg",
+                headers={
+                    "Content-Length":              str(len(img_data)),
+                    "Cache-Control":               "max-age=60",
+                    "Access-Control-Allow-Origin": "*",
+                }
+            )
+        else:
+            ffmpeg_cmd_retry = [
+                "ffmpeg", "-y",
+                "-i", "pipe:0",
+                "-vframes", "1",
+                "-vf", ",".join(vf_filters),
+                "-f", "image2",
+                jpg_path
+            ]
+            try:
+                stream_to_ffmpeg_sync(ffmpeg_cmd_retry, encrypt_service.decrypt_file_stream(enc_path))
+            except Exception:
+                pass
+                
+            if os.path.exists(jpg_path) and os.path.getsize(jpg_path) > 200:
+                with open(jpg_path, "rb") as f:
+                    img_data = f.read()
+                try:
+                    os.remove(jpg_path)
+                except Exception:
+                    pass
+                return Response(
+                    content=img_data,
+                    media_type="image/jpeg",
+                    headers={
+                        "Content-Length":              str(len(img_data)),
+                        "Cache-Control":               "max-age=60",
+                        "Access-Control-Allow-Origin": "*",
+                    }
+                )
+
+        try:
+            os.remove(jpg_path)
+        except Exception:
+            pass
+        return fallback_svg(alert_type_str)
+
+    except Exception as e:
+        print(f"[ALERT THUMBNAIL] Error: {e}")
+        return fallback_svg("Error")
+# @router.get("/alerts")
+# def get_alerts(limit: int = 50):
+#     try:
+#         alerts = list(
+#             watch_collection
+#             .find({})
+#             .sort("_id", -1)   # ✅ newest first (VERY IMPORTANT)
+#             .limit(limit)
+#         )
+
+#         # convert ObjectId → string
+#         for a in alerts:
+#             a["_id"] = str(a["_id"])
+
+#         return {"alerts": alerts}
+
+#     except Exception as e:
+#         return {"alerts": [], "error": str(e)}
+
+

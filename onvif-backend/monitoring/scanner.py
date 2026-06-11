@@ -9,7 +9,7 @@ import sys
 # Import existing discovery helpers if possible
 try:
     sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    from discovery_service import get_local_subnet, _classify_device, probe_onvif_device
+    from app.services.camera.discovery_service import get_local_subnet, _classify_device, probe_onvif_device
 except ImportError:
     def get_local_subnet(): return "192.168.1"
     def _classify_device(ip, port): return "unknown", "", ""

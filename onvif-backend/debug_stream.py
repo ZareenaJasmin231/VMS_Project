@@ -21,8 +21,8 @@ print("=" * 60)
 # ── Step 1: Check MongoDB connection and camera nodes ────────────
 print("\n[1] Checking MongoDB...")
 try:
-    from pymongo import MongoClient
-    client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=3000)
+    from app.core.database import mongo_client
+    client = mongo_client
     client.server_info()
     db = client["mirador-vms"]
     

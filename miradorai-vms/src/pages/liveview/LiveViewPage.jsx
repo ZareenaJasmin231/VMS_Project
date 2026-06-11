@@ -137,7 +137,6 @@ function AlertPopup({ ip, alerts, onClose }) {
   const [videoUrl,     setVideoUrl]     = useState(null);
   const [videoLoading, setVideoLoading] = useState(false);
   const [videoError,   setVideoError]   = useState(null);
-  const [saveStatus,   setSaveStatus]   = useState({}); // { [alertKey]: "saving"|"saved"|"error" }
 
   const videoRef = useRef(null);
   const hlsRef = useRef(null);
@@ -220,9 +219,6 @@ function AlertPopup({ ip, alerts, onClose }) {
     };
   }, [videoUrl, videoLoading]);
 
-  const alertKey = (alert) =>
-    `${(alert.ip || ip)}_${alert.time || alert.received_at}`;
-
   const handleView = async (alert) => {
     if (videoUrl) {
       if (videoUrl.startsWith("blob:")) {
@@ -240,7 +236,7 @@ function AlertPopup({ ip, alerts, onClose }) {
 
       const normIp = (ip || "").replace(/_/g, ".");
 
-      // Step 1 — call event-playback (no stream param) → get JSON with clip_url
+      // Fetch JSON response containing the clipUrl
       const url =
         `${API}/api/event-playback` +
         `?ip=${encodeURIComponent(normIp)}` +
@@ -255,10 +251,6 @@ function AlertPopup({ ip, alerts, onClose }) {
       }
 
       const data = await res.json();
-      if (!data.clipUrl) throw new Error("No clip URL returned from server");
-
-      // With HLS streaming, we do NOT fetch the whole video bytes as a Blob!
-      // We pass the clipUrl straight to our player.
       setVideoUrl(data.clipUrl);
 
     } catch (e) {
@@ -266,40 +258,6 @@ function AlertPopup({ ip, alerts, onClose }) {
       setVideoError(e.message || "Playback failed");
     } finally {
       setVideoLoading(false);
-    }
-  };
-
-  // ── Manual Save ───────────────────────────────────────────────
-  const handleSave = async (alert) => {
-    const key     = alertKey(alert);
-    const normIp  = (alert.ip || ip || "").replace(/_/g, ".");
-    const time    = alert.time || alert.received_at;
-
-    if (!time) return;
-    if (saveStatus[key] === "saving" || saveStatus[key] === "saved") return;
-
-    setSaveStatus(prev => ({ ...prev, [key]: "saving" }));
-
-    try {
-      const res = await fetch(`${API}/api/event-clip/save`, {
-        method:  "POST",
-        headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
-        body:    JSON.stringify({ ip: normIp, time }),
-      });
-
-      if (!res.ok) {
-        const e = await res.json().catch(() => ({}));
-        throw new Error(e.detail || `Save failed (${res.status})`);
-      }
-
-      setSaveStatus(prev => ({ ...prev, [key]: "saved" }));
-    } catch (e) {
-      console.error("[AlertPopup] save error:", e);
-      setSaveStatus(prev => ({ ...prev, [key]: "error" }));
-      // Reset error after 3s so user can retry
-      setTimeout(() => {
-        setSaveStatus(prev => ({ ...prev, [key]: undefined }));
-      }, 3000);
     }
   };
 
@@ -375,51 +333,9 @@ function AlertPopup({ ip, alerts, onClose }) {
               />
             )}
 
-            {/* Save button shown once video is playing */}
-            {videoUrl && !videoLoading && (() => {
-              const key    = alertKey(playingAlert);
-              const status = saveStatus[key];
-              return (
-                <div style={{ display: "flex", justifyContent: "flex-end", padding: "8px 0 0" }}>
-                  <button
-                    className={`alp-save-btn alp-save-btn--${status || "idle"}`}
-                    onClick={() => handleSave(playingAlert)}
-                    disabled={status === "saving" || status === "saved"}
-                    title="Save encrypted clip to server"
-                  >
-                    {status === "saving" && (
-                      <>
-                        <div className="alp-spinner alp-spinner--sm" />
-                        Saving…
-                      </>
-                    )}
-                    {status === "saved" && (
-                      <>
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="13" height="13">
-                          <polyline points="20 6 9 17 4 12"/>
-                        </svg>
-                        Saved
-                      </>
-                    )}
-                    {status === "error" && "⚠ Retry"}
-                    {!status && (
-                      <>
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="13" height="13">
-                          <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/>
-                          <polyline points="17 21 17 13 7 13 7 21"/>
-                          <polyline points="7 3 7 8 15 8"/>
-                        </svg>
-                        Save Clip
-                      </>
-                    )}
-                  </button>
-                </div>
-              );
-            })()}
-
-            <div className="alp-playback-meta">
+            <div className="alp-playback-meta" style={{ marginTop: "16px" }}>
               <span className="alp-meta-chip">{playingAlert.type || "—"}</span>
-              <span className="alp-meta-chip">{playingAlert.scenario || "—"}</span>
+              {/* <span className="alp-meta-chip">{playingAlert.scenario || "—"}</span> */}
               <span className="alp-meta-time">
                 {playingAlert.time
                   ? playingAlert.time.split("T")[1]?.split("+")[0]
@@ -436,13 +352,11 @@ function AlertPopup({ ip, alerts, onClose }) {
               <div className="alp-empty">No alerts for this camera</div>
             ) : (
               alerts.map((alert, i) => {
-                const key    = alertKey(alert);
-                const status = saveStatus[key];
                 return (
                   <div key={i} className="alp-row">
                     <div className="alp-row__info">
                       <span className="alp-row__type">{alert.type || "Unknown"}</span>
-                      <span className="alp-row__scenario">{alert.scenario || "—"}</span>
+                      {/* <span className="alp-row__scenario">{alert.scenario || "—"}</span> */}
                       <span className="alp-row__time">
                         {alert.time
                           ? alert.time.split("T")[1]?.split("+")[0]
@@ -450,27 +364,6 @@ function AlertPopup({ ip, alerts, onClose }) {
                       </span>
                     </div>
                     <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
-                      {/* Save button in list row */}
-                      <button
-                        className={`alp-save-btn alp-save-btn--sm alp-save-btn--${status || "idle"}`}
-                        onClick={() => handleSave(alert)}
-                        disabled={status === "saving" || status === "saved"}
-                        title="Save encrypted clip"
-                      >
-                        {status === "saving" && <div className="alp-spinner alp-spinner--sm" />}
-                        {status === "saved"  && (
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="11" height="11">
-                            <polyline points="20 6 9 17 4 12"/>
-                          </svg>
-                        )}
-                        {status === "error"  && "⚠"}
-                        {!status && (
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="11" height="11">
-                            <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/>
-                            <polyline points="17 21 17 13 7 13 7 21"/>
-                          </svg>
-                        )}
-                      </button>
                       <button
                         className="alp-view-btn"
                         onClick={() => handleView(alert)}
@@ -560,12 +453,12 @@ function AlertsPanel({ onAlertCountUpdate, onTotalAlertCountChange, isOpen }) {
             const isActive = alert.status === "Active";
             const type     = (alert.type || "").toLowerCase();
 
+            const ipStr = alert.ip || alert.serial || "";
             let typeClass = "lv-alert-card--other";
-            if      (type.includes("motion"))                                    typeClass = "lv-alert-card--motion";
-            else if (type.includes("tamper"))                                    typeClass = "lv-alert-card--motion";
-            else if (type.includes("linecrossing") || type.includes("crossing")) typeClass = "lv-alert-card--crossing";
-            else if (type.includes("object") || type.includes("objectinarea"))   typeClass = "lv-alert-card--object";
-            else if (type.includes("occupancy"))                                 typeClass = "lv-alert-card--object";
+            if      (ipStr.includes("235")) typeClass = "lv-alert-card--cam235";
+            else if (ipStr.includes("238")) typeClass = "lv-alert-card--cam238";
+            else if (ipStr.includes("236")) typeClass = "lv-alert-card--cam236";
+            else if (ipStr.includes("240")) typeClass = "lv-alert-card--cam240";
 
             const timeOnly = alert.time
               ? alert.time.split("T")[1]?.split("+")[0]
@@ -589,14 +482,16 @@ function AlertsPanel({ onAlertCountUpdate, onTotalAlertCountChange, isOpen }) {
                     </div>
 
                     <div className="lv-alert-card__row">
-                      <span className="lv-alert-card__label">Type</span>
+                      <span className="lv-alert-card__label">Event</span>
                       <span className="lv-alert-card__value">{alert.type || "—"}</span>
                     </div>
 
+                    {/* 
                     <div className="lv-alert-card__row">
                       <span className="lv-alert-card__label">Event</span>
                       <span className="lv-alert-card__value">{alert.scenario || "—"}</span>
-                    </div>
+                    </div> 
+                    */}
 
                     {(alert.type === "OccupancyCount" || alert.scenario === "OccupancyCount") && (
                       <div className="lv-alert-card__row">
@@ -632,10 +527,15 @@ function AlertsPanel({ onAlertCountUpdate, onTotalAlertCountChange, isOpen }) {
                       </div>
                     )}
 
-                    <div className="lv-alert-card__time">{alert.received_at}</div>
+                    <div className="lv-alert-card__row">
+                      <span className="lv-alert-card__label">Date</span>
+                      <span className="lv-alert-card__value">
+                        {alert.received_at ? alert.received_at.split("T")[0] : ""}
+                      </span>
+                    </div>
                   </div>
 
-                  <div className="lv-alert-card__thumbnail-container">
+                  {/* <div className="lv-alert-card__thumbnail-container">
                     <img
                       src={`${API}/api/alerts/thumbnail?ip=${alert.ip}&time=${alert.time || alert.received_at}&crop=1`}
                       alt="Alert preview"
@@ -648,7 +548,7 @@ function AlertsPanel({ onAlertCountUpdate, onTotalAlertCountChange, isOpen }) {
                         time: timeOnly || alert.received_at
                       })}
                     />
-                  </div>
+                  </div> */}
                 </div>
               </div>
             );

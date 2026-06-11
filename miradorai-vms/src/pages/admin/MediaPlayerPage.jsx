@@ -52,7 +52,15 @@ export default function MediaPlayerPage() {
 
   const [cameras] = useState(loadDevices);
   const [recordingCameras, setRecordingCameras] = useState([]);
+  const [activeRecorders, setActiveRecorders] = useState([]);
   const [selectedCam, setSelectedCam] = useState(null);
+
+  const actualRecordingCount = useMemo(() => {
+    return cameras.filter((cam) => {
+      if (cam.enabled === false) return false;
+      return activeRecorders.includes(cam.stream_key) || activeRecorders.includes(cam.ome_stream);
+    }).length;
+  }, [activeRecorders, cameras]);
 
   const getCameraInfo = useCallback((camId) => {
     if (!camId) return { name: "No camera selected", ip: "" };
@@ -92,7 +100,8 @@ export default function MediaPlayerPage() {
   const [playing, setPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
-  const [motionMarkers, setMotionMarkers] = useState([]);
+  const [motionRanges, setMotionRanges] = useState([]);
+
   const [volume, setVolume] = useState(0.8);
   const [speed, setSpeed] = useState(1);
   const [selectedDate, setSelectedDate] = useState(
@@ -160,6 +169,24 @@ export default function MediaPlayerPage() {
         }
       } catch (e) { console.error("Failed to fetch recording cameras:", e); }
     })();
+  }, []);
+
+  // ── Fetch active recording status on mount and poll ────────────
+  useEffect(() => {
+    const fetchRecordingStatus = async () => {
+      try {
+        const res = await fetch(`${STREAM_API}/api/recordings/status`, {
+          headers: authHeaders(),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setActiveRecorders(data.active_recorders || []);
+        }
+      } catch (e) { console.error("Failed to fetch recording status:", e); }
+    };
+    fetchRecordingStatus();
+    const interval = setInterval(fetchRecordingStatus, 8000);
+    return () => clearInterval(interval);
   }, []);
 
   // ── Fetch file list when camera or date changes ────────────────
@@ -282,7 +309,7 @@ export default function MediaPlayerPage() {
   // ── Fetch motion alerts for timeline highlighting ──────────────
   useEffect(() => {
     if (!playingFile || !duration || playingFile.camera_id === "Uploaded File") {
-      setMotionMarkers([]);
+      setMotionRanges([]);
       return;
     }
 
@@ -304,25 +331,59 @@ export default function MediaPlayerPage() {
           const match = playingFile.start_time.match(/(\d{2})[-:_](\d{2})[-:_](\d{2})/);
           if (!match) return;
           const [_, hh, mm, ss] = match;
-          const fileStart = new Date(`${playingFile.date}T${hh}:${mm}:${ss}`);
+          
+          // Parse date parts manually for robust timezone-independent local comparison
+          const matchDate = playingFile.date.match(/(\d{4})[-/](\d{2})[-/](\d{2})/);
+          if (!matchDate) return;
+          const [__, year, month, day] = matchDate;
+          const fileStart = new Date(
+            parseInt(year, 10),
+            parseInt(month, 10) - 1,
+            parseInt(day, 10),
+            parseInt(hh, 10),
+            parseInt(mm, 10),
+            parseInt(ss, 10)
+          );
           const fileStartMs = fileStart.getTime();
           const fileEndMs = fileStartMs + duration * 1000;
           
-          const markers = [];
+          // Helper: parse a time string into local milliseconds
+          const parseLocalMs = (timeStr) => {
+            if (!timeStr) return null;
+            const d = new Date(timeStr);
+            if (isNaN(d.getTime())) return null;
+            // Re-construct from components to strip timezone offset issues
+            return new Date(
+              d.getFullYear(), d.getMonth(), d.getDate(),
+              d.getHours(), d.getMinutes(), d.getSeconds()
+            ).getTime();
+          };
+          
+          const ranges = [];
           alertsList.forEach((alert) => {
             // Filter by camera IP and source "software_motion"
             const alertIpNormalized = alert.ip?.replace(/_/g, ".");
             const camIpNormalized = info.ip.replace(/_/g, ".");
             
             if (alertIpNormalized === camIpNormalized && alert.source === "software_motion") {
-              const alertTimeMs = new Date(alert.time).getTime();
-              if (alertTimeMs >= fileStartMs && alertTimeMs <= fileEndMs) {
-                const offsetSeconds = (alertTimeMs - fileStartMs) / 1000;
-                markers.push(offsetSeconds);
+              // Use motion_start/motion_end for accurate ranges
+              const startMs = parseLocalMs(alert.motion_start || alert.time);
+              if (startMs === null) return;
+              
+              // If motion_end is not set (still active), default to start + 5s
+              const endMs = parseLocalMs(alert.motion_end) || (startMs + 5000);
+              
+              // Check if the motion range overlaps with the video file time range
+              if (endMs >= fileStartMs && startMs <= fileEndMs) {
+                const startOffset = Math.max(0, (startMs - fileStartMs) / 1000);
+                const endOffset = Math.min(duration, (endMs - fileStartMs) / 1000);
+                if (endOffset > startOffset) {
+                  ranges.push({ start: startOffset, end: endOffset });
+                }
               }
             }
           });
-          setMotionMarkers(markers);
+          setMotionRanges(ranges);
         }
       } catch (err) {
         console.error("Error fetching motion alerts for timeline:", err);
@@ -761,27 +822,32 @@ export default function MediaPlayerPage() {
         </div>
       )}
 
-      {(user?.role !== "admin" && !supervisorUnlocked) ? (
-        <div className="mp-access-denied">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" width="48" height="48">
-            <rect x="3" y="11" width="18" height="11" rx="2" />
-            <path d="M7 11V7a5 5 0 0110 0v4" />
-          </svg>
-          <p>Admin access required</p>
+      {/* ── Toolbar ── */}
+      <div className="lv-toolbar">
+        <div className="lv-toolbar__left">
+          <h1 className="lv-page-title">Playback</h1>
+          <div className="lv-toolbar__stats">
+            <span className="lv-toolbar__count">
+              {actualRecordingCount} camera{actualRecordingCount !== 1 ? "s" : ""} recording
+            </span>
+          </div>
         </div>
-      ) : (
-        <>
-          {/* ── Left panel ── */}
-          <div className="mp-left">
-            <div className="mp-left-header">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" width="14" height="14">
-                <rect x="2" y="3" width="20" height="14" rx="2" />
-                <path d="M8 21h8M12 17v4" />
-              </svg>
-              Playback
-            </div>
+      </div>
 
-            {/* ── Custom Camera Dropdown ── */}
+      <div className="mp-container">
+        {(user?.role !== "admin" && !supervisorUnlocked) ? (
+          <div className="mp-access-denied">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" width="48" height="48">
+              <rect x="3" y="11" width="18" height="11" rx="2" />
+              <path d="M7 11V7a5 5 0 0110 0v4" />
+            </svg>
+            <p>Admin access required</p>
+          </div>
+        ) : (
+          <>
+            {/* ── Left panel ── */}
+            <div className="mp-left">
+              {/* ── Custom Camera Dropdown ── */}
             <div className="mp-cam-section">Camera</div>
             <div className="mp-cam-dropdown-wrap" ref={camDropdownRef}>
               <button
@@ -1164,15 +1230,19 @@ export default function MediaPlayerPage() {
                     style={{ width: `${(currentTime / duration) * 100}%` }}
                   />
 
-                  {/* Motion Markers */}
-                  {motionMarkers.map((offset, idx) => {
-                    const pct = (offset / duration) * 100;
+                  {/* Motion Ranges */}
+                  {motionRanges.map((range, idx) => {
+                    const leftPct = (range.start / duration) * 100;
+                    const widthPct = Math.max(0.8, ((range.end - range.start) / duration) * 100);
                     return (
                       <div
                         key={idx}
-                        className="mp-timescale-motion-marker"
-                        style={{ left: `${pct}%` }}
-                        title={`Motion Detected at ${getAbsoluteTime(offset) || fmt(offset)}`}
+                        className="mp-timescale-motion-range"
+                        style={{
+                          left: `${leftPct}%`,
+                          width: `${widthPct}%`
+                        }}
+                        title={`Motion Detected: ${getAbsoluteTime(range.start) || fmt(range.start)} — ${getAbsoluteTime(range.end) || fmt(range.end)}`}
                       />
                     );
                   })}
@@ -1190,7 +1260,7 @@ export default function MediaPlayerPage() {
                         style={{ left: `${pct}%` }}
                       >
                         <div className="mp-timescale-tick-line" />
-                        {isMajor && (
+                        {isMajor && !isFirst && !isLast && (
                           <span className="mp-timescale-tick-label">
                             {getAbsoluteTime(t) || fmt(t)}
                           </span>
@@ -1215,6 +1285,7 @@ export default function MediaPlayerPage() {
           </div>
         </>
       )}
+      </div>
 
       {/* ── Export Modal (Date Range Only) ── */}
       {showExportModal && (

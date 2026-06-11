@@ -551,8 +551,27 @@ export default function AddDevicesPage({ onNavigate }) {
       return next;
     });
 
+    const allFailed = addedDevicesList.every(d => d.stream_status === "error" || d.stream_status === "not_registered" || !d.ws_url);
+    const someFailed = addedDevicesList.some(d => d.stream_status === "error" || d.stream_status === "not_registered" || !d.ws_url);
+    
+    let title = "Discovery Cameras Added";
+    let desc = `Successfully registered and added ${addedDevicesList.length} camera(s) to the system.`;
+    let isError = false;
+
+    if (allFailed) {
+      title = "Stream Registration Failed";
+      desc = "The discovered cameras were added, but failed to register streams with OME.";
+      isError = true;
+    } else if (someFailed) {
+      title = "Partial Success";
+      desc = "The discovered cameras were added, but some failed to register streams with OME.";
+      isError = true;
+    }
+
     setSuccessEnrollData({
-      title: "Discovery Cameras Added",
+      title,
+      desc,
+      isError,
       devices: addedDevicesList
     });
   }, [setDevices, selectedGroupId]);
@@ -624,8 +643,15 @@ export default function AddDevicesPage({ onNavigate }) {
     logAction("Camera added", "camera", { ip, channel: safeChannel });
     setEnrolling(false);
     setEnrollMsg("");
+
+    const isError = !probeData?.ws_url || probeData?.status === "error";
+
     setSuccessEnrollData({
-      title: "Camera Added Successfully",
+      title: isError ? "Stream Registration Failed" : "Camera Added Successfully",
+      desc: isError 
+        ? "The camera was probed, but we failed to register its stream with OME."
+        : "The camera has been successfully registered and added to the system.",
+      isError,
       devices: [updated]
     });
   };
@@ -733,8 +759,29 @@ export default function AddDevicesPage({ onNavigate }) {
     setEnrollMsg("");
 
     if (addedEntries.length > 0) {
+      const allFailed = addedEntries.every(d => d.stream_status === "error" || !d.ws_url);
+      const someFailed = addedEntries.some(d => d.stream_status === "error" || !d.ws_url);
+      
+      let title = addedEntries.length === 1 ? "Camera Added Successfully" : "Cameras Added Successfully";
+      let desc = addedEntries.length === 1 
+        ? "The camera has been successfully registered and added to the system."
+        : `Successfully registered and added ${addedEntries.length} camera(s) to the system.`;
+      let isError = false;
+
+      if (allFailed) {
+        title = "Stream Registration Failed";
+        desc = "The camera streams failed to register with OME.";
+        isError = true;
+      } else if (someFailed) {
+        title = "Partial Success";
+        desc = "Some camera streams failed to register with OME.";
+        isError = true;
+      }
+
       setSuccessEnrollData({
-        title: addedEntries.length === 1 ? "Camera Added Successfully" : "Cameras Added Successfully",
+        title,
+        desc,
+        isError,
         devices: addedEntries
       });
     }
@@ -1030,18 +1077,26 @@ export default function AddDevicesPage({ onNavigate }) {
       {/* Success Modal Popup */}
       {successEnrollData && (
         <div className="modal-overlay success-modal-overlay" onClick={() => setSuccessEnrollData(null)}>
-          <div className="modal-box success-modal-box" onClick={(e) => e.stopPropagation()}>
-            <div className="success-modal-header">
-              <div className="success-icon-container">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="success-checkmark">
-                  <polyline points="20 6 9 17 4 12" />
-                </svg>
+          <div className="modal-box success-modal-box" onClick={(e) => e.stopPropagation()} style={successEnrollData.isError ? { borderColor: 'rgba(239, 68, 68, 0.2)' } : {}}>
+            <div className="success-modal-header" style={successEnrollData.isError ? { background: 'linear-gradient(180deg, rgba(239, 68, 68, 0.05) 0%, transparent 100%)' } : {}}>
+              <div className="success-icon-container" style={successEnrollData.isError ? { background: 'rgba(239, 68, 68, 0.1)', borderColor: 'rgba(239, 68, 68, 0.3)', boxShadow: '0 0 20px rgba(239, 68, 68, 0.15)' } : {}}>
+                {successEnrollData.isError ? (
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="success-checkmark" style={{ color: '#ef4444' }}>
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="12" y1="8" x2="12" y2="12"></line>
+                    <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                  </svg>
+                ) : (
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="success-checkmark">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                )}
               </div>
-              <h2 className="success-modal-title">{successEnrollData.title}</h2>
+              <h2 className="success-modal-title" style={successEnrollData.isError ? { color: '#ef4444' } : {}}>{successEnrollData.title}</h2>
               <p className="success-modal-desc">
-                {successEnrollData.devices.length === 1 
+                {successEnrollData.desc || (successEnrollData.devices.length === 1 
                   ? "The camera has been successfully registered and added to the system."
-                  : `Successfully registered and added ${successEnrollData.devices.length} camera(s) to the system.`
+                  : `Successfully registered and added ${successEnrollData.devices.length} camera(s) to the system.`)
                 }
               </p>
             </div>
@@ -1050,7 +1105,7 @@ export default function AddDevicesPage({ onNavigate }) {
                 {successEnrollData.devices.map((d, index) => (
                   <div className="success-device-card" key={index}>
                     <div className="success-device-header">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16" className="success-device-icon" style={{color: "var(--teal)"}}>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16" className="success-device-icon" style={{color: (d.stream_status === "error" || d.stream_status === "not_registered" || !d.ws_url) ? "#ef4444" : "var(--teal)"}}>
                         <rect x="3" y="3" width="18" height="12" rx="2" />
                         <path d="M21 10l4 3v-6l-4 3" />
                       </svg>
@@ -1084,7 +1139,11 @@ export default function AddDevicesPage({ onNavigate }) {
               </div>
             </div>
             <div className="success-modal-footer">
-              <button className="modal-btn modal-btn--save success-modal-ok-btn" onClick={() => setSuccessEnrollData(null)}>
+              <button 
+                className="modal-btn modal-btn--save success-modal-ok-btn" 
+                onClick={() => setSuccessEnrollData(null)}
+                style={successEnrollData.isError ? { background: '#ef4444', boxShadow: '0 4px 12px rgba(239, 68, 68, 0.25)' } : {}}
+              >
                 OK
               </button>
             </div>

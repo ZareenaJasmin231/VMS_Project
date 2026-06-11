@@ -1,57 +1,64 @@
-/* ═══════════════════════════════════════════════
-   MIRADOR VMS — Media Player  (Premium Redesign)
-   Font: 'Sora' display + 'DM Sans' body
-   Theme: Deep slate/navy with amber accent
-═══════════════════════════════════════════════ */
-
-@import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600&family=DM+Sans:wght@300;400;500&display=swap');
-
 /* ── Root Tokens ─────────────────────────────── */
 :root {
-  --bg-deep: #0a0d14;
-  --bg-panel: #0f1320;
-  --bg-surface: #161b2e;
-  --bg-raised: #1c2238;
-  --bg-hover: #222844;
-  --bg-active: #272e4d;
+  --bg-deep: var(--bg-base);
+  --bg-panel: var(--bg-surface);
+  --bg-surface: var(--bg-elevated);
+  --bg-raised: var(--bg-hover);
+  --bg-hover: var(--bg-active);
+  --bg-active: var(--bg-hover);
 
-  --border-subtle: rgba(255, 255, 255, 0.055);
-  --border-mid: rgba(255, 255, 255, 0.10);
-  --border-accent: rgba(255, 255, 255, 0.18);
+  --border-subtle: var(--border);
+  --border-mid: var(--border-light);
+  --border-accent: var(--border-light);
 
-  --text-primary: #e8eaf4;
-  --text-secondary: rgba(255, 255, 255, 0.5);
-  --text-muted: rgba(255, 255, 255, 0.5);
-  --text-hint: rgba(255, 255, 255, 0.5);
+  --text-primary: var(--text-primary);
+  --text-secondary: var(--text-secondary);
+  --text-muted: var(--text-muted);
+  --text-hint: var(--text-muted);
 
-  --amber: #f5a623;
-  --amber-dim: #a8700f;
-  --amber-glow: rgba(245, 166, 35, 0.12);
-  --amber-subtle: rgba(245, 166, 35, 0.06);
+  --amber: var(--teal);
+  --amber-dim: var(--teal-dim);
+  --amber-glow: var(--teal-glow);
+  --amber-subtle: var(--teal-subtle);
 
-  --green-live: #3dd68c;
-  --red-alert: #f24a4a;
-  --blue-info: #4d8ef5;
+  --green-live: #10b981;
+  --red-alert: #ef4444;
+  --blue-info: #3b82f6;
 
-  --radius-sm: 6px;
-  --radius-md: 10px;
-  --radius-lg: 14px;
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
   --radius-xl: 18px;
 
-  --font-display: 'Sora', sans-serif;
-  --font-body: 'DM Sans', sans-serif;
+  --font-display: var(--font-ui);
+  --font-body: var(--font-ui);
   --transition: 0.18s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 /* ── Shell Layout ────────────────────────────── */
+.app-content:has(.mp-shell) {
+  padding: 0 !important;
+}
+
 .mp-shell {
   display: flex;
-  height: 100%;
-  min-height: 0;
+  flex-direction: column;
+  height: 100% !important;
+  width: 100% !important;
+  margin: 0 !important;
   background: var(--bg-deep);
   font-family: var(--font-body);
   color: var(--text-primary);
   overflow: hidden;
+  gap: 0;
+}
+
+.mp-container {
+  display: flex;
+  flex-direction: row;
+  flex: 1;
+  overflow: hidden;
+  min-height: 0;
 }
 
 /* ── Access Denied ───────────────────────────── */
@@ -1268,18 +1275,36 @@
   animation: timescale-glow 2s ease-in-out infinite;
 }
 
-/* ── Motion Markers on Timescale Track ─────────────────────────── */
-.mp-timescale-motion-marker {
+/* ── Motion Ranges on Timescale Track ─────────────────────────── */
+.mp-timescale-motion-range {
   position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 4px;
-  background: #ef4444; /* Vivid motion red */
-  opacity: 0.85;
-  z-index: 4;
+  top: 4px;
+  bottom: 4px;
+  background: linear-gradient(
+    90deg,
+    rgba(16, 185, 129, 0.18) 0%,
+    rgba(5, 150, 105, 0.28) 100%
+  );
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  border-radius: 4px;
+  z-index: 3;
   pointer-events: auto; /* Allow hover title tooltip */
-  cursor: help;
-  transform: translateX(-50%);
-  box-shadow: 0 0 6px rgba(239, 68, 68, 0.6);
-  border-radius: 2px;
+  cursor: pointer;
+  box-shadow: 
+    inset 0 0 6px rgba(16, 185, 129, 0.1),
+    0 0 8px rgba(16, 185, 129, 0.15);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.mp-timescale-motion-range:hover {
+  background: linear-gradient(
+    90deg,
+    rgba(16, 185, 129, 0.35) 0%,
+    rgba(5, 150, 105, 0.45) 100%
+  );
+  border-color: rgba(16, 185, 129, 0.75);
+  box-shadow: 
+    inset 0 0 10px rgba(16, 185, 129, 0.25),
+    0 0 14px rgba(16, 185, 129, 0.5);
+  transform: scaleY(1.08);
 }

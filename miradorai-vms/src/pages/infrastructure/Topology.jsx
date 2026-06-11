@@ -673,6 +673,7 @@ export default function Topology() {
   const [bwHistory, setBwHistory]       = useState([]);
   const [activeTab, setActiveTab]       = useState('details');
   const [sidebarOpen, setSidebarOpen]   = useState(false);
+  const [confirmModal, setConfirmModal] = useState({ isOpen: false });
 
   // ─── Filter state: null = show all, string = active filter ───────────────
   const [statusFilter, setStatusFilter]   = useState(null); // 'online'|'offline'|'degraded'
@@ -1072,21 +1073,27 @@ export default function Topology() {
     }
   }, [scannedNodes, fetchTopology]);
 
-  const resetWorkspace = useCallback(async () => {
-    if (!window.confirm("Are you sure you want to clear the canvas? This will remove all devices from the topology and delete all links.")) {
-      return;
-    }
-    setScanning(true);
-    try {
-      await fetch(`${API_BASE}/reset`, { method: 'POST' });
-      await fetchTopology();
-      setSelectedNode(null);
-      setSidebarOpen(false);
-    } catch (err) {
-      console.error("Failed to reset workspace:", err);
-    } finally {
-      setScanning(false);
-    }
+  const resetWorkspace = useCallback(() => {
+    setConfirmModal({
+      isOpen: true,
+      title: 'Clear Canvas',
+      message: "Are you sure you want to clear the canvas? This will remove all devices from the topology and delete all links.",
+      onConfirm: async () => {
+        setConfirmModal(prev => ({ ...prev, isOpen: false }));
+        setScanning(true);
+        try {
+          await fetch(`${API_BASE}/reset`, { method: 'POST' });
+          await fetchTopology();
+          setSelectedNode(null);
+          setSidebarOpen(false);
+        } catch (err) {
+          console.error("Failed to reset workspace:", err);
+        } finally {
+          setScanning(false);
+        }
+      },
+      onCancel: () => setConfirmModal(prev => ({ ...prev, isOpen: false }))
+    });
   }, [fetchTopology]);
 
   const applyTopologyTemplate = useCallback(async (templateType) => {
@@ -1102,13 +1109,15 @@ export default function Topology() {
     const N = nodesToArrange.length;
     if (N === 0) return;
 
-    if (!window.confirm(`Applying ${templateType.toUpperCase()} topology will auto-arrange nodes and regenerate connections. Do you want to proceed?`)) {
-      return;
-    }
+    setConfirmModal({
+      isOpen: true,
+      title: 'Confirm Topology Change',
+      message: `Applying ${templateType.toUpperCase()} topology will auto-arrange nodes and regenerate connections. Do you want to proceed?`,
+      onConfirm: async () => {
+        setConfirmModal(prev => ({ ...prev, isOpen: false }));
+        setScanning(true);
 
-    setScanning(true);
-
-    try {
+        try {
       const newPositions = {};
       const newEdges = [];
 
@@ -1246,11 +1255,14 @@ export default function Topology() {
       );
 
       await fetchTopology();
-    } catch (err) {
-      console.error("Failed to generate topology template:", err);
-    } finally {
-      setScanning(false);
-    }
+        } catch (err) {
+          console.error("Failed to generate topology template:", err);
+        } finally {
+          setScanning(false);
+        }
+      },
+      onCancel: () => setConfirmModal(prev => ({ ...prev, isOpen: false }))
+    });
   }, [nodes, scannedNodes, fetchTopology]);
 
   const sentHistory   = bwHistory.map(b => b?.sent_kbps || 0);
@@ -1520,19 +1532,19 @@ export default function Topology() {
                 TEMPLATES:
               </span>
               <button className="topo-btn topo-btn--small" style={{ fontSize: 15, padding: '3px 8px' }} onClick={() => applyTopologyTemplate('star')} title="Generate Star Topology">
-                ★ Star
+                Star
               </button>
               <button className="topo-btn topo-btn--small" style={{ fontSize: 15, padding: '3px 8px' }} onClick={() => applyTopologyTemplate('ring')} title="Generate Ring Topology">
-                ◯ Ring
+                Ring
               </button>
               <button className="topo-btn topo-btn--small" style={{ fontSize: 15, padding: '3px 8px' }} onClick={() => applyTopologyTemplate('bus')} title="Generate Bus Topology">
-                ▬ Bus
+                Bus
               </button>
               <button className="topo-btn topo-btn--small" style={{ fontSize: 15, padding: '3px 8px' }} onClick={() => applyTopologyTemplate('mesh')} title="Generate Mesh Topology">
-                🕸 Mesh
+                Mesh
               </button>
               <button className="topo-btn topo-btn--small" style={{ fontSize: 15, padding: '3px 8px' }} onClick={() => applyTopologyTemplate('tree')} title="Generate Hierarchical Tree">
-                🌲 Hierarchical
+                Hierarchical
               </button>
             </div>
 
@@ -1661,36 +1673,7 @@ export default function Topology() {
                   )}
                 </div>
 
-                <div className="section-title" style={{ marginTop: 12 }}>🖥️ Uptime &amp; Reboot</div>
-                <div className="detail-row"><label>Uptime</label><span>{d.uptime || 'N/A'}</span></div>
-                <div className="detail-row"><label>Last Reboot</label><span>{d.last_reboot || 'N/A'}</span></div>
-                <div className="detail-row">
-                  <label>Reboot Reason</label>
-                  <span className={`reboot-reason ${d.reboot_reason ? 'reboot-reason--set' : ''}`}>
-                    {d.reboot_reason || 'No data'}
-                  </span>
-                </div>
-                <div className="detail-row">
-                  <label>Last Seen</label>
-                  <span>{d.last_seen ? new Date(d.last_seen).toLocaleString('en-IN', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit', second:'2-digit' }) : 'Never'}</span>
-                </div>
 
-                <div className="section-title" style={{ marginTop: 12 }}>📶 Network Performance</div>
-                <div className="detail-row">
-                  <label>Latency (Ping)</label>
-                  <span>{d.latency != null ? `${Math.round(d.latency)} ms` : 'N/A'}</span>
-                </div>
-                <div className="detail-row">
-                  <label>Packet Loss</label>
-                  <span style={{ color: packetLossColor(d.packet_loss), fontWeight: 600 }}>
-                    {d.packet_loss != null ? `${d.packet_loss}%` : 'N/A'}
-                    {d.packet_loss != null && (
-                      <span style={{ fontWeight: 400, color: "rgba(255, 255, 255, 0.5)", fontSize: 14, marginLeft: 6 }}>
-                        {d.packet_loss < 1 ? '(Good)' : d.packet_loss < 5 ? '(Degraded)' : '(Critical)'}
-                      </span>
-                    )}
-                  </span>
-                </div>
 
                 {(d.type === 'poe-switch' || d.type === 'switch') && d.poe_power && <PoEPanel d={d} />}
 
@@ -1703,14 +1686,14 @@ export default function Topology() {
 
                 {d.type === 'nvr' && (
                   <>
-                    <div className="section-title" style={{ marginTop: 12 }}>📹 NVR Connectivity</div>
+                    <div className="section-title" style={{ marginTop: 12 }}>NVR Connectivity</div>
                     <NVRPanel d={d} />
                   </>
                 )}
 
                 {d.type === 'camera' && (
                   <>
-                    <div className="section-title" style={{ marginTop: 12 }}>📷 Stream Health</div>
+                    <div className="section-title" style={{ marginTop: 12 }}>Stream Health</div>
                     <CameraStreamPanel
                       d={selectedNode.data}
                       liveData={deviceLiveData}
@@ -1798,6 +1781,83 @@ export default function Topology() {
               </div>
             )}
 
+          </div>
+        </div>
+      )}
+
+      {/* ── CUSTOM CONFIRM MODAL ── */}
+      {confirmModal.isOpen && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0, 0, 0, 0.65)',
+          backdropFilter: 'blur(4px)',
+          zIndex: 10000,
+          display: 'flex', alignItems: 'center', justifyContent: 'center'
+        }}>
+          <div style={{
+            background: '#1f2937',
+            border: '1px solid #374151',
+            borderRadius: 12,
+            width: 400,
+            maxWidth: '90%',
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
+            overflow: 'hidden'
+          }}>
+            <div style={{
+              padding: '16px 20px',
+              borderBottom: '1px solid #374151',
+              display: 'flex', alignItems: 'center', gap: 10
+            }}>
+              <Icon type="alert" size={18} />
+              <h3 style={{ margin: 0, fontSize: 16, color: '#f3f4f6', fontWeight: 600 }}>
+                {confirmModal.title || 'Confirm Action'}
+              </h3>
+            </div>
+            <div style={{ padding: '20px', color: '#d1d5db', fontSize: 15, lineHeight: 1.5 }}>
+              {confirmModal.message}
+            </div>
+            <div style={{
+              padding: '16px 20px',
+              background: '#111827',
+              borderTop: '1px solid #374151',
+              display: 'flex', justifyContent: 'flex-end', gap: 12
+            }}>
+              <button
+                onClick={confirmModal.onCancel}
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: 6,
+                  border: '1px solid #4b5563',
+                  background: 'transparent',
+                  color: '#d1d5db',
+                  cursor: 'pointer',
+                  fontWeight: 500,
+                  transition: 'all 0.2s'
+                }}
+                onMouseOver={e => e.target.style.background = 'rgba(255,255,255,0.05)'}
+                onMouseOut={e => e.target.style.background = 'transparent'}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmModal.onConfirm}
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: 6,
+                  border: 'none',
+                  background: '#6366f1',
+                  color: '#ffffff',
+                  cursor: 'pointer',
+                  fontWeight: 600,
+                  boxShadow: '0 2px 4px rgba(99, 102, 241, 0.2)',
+                  transition: 'all 0.2s'
+                }}
+                onMouseOver={e => e.target.style.background = '#4f46e5'}
+                onMouseOut={e => e.target.style.background = '#6366f1'}
+              >
+                Confirm
+              </button>
+            </div>
           </div>
         </div>
       )}
