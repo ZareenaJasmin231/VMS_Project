@@ -17,7 +17,7 @@ def load_video_key() -> bytes:
             f"Copy it from the server: docker cp <container>:/app/data/video.key ."
         )
     with open(KEY_FILE, "rb") as f:
-        key = f.read().strip()
+        key = f.read() # NO .strip() - read raw bytes verbatim
     if len(key) == 0:
         raise ValueError("video.key is empty!")
     # Must match encrypt_service.py exactly: key[:32].ljust(32, b'\0')
@@ -46,30 +46,35 @@ def decrypt_to_bytes(enc_file: str):
 
     print(f"[DECRYPT] File size: {len(data)} bytes — {enc_file}")
 
-    if len(data) < 32:
+    if len(data) < 20: # CTR\x00 + IV (16) = 20 bytes minimum
         print(f"[DECRYPT] ❌ File too small ({len(data)} bytes), skipping: {enc_file}")
         return None
 
-    iv        = data[:16]       # first 16 bytes = IV
-    encrypted = data[16:]       # rest = ciphertext
+    is_ctr = data.startswith(b'CTR\x00')
 
     try:
-        cipher    = Cipher(algorithms.AES(MASTER_KEY), modes.CBC(iv), backend=default_backend())
-        decryptor = cipher.decryptor()
-        padded    = decryptor.update(encrypted) + decryptor.finalize()
+        if is_ctr:
+            iv = data[4:20]
+            ciphertext = data[20:]
+            cipher = Cipher(algorithms.AES(MASTER_KEY), modes.CTR(iv), backend=default_backend())
+            decryptor = cipher.decryptor()
+            decrypted = decryptor.update(ciphertext) + decryptor.finalize()
+            print(f"[DECRYPT] ✅ Decrypted CTR successfully: {len(decrypted)} bytes")
+            return decrypted
+        else:
+            # Legacy CBC
+            if len(data) < 32:
+                print(f"[DECRYPT] ❌ File too small for CBC ({len(data)} bytes), skipping: {enc_file}")
+                return None
+            iv        = data[:16]       # first 16 bytes = IV
+            encrypted = data[16:]       # rest = ciphertext
+            cipher    = Cipher(algorithms.AES(MASTER_KEY), modes.CBC(iv), backend=default_backend())
+            decryptor = cipher.decryptor()
+            padded    = decryptor.update(encrypted) + decryptor.finalize()
+            unpadder  = padding.PKCS7(128).unpadder()
+            decrypted = unpadder.update(padded) + unpadder.finalize()
+            print(f"[DECRYPT] ✅ Decrypted CBC successfully: {len(decrypted)} bytes")
+            return decrypted
     except Exception as e:
-        print(f"[DECRYPT] ❌ AES decryption failed: {e}")
-        return None
-
-    try:
-        unpadder  = padding.PKCS7(128).unpadder()
-        decrypted = unpadder.update(padded) + unpadder.finalize()
-        print(f"[DECRYPT] ✅ Decrypted successfully: {len(decrypted)} bytes")
-        return decrypted
-    except ValueError as e:
-        print(
-            f"[DECRYPT] ❌ PKCS7 unpad failed — likely WRONG KEY for {enc_file}\n"
-            f"           Make sure video.key matches the server key exactly.\n"
-            f"           Error: {e}"
-        )
+        print(f"[DECRYPT] ❌ AES decryption or unpadding failed: {e}")
         return None

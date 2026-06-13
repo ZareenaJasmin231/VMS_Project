@@ -271,9 +271,6 @@ export default function StorageManagementPage() {
       <div className="page-header">
         <div>
           <h1 className="page-title">Storage <span>Management</span></h1>
-          <p className="page-desc" style={{ color: "rgba(255, 255, 255, 0.5)" }}>
-            Add and remove local or network storage. Select how much space to use and where to store data.
-          </p>
         </div>
         <SearchBar value={filter} onChange={setFilter} placeholder="Type to filter" />
       </div>
@@ -422,7 +419,6 @@ export default function StorageManagementPage() {
                 className="sm-btn sm-btn--primary"
                 disabled={!!allocError}
                 onClick={handleApply}
-                style={{ width: "100%" }}
               >
                 Save Allocation
               </button>
@@ -464,7 +460,6 @@ export default function StorageManagementPage() {
                 className="sm-btn sm-btn--primary"
                 disabled={!!allocError}
                 onClick={handleApply}
-                style={{ width: "100%" }}
               >
                 Save Path
               </button>

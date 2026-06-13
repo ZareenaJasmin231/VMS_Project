@@ -24,6 +24,7 @@ from app.api.routers.whip_router import router as whip_router
 from app.api.routers.dashboard_router import router as dashboard_router
 from app.api.routers.system_router import router as system_router
 from app.api.routers.storage_router_ext import router as storage_router_ext
+from app.api.routers.dashboard_diagnostics_router import router as dashboard_diagnostics_router
 
 # Existing routers from other files that were already separate
 from app.api.routers.recording_api import recording_router, storage_router
@@ -36,6 +37,7 @@ from app.api.routers.camera_analytics_router import camera_analytics_router
 from app.api.routers.maps_router import router as maps_router
 from app.api.routers.designer_router import router as designer_router
 from app.api.routers.forensic_api import forensic_router
+from app.api.routers.viewing_stations_router import router as viewing_stations_router
 
 class LoggerWrapper:
     def write(self, message):
@@ -72,6 +74,7 @@ app.include_router(whip_router)
 app.include_router(dashboard_router)
 app.include_router(system_router)
 app.include_router(storage_router_ext)
+app.include_router(dashboard_diagnostics_router)
 
 app.include_router(recording_router)
 app.include_router(storage_router)
@@ -84,3 +87,4 @@ app.include_router(maps_router)
 app.include_router(designer_router)
 app.include_router(infrastructure_router)
 app.include_router(forensic_router)
+app.include_router(viewing_stations_router)

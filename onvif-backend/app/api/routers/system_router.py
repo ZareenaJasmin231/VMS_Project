@@ -18,7 +18,14 @@ router = APIRouter(prefix="/api", tags=["system"])
 
 @router.get("/health")
 def health():
-    return {"status": "ok"}
+    import os
+    from monitoring.scheduler import scheduler
+    watchdog_active = scheduler.thread.is_alive() if scheduler.thread else False
+    return {
+        "status": "ok",
+        "version": os.environ.get("APP_VERSION", "1.0.0"),
+        "watchdog": "Active" if watchdog_active else "Inactive"
+    }
 
 
 

@@ -1,5 +1,7 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useAuth } from "../../context/AuthContext";
 import "./MapViewPage.css";
+import SearchBar from "../../components/shared/SearchBar";
 import WebRTCPlayer   from "../../components/shared/WebRTCPlayer";
 import MapCanvas      from "./MapCanvas";
 import ConfigPanel    from "./ConfigPanel";
@@ -564,6 +566,7 @@ function ZoneSidebarItem({
 
 // ── Main ──────────────────────────────────────────────────────────
 export default function MapViewPage() {
+  const { user } = useAuth();
 
   // Canvas refs
   const wrapRef         = useRef(null);
@@ -597,20 +600,47 @@ export default function MapViewPage() {
   // React state
   const [cameras,          setCameras]          = useState([]);
   const [markers,          setMarkers]          = useState([]);
+  const [camFilter,        setCamFilter]        = useState("");
+
+  const filteredCameras = useMemo(() => {
+    if (user?.role === "admin" || !user?.allowedCameras || user?.allowedCameras.length === 0) {
+      return cameras;
+    }
+    return cameras.filter(c => user.allowedCameras.includes(String(c.id)));
+  }, [cameras, user]);
+
+  const filteredMarkers = useMemo(() => {
+    if (user?.role === "admin" || !user?.allowedCameras || user?.allowedCameras.length === 0) {
+      return markers;
+    }
+    return markers.filter(m => user.allowedCameras.includes(String(m.camId)));
+  }, [markers, user]);
   const [floors,           setFloors]           = useState(() => [makeFloor(1)]);
   const [activeFloor, setActiveFloor] = useState(0);
   const [showExportMenu, setShowExportMenu] = useState(false);
   const exportMenuRef = useRef(null);
+
+  // ── Modes / Layers dropdown state ────────────────────────────────
+  const [modesDropdownOpen,  setModesDropdownOpen]  = useState(false);
+  const [layersDropdownOpen, setLayersDropdownOpen] = useState(false);
+  const modesDropRef  = useRef(null);
+  const layersDropRef = useRef(null);
 
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (exportMenuRef.current && !exportMenuRef.current.contains(e.target)) {
         setShowExportMenu(false);
       }
+      if (modesDropRef.current && !modesDropRef.current.contains(e.target)) {
+        setModesDropdownOpen(false);
+      }
+      if (layersDropRef.current && !layersDropRef.current.contains(e.target)) {
+        setLayersDropdownOpen(false);
+      }
     };
-    if (showExportMenu) document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [showExportMenu]);
+  }, []);
   const [mode,             setMode]             = useState("place");
   const [zoomPct,          setZoomPct]          = useState(100);
   const [statusTxt,        setStatus]           = useState("Loading map…");
@@ -751,7 +781,7 @@ export default function MapViewPage() {
         }]
       : [];
 
-  const canvasMarkers = [...markers, ...previewMarker];
+  const canvasMarkers = [...filteredMarkers, ...previewMarker];
 
   // ── Fit image ────────────────────────────────────────────────────
   const fitImage = useCallback(() => {
@@ -1722,175 +1752,261 @@ export default function MapViewPage() {
   }
 
   // Computed
-  const placedIds   = new Set(markers.map(m => m.camId));
+  const placedIds   = new Set(filteredMarkers.map(m => m.camId));
   const totalPlaced = floors.reduce((s, f) => s + (f.markers?.length || 0), 0);
   const activeZone  = zones.find(z => z.id === activeZoneId) || null;
 
   // ── Render ────────────────────────────────────────────────────────
   return (
     <div
-      className="mv-page"
+      className="page-shell mv-page"
       onClick={() => {
         setCtxMenu(c => ({ ...c, visible: false }));
         setExpandedCamId(null);
       }}
     >
 
-      {/* ── Grouped Categorized Toolbar ── */}
+      {/* ── Combined Header + Toolbar ── */}
       <div className="mv-toolbar">
-        <div className="mv-toolbar__left">
-          {/* File Actions Group */}
-          <div className="mv-toolbar-group">
-            <button className="mv-tbtn mv-tbtn--file" onClick={() => fileInputRef.current?.click()} title="Import Plan">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="13" height="13">
-                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/>
+        {/* Left: Page Title */}
+        <div className="mv-toolbar__title-section">
+          <h1 className="page-title" style={{ fontSize: "28px", margin: 0 }}>Map View</h1>
+        </div>
+
+        {/* Right Side: All Controls */}
+        <div className="mv-toolbar__right-section">
+
+          {/* ── Modes Icon Button + Dropdown ── */}
+          <div className="mv-icon-drop-wrap" ref={modesDropRef}>
+            <button
+              className={`mv-icon-btn ${
+                mode !== "place" || modesDropdownOpen ? "mv-icon-btn--active" : ""
+              }`}
+              onClick={() => {
+                setModesDropdownOpen(o => !o);
+                setLayersDropdownOpen(false);
+              }}
+              title="Modes"
+            >
+              {/* Tool/Cursor icon */}
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="18" height="18">
+                <circle cx="12" cy="12" r="3"/>
+                <path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.93 4.93l2.12 2.12M16.95 16.95l2.12 2.12M4.93 19.07l2.12-2.12M16.95 7.05l2.12-2.12"/>
               </svg>
-              Import Floor Plan
+              <span className="mv-icon-btn__label">Modes</span>
+              {/* Active mode dot */}
+              {mode !== "place" && <span className="mv-icon-btn__dot" />}
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="10" height="10" className={`mv-icon-btn__chevron ${modesDropdownOpen ? "open" : ""}`}>
+                <polyline points="6 9 12 15 18 9"/>
+              </svg>
             </button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              style={{ display: "none" }}
-              onChange={handleFileChange}
-            />
 
-            <div className="mv-export-group" ref={exportMenuRef}>
-              <button
-                className={`mv-tbtn mv-tbtn--export ${showExportMenu ? "mv-tbtn--active" : ""}`}
-                onClick={() => setShowExportMenu(!showExportMenu)}
-                disabled={!hasFloor}
-                title="Export PNG snapshot"
-              >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="13" height="13">
-                  <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/>
-                </svg>
-                Export PNG
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="10" height="10" style={{ marginLeft: 2, opacity: 0.6 }}>
-                  <polyline points="6 9 12 15 18 9" />
-                </svg>
-              </button>
+            {modesDropdownOpen && (
+              <div className="mv-dropdown-panel mv-dropdown-panel--modes">
+                <div className="mv-dropdown-panel__title">Map Modes</div>
+                <div className="mv-dropdown-cards">
 
-              {showExportMenu && (
-                <div className="mv-export-menu">
-                  <button className="mv-export-item" onClick={() => exportMapPNG("design")}>
-                    <div className="mv-export-item__icon">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
-                        <rect x="3" y="3" width="18" height="18" rx="2" /><path d="M3 9h18M9 21V9" />
+                  {/* Place Cam */}
+                  <button
+                    className={`mv-dropdown-card ${mode === "place" ? "mv-dropdown-card--active" : ""}`}
+                    onClick={() => { setPlaceMode(); setModesDropdownOpen(false); }}
+                  >
+                    <div className="mv-dropdown-card__icon">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="26" height="26">
+                        <circle cx="12" cy="12" r="3"/>
+                        <circle cx="12" cy="12" r="8" strokeDasharray="3 3"/>
+                        <line x1="12" y1="2" x2="12" y2="5"/>
+                        <line x1="12" y1="19" x2="12" y2="22"/>
+                        <line x1="2" y1="12" x2="5" y2="12"/>
+                        <line x1="19" y1="12" x2="22" y2="12"/>
                       </svg>
                     </div>
-                    <div className="mv-export-item__label">
-                      <span>Download Map View</span>
-                      <small>Exact snapshot of current layout</small>
+                    <div className="mv-dropdown-card__body">
+                      <span className="mv-dropdown-card__label">Place Cam</span>
+                      <span className="mv-dropdown-card__desc">Click map to place a camera</span>
                     </div>
+                    {mode === "place" && <span className="mv-dropdown-card__check">✓</span>}
                   </button>
-                  <button className="mv-export-item" onClick={() => exportMapPNG("heatmap")}>
-                    <div className="mv-export-item__icon mv-export-item__icon--heatmap">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
-                        <circle cx="12" cy="12" r="3" />
-                        <path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
+
+                  {/* Pan Map */}
+                  <button
+                    className={`mv-dropdown-card ${mode === "pan" ? "mv-dropdown-card--active" : ""}`}
+                    onClick={() => { setPanMode(); setModesDropdownOpen(false); }}
+                  >
+                    <div className="mv-dropdown-card__icon">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="26" height="26">
+                        <path d="M5 9l-3 3 3 3M9 5l3-3 3 3M15 19l-3 3-3-3M19 9l3 3-3 3M12 3v18M3 12h18"/>
                       </svg>
                     </div>
-                    <div className="mv-export-item__label">
-                      <span>Download Heatmap</span>
-                      <small>Coverage intensity map</small>
+                    <div className="mv-dropdown-card__body">
+                      <span className="mv-dropdown-card__label">Pan Map</span>
+                      <span className="mv-dropdown-card__desc">Drag to navigate the floor plan</span>
                     </div>
+                    {mode === "pan" && <span className="mv-dropdown-card__check">✓</span>}
                   </button>
+
+                  {/* Draw Zone */}
+                  <button
+                    className={`mv-dropdown-card ${mode === "zone" ? "mv-dropdown-card--active" : ""}`}
+                    onClick={() => {
+                      if (mode === "zone") cancelZoneDrawing();
+                      else setZoneMode();
+                      setModesDropdownOpen(false);
+                    }}
+                  >
+                    <div className="mv-dropdown-card__icon">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="26" height="26">
+                        <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/>
+                      </svg>
+                    </div>
+                    <div className="mv-dropdown-card__body">
+                      <span className="mv-dropdown-card__label">Draw Zone</span>
+                      <span className="mv-dropdown-card__desc">Click points to draw area zones</span>
+                    </div>
+                    {mode === "zone" && <span className="mv-dropdown-card__check">✓</span>}
+                  </button>
+
+                  {/* Auto-Detect */}
+                  <button
+                    className={`mv-dropdown-card ${draftZones.length > 0 ? "mv-dropdown-card--draft" : ""} ${isDetectingZones ? "mv-dropdown-card--loading" : ""}`}
+                    disabled={isDetectingZones}
+                    onClick={async () => {
+                      setModesDropdownOpen(false);
+                      if (isDetectingZones) return;
+                      const floorId = floors[activeFloor]?.id || "floor_1";
+                      setIsDetectingZones(true);
+                      try {
+                        const r = await fetch(`${API}/api/designer/detect-zones`, {
+                          method: "POST",
+                          headers: getAuthHeaders(),
+                          body: JSON.stringify({ map_id: MAP_ID, floor_id: floorId, source: "map" })
+                        });
+                        if (!r.ok) {
+                          const errData = await r.json();
+                          alert(`CV Zone detection failed: ${errData.detail || r.statusText}`);
+                          return;
+                        }
+                        const data = await r.json();
+                        if (data.success && data.zones?.length > 0) {
+                          const draftWithFloor = data.zones.map(z => ({ ...z, floorIndex: activeFloor }));
+                          setDraftZones(draftWithFloor);
+                          draftZonesRef.current = draftWithFloor;
+                          alert(`Detected ${data.zones.length} potential zones. Hover/click inside them on the map to import!`);
+                          canvasApiRef.current?.drawAll();
+                        } else {
+                          alert("No distinct closed zones detected on this floor plan image.");
+                        }
+                      } catch (e) {
+                        console.error(e);
+                        alert("An error occurred during CV zone detection.");
+                      } finally {
+                        setIsDetectingZones(false);
+                      }
+                    }}
+                    title="Automatically extract zones using CV"
+                  >
+                    <div className="mv-dropdown-card__icon">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="26" height="26">
+                        <path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+                        <circle cx="12" cy="12" r="3"/>
+                      </svg>
+                    </div>
+                    <div className="mv-dropdown-card__body">
+                      <span className="mv-dropdown-card__label">
+                        {isDetectingZones ? "Detecting…" : "Auto-Detect"}
+                      </span>
+                      <span className="mv-dropdown-card__desc">AI detects zones from floor image</span>
+                    </div>
+                    {draftZones.length > 0 && !isDetectingZones && (
+                      <span className="mv-dropdown-card__badge">{draftZones.length}</span>
+                    )}
+                    {isDetectingZones && <span className="mv-dropdown-card__spinner" />}
+                  </button>
+
                 </div>
-              )}
-            </div>
+              </div>
+            )}
           </div>
 
-          <div className="mv-toolbar-divider" />
-
-          {/* Interactive Tools Group (Pill-shaped switcher) */}
-          <div className="mv-toolbar-pill-group">
+          {/* ── Layers Icon Button + Dropdown ── */}
+          <div className="mv-icon-drop-wrap" ref={layersDropRef}>
             <button
-              className={`mv-tbtn mv-tbtn--pill ${mode === "place" ? "mv-tbtn--pill-active" : ""}`}
-              onClick={setPlaceMode}
-              title="Place cameras mode"
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="12" height="12">
-                <circle cx="12" cy="12" r="3"/>
-                <circle cx="12" cy="12" r="8" strokeDasharray="2 3"/>
-              </svg>
-              Place
-            </button>
-
-            <button
-              className={`mv-tbtn mv-tbtn--pill ${mode === "pan" ? "mv-tbtn--pill-active" : ""}`}
-              onClick={setPanMode}
-              title="Pan map mode"
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="12" height="12">
-                <path d="M5 9l-3 3 3 3M9 5l3-3 3 3M15 19l-3 3-3-3M19 9l3 3-3 3M12 3v18M3 12h18"/>
-              </svg>
-              Pan
-            </button>
-
-            <button
-              className={`mv-tbtn mv-tbtn--pill ${mode === "zone" ? "mv-tbtn--pill-active" : ""}`}
-              onClick={mode === "zone" ? cancelZoneDrawing : setZoneMode}
-              title="Draw zone mode"
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="12" height="12">
-                <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/>
-              </svg>
-              Draw Zone
-            </button>
-
-            <button
-              className={`mv-tbtn mv-tbtn--pill ${isDetectingZones ? "mv-tbtn--disabled" : ""}`}
-              style={{
-                borderColor: draftZones.length > 0 ? "#10b98150" : undefined,
-                color: draftZones.length > 0 ? "#10b981" : undefined,
+              className={`mv-icon-btn ${
+                (showHeatmap || virtualMode || layersDropdownOpen) ? "mv-icon-btn--active" : ""
+              }`}
+              onClick={() => {
+                setLayersDropdownOpen(o => !o);
+                setModesDropdownOpen(false);
               }}
-              onClick={async () => {
-                if (isDetectingZones) return;
-                const floorId = floors[activeFloor]?.id || "floor_1";
-                setIsDetectingZones(true);
-                try {
-                  const r = await fetch(`${API}/api/designer/detect-zones`, {
-                    method: "POST",
-                    headers: getAuthHeaders(),
-                    body: JSON.stringify({ map_id: MAP_ID, floor_id: floorId, source: "map" })
-                  });
-                  if (!r.ok) {
-                    const errData = await r.json();
-                    alert(`CV Zone detection failed: ${errData.detail || r.statusText}`);
-                    return;
-                  }
-                  const data = await r.json();
-                  if (data.success && data.zones?.length > 0) {
-                    const draftWithFloor = data.zones.map(z => ({ ...z, floorIndex: activeFloor }));
-                    setDraftZones(draftWithFloor);
-                    draftZonesRef.current = draftWithFloor;
-                    alert(`Detected ${data.zones.length} potential zones. Hover/click inside them on the map to import!`);
-                    canvasApiRef.current?.drawAll();
-                  } else {
-                    alert("No distinct closed zones detected on this floor plan image.");
-                  }
-                } catch (e) {
-                  console.error(e);
-                  alert("An error occurred during CV zone detection.");
-                } finally {
-                  setIsDetectingZones(false);
-                }
-              }}
-              disabled={isDetectingZones}
-              title="Automatically extract zones using CV"
+              title="Layers"
             >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="12" height="12">
-                <path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
+              {/* Layers stack icon */}
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="18" height="18">
+                <polygon points="12 2 2 7 12 12 22 7 12 2"/>
+                <polyline points="2 17 12 22 22 17"/>
+                <polyline points="2 12 12 17 22 12"/>
               </svg>
-              {isDetectingZones ? "Detecting..." : "Auto-Detect Zones"}
+              <span className="mv-icon-btn__label">Layers</span>
+              {(showHeatmap || virtualMode) && <span className="mv-icon-btn__dot" />}
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="10" height="10" className={`mv-icon-btn__chevron ${layersDropdownOpen ? "open" : ""}`}>
+                <polyline points="6 9 12 15 18 9"/>
+              </svg>
             </button>
+
+            {layersDropdownOpen && (
+              <div className="mv-dropdown-panel mv-dropdown-panel--layers">
+                <div className="mv-dropdown-panel__title">Map Layers</div>
+                <div className="mv-dropdown-cards">
+
+                  {/* Heatmap */}
+                  <button
+                    className={`mv-dropdown-card ${showHeatmap ? "mv-dropdown-card--active" : ""}`}
+                    onClick={() => { setShowHeatmap(h => !h); }}
+                  >
+                    <div className="mv-dropdown-card__icon mv-dropdown-card__icon--heatmap">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="26" height="26">
+                        <circle cx="12" cy="12" r="3"/>
+                        <path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+                      </svg>
+                    </div>
+                    <div className="mv-dropdown-card__body">
+                      <span className="mv-dropdown-card__label">Heatmap</span>
+                      <span className="mv-dropdown-card__desc">Coverage blind-spot intensity</span>
+                    </div>
+                    <div className={`mv-dropdown-card__toggle ${showHeatmap ? "mv-dropdown-card__toggle--on" : ""}`} />
+                  </button>
+
+                  {/* Virtual View */}
+                  <button
+                    className={`mv-dropdown-card ${virtualMode ? "mv-dropdown-card--active mv-dropdown-card--virtual" : ""}`}
+                    onClick={() => { setVirtualMode(v => !v); setExpandedCamId(null); }}
+                  >
+                    <div className="mv-dropdown-card__icon mv-dropdown-card__icon--virtual">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="26" height="26">
+                        <rect x="2" y="3" width="20" height="14" rx="2"/>
+                        <path d="M8 21h8M12 17v4"/>
+                        <circle cx="8"  cy="10" r="2"/>
+                        <circle cx="16" cy="10" r="2"/>
+                      </svg>
+                    </div>
+                    <div className="mv-dropdown-card__body">
+                      <span className="mv-dropdown-card__label">
+                        {virtualMode ? "Exit View" : "Virtual View"}
+                      </span>
+                      <span className="mv-dropdown-card__desc">3D virtual camera positions</span>
+                    </div>
+                    <div className={`mv-dropdown-card__toggle ${virtualMode ? "mv-dropdown-card__toggle--on mv-dropdown-card__toggle--purple" : ""}`} />
+                  </button>
+
+                </div>
+              </div>
+            )}
           </div>
 
           {draftZones.filter(z => z.floorIndex === activeFloor).length > 0 && (
-            <div className="mv-toolbar-group" style={{ marginLeft: 6 }}>
+            <div className="mv-toolbar-draft-actions">
               <button
-                className="mv-tbtn mv-tbtn--success"
+                className="mv-tbtn-new success"
                 onClick={() => {
                   const activeDrafts = draftZones.filter(z => z.floorIndex === activeFloor);
                   showConfirm("Import All Zones", `Import all ${activeDrafts.length} detected zones?`, () => {
@@ -1917,10 +2033,10 @@ export default function MapViewPage() {
                   });
                 }}
               >
-                Import All ({draftZones.filter(z => z.floorIndex === activeFloor).length})
+                Import ({draftZones.filter(z => z.floorIndex === activeFloor).length})
               </button>
               <button
-                className="mv-tbtn mv-tbtn--danger-outline"
+                className="mv-tbtn-new danger"
                 onClick={() => {
                   const remainingDrafts = draftZones.filter(z => z.floorIndex !== activeFloor);
                   setDraftZones(remainingDrafts);
@@ -1933,46 +2049,13 @@ export default function MapViewPage() {
             </div>
           )}
 
-          <div className="mv-toolbar-divider" />
-
-          {/* Overlays / Views Group */}
-          <div className="mv-toolbar-group">
-            <button
-              className={`mv-tbtn ${showHeatmap ? "mv-tbtn--active" : ""}`}
-              onClick={() => setShowHeatmap(h => !h)}
-              title="Toggle blind-spot heatmap"
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="12" height="12">
-                <circle cx="12" cy="12" r="3"/>
-                <path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
-              </svg>
-              Heatmap
-            </button>
-
-            <button
-              className={`mv-tbtn ${virtualMode ? "mv-tbtn--virtual" : ""}`}
-              onClick={() => { setVirtualMode(v => !v); setExpandedCamId(null); }}
-              title="Toggle Virtual Map View"
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="12" height="12">
-                <rect x="2" y="3" width="20" height="14" rx="2"/>
-                <path d="M8 21h8M12 17v4"/>
-                <circle cx="8"  cy="10" r="2"/>
-                <circle cx="16" cy="10" r="2"/>
-                <path d="M6 10h2M16 10h2"/>
-              </svg>
-              {virtualMode ? "Exit View" : "Map View"}
-            </button>
-          </div>
-        </div>
-
-        <div className="mv-toolbar__right">
           {saving  && <span className="mv-saving">● Saving…</span>}
           {saveErr && (
             <span className="mv-save-err" title="Auth failed — saved to cache only">
               ⚠ Cached locally
             </span>
           )}
+
           {mode === "zone" && drawingPoints.length > 0 && (
             <span className="mv-zone-draw-hint">
               {drawingPoints.length} pts
@@ -1985,13 +2068,75 @@ export default function MapViewPage() {
               </button>
             </span>
           )}
-          <button className="mv-tbtn mv-tbtn--clear" onClick={clearFloor} title="Clear Map Floor Plan">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="12" height="12">
-              <polyline points="3 6 5 6 21 6"/>
-              <path d="M19 6l-1 14H6L5 6M10 11v6M14 11v6M9 6V4h6v2"/>
-            </svg>
-            Clear Floor
-          </button>
+
+          <div className="mv-toolbar-group-actions" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <button className="mv-tbtn-new secondary" onClick={() => fileInputRef.current?.click()} title="Import Plan">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="13" height="13">
+                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/>
+              </svg>
+              Import Plan
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              style={{ display: "none" }}
+              onChange={handleFileChange}
+            />
+
+            <div className="mv-export-group" ref={exportMenuRef}>
+              <button
+                className={`mv-tbtn-new secondary ${showExportMenu ? "active" : ""}`}
+                onClick={() => setShowExportMenu(!showExportMenu)}
+                disabled={!hasFloor}
+                title="Export PNG snapshot"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="13" height="13">
+                  <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/>
+                </svg>
+                Export
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="10" height="10" style={{ marginLeft: 2, opacity: 0.6 }}>
+                  <polyline points="6 9 12 15 18 9" />
+                </svg>
+              </button>
+
+              {showExportMenu && (
+                <div className="mv-export-menu">
+                  <button className="mv-export-item" onClick={() => exportMapPNG("design")}>
+                    <div className="mv-export-item__icon">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
+                        <rect x="3" y="3" width="18" height="18" rx="2" /><path d="M3 9h18M9 21V9" />
+                      </svg>
+                    </div>
+                    <div className="mv-export-item__label">
+                      <span>Download Design</span>
+                      <small>Exact snapshot of current layout</small>
+                    </div>
+                  </button>
+                  <button className="mv-export-item" onClick={() => exportMapPNG("heatmap")}>
+                    <div className="mv-export-item__icon mv-export-item__icon--heatmap">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
+                        <circle cx="12" cy="12" r="3" />
+                        <path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
+                      </svg>
+                    </div>
+                    <div className="mv-export-item__label">
+                      <span>Download Heatmap</span>
+                      <small>Coverage intensity map</small>
+                    </div>
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <button className="mv-tbtn-new danger" onClick={clearFloor} title="Clear Map Floor Plan">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="13" height="13">
+                <polyline points="3 6 5 6 21 6"/>
+                <path d="M19 6l-1 14H6L5 6M10 11v6M14 11v6M9 6V4h6v2"/>
+              </svg>
+              Clear
+            </button>
+          </div>
         </div>
       </div>
 
@@ -2012,10 +2157,10 @@ export default function MapViewPage() {
           ) : (
             <MapCanvas
               ref={canvasApiRef}
-              cameras={cameras}
+              cameras={filteredCameras}
               markers={canvasMarkers}
               floorImgRef={floorImgRef}
-              zones={zones}
+              zones={zones.filter(z => z.floorIndex === activeFloor)}
               scaleRef={scaleRef}
               offsetRef={offsetRef}
               hoveredIdxRef={hoveredIdxRef}
@@ -2093,8 +2238,8 @@ export default function MapViewPage() {
 
           {/* Heatmap overlay */}
           <HeatmapLayer
-            markers={markers}
-            cameras={cameras}
+            markers={filteredMarkers}
+            cameras={filteredCameras}
             scaleRef={scaleRef}
             offsetRef={offsetRef}
             wrapRef={wrapRef}
@@ -2106,8 +2251,8 @@ export default function MapViewPage() {
 
           {/* Virtual Map View */}
           <VirtualMapView
-            markers={markers}
-            cameras={cameras}
+            markers={filteredMarkers}
+            cameras={filteredCameras}
             scaleRef={scaleRef}
             offsetRef={offsetRef}
             wrapRef={wrapRef}
@@ -2218,7 +2363,7 @@ export default function MapViewPage() {
                     className={`mv-inspector-tab ${inspectorTab === "cameras" ? "mv-inspector-tab--active" : ""}`}
                     onClick={() => setInspectorTab("cameras")}
                   >
-                    Cameras ({cameras.length})
+                    Cameras ({filteredCameras.length})
                   </button>
                   <button
                     className={`mv-inspector-tab ${inspectorTab === "zones" ? "mv-inspector-tab--active" : ""}`}
@@ -2266,14 +2411,17 @@ export default function MapViewPage() {
                           &nbsp;Place inside <strong>{activeZone.name}</strong>
                         </div>
                       )}
+                      <div className="mv-sidebar-search" style={{ paddingBottom: "12px" }}>
+                        <SearchBar value={camFilter} onChange={setCamFilter} placeholder="Filter devices..." />
+                      </div>
 
                       <div className="mv-cam-list">
                         {pageLoading ? (
                           <div className="mv-cam-empty">Loading cameras…</div>
-                        ) : cameras.length === 0 ? (
+                        ) : filteredCameras.filter(cam => (cam.name || "Unnamed").toLowerCase().includes(camFilter.toLowerCase()) || (cam.ip || "").toLowerCase().includes(camFilter.toLowerCase())).length === 0 ? (
                           <div className="mv-cam-empty">No cameras found.<br />Add devices first.</div>
                         ) : (
-                          cameras.map(cam => (
+                          filteredCameras.filter(cam => (cam.name || "Unnamed").toLowerCase().includes(camFilter.toLowerCase()) || (cam.ip || "").toLowerCase().includes(camFilter.toLowerCase())).map(cam => (
                             <CameraItem
                               key={cam.id}
                               cam={cam}
@@ -2283,6 +2431,7 @@ export default function MapViewPage() {
                               onDragStart={c => { dragCamRef.current = c; }}
                             />
                           ))
+
                         )}
                       </div>
                     </div>
@@ -2303,8 +2452,8 @@ export default function MapViewPage() {
                             <ZoneSidebarItem
                               key={zone.id}
                               zone={zone}
-                              markers={markers}
-                              cameras={cameras}
+                              markers={filteredMarkers}
+                              cameras={filteredCameras}
                               isActive={activeZoneId === zone.id}
                               highlightedCamId={highlightedCamId}
                               onSelect={selectZone}

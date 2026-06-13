@@ -351,6 +351,8 @@
 
 import { useEffect, useRef, useState, memo } from 'react';
 import { useImageConfig } from '../../hooks/useImageConfig';
+import { Volume2, VolumeX } from 'lucide-react';
+import { useDigitalZoom } from '../../hooks/useDigitalZoom';
 
 class StreamConnection {
   constructor(serverUrl) {
@@ -602,16 +604,21 @@ function getOrCreateStream(serverUrl) {
   return streamCache[serverUrl];
 }
 
-function WebRTCPlayer({ serverUrl, cameraId, onConnectChange }) {
+function WebRTCPlayer({ serverUrl, cameraId, onConnectChange, hasAudio = false }) {
   const videoRef = useRef(null);
+  const containerRef = useRef(null);
   const [connected, setConnected] = useState(false);
   const [error, setError] = useState('');
+  const [isMuted, setIsMuted] = useState(true);
+  const [hovered, setHovered] = useState(false);
+  const [btnHovered, setBtnHovered] = useState(false);
 
   useEffect(() => {
     onConnectChange?.(connected);
   }, [connected, onConnectChange]);
 
   const { cssFilter, cssTransform } = useImageConfig(cameraId);
+  const { zoom, zoomTransform, handlers } = useDigitalZoom(containerRef, videoRef);
 
   useEffect(() => {
     if (!serverUrl) return;
@@ -642,6 +649,11 @@ function WebRTCPlayer({ serverUrl, cameraId, onConnectChange }) {
     };
   }, [serverUrl]);
 
+  const toggleMute = (e) => {
+    e.stopPropagation();
+    setIsMuted(prev => !prev);
+  };
+
   const wrapStyle = {
     position: 'relative', width: '100%', height: '100%',
     background: '#000', borderRadius: 6, overflow: 'hidden',
@@ -653,18 +665,50 @@ function WebRTCPlayer({ serverUrl, cameraId, onConnectChange }) {
     flexDirection: 'column', gap: 8,
   };
 
+  const volumeBtnStyle = {
+    position: 'absolute',
+    bottom: '8px',
+    left: '8px',
+    background: btnHovered ? 'rgba(20, 184, 166, 0.95)' : 'rgba(15, 23, 42, 0.75)',
+    backdropFilter: 'blur(8px)',
+    border: '1px solid rgba(255, 255, 255, 0.15)',
+    borderRadius: '50%',
+    width: '32px',
+    height: '32px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    color: '#ffffff',
+    cursor: 'pointer',
+    transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+    zIndex: 20,
+    outline: 'none',
+    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.5)',
+    opacity: hovered ? 1 : 0,
+    transform: hovered ? 'scale(1)' : 'scale(0.85)',
+    pointerEvents: hovered ? 'auto' : 'none',
+  };
+
   return (
-    <div style={wrapStyle}>
+    <div 
+      ref={containerRef}
+      style={{ ...wrapStyle, cursor: zoom > 1 ? 'grab' : 'default' }}
+      {...handlers}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
       <video
         ref={videoRef}
-        autoPlay muted playsInline
+        autoPlay
+        muted={hasAudio ? isMuted : true}
+        playsInline
         style={{
           width: '100%',
           height: '100%',
           objectFit: 'cover',
           display: 'block',
           filter: cssFilter || 'none',
-          transform: cssTransform || 'none',
+          transform: `${cssTransform || 'none'} ${zoomTransform}`,
           transition: "filter 0.1s ease, transform 0.2s ease"
         }}
       />
@@ -680,6 +724,17 @@ function WebRTCPlayer({ serverUrl, cameraId, onConnectChange }) {
           <span style={{ color: '#ef4444', fontSize: 20 }}>⚠</span>
           <span style={{ color: '#94a3b8', fontSize: 11 }}>{error}</span>
         </div>
+      )}
+      {connected && !error && hasAudio && (
+        <button
+          style={volumeBtnStyle}
+          onClick={toggleMute}
+          onMouseEnter={() => setBtnHovered(true)}
+          onMouseLeave={() => setBtnHovered(false)}
+          title={isMuted ? "Unmute" : "Mute"}
+        >
+          {isMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
+        </button>
       )}
     </div>
   );

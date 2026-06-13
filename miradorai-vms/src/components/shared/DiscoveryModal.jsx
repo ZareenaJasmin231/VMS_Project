@@ -564,8 +564,7 @@ export default function DiscoveryModal({
                           </svg>
                         </div>
                         <div className="dm-cred-cam-info">
-                          <div className="dm-cred-cam-name">{device.name || `Camera @ ${device.ip}`}</div>
-
+                          <div className="dm-cred-cam-name">{device.ip}</div>
                         </div>
                       </div>
 
@@ -574,7 +573,7 @@ export default function DiscoveryModal({
 
                         <input
                           className="dm-cred-input dm-cam-name-input"
-                          placeholder="Name (opt)"
+                          placeholder="Name (Optional)"
                           tabIndex={baseTab}
                           value={deviceCreds[device.id]?.cameraName || ""}
                           onChange={(e) => updateCred(device.id, "cameraName", e.target.value)}

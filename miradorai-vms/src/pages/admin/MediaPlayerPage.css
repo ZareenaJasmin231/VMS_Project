@@ -122,11 +122,11 @@
 .mp-cam-section {
   padding: 12px 16px 6px;
   font-family: var(--font-display);
-  font-size: 14px;
-  font-weight: 600;
+  font-size: 16px;
+  font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--text-hint);
+  color: var(--text-primary);
 }
 
 /* ── Button Row (Browse + Export side by side) ── */
@@ -236,20 +236,21 @@
 }
 
 .mp-cam-select-name {
-  font-weight: 500;
+  font-weight: 600;
   color: var(--text-primary);
-  font-size: 14px;
+  font-size: 16px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .mp-cam-select-ip {
-  font-size: 11px;
-  color: var(--text-hint);
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.7);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  margin-top: 1px;
 }
 
 .mp-cam-chevron {
@@ -307,20 +308,21 @@
 }
 
 .mp-cam-menu-item-name {
-  font-weight: 500;
+  font-weight: 600;
   color: var(--text-primary);
-  font-size: 14px;
+  font-size: 16px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .mp-cam-menu-item-ip {
-  font-size: 11px;
-  color: var(--text-hint);
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.7);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  margin-top: 1px;
 }
 
 .mp-cam-menu-item:hover {
@@ -1308,3 +1310,77 @@
     0 0 14px rgba(16, 185, 129, 0.5);
   transform: scaleY(1.08);
 }
+
+/* Match playback page subheading style with dashboard update badge */
+.lv-toolbar__count {
+  font-family: var(--font-ui), sans-serif !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  color: var(--text-muted) !important;
+  background: transparent !important;
+  padding: 6px 12px !important;
+  border-radius: 6px !important;
+  border: 1px solid var(--border-light) !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.05em !important;
+  box-shadow: none !important;
+  display: inline-block !important;
+}
+
+/* ── Sharpness Scrollbar Styling ── */
+.mp-sharpness-container {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border-left: 1px solid rgba(255, 255, 255, 0.1);
+  padding-left: 10px;
+}
+
+.mp-sharpness-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.mp-sharpness-slider {
+  width: 65px;
+  height: 3px;
+  -webkit-appearance: none;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+}
+
+.mp-sharpness-slider:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.mp-sharpness-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--teal);
+  cursor: pointer;
+  box-shadow: 0 0 2px rgba(0, 0, 0, 0.5);
+  transition: transform 0.1s ease;
+}
+
+.mp-sharpness-slider:disabled::-webkit-slider-thumb {
+  background: var(--text-muted);
+}
+
+.mp-sharpness-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.3);
+}
+
+.mp-sharpness-value {
+  font-size: 10.5px;
+  font-family: var(--font-mono);
+  color: var(--teal);
+  min-width: 26px;
+  text-align: right;
+}
+

@@ -16,6 +16,18 @@
   background: var(--bg-surface) !important; 
   box-shadow: 0 1px 0 var(--border); 
   color: #ffffff !important;
+  font-size: 13px !important;
+}
+
+.sm-table-wrap .m-table td {
+  color: #ffffff !important;
+  font-size: 15px !important;
+}
+
+.sm-table-wrap .m-table td code,
+.sm-table-wrap .m-table td .sm-location {
+  color: #ffffff !important;
+  font-size: 15px !important;
 }
 
 /* ── Disk icon cell ─────────────────────────────── */
@@ -321,4 +333,11 @@
   50% { transform: translateX(4px); }
   75% { transform: translateX(-2px); }
   100%{ transform: translateX(0); }
+}
+
+.sm-table-wrap.card:hover {
+  border-color: var(--border) !important;
+  box-shadow: var(--shadow-sm) !important;
+  outline: none !important;
+  transform: none !important;
 }

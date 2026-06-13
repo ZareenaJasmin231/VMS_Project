@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import SearchBar from "../../components/shared/SearchBar";
 import MaskingSection from "./MaskingSection";
 import "./MaskingPage.css";
 
@@ -7,6 +8,7 @@ const API = import.meta.env.VITE_API_URL;
 export default function MaskingPage() {
   const [cameras, setCameras] = useState([]);
   const [selectedCam, setSelectedCam] = useState(null);
+  const [filter, setFilter] = useState("");
   const [maskCounts, setMaskCounts] = useState({});
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState(null);
@@ -84,13 +86,12 @@ export default function MaskingPage() {
             <div className="mp-page-header">
               <div className="page-header__left">
                 <h1 className="page-title">Masking <span>Regions</span></h1>
-                <p className="page-desc" style={{ color: "rgba(255, 255, 255, 0.5)" }}>Configure privacy zones to permanently black out sensitive areas in the video feed.</p>
               </div>
               <div className="mp-device-pill">
                 <div className="mp-device-dot" />
                 <div className="mp-device-info">
                   <span className="mp-device-name">{selectedCam.name || selectedCam.ip}</span>
-                  <span className="mp-device-ip" style={{ color: "rgba(255, 255, 255, 0.5)" }}>{selectedCam.ip}</span>
+                  <span className="mp-device-ip" style={{ color: "#ffffff" }}>{selectedCam.ip}</span>
                 </div>
               </div>
             </div>
@@ -111,7 +112,7 @@ export default function MaskingPage() {
                 <path d="M8 8h8v8H8z" />
               </svg>
             </div>
-            <p style={{ color: "rgba(255, 255, 255, 0.5)" }}>Select a camera from the list on the right to start configuring privacy masks.</p>
+            <p style={{ color: "#ffffff" }}>Select a camera from the list on the right to start configuring privacy masks.</p>
           </div>
         )}
       </main>
@@ -119,11 +120,14 @@ export default function MaskingPage() {
       {/* Right Sidebar: Camera List */}
       <aside className="mp-sidebar">
         <div className="mp-sidebar-head">
-          <h3 className="mp-sidebar-title" style={{ color: "rgba(255, 255, 255, 0.5)" }}>Devices</h3>
+          <h3 className="mp-sidebar-title" style={{ color: "#ffffff" }}>Devices</h3>
           <span className="mp-badge">{cameras.length}</span>
         </div>
+        <div className="mp-sidebar-search">
+          <SearchBar value={filter} onChange={setFilter} placeholder="Filter devices..." />
+        </div>
         <div className="mp-sidebar-list">
-          {cameras.map(cam => {
+          {cameras.filter(c => (c.name || "Unnamed").toLowerCase().includes(filter.toLowerCase()) || (c.ip || "").toLowerCase().includes(filter.toLowerCase())).map(cam => {
             const count = maskCounts[cam.ip] || 0;
             return (
               <button
@@ -133,7 +137,7 @@ export default function MaskingPage() {
               >
                 <div className="mp-cam-info">
                   <div className="mp-cam-name">{cam.name || "Unnamed"}</div>
-                  <div className="mp-cam-ip" style={{ color: "rgba(255, 255, 255, 0.5)" }}>{cam.ip}</div>
+                  <div className="mp-cam-ip" style={{ color: "#ffffff" }}>{cam.ip}</div>
                 </div>
                 {count > 0 && (
                   <span className="mp-cam-mask-badge">
@@ -144,7 +148,7 @@ export default function MaskingPage() {
               </button>
             );
           })}
-          {cameras.length === 0 && (
+          {cameras.filter(c => (c.name || "Unnamed").toLowerCase().includes(filter.toLowerCase()) || (c.ip || "").toLowerCase().includes(filter.toLowerCase())).length === 0 && (
             <div className="mp-sidebar-empty" style={{ color: "rgba(255, 255, 255, 0.5)" }}>No cameras found.</div>
           )}
         </div>

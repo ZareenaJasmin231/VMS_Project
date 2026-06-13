@@ -29,6 +29,7 @@ import shutil
 import tempfile
 import zipfile
 from datetime import datetime, timedelta
+from pathlib import Path
 from fastapi import APIRouter, HTTPException, Query, UploadFile, File, BackgroundTasks, Depends, Request
 from app.core.security import verify_token
 from fastapi.responses import StreamingResponse, FileResponse, Response
@@ -323,6 +324,42 @@ def remux_ts_to_mp4(ts_data: bytes) -> bytes:
             print(f"[REMUX] Remuxing failed: {e}")
     return ts_data
 
+def convert_video_format(video_data: bytes, output_format: str) -> bytes:
+    """
+    Synchronously convert video bytes (MPEG-TS or MP4) to the desired output format ('mp4', 'avi', 'asf') using ffmpeg.
+    Uses copy mode (-c copy) for speed and resource efficiency.
+    """
+    from app.utils.ffmpeg_utils import run_ffmpeg_sync
+    
+    output_format = (output_format or "mp4").lower()
+    if output_format not in ("mp4", "avi", "asf"):
+        output_format = "mp4"
+        
+    # Detect if input is MPEG-TS
+    is_ts = len(video_data) > 0 and video_data[0] == 0x47
+    
+    if is_ts and output_format == "mp4":
+        cmd = ["ffmpeg", "-y", "-loglevel", "quiet", "-i", "pipe:0", "-c", "copy", "-f", "mp4", "-movflags", "frag_keyframe+empty_moov+default_base_moof", "pipe:1"]
+    elif output_format == "avi":
+        cmd = ["ffmpeg", "-y", "-loglevel", "quiet", "-i", "pipe:0", "-c", "copy", "-f", "avi", "pipe:1"]
+    elif output_format == "asf":
+        cmd = ["ffmpeg", "-y", "-loglevel", "quiet", "-i", "pipe:0", "-c", "copy", "-f", "asf", "pipe:1"]
+    else:
+        # Already MP4 and requested MP4
+        return video_data
+        
+    try:
+        success, stdout_data, stderr_data = run_ffmpeg_sync(cmd, timeout=30, input_data=video_data, capture_stdout=True)
+        if success and len(stdout_data) > 0:
+            return stdout_data
+        else:
+            print(f"[CONVERSION] FFmpeg failed or produced empty output for format {output_format}. Stderr: {stderr_data.decode(errors='replace')}")
+    except Exception as e:
+        print(f"[CONVERSION] Exception during format conversion to {output_format}: {e}")
+        
+    return video_data
+
+
 def decrypt_stream(file_path: str):
     """
     Generator that decrypts an .enc file in chunks.
@@ -419,6 +456,16 @@ class ExportZipRequest(BaseModel):
     end_date:   str
     start_time: str = "00:00"
     end_time:   str = "23:59"
+    format:     str = "mp4"
+
+class ExportDeviceRequest(BaseModel):
+    camera_id:        str
+    start_date:       str
+    end_date:         str
+    start_time:       str = "00:00"
+    end_time:         str = "23:59"
+    format:           str = "mp4"
+    destination_path: str = ""
 
 class StorageApplyRequest(BaseModel):
     location:       str | None = None
@@ -1018,7 +1065,12 @@ def download_recording(
     camera_id:  str = Query(...),
     date:       str = Query(...),
     start_time: str = Query(...),
+    format:     str = Query("mp4"),
 ):
+    format = format.lower()
+    if format not in ("mp4", "avi", "asf"):
+        raise HTTPException(status_code=400, detail="Invalid format. Supported formats: mp4, avi, asf")
+
     doc = _collection.find_one({
         "camera_id":  camera_id,
         "date":       date,
@@ -1036,7 +1088,7 @@ def download_recording(
     try:
         stream = _decrypt(enc_path)
         data   = stream.getvalue()
-        data   = remux_ts_to_mp4(data)
+        data   = convert_video_format(data, format)
     except Exception as e:
         print(f"[DOWNLOAD] ❌ {enc_path}: {e}")
         raise HTTPException(status_code=500, detail=f"Decryption failed: {e}")
@@ -1048,16 +1100,23 @@ def download_recording(
     safe_time = start_time.replace(":", "-").replace("/", "-")
     safe_date = date.replace("/", "-")
     safe_cam  = re.sub(r'[^\w\-.]', '_', camera_id)
-    filename  = f"{safe_cam}_{safe_date}_{safe_time}.mp4"
+    filename  = f"{safe_cam}_{safe_date}_{safe_time}.{format}"
+
+    media_types = {
+        "mp4": "video/mp4",
+        "avi": "video/x-msvideo",
+        "asf": "video/x-ms-asf"
+    }
+    media_type = media_types[format]
 
     return Response(
         content=data,
-        media_type="video/mp4",
+        media_type=media_type,
         headers={
             # Simple quoted filename is most compatible for downloads
             "Content-Disposition": f"attachment; filename=\"{filename}\"",
             "Content-Length":      str(len(data)),
-            "Content-Type":        "video/mp4",
+            "Content-Type":        media_type,
             "Accept-Ranges":       "bytes",
             "Cache-Control":       "no-store",
             **_CORS_HEADERS,
@@ -1099,6 +1158,7 @@ def list_camera_recordings(camera_id_or_path: str, date: str = Query(None)):
 # ==================================================================
 
 @recording_router.post("/decrypt-file")
+@recording_router.post("/decrypt-upload")
 async def decrypt_file(file: UploadFile = File(...)):
     try:
         encrypted_data   = await file.read()
@@ -1125,6 +1185,10 @@ async def decrypt_file(file: UploadFile = File(...)):
 
 @recording_router.post("/export-zip")
 def export_zip(request: ExportZipRequest, background_tasks: BackgroundTasks):
+    req_format = request.format.lower()
+    if req_format not in ("mp4", "avi", "asf"):
+        raise HTTPException(status_code=400, detail="Invalid format. Supported formats: mp4, avi, asf")
+
     try:
         start = datetime.strptime(request.start_date, "%Y-%m-%d")
         end   = datetime.strptime(request.end_date,   "%Y-%m-%d")
@@ -1179,7 +1243,7 @@ def export_zip(request: ExportZipRequest, background_tasks: BackgroundTasks):
 
                 try:
                     decrypted_data = _decrypt(enc_path).getvalue()
-                    decrypted_data = remux_ts_to_mp4(decrypted_data)
+                    decrypted_data = convert_video_format(decrypted_data, req_format)
                 except Exception as dec_err:
                     decrypt_errors.append(f"Decrypt failed for {enc_path}: {dec_err}")
                     print(f"[EXPORT-ZIP] ❌ {enc_path}: {dec_err}")
@@ -1193,7 +1257,7 @@ def export_zip(request: ExportZipRequest, background_tasks: BackgroundTasks):
                 safe_cam  = re.sub(r'[^\w\-.]', '_', doc.get('camera_id', 'cam'))
                 safe_date = (doc.get('date', '') or '').replace('/', '-')
                 safe_time = (doc.get('start_time', '') or '').replace(':', '-').replace('/', '-')
-                out_name  = f"{safe_cam}_{safe_date}_{safe_time}.mp4"
+                out_name  = f"{safe_cam}_{safe_date}_{safe_time}.{req_format}"
 
                 zf.writestr(out_name, decrypted_data)
                 file_count += 1
@@ -1224,3 +1288,116 @@ def export_zip(request: ExportZipRequest, background_tasks: BackgroundTasks):
     except Exception as e:
         if os.path.exists(zip_path): os.unlink(zip_path)
         raise HTTPException(status_code=500, detail=f"Failed to create zip: {e}")
+
+def _windows_path_to_container(windows_path: str) -> Path:
+    stripped = windows_path.strip()
+    if len(stripped) < 2 or stripped[1] != ':':
+        return Path(stripped) if stripped else Path("/network_backup")
+    drive_letter = stripped[0].lower()          # "d"
+    rest         = stripped[2:].lstrip("\\/")   # "Backup" or ""
+    rest_linux   = rest.replace("\\", "/")      # "Backup" or ""
+    if drive_letter == 'z':
+        return Path("/network_backup") / rest_linux if rest_linux else Path("/network_backup")
+    container_root = Path(f"/mnt/dest_{drive_letter}")
+    return container_root / rest_linux if rest_linux else container_root
+
+@recording_router.post("/export-device")
+def export_device(request: ExportDeviceRequest, background_tasks: BackgroundTasks):
+    req_format = request.format.lower()
+    if req_format not in ("mp4", "avi", "asf"):
+        raise HTTPException(status_code=400, detail="Invalid format. Supported formats: mp4, avi, asf")
+
+    try:
+        start = datetime.strptime(request.start_date, "%Y-%m-%d")
+        end   = datetime.strptime(request.end_date,   "%Y-%m-%d")
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD")
+
+    if start > end:
+        raise HTTPException(status_code=400, detail="start_date must be <= end_date")
+
+    def normalize_time(t_str: str) -> str:
+        """Convert HH-MM-SS or HH:MM:SS to HH:MM for comparison."""
+        if not t_str: return "00:00"
+        clean = t_str.replace('_', ':').replace('-', ':')
+        parts = clean.split(':')
+        if len(parts) >= 2:
+            return f"{parts[0].zfill(2)}:{parts[1].zfill(2)}"
+        return "00:00"
+
+    req_start = request.start_time if ":" in request.start_time else f"{str(request.start_time).zfill(2)}:00"
+    req_end   = request.end_time   if ":" in request.end_time   else f"{str(request.end_time).zfill(2)}:59"
+
+    current_date = start
+    all_docs     = []
+    while current_date <= end:
+        date_str = current_date.strftime("%Y-%m-%d")
+        docs     = list(_collection.find({"camera_id": request.camera_id, "date": date_str}))
+        for doc in docs:
+            doc_time = normalize_time(doc.get("start_time", ""))
+            if req_start <= doc_time <= req_end:
+                all_docs.append(doc)
+        current_date += timedelta(days=1)
+
+    if not all_docs:
+        raise HTTPException(status_code=404, detail="No recordings found for the specified range")
+
+    # Resolve destination path
+    dest_path_str = request.destination_path.strip()
+    if not dest_path_str:
+        raise HTTPException(status_code=400, detail="Destination path cannot be empty")
+        
+    dest_dir = _windows_path_to_container(dest_path_str)
+    
+    try:
+        dest_dir.mkdir(parents=True, exist_ok=True)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Cannot access or create destination directory {dest_path_str}: {e}")
+
+    exported_files = []
+    export_errors = []
+    
+    for doc in all_docs:
+        enc_path = (doc.get("file_path", "") or "").replace("\\", "/")
+        if not enc_path or not os.path.exists(enc_path):
+            export_errors.append(f"File missing: {enc_path}")
+            continue
+
+        try:
+            decrypted_data = _decrypt(enc_path).getvalue()
+            decrypted_data = convert_video_format(decrypted_data, req_format)
+        except Exception as dec_err:
+            export_errors.append(f"Decrypt failed for {enc_path}: {dec_err}")
+            print(f"[EXPORT-DEVICE] ❌ {enc_path}: {dec_err}")
+            continue
+
+        if not decrypted_data or len(decrypted_data) < 32:
+            export_errors.append(f"Empty output for {enc_path}")
+            continue
+
+        # Sanitize filename components so VLC/Windows can open them
+        safe_cam  = re.sub(r'[^\w\-.]', '_', doc.get('camera_id', 'cam'))
+        safe_date = (doc.get('date', '') or '').replace('/', '-')
+        safe_time = (doc.get('start_time', '') or '').replace(':', '-').replace('/', '-')
+        out_name  = f"{safe_cam}_{safe_date}_{safe_time}.{req_format}"
+        
+        target_file_path = dest_dir / out_name
+        
+        try:
+            target_file_path.write_bytes(decrypted_data)
+            exported_files.append(out_name)
+            print(f"[EXPORT-DEVICE] ✅ Exported {out_name} to {target_file_path}")
+        except Exception as write_err:
+            export_errors.append(f"Write failed for {out_name}: {write_err}")
+            print(f"[EXPORT-DEVICE] ❌ Write failed for {out_name}: {write_err}")
+
+    if not exported_files:
+        raise HTTPException(status_code=500, detail=f"Failed to export any files. Errors: {'; '.join(export_errors[:3])}")
+
+    return {
+        "status": "success",
+        "message": f"Successfully exported {len(exported_files)} files to {dest_path_str}",
+        "exported_files": exported_files,
+        "errors": export_errors
+    }
+

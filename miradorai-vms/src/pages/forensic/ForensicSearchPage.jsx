@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useDigitalZoom } from "../../hooks/useDigitalZoom";
 import "./ForensicSearchPage.css";
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:80";
@@ -272,11 +273,19 @@ export default function ForensicSearchPage() {
   const [selectedClip, setSelectedClip] = useState(null);
   const [videoError,   setVideoError]   = useState(false);
   const [videoLoading, setVideoLoading] = useState(false);
+  const [sharpness,    setSharpness]    = useState(0);
+
+  const cssFilter = useMemo(() => {
+    const sharpnessContrast = 1 + (sharpness / 400);
+    return `contrast(${sharpnessContrast.toFixed(3)})`;
+  }, [sharpness]);
 
   // ReIndex modal
   const [showReindex,  setShowReindex]  = useState(false);
 
   const videoRef = useRef(null);
+  const playerWrap = useRef(null);
+  const { zoom, zoomTransform, handlers } = useDigitalZoom(playerWrap, videoRef);
 
   // ── Init ──────────────────────────────────────────────────────────────────
 
@@ -772,7 +781,12 @@ export default function ForensicSearchPage() {
                 <>
                   {/* ── Left: Video Player ── */}
                   <div className="ws-left-panel">
-                    <div className="ws-player-container">
+                    <div 
+                      className="ws-player-container"
+                      ref={playerWrap}
+                      {...handlers}
+                      style={{ overflow: 'hidden', cursor: zoom > 1 ? 'grab' : 'default', position: 'relative' }}
+                    >
                       {videoLoading && !videoError && (
                         <div className="video-spinner-overlay">
                           <div className="loading-spinner"/>
@@ -799,6 +813,7 @@ export default function ForensicSearchPage() {
                         onCanPlay={() => setVideoLoading(false)}
                         onPlaying={() => setVideoLoading(false)}
                         onError={() => { setVideoLoading(false); setVideoError(true); }}
+                        style={{ transform: zoomTransform, filter: cssFilter, transition: "filter 0.1s ease" }}
                       />
 
                       {/* HUD Overlay */}
@@ -809,6 +824,33 @@ export default function ForensicSearchPage() {
                           : <span><span className="hud-track-tag">CLIP</span> · {selectedClip?.camera_name}</span>
                         }
                       </div>
+                    </div>
+
+                    {/* Sharpness Slider */}
+                    <div className="forensic-sharpness-container" style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "8px",
+                      marginTop: "10px",
+                      background: "rgba(255,255,255,0.03)",
+                      padding: "6px 12px",
+                      borderRadius: "6px",
+                      border: "1px solid rgba(255,255,255,0.06)",
+                      marginBottom: "10px"
+                    }}>
+                      <span style={{ fontSize: "11px", fontWeight: "600", color: "#94a3b8" }}>SHARPNESS:</span>
+                      <input
+                        type="range"
+                        min="-100"
+                        max="100"
+                        step="5"
+                        value={sharpness}
+                        onChange={(e) => setSharpness(Number(e.target.value))}
+                        style={{ flex: 1, height: "3px", accentColor: "#38bdf8", cursor: "pointer" }}
+                      />
+                      <span style={{ fontSize: "11px", fontFamily: "monospace", color: "#38bdf8", minWidth: "28px", textAlign: "right" }}>
+                        {sharpness > 0 ? "+" : ""}{sharpness}
+                      </span>
                     </div>
 
                     {/* Action Buttons */}

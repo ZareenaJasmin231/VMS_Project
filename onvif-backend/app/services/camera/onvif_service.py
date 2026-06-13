@@ -1366,3 +1366,167 @@ def pull_camera_events(ip, port, username, password, max_messages=50):
         print(f"[EVENTS] Fatal error for {ip}: {e}")
         # Still return success=True so polling doesn't give up
         return {"success": True, "events": []}
+
+
+# ─────────────────────────────────────────────────────────────────
+# VIDEO ENCODER CONFIGURATION & OPTIONS METHODS
+# ─────────────────────────────────────────────────────────────────
+
+def get_video_encoder_options(ip: str, port: int, username: str, password: str, profile_token: str) -> dict:
+    try:
+        cam = _make_cam(ip, port, username, password)
+        media_service = cam.create_media_service()
+        try:
+            media_service.transport.session.verify = False
+        except Exception:
+            pass
+        
+        profiles = media_service.GetProfiles()
+        target_profile = None
+        for p in profiles:
+            if p.token == profile_token:
+                target_profile = p
+                break
+        
+        if not target_profile or not target_profile.VideoEncoderConfiguration:
+            return {"success": False, "error": "Profile or VideoEncoderConfiguration not found"}
+            
+        config_token = target_profile.VideoEncoderConfiguration.token
+        
+        # Default fallback options
+        resolutions = ["352x288", "640x480", "1280x720", "1920x1080", "3840x2160"]
+        encodings = ["H264", "H265", "MPEG4", "JPEG"]
+        fps_range = {"min": 5, "max": 30}
+        
+        try:
+            raw_opts = media_service.GetVideoEncoderConfigurationOptions({
+                'ConfigurationToken': config_token,
+                'ProfileToken': profile_token
+            })
+            
+            if raw_opts:
+                discovered_res = []
+                discovered_encs = []
+                
+                # Check H264
+                h264_opts = getattr(raw_opts, 'H264', None)
+                if h264_opts:
+                    discovered_encs.append("H264")
+                    res_avail = getattr(h264_opts, 'ResolutionsAvailable', [])
+                    for res in res_avail:
+                        discovered_res.append(f"{res.Width}x{res.Height}")
+                    fps_lim = getattr(h264_opts, 'FrameRateRange', None)
+                    if fps_lim:
+                        fps_range["min"] = min(fps_range["min"], getattr(fps_lim, 'Min', 5))
+                        fps_range["max"] = max(fps_range["max"], getattr(fps_lim, 'Max', 30))
+                
+                # Check H265 / HEVC
+                h265_opts = getattr(raw_opts, 'H265', None) or getattr(getattr(raw_opts, 'Extension', None), 'H265', None)
+                if h265_opts:
+                    discovered_encs.append("H265")
+                    res_avail = getattr(h265_opts, 'ResolutionsAvailable', [])
+                    for res in res_avail:
+                        discovered_res.append(f"{res.Width}x{res.Height}")
+                    fps_lim = getattr(h265_opts, 'FrameRateRange', None)
+                    if fps_lim:
+                        fps_range["min"] = min(fps_range["min"], getattr(fps_lim, 'Min', 5))
+                        fps_range["max"] = max(fps_range["max"], getattr(fps_lim, 'Max', 30))
+                        
+                # Check MPEG4
+                mpeg4_opts = getattr(raw_opts, 'Mpeg4', None)
+                if mpeg4_opts:
+                    discovered_encs.append("MPEG4")
+                    res_avail = getattr(mpeg4_opts, 'ResolutionsAvailable', [])
+                    for res in res_avail:
+                        discovered_res.append(f"{res.Width}x{res.Height}")
+                        
+                # Check JPEG / MJPEG
+                jpeg_opts = getattr(raw_opts, 'Jpeg', None)
+                if jpeg_opts:
+                    discovered_encs.append("JPEG")
+                    res_avail = getattr(jpeg_opts, 'ResolutionsAvailable', [])
+                    for res in res_avail:
+                        discovered_res.append(f"{res.Width}x{res.Height}")
+                
+                if discovered_res:
+                    def sort_key(r):
+                        try:
+                            w, h = map(int, r.split('x'))
+                            return w * h
+                        except: return 0
+                    resolutions = sorted(list(set(discovered_res)), key=sort_key)
+                if discovered_encs:
+                    encodings = list(set(discovered_encs))
+        except Exception as opt_err:
+            print(f"[ONVIF OPTIONS] Could not query options: {opt_err}. Using generic fallbacks.")
+            
+        return {
+            "success": True,
+            "profile_token": profile_token,
+            "config_token": config_token,
+            "supported_resolutions": resolutions,
+            "supported_encodings": encodings,
+            "fps_range": fps_range
+        }
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+def set_video_encoder_setting(ip: str, port: int, username: str, password: str,
+                              profile_token: str, resolution: str = None,
+                              encoding: str = None, fps: int = None, bitrate: int = None) -> dict:
+    try:
+        cam = _make_cam(ip, port, username, password)
+        media_service = cam.create_media_service()
+        try:
+            media_service.transport.session.verify = False
+        except Exception:
+            pass
+        
+        profiles = media_service.GetProfiles()
+        target_profile = None
+        for p in profiles:
+            if p.token == profile_token:
+                target_profile = p
+                break
+                
+        if not target_profile or not target_profile.VideoEncoderConfiguration:
+            return {"success": False, "error": "Profile or VideoEncoderConfiguration not found"}
+            
+        config_token = target_profile.VideoEncoderConfiguration.token
+        cfg = media_service.GetVideoEncoderConfiguration({'ConfigurationToken': config_token})
+        
+        if resolution:
+            try:
+                w, h = map(int, resolution.lower().split('x'))
+                cfg.Resolution.Width = w
+                cfg.Resolution.Height = h
+            except Exception:
+                return {"success": False, "error": f"Invalid resolution format: {resolution}. Expected 'WIDTHxHEIGHT'."}
+                
+        if encoding:
+            enc_upper = encoding.upper()
+            if enc_upper in ("MJPEG", "JPEG"):
+                cfg.Encoding = "Jpeg"
+            elif enc_upper in ("MPEG4", "MP4"):
+                cfg.Encoding = "Mpeg4"
+            else:
+                cfg.Encoding = encoding
+            
+        if fps:
+            cfg.RateControl.FrameRateLimit = int(fps)
+            
+        if bitrate:
+            cfg.RateControl.BitrateLimit = int(bitrate)
+            
+        media_service.SetVideoEncoderConfiguration({
+            'Configuration': cfg,
+            'ForcePersistence': True
+        })
+        
+        print(f"[ONVIF ENCODER] ✅ Successfully updated video encoder settings for {ip} (profile: {profile_token})")
+        return {"success": True}
+        
+    except Exception as e:
+        print(f"[ONVIF ENCODER] ❌ Failed to update encoder configuration on {ip}: {e}")
+        return {"success": False, "error": str(e)}

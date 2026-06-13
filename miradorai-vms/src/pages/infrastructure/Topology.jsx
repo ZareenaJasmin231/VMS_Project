@@ -70,6 +70,7 @@ const Icon = ({ type, size = 20 }) => {
     case 'refresh':     return <svg {...s}><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>;
     case 'email':       return <svg {...s}><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>;
     case 'x':           return <svg {...s}><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>;
+    case 'template':    return <svg {...s}><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M21 9H3M21 15H3M12 3v18"/></svg>;
     default:            return <svg {...s}><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>;
   }
 };
@@ -675,6 +676,19 @@ export default function Topology() {
   const [sidebarOpen, setSidebarOpen]   = useState(false);
   const [confirmModal, setConfirmModal] = useState({ isOpen: false });
 
+  const [templatesDropdownOpen, setTemplatesDropdownOpen] = useState(false);
+  const templatesDropdownRef = useRef(null);
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (templatesDropdownRef.current && !templatesDropdownRef.current.contains(e.target)) {
+        setTemplatesDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
   // ─── Filter state: null = show all, string = active filter ───────────────
   const [statusFilter, setStatusFilter]   = useState(null); // 'online'|'offline'|'degraded'
   const [typeFilter, setTypeFilter]       = useState(null); // 'camera'|'server'|'switch'|etc.
@@ -682,25 +696,21 @@ export default function Topology() {
   const [deviceLiveData, setDeviceLiveData]     = useState(null);
   const [deviceRefreshing, setDeviceRefreshing] = useState(false);
 
+  // ─── Search and Accordion group states ───
+  const [searchQuery, setSearchQuery] = useState('');
+  const [expandedGroups, setExpandedGroups] = useState({ online: true, degraded: true, offline: true });
+
+  const toggleGroup = (group) => {
+    setExpandedGroups(prev => ({ ...prev, [group]: !prev[group] }));
+  };
+
   const wsRef       = useRef(null);
   const prevUptimes = useRef({});
   const prevBwRef   = useRef({});
 
   // ─── Computed: nodes visible on canvas based on active filters ────────────
-  const visibleNodes = nodes.map(n => {
-    const hiddenByStatus = statusFilter && n.data?.status !== statusFilter;
-    const hiddenByType   = typeFilter   && n.data?.type   !== typeFilter;
-    const hidden = hiddenByStatus || hiddenByType;
-    return {
-      ...n,
-      hidden,
-      style: {
-        ...n.style,
-        opacity: hidden ? 0 : 1,
-        pointerEvents: hidden ? 'none' : 'all',
-      },
-    };
-  });
+  // Placed nodes on the canvas always retain and do not hide under filters
+  const visibleNodes = nodes;
 
   // ─── Toggle helpers ───────────────────────────────────────────────────────
   const toggleStatusFilter = (status) => {
@@ -915,9 +925,9 @@ export default function Topology() {
   useEffect(() => {
     fetchTopology(); fetchMetrics(); fetchAlerts(); fetchBandwidth();
     const intervalMetrics = setInterval(fetchMetrics, 10000);
-    const intervalTopo = setInterval(fetchTopology, 5000);
+    const intervalTopo = setInterval(fetchTopology, 2000);
     const intervalAlerts = setInterval(fetchAlerts, 5000);
-    const intervalBw = setInterval(fetchBandwidth, 5000);
+    const intervalBw = setInterval(fetchBandwidth, 2000);
     return () => {
       clearInterval(intervalMetrics);
       clearInterval(intervalTopo);
@@ -1097,6 +1107,8 @@ export default function Topology() {
   }, [fetchTopology]);
 
   const applyTopologyTemplate = useCallback(async (templateType) => {
+    setStatusFilter(null);
+    setTypeFilter(null);
     let nodesToArrange = nodes.map(n => n.data);
     if (nodesToArrange.length === 0) {
       if (scannedNodes.length === 0) {
@@ -1109,15 +1121,9 @@ export default function Topology() {
     const N = nodesToArrange.length;
     if (N === 0) return;
 
-    setConfirmModal({
-      isOpen: true,
-      title: 'Confirm Topology Change',
-      message: `Applying ${templateType.toUpperCase()} topology will auto-arrange nodes and regenerate connections. Do you want to proceed?`,
-      onConfirm: async () => {
-        setConfirmModal(prev => ({ ...prev, isOpen: false }));
-        setScanning(true);
+    setScanning(true);
 
-        try {
+    try {
       const newPositions = {};
       const newEdges = [];
 
@@ -1255,14 +1261,11 @@ export default function Topology() {
       );
 
       await fetchTopology();
-        } catch (err) {
-          console.error("Failed to generate topology template:", err);
-        } finally {
-          setScanning(false);
-        }
-      },
-      onCancel: () => setConfirmModal(prev => ({ ...prev, isOpen: false }))
-    });
+    } catch (err) {
+      console.error("Failed to generate topology template:", err);
+    } finally {
+      setScanning(false);
+    }
   }, [nodes, scannedNodes, fetchTopology]);
 
   const sentHistory   = bwHistory.map(b => b?.sent_kbps || 0);
@@ -1310,6 +1313,65 @@ export default function Topology() {
     whiteSpace: 'nowrap',
   });
 
+  const filteredNodes = scannedNodes.filter(node => {
+    if (statusFilter && node.status !== statusFilter) return false;
+    if (typeFilter   && node.type   !== typeFilter)   return false;
+    
+    const ipMatch = (node.ip || '').toLowerCase().includes(searchQuery.toLowerCase());
+    const modelMatch = (node.model || '').toLowerCase().includes(searchQuery.toLowerCase());
+    const typeLabelMatch = deviceTypeLabel(node.type).toLowerCase().includes(searchQuery.toLowerCase());
+    return ipMatch || modelMatch || typeLabelMatch;
+  });
+
+  const onlineNodes = filteredNodes.filter(n => n.status === 'online');
+  const degradedNodes = filteredNodes.filter(n => n.status === 'degraded');
+  const offlineNodes = filteredNodes.filter(n => n.status === 'offline');
+
+  const renderLibraryItem = (node) => {
+    const isPlaced = nodes.some(n => n.id === node.id);
+    return (
+      <div key={node.id}
+        className={`library-item status--${node.status}`}
+        draggable={!isPlaced}
+        onDragStart={e => !isPlaced && onDragStart(e, node)}
+        onClick={() => {
+          const pseudoNode = nodes.find(n => n.id === node.id) || { id: node.id, data: node };
+          handleNodeClick(null, pseudoNode);
+        }}
+        style={{
+          opacity: isPlaced ? 0.65 : 1,
+          cursor: isPlaced ? 'pointer' : 'grab',
+          borderRight: isPlaced ? '3px solid #10b981' : 'none',
+          background: isPlaced ? 'rgba(16, 185, 129, 0.03)' : 'transparent',
+          marginBottom: 4,
+          borderRadius: 6,
+          transition: 'all 0.15s'
+        }}
+      >
+        <div className="item-icon"><Icon type={node.type} /></div>
+        <div className="item-info">
+          <span className="item-ip">{node.ip}</span>
+          <span className="item-mdl" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            {deviceTypeLabel(node.type)}
+            {isPlaced && (
+              <span style={{
+                color: '#10b981',
+                fontSize: 12,
+                fontWeight: 700,
+                background: 'rgba(16,185,129,0.15)',
+                padding: '1px 4px',
+                borderRadius: 4
+              }}>
+                PLACED
+              </span>
+            )}
+          </span>
+        </div>
+        <span className="item-dot" style={{ background: statusColor(node.status) }} />
+      </div>
+    );
+  };
+
   return (
     <div className="topology-container">
       {/* ── LEFT SIDEBAR ── */}
@@ -1323,8 +1385,26 @@ export default function Topology() {
           </button>
         </div>
 
+        {/* Search Input */}
+        <div className="sidebar-search-box">
+          <div className="search-input-wrapper">
+            <svg className="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14">
+              <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+            <input
+              type="text"
+              placeholder="Search devices..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+            {searchQuery && (
+              <button className="search-clear" onClick={() => setSearchQuery('')}>×</button>
+            )}
+          </div>
+        </div>
+
         {/* ── STATUS FILTER BADGES ── */}
-        <div className="status-summary" style={{ display: 'flex', flexWrap: 'wrap', gap: 5, padding: '6px 0' }}>
+        <div className="status-summary" style={{ display: 'flex', flexWrap: 'wrap', gap: 5, padding: '6px 12px' }}>
           <span
             onClick={() => toggleStatusFilter('online')}
             style={chipStyle(statusFilter === 'online', '#10b981')}
@@ -1354,7 +1434,7 @@ export default function Topology() {
         </div>
 
         {/* ── DEVICE TYPE FILTER CHIPS ── */}
-        <div style={{ borderTop: '1px solid #1f2937', paddingTop: 8, marginTop: 2 }}>
+        <div style={{ borderTop: '1px solid #1f2937', padding: '8px 12px 0 12px', marginTop: 2 }}>
           <div style={{ color: "rgba(255, 255, 255, 0.5)", fontSize: 13, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 6 }}>
             Filter by Type
           </div>
@@ -1429,57 +1509,58 @@ export default function Topology() {
         </div>
 
         <div className="library-content">
-          {scannedNodes.length === 0 && <p className="empty-msg">No devices. Run a scan.</p>}
-          {scannedNodes
-            .filter(node => {
-              if (statusFilter && node.status !== statusFilter) return false;
-              if (typeFilter   && node.type   !== typeFilter)   return false;
-              return true;
-            })
-            .map(node => {
-              const isPlaced = nodes.some(n => n.id === node.id);
-              return (
-                <div key={node.id}
-                  className={`library-item status--${node.status}`}
-                  draggable={!isPlaced}
-                  onDragStart={e => !isPlaced && onDragStart(e, node)}
-                  onClick={() => {
-                    const pseudoNode = nodes.find(n => n.id === node.id) || { id: node.id, data: node };
-                    handleNodeClick(null, pseudoNode);
-                  }}
-                  style={{
-                    opacity: isPlaced ? 0.65 : 1,
-                    cursor: isPlaced ? 'pointer' : 'grab',
-                    borderRight: isPlaced ? '3px solid #10b981' : 'none',
-                    background: isPlaced ? 'rgba(16, 185, 129, 0.03)' : 'transparent',
-                    marginBottom: 4,
-                    borderRadius: 6,
-                    transition: 'all 0.15s'
-                  }}
-                >
-                  <div className="item-icon"><Icon type={node.type} /></div>
-                  <div className="item-info">
-                    <span className="item-ip">{node.ip}</span>
-                    <span className="item-mdl" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                      {deviceTypeLabel(node.type)}
-                      {isPlaced && (
-                        <span style={{
-                          color: '#10b981',
-                          fontSize: 12,
-                          fontWeight: 700,
-                          background: 'rgba(16,185,129,0.15)',
-                          padding: '1px 4px',
-                          borderRadius: 4
-                        }}>
-                          PLACED
-                        </span>
-                      )}
-                    </span>
-                  </div>
-                  <span className="item-dot" style={{ background: statusColor(node.status) }} />
+          {filteredNodes.length === 0 && <p className="empty-msg">No devices match filters.</p>}
+          
+          {onlineNodes.length > 0 && (
+            <div className="accordion-group">
+              <button className="accordion-header" onClick={() => toggleGroup('online')}>
+                <span className="accordion-title-wrapper">
+                  <span className="accordion-indicator online" />
+                  Online ({onlineNodes.length})
+                </span>
+                <span className={`accordion-chevron ${expandedGroups.online ? 'expanded' : ''}`}>▼</span>
+              </button>
+              {expandedGroups.online && (
+                <div className="accordion-content">
+                  {onlineNodes.map(renderLibraryItem)}
                 </div>
-              );
-            })}
+              )}
+            </div>
+          )}
+
+          {degradedNodes.length > 0 && (
+            <div className="accordion-group">
+              <button className="accordion-header" onClick={() => toggleGroup('degraded')}>
+                <span className="accordion-title-wrapper">
+                  <span className="accordion-indicator degraded" />
+                  Degraded ({degradedNodes.length})
+                </span>
+                <span className={`accordion-chevron ${expandedGroups.degraded ? 'expanded' : ''}`}>▼</span>
+              </button>
+              {expandedGroups.degraded && (
+                <div className="accordion-content">
+                  {degradedNodes.map(renderLibraryItem)}
+                </div>
+              )}
+            </div>
+          )}
+
+          {offlineNodes.length > 0 && (
+            <div className="accordion-group">
+              <button className="accordion-header" onClick={() => toggleGroup('offline')}>
+                <span className="accordion-title-wrapper">
+                  <span className="accordion-indicator offline" />
+                  Offline ({offlineNodes.length})
+                </span>
+                <span className={`accordion-chevron ${expandedGroups.offline ? 'expanded' : ''}`}>▼</span>
+              </button>
+              {expandedGroups.offline && (
+                <div className="accordion-content">
+                  {offlineNodes.map(renderLibraryItem)}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -1494,89 +1575,115 @@ export default function Topology() {
           <Controls />
           <MiniMap nodeStrokeWidth={3} zoomable pannable maskColor="rgba(0,0,0,0.1)" />
 
-          <Panel position="top-left" className="topo-panel" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {/* Main network commands */}
-            <div style={{
-              display: 'flex',
-              gap: 8,
-              background: 'rgba(17, 24, 39, 0.95)',
-              padding: '6px 10px',
-              borderRadius: 10,
-              border: '1px solid #1f2937',
-              backdropFilter: 'blur(8px)'
-            }}>
+          <Panel position="top-left" className="topo-toolbar-unified">
+            <div className="unified-toolbar-row">
               <button className="topo-btn topo-btn--primary" onClick={triggerScan} disabled={scanning}>
                 {scanning ? 'Scanning…' : 'Scan Network'}
               </button>
               <button className="topo-btn" onClick={placeAllDevices} disabled={scanning || scannedNodes.length === 0}>
                 Place All
               </button>
-              <button className="topo-btn" style={{ color: '#ef4444' }} onClick={resetWorkspace} disabled={scanning}>
+              <button className="topo-btn topo-btn-clear" onClick={resetWorkspace} disabled={scanning}>
                 Clear Canvas
               </button>
-            </div>
-
-            {/* Topology templates design toolbar */}
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              background: 'rgba(17, 24, 39, 0.95)',
-              padding: '6px 12px',
-              borderRadius: 10,
-              border: '1px solid #1f2937',
-              backdropFilter: 'blur(8px)',
-              flexWrap: 'wrap'
-            }}>
-              <span style={{ fontSize: 13, fontWeight: 700, color: "rgba(255, 255, 255, 0.5)", letterSpacing: '0.05em', marginRight: 4 }}>
-                TEMPLATES:
-              </span>
-              <button className="topo-btn topo-btn--small" style={{ fontSize: 15, padding: '3px 8px' }} onClick={() => applyTopologyTemplate('star')} title="Generate Star Topology">
-                Star
-              </button>
-              <button className="topo-btn topo-btn--small" style={{ fontSize: 15, padding: '3px 8px' }} onClick={() => applyTopologyTemplate('ring')} title="Generate Ring Topology">
-                Ring
-              </button>
-              <button className="topo-btn topo-btn--small" style={{ fontSize: 15, padding: '3px 8px' }} onClick={() => applyTopologyTemplate('bus')} title="Generate Bus Topology">
-                Bus
-              </button>
-              <button className="topo-btn topo-btn--small" style={{ fontSize: 15, padding: '3px 8px' }} onClick={() => applyTopologyTemplate('mesh')} title="Generate Mesh Topology">
-                Mesh
-              </button>
-              <button className="topo-btn topo-btn--small" style={{ fontSize: 15, padding: '3px 8px' }} onClick={() => applyTopologyTemplate('tree')} title="Generate Hierarchical Tree">
-                Hierarchical
-              </button>
-            </div>
-
-            {/* Active filter indicator on canvas */}
-            {(statusFilter || typeFilter) && (
-              <div style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 6,
-                background: 'rgba(99,102,241,0.15)',
-                border: '1px solid rgba(99,102,241,0.35)',
-                borderRadius: 8,
-                padding: '4px 10px',
-                color: '#818cf8',
-                fontSize: 15,
-                fontWeight: 600,
-                alignSelf: 'flex-start'
-              }}>
-                <span>
-                  {statusFilter
-                    ? `Showing: ${statusFilter.charAt(0).toUpperCase() + statusFilter.slice(1)}`
-                    : `Type: ${deviceTypeLabel(typeFilter)}`}
-                </span>
+              
+              <div className="toolbar-divider" />
+              
+              <div ref={templatesDropdownRef} style={{ position: 'relative', display: 'inline-block' }}>
                 <button
-                  onClick={() => { setStatusFilter(null); setTypeFilter(null); }}
-                  style={{ background: 'none', border: 'none', color: '#f87171', cursor: 'pointer', padding: 0, display: 'flex' }}
-                  title="Clear filter"
+                  className={`topo-btn ${templatesDropdownOpen ? 'topo-btn--active' : ''}`}
+                  onClick={() => setTemplatesDropdownOpen(prev => !prev)}
+                  style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+                  title="Choose Topology Template"
                 >
-                  <Icon type="x" size={11} />
+                  <Icon type="template" size={14} />
+                  <span>Templates</span>
+                  <span style={{ fontSize: '10px', opacity: 0.7 }}>▼</span>
                 </button>
+                {templatesDropdownOpen && (
+                  <div className="topo-templates-dropdown" style={{
+                    position: 'absolute',
+                    top: 'calc(100% + 6px)',
+                    left: 0,
+                    background: '#111827',
+                    border: '1px solid #1f2937',
+                    borderRadius: 8,
+                    padding: '4px',
+                    boxShadow: '0 10px 25px rgba(0,0,0,0.5)',
+                    zIndex: 9999,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    minWidth: 150,
+                  }}>
+                    <button
+                      className="topo-dropdown-item"
+                      onClick={() => {
+                        applyTopologyTemplate('star');
+                        setTemplatesDropdownOpen(false);
+                      }}
+                    >
+                      Star Topology
+                    </button>
+                    <button
+                      className="topo-dropdown-item"
+                      onClick={() => {
+                        applyTopologyTemplate('ring');
+                        setTemplatesDropdownOpen(false);
+                      }}
+                    >
+                      Ring Topology
+                    </button>
+                    <button
+                      className="topo-dropdown-item"
+                      onClick={() => {
+                        applyTopologyTemplate('bus');
+                        setTemplatesDropdownOpen(false);
+                      }}
+                    >
+                      Bus Topology
+                    </button>
+                    <button
+                      className="topo-dropdown-item"
+                      onClick={() => {
+                        applyTopologyTemplate('mesh');
+                        setTemplatesDropdownOpen(false);
+                      }}
+                    >
+                      Mesh Topology
+                    </button>
+                    <button
+                      className="topo-dropdown-item"
+                      onClick={() => {
+                        applyTopologyTemplate('tree');
+                        setTemplatesDropdownOpen(false);
+                      }}
+                    >
+                      Hierarchical
+                    </button>
+                  </div>
+                )}
               </div>
-            )}
+              
+              {(statusFilter || typeFilter) && (
+                <>
+                  <div className="toolbar-divider" />
+                  <div className="canvas-filter-badge">
+                    <span>
+                      {statusFilter
+                        ? `Showing: ${statusFilter.charAt(0).toUpperCase() + statusFilter.slice(1)}`
+                        : `Type: ${deviceTypeLabel(typeFilter)}`}
+                    </span>
+                    <button
+                      onClick={() => { setStatusFilter(null); setTypeFilter(null); }}
+                      className="canvas-filter-clear-btn"
+                      title="Clear filter"
+                    >
+                      <Icon type="x" size={11} />
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
           </Panel>
 
           <Panel position="top-right" className="topo-legend" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -1605,7 +1712,7 @@ export default function Topology() {
           </div>
           <div className="sidebar-tabs">
             <button className={`stab ${activeTab==='details' ?'stab--active':''}`} onClick={() => setActiveTab('details')}>Details</button>
-            <button className={`stab ${activeTab==='network' ?'stab--active':''}`} onClick={() => setActiveTab('network')}>Network</button>
+            {/* <button className={`stab ${activeTab==='network' ?'stab--active':''}`} onClick={() => setActiveTab('network')}>Network</button> */}
             <button className={`stab ${activeTab==='metrics' ?'stab--active':''}`} onClick={() => setActiveTab('metrics')}>System</button>
             <button className={`stab ${activeTab==='alerts'  ?'stab--active':''}`} onClick={() => setActiveTab('alerts')}>
               Alerts {selectedNodeAlerts.length > 0 && <span className="alert-badge">{selectedNodeAlerts.length}</span>}
@@ -1672,6 +1779,61 @@ export default function Topology() {
                     </button>
                   )}
                 </div>
+
+                {/* ── Real-Time Network Bandwidth widget ── */}
+                <div className="section-title" style={{ marginTop: 12 }}>Network Bandwidth</div>
+                {d.type === 'camera' ? (
+                  <div className="stream-panel" style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span className="stream-label" style={{ fontSize: 14 }}>RTSP Stream Bitrate</span>
+                      <span className="stream-val" style={{ fontSize: 18, fontWeight: 800, color: '#10b981', fontFamily: 'monospace' }}>
+                        {d.stream_bitrate_mbps != null ? `${d.stream_bitrate_mbps} Mbps` : '0 Mbps'}
+                      </span>
+                    </div>
+                    <div className="metric-bar" style={{ height: 4, background: '#1f2937' }}>
+                      <div className="metric-bar__fill" style={{
+                        width: `${Math.min(((d.stream_bitrate_mbps || 0) / 10) * 100, 100)}%`,
+                        background: '#10b981',
+                        boxShadow: '0 0 6px #10b981'
+                      }} />
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: 'rgba(255, 255, 255, 0.4)' }}>
+                      <span>Latency: {d.latency != null ? `${Math.round(d.latency)}ms` : '—'}</span>
+                      <span>Packet Loss: {d.packet_loss != null ? `${d.packet_loss}%` : '—'}</span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="stream-panel" style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span className="stream-label" style={{ fontSize: 14 }}>Global TX (Sent)</span>
+                      <span className="stream-val" style={{ fontSize: 16, fontWeight: 800, color: '#10b981', fontFamily: 'monospace' }}>
+                        {latestBw.sent_kbps != null ? (latestBw.sent_kbps / 1024).toFixed(2) + ' Mbps' : '0 Mbps'}
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span className="stream-label" style={{ fontSize: 14 }}>Global RX (Received)</span>
+                      <span className="stream-val" style={{ fontSize: 16, fontWeight: 800, color: '#6366f1', fontFamily: 'monospace' }}>
+                        {latestBw.recv_kbps != null ? (latestBw.recv_kbps / 1024).toFixed(2) + ' Mbps' : '0 Mbps'}
+                      </span>
+                    </div>
+                    <div className="metric-bar" style={{ height: 4, background: '#1f2937' }}>
+                      <div className="metric-bar__fill" style={{
+                        width: `${Math.min(((latestBw.recv_kbps || 0) / 1024 / 100) * 100, 100)}%`,
+                        background: '#6366f1',
+                        boxShadow: '0 0 6px #6366f1'
+                      }} />
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 4 }}>
+                      <div style={{ fontSize: 13, color: 'rgba(255, 255, 255, 0.4)', display: 'flex', justifyContent: 'space-between' }}>
+                        <span>Host Uptime: {metrics?.uptime || '—'}</span>
+                        <span>Latency: {d.latency != null ? `${Math.round(d.latency)}ms` : '—'}</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'center', marginTop: 4, background: 'rgba(0,0,0,0.25)', padding: '6px', borderRadius: 6, border: '1px solid rgba(255,255,255,0.05)' }}>
+                        <Sparkline data={recvHistory} color="#6366f1" height={30} width={360} />
+                      </div>
+                    </div>
+                  </div>
+                )}
 
 
 

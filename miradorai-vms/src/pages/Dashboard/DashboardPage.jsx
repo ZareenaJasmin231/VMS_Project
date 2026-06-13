@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import "./DashboardPage.css";
 import {
   Camera,
@@ -231,7 +232,296 @@ const timeAgo = (date) => {
   return `${Math.floor(hours / 24)}d ago`;
 };
 
+const InteractiveLineChart = ({ data, xKey, yKey, height = 180 }) => {
+  const [hoveredPoint, setHoveredPoint] = useState(null);
+
+  if (!data || data.length === 0) {
+    return (
+      <div style={{ height, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-muted)", fontSize: "14px" }}>
+        No bitrate data available
+      </div>
+    );
+  }
+
+  const values = data.map(d => d[yKey] || 0);
+  const maxVal = Math.max(...values, 1.0);
+  const minVal = Math.min(...values, 0.0);
+  const valRange = maxVal - minVal;
+
+  const width = 500;
+  const padding = { top: 15, right: 15, bottom: 25, left: 60 };
+
+  const chartWidth = width - padding.left - padding.right;
+  const chartHeight = height - padding.top - padding.bottom;
+
+  const points = data.map((d, idx) => {
+    const x = padding.left + (idx / (data.length - 1 || 1)) * chartWidth;
+    const y = padding.top + chartHeight - (((d[yKey] || 0) - minVal) / valRange) * chartHeight;
+    return { x, y, item: d };
+  });
+
+  let pathD = `M ${points[0].x},${points[0].y}`;
+  for (let i = 1; i < points.length; i++) {
+    pathD += ` L ${points[i].x},${points[i].y}`;
+  }
+
+  return (
+    <div className="custom-chart-wrapper" style={{ position: "relative", width: "100%" }}>
+      <svg viewBox={`0 0 ${width} ${height}`} className="custom-chart-svg" style={{ width: "100%", height, display: "block" }}>
+        {/* Horizontal Grid Lines */}
+        {[0, 0.25, 0.5, 0.75, 1.0].map((ratio, idx) => {
+          const y = padding.top + chartHeight * ratio;
+          const val = maxVal - ratio * valRange;
+          return (
+            <g key={idx}>
+              <line x1={padding.left} y1={y} x2={width - padding.right} y2={y} stroke="rgba(255, 255, 255, 0.06)" strokeWidth="0.8" />
+              <text x={padding.left - 8} y={y + 4} textAnchor="end" fill="#ffffff" fontSize="13" fontWeight="700">
+                {val.toFixed(1)}
+              </text>
+            </g>
+          );
+        })}
+
+        {/* Path line */}
+        <path d={pathD} fill="none" stroke="var(--teal)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+
+        {/* Hover points */}
+        {points.map((pt, idx) => (
+          <g key={idx}>
+            <circle
+              cx={pt.x}
+              cy={pt.y}
+              r={hoveredPoint?.idx === idx ? "5" : "0"}
+              fill="#00D2FF"
+              stroke="var(--bg-surface)"
+              strokeWidth="1.5"
+              style={{ transition: "r 0.1s ease" }}
+            />
+            <rect
+              x={pt.x - 12}
+              y={padding.top}
+              width="24"
+              height={chartHeight}
+              fill="transparent"
+              style={{ cursor: "pointer" }}
+              onMouseEnter={() => setHoveredPoint({ ...pt, idx })}
+              onMouseLeave={() => setHoveredPoint(null)}
+            />
+          </g>
+        ))}
+      </svg>
+      {hoveredPoint && (
+        <div className="custom-chart-tooltip" style={{
+          position: "absolute",
+          top: Math.max(0, hoveredPoint.y - 45),
+          left: Math.max(10, Math.min(hoveredPoint.x - 45, width - 100)),
+          background: "var(--bg-elevated)",
+          border: "1px solid var(--border)",
+          borderRadius: "6px",
+          padding: "4px 8px",
+          fontSize: "11px",
+          color: "var(--text-primary)",
+          pointerEvents: "none",
+          zIndex: 10,
+          boxShadow: "0 4px 10px rgba(0, 0, 0, 0.4)",
+          whiteSpace: "nowrap"
+        }}>
+          <div><strong>{hoveredPoint.item[xKey]}</strong></div>
+          <div>{hoveredPoint.item[yKey].toFixed(2)} Mbps</div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const StorageTrendChart = ({ data, xKey, yKey, height = 180 }) => {
+  const [hoveredPoint, setHoveredPoint] = useState(null);
+
+  if (!data || data.length === 0) {
+    return (
+      <div style={{ height, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-muted)", fontSize: "14px" }}>
+        No storage historical data available
+      </div>
+    );
+  }
+
+  const values = data.map(d => d[yKey] || 0);
+  const maxVal = Math.max(...values, 1.0);
+  const minVal = Math.min(...values, 0.0);
+  const valRange = maxVal - minVal;
+
+  const width = 500;
+  const padding = { top: 15, right: 15, bottom: 25, left: 60 };
+
+  const chartWidth = width - padding.left - padding.right;
+  const chartHeight = height - padding.top - padding.bottom;
+
+  const points = data.map((d, idx) => {
+    const x = padding.left + (idx / (data.length - 1 || 1)) * chartWidth;
+    const y = padding.top + chartHeight - (((d[yKey] || 0) - minVal) / valRange) * chartHeight;
+    return { x, y, item: d };
+  });
+
+  let pathD = `M ${points[0].x},${points[0].y}`;
+  for (let i = 1; i < points.length; i++) {
+    pathD += ` L ${points[i].x},${points[i].y}`;
+  }
+
+  const areaD = `${pathD} L ${points[points.length - 1].x},${padding.top + chartHeight} L ${points[0].x},${padding.top + chartHeight} Z`;
+
+  return (
+    <div className="custom-chart-wrapper" style={{ position: "relative", width: "100%" }}>
+      <svg viewBox={`0 0 ${width} ${height}`} className="custom-chart-svg" style={{ width: "100%", height, display: "block" }}>
+        <defs>
+          <linearGradient id="storageAreaGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#8b5cf6" stopOpacity="0.2" />
+            <stop offset="100%" stopColor="#8b5cf6" stopOpacity="0.01" />
+          </linearGradient>
+        </defs>
+
+        {/* Horizontal Grid Lines */}
+        {[0, 0.25, 0.5, 0.75, 1.0].map((ratio, idx) => {
+          const y = padding.top + chartHeight * ratio;
+          const val = maxVal - ratio * valRange;
+          return (
+            <g key={idx}>
+              <line x1={padding.left} y1={y} x2={width - padding.right} y2={y} stroke="rgba(255, 255, 255, 0.06)" strokeWidth="0.8" />
+              <text x={padding.left - 8} y={y + 4} textAnchor="end" fill="#ffffff" fontSize="13" fontWeight="700">
+                {val.toFixed(0)} GB
+              </text>
+            </g>
+          );
+        })}
+
+        {/* Area fill */}
+        <path d={areaD} fill="url(#storageAreaGrad)" />
+
+        {/* Path line */}
+        <path d={pathD} fill="none" stroke="#8b5cf6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+
+        {/* Hover points */}
+        {points.map((pt, idx) => (
+          <g key={idx}>
+            <circle
+              cx={pt.x}
+              cy={pt.y}
+              r={hoveredPoint?.idx === idx ? "5" : "0"}
+              fill="#8b5cf6"
+              stroke="var(--bg-surface)"
+              strokeWidth="1.5"
+              style={{ transition: "r 0.1s ease" }}
+            />
+            <rect
+              x={pt.x - 12}
+              y={padding.top}
+              width="24"
+              height={chartHeight}
+              fill="transparent"
+              style={{ cursor: "pointer" }}
+              onMouseEnter={() => setHoveredPoint({ ...pt, idx })}
+              onMouseLeave={() => setHoveredPoint(null)}
+            />
+          </g>
+        ))}
+      </svg>
+      {hoveredPoint && (
+        <div className="custom-chart-tooltip" style={{
+          position: "absolute",
+          top: Math.max(0, hoveredPoint.y - 45),
+          left: Math.max(10, Math.min(hoveredPoint.x - 45, width - 100)),
+          background: "var(--bg-elevated)",
+          border: "1px solid var(--border)",
+          borderRadius: "6px",
+          padding: "4px 8px",
+          fontSize: "11px",
+          color: "var(--text-primary)",
+          pointerEvents: "none",
+          zIndex: 10,
+          boxShadow: "0 4px 10px rgba(0, 0, 0, 0.4)",
+          whiteSpace: "nowrap"
+        }}>
+          <div><strong>{hoveredPoint.item[xKey]}</strong></div>
+          <div>{hoveredPoint.item[yKey].toFixed(1)} GB</div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const parseEvents = (uiLogsList, infraAlertsList) => {
+  const merged = [];
+
+  if (Array.isArray(uiLogsList)) {
+    uiLogsList.forEach(log => {
+      const act = log.action || "";
+      const ts = log.timestamp;
+      let eventType = null;
+      let message = act;
+
+      if (act.toLowerCase().includes("logged in")) {
+        eventType = "User Login";
+      } else if (act.toLowerCase().includes("recording") && act.toLowerCase().includes("start")) {
+        eventType = "Recording Started";
+      } else if (act.toLowerCase().includes("stopped recorder") || act.toLowerCase().includes("stopped: ")) {
+        eventType = "Recording Stopped";
+      } else if (log.category === "storage" || act.toLowerCase().includes("storage") || act.toLowerCase().includes("disk")) {
+        eventType = "Storage Events";
+      }
+
+      if (eventType) {
+        merged.push({
+          id: `ui-${log.timestamp}-${message}`,
+          type: eventType,
+          message,
+          timestamp: ts,
+          rawTime: ts
+        });
+      }
+    });
+  }
+
+  if (Array.isArray(infraAlertsList)) {
+    infraAlertsList.forEach(alert => {
+      const ev = alert.event || "";
+      const msg = alert.message || "";
+      const ts = alert.timestamp;
+      let eventType = null;
+
+      if (ev === "device_offline") {
+        eventType = "Camera Offline";
+      } else if (ev === "device_online") {
+        eventType = "Camera Online";
+      }
+
+      if (eventType) {
+        merged.push({
+          id: `infra-${alert.timestamp}-${msg}`,
+          type: eventType,
+          message: msg,
+          timestamp: ts,
+          rawTime: ts
+        });
+      }
+    });
+  }
+
+  merged.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+  const seen = new Set();
+  const unique = [];
+  for (const item of merged) {
+    const key = `${item.type}-${item.message}-${item.rawTime}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      unique.push(item);
+    }
+  }
+
+  return unique.slice(0, 10);
+};
+
 const DashboardPage = () => {
+  const navigate = useNavigate();
   const [summary, setSummary] = useState({
     total_cameras: 0,
     active_streams: 0,
@@ -249,6 +539,13 @@ const DashboardPage = () => {
   const [activeRecorders, setActiveRecorders] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  // Enhanced Widget States
+  const [serverMetrics, setServerMetrics] = useState({ uptime: "—", last_reboot: "—" });
+  const [healthInfo, setHealthInfo] = useState({ status: "ok", version: "1.0.0", watchdog: "Active" });
+  const [recentSystemEvents, setRecentSystemEvents] = useState([]);
+  const [eventsLoading, setEventsLoading] = useState(true);
+  const [serverTime, setServerTime] = useState(new Date().toLocaleTimeString());
+
   const recordingCount = cameras.filter((cam) => {
     if (cam.enabled === false) return false;
     return activeRecorders.includes(cam.stream_key) || activeRecorders.includes(cam.ome_stream);
@@ -256,6 +553,31 @@ const DashboardPage = () => {
 
   const enabledCount = cameras.filter((cam) => cam.enabled !== false).length;
   const [cameraHealth, setCameraHealth] = useState([]);
+
+  // Phase 2 Widget States
+  const [storageDiagnostics, setStorageDiagnostics] = useState({
+    total_gb: 0,
+    used_gb: 0,
+    free_gb: 0,
+    usage_pct: 0,
+    avg_daily_consumption: null,
+    retention_days: null,
+    predicted_exhaustion_date: null,
+    warning_status: false,
+    trend_history: []
+  });
+  const [bitrateDiagnostics, setBitrateDiagnostics] = useState({
+    current_bitrate: 0,
+    avg_bitrate: 0,
+    peak_bitrate: 0,
+    trend_data: []
+  });
+  const [camerasBandwidth, setCamerasBandwidth] = useState({
+    total_bandwidth: 0,
+    top_cameras: []
+  });
+  const [bitrateFilter, setBitrateFilter] = useState("1h");
+  const [diagnosticsLoading, setDiagnosticsLoading] = useState(true);
 
   // ─── NEW: Report Generation States ─────────────────────────────────────────
   const [reportFromDate, setReportFromDate] = useState(getInitialFromDate());
@@ -273,7 +595,7 @@ const DashboardPage = () => {
 
   const reportTypeMap = {
     alerts: "Camera Up/Down History",
-    live_alerts: "Live View Alerts",
+    live_alerts: "Analytics Alerts",
     health: "Device Health & Uptime Status"
   };
 
@@ -358,12 +680,12 @@ const DashboardPage = () => {
           setReportData(formatted);
           setReportCurrentPage(1);
           if (formatted.length > 0) {
-            setReportSuccessMsg(`Successfully generated report with ${formatted.length} live view alerts.`);
+            setReportSuccessMsg(`Successfully generated report with ${formatted.length} Analytics Alerts.`);
           } else {
-            setReportSuccessMsg("No live view alerts found for the selected time range.");
+            setReportSuccessMsg("No Analytics Alerts found for the selected time range.");
           }
         } else {
-          setReportErrorMsg("Failed to fetch Live View alerts from server.");
+          setReportErrorMsg("Failed to fetch Analytics Alerts from server.");
         }
       } else if (reportType === "health") {
         // Query topology nodes for health status
@@ -445,14 +767,91 @@ const DashboardPage = () => {
   const totalReportPages = Math.ceil(reportData.length / reportPerPage);
 
   useEffect(() => {
+    const timer = setInterval(() => {
+      setServerTime(new Date().toLocaleTimeString());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const fetchRecentEvents = async () => {
+    try {
+      const [logsRes, alertsRes] = await Promise.all([
+        fetch(`${API_BASE}/api/logs/ui?limit=50`, { headers: getAuthHeaders() }),
+        fetch(`${API_BASE}/api/infrastructure/alerts?limit=50`, { headers: getAuthHeaders() })
+      ]);
+      const logsJson = await logsRes.json();
+      const alertsJson = await alertsRes.json();
+      const parsed = parseEvents(logsJson.logs || [], alertsJson || []);
+      setRecentSystemEvents(parsed);
+    } catch (err) {
+      console.error("Failed to fetch recent events:", err);
+    } finally {
+      setEventsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchRecentEvents();
+    const interval = setInterval(fetchRecentEvents, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleCameraStatusClick = () => {
+    const reportSection = document.querySelector('.report-generation');
+    if (reportSection) {
+      reportSection.scrollIntoView({ behavior: 'smooth' });
+    }
+    setReportType('health');
+    setTimeout(() => {
+      handleGenerateReport();
+    }, 500);
+  };
+
+  const fetchDiagnostics = async () => {
+    try {
+      const [storageRes, bitrateRes, bandwidthRes] = await Promise.all([
+        fetch(`${API_BASE}/api/storage/diagnostics`, { headers: getAuthHeaders() }),
+        fetch(`${API_BASE}/api/bitrate/diagnostics?filter_type=${bitrateFilter}`, { headers: getAuthHeaders() }),
+        fetch(`${API_BASE}/api/cameras/bandwidth`, { headers: getAuthHeaders() })
+      ]);
+
+      if (storageRes.ok) {
+        const storageData = await storageRes.json();
+        setStorageDiagnostics(storageData);
+      }
+      if (bitrateRes.ok) {
+        const bitrateData = await bitrateRes.json();
+        setBitrateDiagnostics(bitrateData);
+      }
+      if (bandwidthRes.ok) {
+        const bandwidthData = await bandwidthRes.json();
+        setCamerasBandwidth(bandwidthData);
+      }
+    } catch (err) {
+      console.error("Diagnostics fetch error:", err);
+    } finally {
+      setDiagnosticsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchDiagnostics();
+    const interval = setInterval(fetchDiagnostics, 5000);
+    return () => clearInterval(interval);
+  }, [bitrateFilter]);
+
+  useEffect(() => {
     const fetchData = async () => {
       try {
-        const [sumRes, storRes, eventRes, camRes, statusRes] = await Promise.all([
+        const [sumRes, storRes, eventRes, camRes, statusRes, healthRes, metricsRes, camHealthRes] = await Promise.all([
           fetch(`${API_BASE}/api/dashboard/summary`, { headers: getAuthHeaders() }),
           fetch(`${API_BASE}/api/storage/management`, { headers: getAuthHeaders() }),
           fetch(`${API_BASE}/api/dashboard/events`, { headers: getAuthHeaders() }),
           fetch(`${API_BASE}/api/cameras/`, { headers: getAuthHeaders() }),
-          fetch(`${API_BASE}/api/recordings/status`, { headers: getAuthHeaders() }).catch(() => null)
+          fetch(`${API_BASE}/api/recordings/status`, { headers: getAuthHeaders() }).catch(() => null),
+          fetch(`${API_BASE}/api/health`, { headers: getAuthHeaders() }).catch(() => null),
+          fetch(`${API_BASE}/api/infrastructure/metrics`, { headers: getAuthHeaders() }).catch(() => null),
+          fetch(`${API_BASE}/api/camera-health`, { headers: getAuthHeaders() }).catch(() => null)
         ]);
 
         const sumData = await sumRes.json();
@@ -465,8 +864,22 @@ const DashboardPage = () => {
           setActiveRecorders(statusData.active_recorders || []);
         }
 
+        if (healthRes && healthRes.ok) {
+          const healthData = await healthRes.json();
+          setHealthInfo(healthData);
+        }
+
+        if (metricsRes && metricsRes.ok) {
+          const metricsData = await metricsRes.json();
+          setServerMetrics(metricsData);
+        }
+
+        if (camHealthRes && camHealthRes.ok) {
+          const camHealthData = await camHealthRes.json();
+          setCameraHealth(camHealthData);
+        }
+
         // Fetch history for the VMS host (assuming it's node-172-19-0-6 or similar)
-        // We'll try to find the host node first or just fetch history if we have an ID
         try {
           const topoRes = await fetch(`${API_BASE}/api/infrastructure/topology`, { headers: getAuthHeaders() });
           const topoData = await topoRes.json();
@@ -491,12 +904,10 @@ const DashboardPage = () => {
         setSummary(prev => {
           let history = sumData.history;
           if (!history || !history.cpu || history.cpu.length === 0) {
-            // Accumulate locally if history isn't returned by the API
             const prevCpu = prev.history?.cpu || [];
             const prevRam = prev.history?.ram || [];
             const prevDisk = prev.history?.disk || [];
 
-            // Seed initial 15 points if history is completely empty
             const cpuHist = prevCpu.length > 0
               ? [...prevCpu, sumData.cpu]
               : Array.from({ length: 15 }, () => Math.max(5, Math.min(95, sumData.cpu + Math.floor((Math.random() - 0.5) * 10))));
@@ -531,15 +942,8 @@ const DashboardPage = () => {
     };
 
     fetchData();
-    const interval = setInterval(fetchData, 10000);
+    const interval = setInterval(fetchData, 2000);
     return () => clearInterval(interval);
-  }, []);
-
-  useEffect(() => {
-    fetch(`${API_BASE}/api/camera-health`, { headers: getAuthHeaders() })
-      .then(res => res.json())
-      .then(data => setCameraHealth(data))
-      .catch(err => console.error("Camera health fetch error:", err));
   }, []);
 
   // 🎨 Color logic for health bars
@@ -704,6 +1108,289 @@ const DashboardPage = () => {
         </div>
       </div>
 
+      {/* ── Enhanced Diagnostics & Service Status Section ── */}
+      <div className="enhanced-widgets-section">
+        <div className="widgets-grid">
+          {/* Widget 1: Server Health */}
+          <div className="enhanced-card">
+            <div className="enhanced-card-header">
+              <span className="header-icon"><Server size={18} /></span>
+              <h4>Server Health</h4>
+            </div>
+            <div className="widget-content-list">
+              <div className="widget-item-row">
+                <span className="widget-item-label">Server Uptime</span>
+                <span className="widget-item-value">{serverMetrics.uptime || "—"}</span>
+              </div>
+              <div className="widget-item-row">
+                <span className="widget-item-label">Backend Status</span>
+                <span className={`widget-item-value ${healthInfo.status === "ok" ? "healthy" : "unhealthy"}`}>
+                  {healthInfo.status === "ok" ? "Healthy" : "Unhealthy"}
+                </span>
+              </div>
+              <div className="widget-item-row">
+                <span className="widget-item-label">Server Time</span>
+                <span className="widget-item-value">{serverTime}</span>
+              </div>
+              <div className="widget-item-row">
+                <span className="widget-item-label">App Version</span>
+                <span className="widget-item-value">v{healthInfo.version || "1.0.0"}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Widget 2: Device Health */}
+          <div className="enhanced-card">
+            <div className="enhanced-card-header">
+              <span className="header-icon"><Camera size={18} /></span>
+              <h4>Device Health</h4>
+            </div>
+            <div className="widget-content-list">
+              <div className="widget-item-row">
+                <span className="widget-item-label">Total Cameras</span>
+                <span className="widget-item-value">{summary.total_cameras}</span>
+              </div>
+              <div className="widget-item-row">
+                <span className="widget-item-label">Online Cameras</span>
+                <span className="widget-item-value healthy">
+                  {summary.active_streams}
+                </span>
+              </div>
+              <div className="widget-item-row">
+                <span className="widget-item-label">Offline Cameras</span>
+                <span className="widget-item-value unhealthy">
+                  {summary.total_cameras - summary.active_streams}
+                </span>
+              </div>
+              <div className="widget-item-row">
+                <span className="widget-item-label">Recording Cameras</span>
+                <span className="widget-item-value">
+                  {recordingCount}
+                </span>
+              </div>
+              <div className="widget-item-row">
+                <span className="widget-item-label">Signal Loss Cameras</span>
+                <span className="widget-item-value unhealthy">
+                  {summary.total_cameras - summary.active_streams}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Widget 3: Camera Status */}
+          <div className="enhanced-card clickable-widget" onClick={handleCameraStatusClick} title="Click to view Camera Health Report">
+            <div className="enhanced-card-header">
+              <span className="header-icon"><Activity size={18} /></span>
+              <h4>Camera Status</h4>
+            </div>
+            <div className="widget-content-list" style={{ justifyContent: "center" }}>
+              <div style={{ display: "flex", justifyContent: "space-around", textAlign: "center" }}>
+                <div>
+                  <div style={{ fontSize: "28px", fontWeight: "800", color: "#22c55e" }}>
+                    {summary.active_streams}
+                  </div>
+                  <div style={{ fontSize: "11px", color: "var(--text-secondary)", fontWeight: "600", textTransform: "uppercase" }}>Online</div>
+                </div>
+                <div style={{ width: "1px", background: "var(--border-light)" }} />
+                <div>
+                  <div style={{ fontSize: "28px", fontWeight: "800", color: "#ef4444" }}>
+                    {summary.total_cameras - summary.active_streams}
+                  </div>
+                  <div style={{ fontSize: "11px", color: "var(--text-secondary)", fontWeight: "600", textTransform: "uppercase" }}>Offline</div>
+                </div>
+              </div>
+              <div style={{ textAlign: "center", fontSize: "12px", color: "var(--teal)", marginTop: "16px", fontWeight: "600" }}>
+                Click card to view Health Report
+              </div>
+            </div>
+          </div>
+
+          {/* Widget 4: Recording Health */}
+          <div className="enhanced-card">
+            <div className="enhanced-card-header">
+              <span className="header-icon"><Server size={18} /></span>
+              <h4>Recording Health</h4>
+            </div>
+            <div className="widget-content-list">
+              <div className="widget-item-row">
+                <span className="widget-item-label">Recording Cameras</span>
+                <span className="widget-item-value">{recordingCount} / {enabledCount}</span>
+              </div>
+              <div className="widget-item-row">
+                <span className="widget-item-label">Failed Recordings</span>
+                <span className={`widget-item-value ${cameras.filter(cam => cam.enabled !== false && !activeRecorders.includes(cam.ome_stream) && !activeRecorders.includes(cam.stream_key)).length > 0 ? "unhealthy" : "healthy"}`}>
+                  {cameras.filter(cam => cam.enabled !== false && !activeRecorders.includes(cam.ome_stream) && !activeRecorders.includes(cam.stream_key)).length}
+                </span>
+              </div>
+              <div className="widget-item-row">
+                <span className="widget-item-label">Service Status</span>
+                <span className={`widget-item-value ${activeRecorders.length > 0 ? "healthy" : "unhealthy"}`}>
+                  {activeRecorders.length > 0 ? "Running" : "Stopped"}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Widget 5: Storage Details */}
+          <div className="enhanced-card">
+            <div className="enhanced-card-header">
+              <span className="header-icon"><HardDrive size={18} /></span>
+              <h4>Storage Details</h4>
+              {storageDiagnostics.warning_status && (
+                <span className="badge warning" style={{ marginLeft: "auto", fontSize: "11px" }}>Low Storage Warning</span>
+              )}
+            </div>
+            <div className="widget-content-list">
+              <div className="widget-item-row">
+                <span className="widget-item-label">Total Capacity</span>
+                <span className="widget-item-value">{(storageDiagnostics.total_gb / 1024).toFixed(2)} TB ({storageDiagnostics.total_gb} GB)</span>
+              </div>
+              <div className="widget-item-row">
+                <span className="widget-item-label">Used Space</span>
+                <span className="widget-item-value">{(storageDiagnostics.used_gb / 1024).toFixed(2)} TB ({storageDiagnostics.used_gb} GB)</span>
+              </div>
+              <div className="widget-item-row">
+                <span className="widget-item-label">Free Space</span>
+                <span className="widget-item-value">{(storageDiagnostics.free_gb / 1024).toFixed(2)} TB ({storageDiagnostics.free_gb} GB)</span>
+              </div>
+              
+              <div style={{ marginTop: "10px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", marginBottom: "4px" }}>
+                  <span>Usage Utilization</span>
+                  <strong>{storageDiagnostics.usage_pct}%</strong>
+                </div>
+                <div className="card-inline-bar" style={{ marginTop: 0 }}>
+                  <div
+                    className="card-inline-bar-fill"
+                    style={{
+                      width: `${storageDiagnostics.usage_pct}%`,
+                      background: storageDiagnostics.warning_status ? "linear-gradient(90deg, #f59e0b, #ef4444)" : "linear-gradient(90deg, var(--teal), #00d2ff)"
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div className="widget-item-row" style={{ marginTop: "10px" }}>
+                <span className="widget-item-label">Estimated Retention</span>
+                <span className={`widget-item-value ${storageDiagnostics.retention_days === null ? "warning" : "healthy"}`}>
+                  {storageDiagnostics.retention_days !== null ? `${storageDiagnostics.retention_days} Days` : "Calculating..."}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Widget 6: Bitrate Trend */}
+          <div className="enhanced-card chart-card">
+            <div className="enhanced-card-header">
+              <span className="header-icon"><Activity size={18} /></span>
+              <h4>Bitrate Trend</h4>
+              <div className="chart-filters" style={{ marginLeft: "auto", display: "flex", gap: "6px" }}>
+                {["1h", "24h", "7d"].map((f) => (
+                  <button
+                    key={f}
+                    onClick={() => setBitrateFilter(f)}
+                    className={`chart-filter-btn ${bitrateFilter === f ? "active" : ""}`}
+                    style={{
+                      padding: "2px 8px",
+                      fontSize: "10px",
+                      fontWeight: "700",
+                      borderRadius: "4px",
+                      border: "1px solid var(--border)",
+                      background: bitrateFilter === f ? "rgba(16, 185, 129, 0.2)" : "rgba(255, 255, 255, 0.02)",
+                      color: bitrateFilter === f ? "var(--teal)" : "var(--text-secondary)",
+                      cursor: "pointer",
+                      transition: "all 0.2s"
+                    }}
+                  >
+                    {f.toUpperCase()}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="widget-content-list" style={{ minHeight: "280px" }}>
+              <div style={{ display: "flex", justifyContent: "space-around", marginBottom: "10px", fontSize: "12px" }}>
+                <div>Current: <strong>{bitrateDiagnostics.current_bitrate} Mbps</strong></div>
+                <div>Avg: <strong>{bitrateDiagnostics.avg_bitrate} Mbps</strong></div>
+                <div>Peak: <strong>{bitrateDiagnostics.peak_bitrate} Mbps</strong></div>
+              </div>
+              <InteractiveLineChart data={bitrateDiagnostics.trend_data} xKey="timestamp" yKey="bitrate_mbps" height={220} />
+            </div>
+          </div>
+
+          {/* Widget 7: Storage Usage Trend */}
+          <div className="enhanced-card chart-card">
+            <div className="enhanced-card-header">
+              <span className="header-icon"><HardDrive size={18} /></span>
+              <h4>Storage Growth Trend</h4>
+            </div>
+            <div className="widget-content-list" style={{ minHeight: "280px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "8px", fontSize: "12px", alignItems: "center" }}>
+                <div>Avg Daily: <strong>{storageDiagnostics.avg_daily_consumption !== null ? `${storageDiagnostics.avg_daily_consumption} GB/day` : "Calculating..."}</strong></div>
+                {storageDiagnostics.predicted_exhaustion_date && (
+                  <div style={{ color: "#ef4444", fontWeight: "700", whiteSpace: "nowrap", fontSize: "11.5px" }}>Exhaustion: {storageDiagnostics.predicted_exhaustion_date}</div>
+                )}
+              </div>
+              {storageDiagnostics.warning_status && storageDiagnostics.predicted_exhaustion_date && (
+                <div className="warning-banner" style={{ background: "rgba(239, 68, 68, 0.15)", border: "1px solid rgba(239, 68, 68, 0.3)", borderRadius: "6px", padding: "6px 10px", fontSize: "11.5px", color: "#f87171", marginBottom: "8px" }}>
+                  ⚠️ Warning: Exhaustion predicted on {storageDiagnostics.predicted_exhaustion_date}.
+                </div>
+              )}
+              <StorageTrendChart data={storageDiagnostics.trend_history} xKey="timestamp" yKey="used_gb" height={220} />
+            </div>
+          </div>
+
+          {/* Widget 8: Top Bandwidth Consumers */}
+          <div className="enhanced-card bandwidth-card">
+            <div className="enhanced-card-header">
+              <span className="header-icon"><Camera size={18} /></span>
+              <h4>Top Bandwidth Consumers</h4>
+            </div>
+            <div className="widget-content-list">
+              {camerasBandwidth.top_cameras && camerasBandwidth.top_cameras.length > 0 ? (
+                <div className="bandwidth-list-container">
+                  {camerasBandwidth.top_cameras.map((cam, idx) => (
+                    <div
+                      key={cam.id || idx}
+                      onClick={() => navigate("/cameras")}
+                      className="bandwidth-item-row"
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        padding: "8px 12px",
+                        background: "var(--bg-elevated)",
+                        border: "1px solid var(--border-light)",
+                        borderRadius: "6px",
+                        cursor: "pointer",
+                        transition: "border-color 0.2s ease"
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.borderColor = "var(--teal)"}
+                      onMouseLeave={(e) => e.currentTarget.style.borderColor = "var(--border-light)"}
+                    >
+                      <div style={{ display: "flex", flexDirection: "column", minWidth: 0, flex: 1 }}>
+                        <span style={{ fontSize: "13.5px", fontWeight: "600", color: "var(--text-primary)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                          {cam.name}
+                        </span>
+                        <span style={{ fontSize: "11px", color: "var(--text-muted)" }}>{cam.ip}</span>
+                      </div>
+                      <div style={{ textAlign: "right", whiteSpace: "nowrap" }}>
+                        <div style={{ fontSize: "13.5px", fontWeight: "700", color: "var(--text-primary)" }}>{cam.bitrate} Mbps</div>
+                        <div style={{ fontSize: "11px", color: "var(--teal)", fontWeight: "600" }}>{cam.percentage}% of total</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: "var(--text-muted)", fontSize: "13.5px", minHeight: "120px" }}>
+                  No active camera bandwidth metrics
+                </div>
+              )}
+            </div>
+          </div>
+
+        </div>
+      </div>
+
       {/* 
       <div className="dashboard-grid">
         <div className="widget critical-alerts">
@@ -785,28 +1472,13 @@ const DashboardPage = () => {
       </div>
       */}
 
-      {/* 🔹 Storage Details */}
-      <div className="activity storage-overview" style={{ marginBottom: "32px" }}>
-        <h3>Storage Health</h3>
-        <div className="storage-bar-container">
-          <div
-            className="storage-bar-progress"
-            style={{ width: `${storagePercent}%` }}
-          />
-        </div>
-        <p className={`storage-path ${storageStatus}`}>
-          <HardDrive size={16} />
-          <strong>Storage Location:</strong> {storage.location}
-          ({storagePercent.toFixed(1)}% full)
-        </p>
-      </div>
+
 
       {/* 📊 NEW: Report Generation Section */}
       <div className="report-generation">
         <div className="report-section-header">
           <div className="report-title-area">
             <h3 className="report-title-main">Reports</h3>
-            <p className="report-subtitle-main">Generate and export system-wide performance, health, and activity reports</p>
           </div>
         </div>
 
@@ -814,7 +1486,7 @@ const DashboardPage = () => {
           <div className="report-filter-group">
             <label>From Date & Time</label>
             <div className="report-input-wrapper">
-              <Calendar size={14} className="input-icon" />
+              <Calendar size={14} className="input-icon" style={{ color: "#ffffff" }} />
               <input
                 type="datetime-local"
                 className="report-input"
@@ -827,7 +1499,7 @@ const DashboardPage = () => {
           <div className="report-filter-group">
             <label>To Date & Time</label>
             <div className="report-input-wrapper">
-              <Calendar size={14} className="input-icon" />
+              <Calendar size={14} className="input-icon" style={{ color: "#ffffff" }} />
               <input
                 type="datetime-local"
                 className="report-input"

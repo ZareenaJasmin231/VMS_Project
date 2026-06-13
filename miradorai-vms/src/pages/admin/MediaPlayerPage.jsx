@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { useAuth } from "../../context/AuthContext";
-import { useImageConfig } from "../../hooks/useImageConfig";
+import { useImageConfig, buildCSSFilter } from "../../hooks/useImageConfig";
+import { useDigitalZoom } from "../../hooks/useDigitalZoom";
 import "./MediaPlayerPage.css";
 
 const STREAM_API = "http://localhost:80";
@@ -50,23 +51,49 @@ function loadDevices() {
 export default function MediaPlayerPage() {
   const { user, supervisorUnlocked } = useAuth();
 
+  const videoRef = useRef(null);
+  const playerWrap = useRef(null);
+
   const [cameras] = useState(loadDevices);
   const [recordingCameras, setRecordingCameras] = useState([]);
   const [activeRecorders, setActiveRecorders] = useState([]);
   const [selectedCam, setSelectedCam] = useState(null);
 
+  const filteredCameras = useMemo(() => {
+    if (user?.role === "admin" || !user?.allowedCameras || user?.allowedCameras.length === 0) {
+      return cameras;
+    }
+    return cameras.filter(c => user.allowedCameras.includes(String(c.id)));
+  }, [cameras, user]);
+
+  const filteredRecordingCameras = useMemo(() => {
+    if (user?.role === "admin" || !user?.allowedCameras || user?.allowedCameras.length === 0) {
+      return recordingCameras;
+    }
+    return recordingCameras.filter(camId => {
+      const normalized = camId.replace(/_/g, ".");
+      const dev = cameras.find(c => 
+        String(c.id) === String(camId) || 
+        c.ip === camId || 
+        (c.ip && c.ip.replace(/_/g, ".") === normalized)
+      );
+      if (!dev) return false;
+      return user.allowedCameras.includes(String(dev.id));
+    });
+  }, [recordingCameras, cameras, user]);
+
   const actualRecordingCount = useMemo(() => {
-    return cameras.filter((cam) => {
+    return filteredCameras.filter((cam) => {
       if (cam.enabled === false) return false;
       return activeRecorders.includes(cam.stream_key) || activeRecorders.includes(cam.ome_stream);
     }).length;
-  }, [activeRecorders, cameras]);
+  }, [activeRecorders, filteredCameras]);
 
   const getCameraInfo = useCallback((camId) => {
     if (!camId) return { name: "No camera selected", ip: "" };
     if (camId === "Uploaded File") return { name: "Uploaded File", ip: "" };
     const normalized = camId.replace(/_/g, ".");
-    const found = cameras.find(
+    const found = filteredCameras.find(
       (c) =>
         (c.ip && c.ip.replace(/_/g, ".") === normalized) ||
         String(c.id) === String(camId) ||
@@ -89,9 +116,24 @@ export default function MediaPlayerPage() {
   }, [selectedCam, getCameraInfo]);
 
   const configCameraId = selectedCam ?
-    (cameras.find(c => c.ip === selectedCam.stream_key || String(c.id) === String(selectedCam.stream_key) || c.name === selectedCam.stream_key)?.id || selectedCam.stream_key)
+    (filteredCameras.find(c => c.ip === selectedCam.stream_key || String(c.id) === String(selectedCam.stream_key) || c.name === selectedCam.stream_key)?.id || selectedCam.stream_key)
     : null;
-  const { cssFilter, cssTransform } = useImageConfig(configCameraId);
+  const { vals: imgVals, cssTransform } = useImageConfig(configCameraId);
+  const { zoom, zoomTransform, handlers } = useDigitalZoom(playerWrap, videoRef);
+
+  const [localSharpness, setLocalSharpness] = useState(0);
+
+  useEffect(() => {
+    if (imgVals && typeof imgVals.sharpness === "number") {
+      setLocalSharpness(imgVals.sharpness);
+    } else {
+      setLocalSharpness(0);
+    }
+  }, [imgVals]);
+
+  const customCssFilter = useMemo(() => {
+    return buildCSSFilter({ ...imgVals, sharpness: localSharpness });
+  }, [imgVals, localSharpness]);
 
   const [camDropdownOpen, setCamDropdownOpen] = useState(false);
   const [files, setFiles] = useState([]);
@@ -128,8 +170,6 @@ export default function MediaPlayerPage() {
   // Ref to track blob URL created from uploaded .enc so we can revoke it later
   const uploadedBlobUrl = useRef(null);
 
-  const videoRef = useRef(null);
-  const playerWrap = useRef(null);
   const progressRef = useRef(null);
   const isDragging = useRef(false);
   const camDropdownRef = useRef(null);
@@ -164,8 +204,6 @@ export default function MediaPlayerPage() {
         if (res.ok) {
           const ids = await res.json();
           setRecordingCameras(ids);
-          if (ids.length > 0)
-            setSelectedCam({ stream_key: ids[0], name: ids[0] });
         }
       } catch (e) { console.error("Failed to fetch recording cameras:", e); }
     })();
@@ -457,13 +495,22 @@ export default function MediaPlayerPage() {
       const formData = new FormData();
       formData.append("file", file);
 
-      const res = await fetch(`${STREAM_API}/api/recordings/decrypt-upload`, {
+      const res = await fetch(`${STREAM_API}/api/recordings/decrypt-file`, {
         method: "POST",
         headers: authHeaders(),
         body: formData,
       });
 
-      if (!res.ok) throw new Error(`Decryption failed (${res.status})`);
+      if (!res.ok) {
+        let errorDetail = `Decryption failed (${res.status})`;
+        try {
+          const errJson = await res.json();
+          if (errJson && errJson.detail) {
+            errorDetail = errJson.detail;
+          }
+        } catch (_) {}
+        throw new Error(errorDetail);
+      }
 
       const blob = await res.blob();
       const videoURL = URL.createObjectURL(blob);
@@ -859,9 +906,9 @@ export default function MediaPlayerPage() {
                 <div className="mp-cam-select-val">
                   {selectedCam ? (
                     <div className="mp-cam-select-val-container">
-                      <span className="mp-cam-select-name">
+                       <span className="mp-cam-select-name">
                         {selectedCamInfo.name}
-                      </span>
+                       </span>
                       {selectedCamInfo.ip && (
                         <span className="mp-cam-select-ip">
                           {selectedCamInfo.ip}
@@ -869,7 +916,7 @@ export default function MediaPlayerPage() {
                       )}
                     </div>
                   ) : (
-                    "No cameras found"
+                    <span className="mp-cam-select-name">Select Camera</span>
                   )}
                 </div>
                 <svg
@@ -887,7 +934,7 @@ export default function MediaPlayerPage() {
 
               {camDropdownOpen && (
                 <div className="mp-cam-menu">
-                  {recordingCameras.map((camId) => {
+                  {filteredRecordingCameras.map((camId) => {
                     const info = getCameraInfo(camId);
                     return (
                       <div
@@ -1033,7 +1080,12 @@ export default function MediaPlayerPage() {
 
           {/* ── Center / player ── */}
           <div className="mp-center">
-            <div className="mp-player-wrap" ref={playerWrap}>
+            <div 
+              className="mp-player-wrap" 
+              ref={playerWrap}
+              {...handlers}
+              style={{ overflow: 'hidden', cursor: zoom > 1 ? 'grab' : 'default', position: 'relative' }}
+            >
               {snapshotFlash && <div className="mp-snapshot-flash" />}
 
               {!playingFile ? (
@@ -1061,8 +1113,8 @@ export default function MediaPlayerPage() {
                     className="mp-video"
                     playsInline
                     style={{
-                      filter: cssFilter || 'none',
-                      transform: cssTransform || 'none',
+                      filter: customCssFilter || 'none',
+                      transform: `${cssTransform || 'none'} ${zoomTransform}`,
                       transition: "filter 0.1s ease, transform 0.2s ease"
                     }}
                   />
@@ -1154,6 +1206,26 @@ export default function MediaPlayerPage() {
                   value={volume}
                   onChange={(e) => setVolume(Number(e.target.value))}
                 />
+
+                <div className="mp-ctrl-spacer" />
+
+                {/* Sharpness Scrollbar */}
+                <div className="mp-sharpness-container">
+                  <span className="mp-sharpness-label" title="Sharpen Video">SHARP:</span>
+                  <input
+                    type="range"
+                    className="mp-sharpness-slider"
+                    min="-100"
+                    max="100"
+                    step="5"
+                    value={localSharpness}
+                    onChange={(e) => setLocalSharpness(Number(e.target.value))}
+                    disabled={!playingFile}
+                  />
+                  <span className="mp-sharpness-value">
+                    {localSharpness > 0 ? "+" : ""}{localSharpness}
+                  </span>
+                </div>
 
                 <div className="mp-ctrl-spacer" />
 

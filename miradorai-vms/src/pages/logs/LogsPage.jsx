@@ -1,4 +1,9 @@
 import React, { useState, useEffect, useRef } from "react";
+import { AreaChart, Area, LineChart, Line, BarChart, Bar, PieChart, Pie, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
+import * as XLSX from 'xlsx';
+import jsPDF from 'jspdf';
+import 'jspdf-autotable';
+import html2canvas from 'html2canvas';
 import "./LogsPage.css";
 
 const API_BASE = import.meta.env.VITE_API_URL;
@@ -33,7 +38,70 @@ export default function LogsPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [expandedDetails, setExpandedDetails] = useState({});
   const [cameras, setCameras] = useState([]);
+  const [viewMode, setViewMode] = useState("tabular");
   const logsPerPage = 15;
+
+  const exportToExcel = () => {
+    const ws = XLSX.utils.json_to_sheet(
+      logs.map(log => ({
+        Timestamp: new Date(log.timestamp).toLocaleString(),
+        User: log.user_email,
+        Role: log.user_role?.toUpperCase() || "-",
+        Category: log.category?.toUpperCase() || "-",
+        Action: formatActionText(log.action),
+        Details: JSON.stringify(log.details || {})
+      }))
+    );
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Logs");
+    XLSX.writeFile(wb, "VMS_Logs.xlsx");
+  };
+
+  const exportToPDF = () => {
+    const doc = new jsPDF();
+    doc.text("System Logs Report", 14, 15);
+    
+    const tableColumn = ["Timestamp", "User", "Role", "Category", "Action"];
+    const tableRows = [];
+
+    logs.forEach(log => {
+      const logData = [
+        new Date(log.timestamp).toLocaleString(),
+        log.user_email,
+        log.user_role?.toUpperCase() || "-",
+        log.category?.toUpperCase() || "-",
+        formatActionText(log.action)
+      ];
+      tableRows.push(logData);
+    });
+
+    doc.autoTable({
+      head: [tableColumn],
+      body: tableRows,
+      startY: 20,
+    });
+    doc.save("VMS_Logs.pdf");
+  };
+
+  const getLogsByCategory = () => {
+    const counts = {};
+    logs.forEach(log => {
+      const cat = log.category || "unknown";
+      counts[cat] = (counts[cat] || 0) + 1;
+    });
+    return Object.keys(counts).map(key => ({ name: key, value: counts[key] }));
+  };
+
+  const getLogsByDate = () => {
+    const counts = {};
+    logs.forEach(log => {
+      const date = new Date(log.timestamp).toLocaleDateString();
+      counts[date] = (counts[date] || 0) + 1;
+    });
+    return Object.keys(counts).map(key => ({ date: key, count: counts[key] }));
+  };
+
+  const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d'];
 
   useEffect(() => {
     try {
@@ -173,7 +241,6 @@ export default function LogsPage() {
       <div className="logs-header">
         <div className="logs-title-area">
           <h1 className="logs-title">System <span>Logs</span></h1>
-          <p className="logs-subtitle">Track UI activities and Terminal executions</p>
         </div>
         
         <div className="logs-tabs">
@@ -190,6 +257,33 @@ export default function LogsPage() {
             Terminal Logs
           </button>
         </div>
+      </div>
+
+      <div className="logs-view-toggles" style={{ display: 'flex', gap: '10px', marginTop: '-10px', marginBottom: '10px' }}>
+        <button 
+          className={`logs-tab ${viewMode === "tabular" ? "active" : ""}`}
+          onClick={() => setViewMode("tabular")}
+          style={{ background: viewMode === "tabular" ? "rgba(45, 212, 191, 0.15)" : "transparent", color: viewMode === "tabular" ? "var(--teal)" : "#fff", border: "1px solid rgba(255,255,255,0.1)", borderRadius: '6px', padding: '6px 12px', fontSize: '14px' }}
+        >
+          <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" strokeWidth="2" fill="none" style={{ verticalAlign: 'middle', marginRight: '6px' }}>
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+            <line x1="3" y1="9" x2="21" y2="9"></line>
+            <line x1="9" y1="21" x2="9" y2="9"></line>
+          </svg>
+          Tabular View
+        </button>
+        <button 
+          className={`logs-tab ${viewMode === "graphical" ? "active" : ""}`}
+          onClick={() => setViewMode("graphical")}
+          style={{ background: viewMode === "graphical" ? "rgba(45, 212, 191, 0.15)" : "transparent", color: viewMode === "graphical" ? "var(--teal)" : "#fff", border: "1px solid rgba(255,255,255,0.1)", borderRadius: '6px', padding: '6px 12px', fontSize: '14px' }}
+        >
+          <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" strokeWidth="2" fill="none" style={{ verticalAlign: 'middle', marginRight: '6px' }}>
+            <line x1="18" y1="20" x2="18" y2="10"></line>
+            <line x1="12" y1="20" x2="12" y2="4"></line>
+            <line x1="6" y1="20" x2="6" y2="14"></line>
+          </svg>
+          Graphical View
+        </button>
       </div>
 
       <div className="logs-filters card">
@@ -251,27 +345,85 @@ export default function LogsPage() {
         {activeTab === "recordings" && (
           <div className="log-filter-group">
             <label>Filter</label>
-            <div style={{ color: "var(--text-secondary)", fontSize: "12px", padding: "8px 12px", background: "rgba(99, 102, 241, 0.1)", border: "1px solid rgba(99, 102, 241, 0.3)", borderRadius: "8px" }}>
+            <div style={{ color: "#fff", fontSize: "12px", padding: "8px 12px", background: "rgba(99, 102, 241, 0.1)", border: "1px solid rgba(99, 102, 241, 0.3)", borderRadius: "8px" }}>
               🎬 Showing recordings only for motion-enabled cameras
             </div>
           </div>
         )}
-        <button 
-          className="log-btn-primary" 
-          onClick={() => {
-            setHasCustomToDate(true);
-            fetchLogs();
-          }}
-        >
-          Apply Filters
-        </button>
+        <div style={{ display: 'flex', gap: '12px', marginLeft: 'auto', alignSelf: 'flex-end' }}>
+          <button 
+            className="log-btn-secondary" 
+            onClick={exportToExcel}
+          >
+            Export Excel
+          </button>
+          <button 
+            className="log-btn-secondary" 
+            onClick={exportToPDF}
+          >
+            Export PDF
+          </button>
+          <button 
+            className="log-btn-primary" 
+            onClick={() => {
+              setHasCustomToDate(true);
+              fetchLogs();
+            }}
+          >
+            Apply Filters
+          </button>
+        </div>
       </div>
 
-      <div className="logs-table-container">
+      <div className="logs-table-container" id="logs-export-container">
         {loading ? (
           <div className="logs-loading-text">Loading....</div>
         ) : logs.length === 0 ? (
           <div className="empty-logs">No logs found for the selected criteria.</div>
+        ) : viewMode === "graphical" ? (
+          <div className="logs-graphical-wrapper" style={{ display: 'flex', flexWrap: 'wrap', gap: '24px', padding: '24px', background: 'var(--bg-surface)' }}>
+            <div className="chart-card" style={{ flex: '1 1 500px', padding: '20px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '12px', minWidth: '0' }}>
+              <h3 style={{ marginTop: 0, color: 'var(--text-primary)', fontSize: '16px', marginBottom: '20px' }}>Logs Over Time</h3>
+              <ResponsiveContainer width="100%" height={220}>
+                <AreaChart data={getLogsByDate()}>
+                  <defs>
+                    <linearGradient id="colorCount" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#2dd4bf" stopOpacity={0.3}/>
+                      <stop offset="95%" stopColor="#2dd4bf" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+                  <XAxis dataKey="date" stroke="#fff" fontSize={11} tickMargin={10} axisLine={false} tickLine={false} />
+                  <YAxis stroke="#fff" fontSize={11} axisLine={false} tickLine={false} />
+                  <RechartsTooltip contentStyle={{ backgroundColor: '#1e1e2d', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', borderRadius: '8px', fontSize: '13px' }} cursor={{ stroke: 'rgba(255,255,255,0.1)', strokeWidth: 1 }} />
+                  <Area type="monotone" dataKey="count" stroke="#2dd4bf" strokeWidth={3} fillOpacity={1} fill="url(#colorCount)" activeDot={{ r: 6, fill: '#2dd4bf', stroke: '#13161e', strokeWidth: 2 }} />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="chart-card" style={{ flex: '1 1 300px', padding: '20px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '12px', minWidth: '0' }}>
+              <h3 style={{ marginTop: 0, color: 'var(--text-primary)', fontSize: '16px', marginBottom: '20px' }}>Logs by Category</h3>
+              <ResponsiveContainer width="100%" height={220}>
+                <PieChart>
+                  <Pie
+                    data={getLogsByCategory()}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={55}
+                    outerRadius={85}
+                    paddingAngle={5}
+                    dataKey="value"
+                    stroke="none"
+                  >
+                    {getLogsByCategory().map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <RechartsTooltip contentStyle={{ backgroundColor: '#1e1e2d', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', borderRadius: '8px', fontSize: '13px' }} />
+                  <Legend wrapperStyle={{ fontSize: '12px', color: '#fff', paddingTop: '10px' }} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
         ) : (
           <div className="logs-table-wrapper">
             <table className="logs-table">

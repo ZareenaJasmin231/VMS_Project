@@ -3,10 +3,31 @@ import json
 from app.core.database import cameras_col, db as _db
 from app.core.security import verify_token
 from app.managers.stream_manager import normalize_stream_name, get_devices_by_ip, devices, save_devices
-from app.services.camera.onvif_service import probe_camera, set_imaging_setting, ptz_go_to_preset, ptz_set_preset, ptz_go_home, trigger_relay, move_camera_ptz
+from app.services.camera.onvif_service import (
+    probe_camera,
+    set_imaging_setting,
+    ptz_go_to_preset,
+    ptz_set_preset,
+    ptz_go_home,
+    trigger_relay,
+    move_camera_ptz,
+    get_video_encoder_options,
+    set_video_encoder_setting
+)
 from app.services.camera.ome_service import register_stream
 from app.services.storage import rtsp_recorder as recorder
-from app.schemas.camera import StreamRegisterRequest, StreamAssignRequest, ProbeRequest, ImagingSettingRequest, PTZPresetRequest, PTZSavePresetRequest, PTZMoveRequest, RelayRequest, CameraCredentials
+from app.schemas.camera import (
+    StreamRegisterRequest,
+    StreamAssignRequest,
+    ProbeRequest,
+    ImagingSettingRequest,
+    PTZPresetRequest,
+    PTZSavePresetRequest,
+    PTZMoveRequest,
+    RelayRequest,
+    CameraCredentials,
+    VideoEncoderSettingRequest
+)
 
 
 import asyncio
@@ -576,6 +597,56 @@ async def get_camera_by_ip(ip: str):
 # ------------------------------------------------------------------
 # Camera Features Router endpoints
 # ------------------------------------------------------------------
+
+@features_router.get("/encoder/options")
+async def get_encoder_options(ip: str, port: int = 80, username: str = "", password: str = "", profile_token: str = ""):
+    if not profile_token:
+        raise HTTPException(status_code=400, detail="Missing profile_token")
+    result = await asyncio.to_thread(
+        get_video_encoder_options, ip, port, username, password, profile_token
+    )
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("error", "Failed to get encoder options"))
+    return result
+
+
+@features_router.post("/encoder/set")
+async def set_encoder_profile_settings(req: VideoEncoderSettingRequest):
+    print(f"[FEATURES] Set encoder on {req.ip} for profile {req.profile_token}")
+    result = await asyncio.to_thread(
+        set_video_encoder_setting,
+        req.ip, req.port, req.username, req.password,
+        req.profile_token, req.resolution, req.encoding, req.fps, req.bitrate
+    )
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("error", "Failed to update video encoder configuration"))
+    
+    probe_res = await asyncio.to_thread(
+        probe_camera, req.ip, req.port, req.username, req.password
+    )
+    
+    if probe_res.get("success"):
+        if cameras_col is not None:
+            cameras_col.update_one(
+                {"ip": req.ip},
+                {"$set": {
+                    "stream_profiles": probe_res.get("all_profiles", probe_res.get("profiles", [])),
+                    "stream_count": probe_res.get("stream_count", 0)
+                }}
+            )
+        
+        global devices
+        for device in devices:
+            if device.get("ip") == req.ip:
+                stream_name = device.get("ome_stream")
+                if stream_name:
+                    print(f"[ENCODER] Restarting recorder for active stream: {stream_name}")
+                    recorder.stop_camera(stream_name)
+                    await asyncio.sleep(1.0)
+                    recorder.start_camera(stream_name, device.get("recording_rtsp"), device)
+    
+    return {"success": True, "message": "Video encoder configuration updated successfully."}
+
 
 @features_router.post("/capabilities")
 async def get_camera_capabilities(req: CameraCredentials):

@@ -35,6 +35,19 @@ from . import rtsp_recorder as recorder   # get_recordings_dir() gives the live 
 
 MONGO_URI      = os.environ.get("MONGO_URI", "mongodb://localhost:27017/")
 KEY_FILE       = os.environ.get("VIDEO_KEY_FILE", "/app/data/video.key")  # Must match recording_api.py
+
+# On Windows host, map default container path to the actual devices_data folder in VMS_Project
+if os.name == 'nt' and KEY_FILE == "/app/data/video.key":
+    sibling_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "devices_data", "video.key"))
+    if os.path.exists(sibling_path):
+        KEY_FILE = sibling_path
+    else:
+        hardcoded_path = "c:/Users/miradorwin/Documents/GitHub/VMS_Project/devices_data/video.key"
+        if os.path.exists(hardcoded_path):
+            KEY_FILE = hardcoded_path
+        else:
+            KEY_FILE = sibling_path
+
 POLL_INTERVAL  = 5
 
 # ------------------------------------------------------------------
@@ -115,7 +128,32 @@ def _migrate_key_if_needed():
         except Exception as e:
             print(f"[ENCRYPT] ⚠ Key migration failed: {e}")
 
+def _sync_keys_on_windows():
+    if os.name != 'nt':
+        return
+    win_key = "C:/app/data/video.key"
+    target_key = KEY_FILE
+    if os.path.exists(win_key) and os.path.abspath(win_key) != os.path.abspath(target_key):
+        try:
+            if not os.path.exists(target_key):
+                print(f"[ENCRYPT] 🔑 Syncing key: Copying {win_key} to {target_key}")
+                os.makedirs(os.path.dirname(os.path.abspath(target_key)), exist_ok=True)
+                import shutil
+                shutil.copy2(win_key, target_key)
+            else:
+                with open(win_key, "rb") as f1, open(target_key, "rb") as f2:
+                    k1 = f1.read()
+                    k2 = f2.read()
+                if k1 != k2:
+                    print(f"[ENCRYPT] ⚠️ WARNING: Keys differ! Host key {win_key} vs Target key {target_key}.")
+                    print(f"[ENCRYPT] Overwriting {target_key} with {win_key} to match host encryption.")
+                    import shutil
+                    shutil.copy2(win_key, target_key)
+        except Exception as e:
+            print(f"[ENCRYPT] Sync key error: {e}")
+
 _migrate_key_if_needed()
+_sync_keys_on_windows()
 
 def load_video_key() -> bytes:
     """

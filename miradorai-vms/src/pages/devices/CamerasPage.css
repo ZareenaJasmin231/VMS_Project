@@ -5,10 +5,28 @@
   overflow-y: auto;
   max-width: 100%;
   margin-right: 0;
+  padding-top: 4px;
 }
 
 .cam-table-wrap .m-table th {
+  position: sticky;
+  top: 4px;
+  z-index: 100 !important;
   color: #ffffff !important;
+  font-size: 13px !important;
+  background: var(--bg-surface) !important;
+}
+
+.cam-table-wrap .m-table td {
+  color: #ffffff !important;
+  font-size: 15px !important;
+}
+
+.cam-table-wrap .m-table td code,
+.cam-table-wrap .m-table td .cam-mono,
+.cam-table-wrap .m-table td .cam-ip-link {
+  color: #ffffff !important;
+  font-size: 15px !important;
 }
 html, body, #root {
   height: 100%;
@@ -303,67 +321,7 @@ html, body, #root {
 }
 
 .ec-btn {
-  height: 32px;
-  padding: 0 16px;
-  border-radius: var(--radius-sm, 4px);
-  font-size: 17px;
-  font-weight: 500;
-  cursor: pointer;
-  border: 1px solid var(--border-light, #2e3548);
-  background: var(--bg-surface, #13161e);
-  color: var(--text-primary, #e8eaf0);
-  transition: all 0.2s ease;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-.ec-btn:hover { 
-  background: var(--bg-hover, #1f2433); 
-}
-.ec-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.ec-btn--help {
-  background: transparent;
-  border-color: transparent;
-  color: var(--text-secondary, #8892a4);
-}
-.ec-btn--help:hover {
-  background: var(--bg-hover, #1f2433);
-  color: var(--text-primary, #e8eaf0);
-}
-
-.ec-btn--primary {
-  background: rgba(0, 200, 160, 0.1);
-  border-color: rgba(0, 200, 160, 0.35);
-  color: var(--teal, #00c8a0);
-}
-.ec-btn--primary:hover {
-  background: rgba(0, 200, 160, 0.18);
-  border-color: rgba(0, 200, 160, 0.5);
-}
-
-.ec-btn--danger {
-  background: transparent;
-  border-color: rgba(255, 77, 106, 0.3);
-  color: rgba(255, 77, 106, 0.8);
-}
-.ec-btn--danger:hover {
-  background: rgba(255, 77, 106, 0.08);
-  border-color: rgba(255, 77, 106, 0.5);
-  color: var(--red, #ff4d6a);
-}
-
-.ec-btn--cancel {
-  background: transparent;
-  border-color: var(--border-light, #2e3548);
-  color: var(--text-secondary, #8892a4);
-}
-.ec-btn--cancel:hover {
-  background: var(--bg-hover, #1f2433);
-  color: var(--text-primary, #e8eaf0);
+  /* Inherit general button styles from global.css */
 }
 
 /* Auth dialog description text */
@@ -388,47 +346,23 @@ html, body, #root {
   box-shadow: -8px 0 32px rgba(0, 0, 0, 0.4);
 }
 
-.cam-side-panel::after {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 4px;
-  height: 100%;
-  background: var(--teal, #10b981);
-}
+
 
 .cam-side-header {
-  padding: 24px;
-  border-bottom: 1px solid var(--border-dim);
+  padding: 20px 24px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  justify-content: space-between;
+  width: 100%;
 }
 
 .cam-side-header h3 {
   margin: 0;
-  font-size: 22px;
+  font-size: 19px;
   font-weight: 700;
-  color: var(--teal);
-  letter-spacing: -0.02em;
-}
-
-.cam-side-header__meta {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 16px;
-  color: var(--text-muted);
-  margin-top: 4px;
-}
-
-.cam-side-header__meta .active-count {
-  color: var(--teal);
-}
-
-.cam-side-header__meta .dot {
-  opacity: 0.3;
+  color: #fff;
+  flex: 1;
 }
 
 .cam-side-body {
@@ -439,7 +373,7 @@ html, body, #root {
 
 .cam-side-item {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 12px;
   padding: 12px 16px;
   border-radius: 8px;
@@ -447,6 +381,10 @@ html, body, #root {
   cursor: pointer;
   transition: all 0.2s ease;
   border: 1px solid transparent;
+}
+
+.cam-side-item > input[type="checkbox"] {
+  margin-top: 4px;
 }
 
 .cam-side-item:hover {
@@ -473,8 +411,8 @@ html, body, #root {
 }
 
 .cam-item-ip {
-  font-size: 15px;
-  color: var(--text-muted);
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.8);
   font-family: var(--font-mono);
 }
 
@@ -1038,4 +976,11 @@ html, body, #root {
 
 @keyframes enrollingSpin {
   to { transform: rotate(360deg); }
+}
+
+.cam-table-wrap.card:hover, .cam-side-panel.card:hover {
+  border-color: var(--border) !important;
+  box-shadow: var(--shadow-sm) !important;
+  outline: none !important;
+  transform: none !important;
 }

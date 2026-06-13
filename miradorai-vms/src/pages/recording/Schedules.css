@@ -77,6 +77,19 @@
   background: var(--bg-elevated) !important;
   box-shadow: 0 1px 0 var(--border); 
   color: #ffffff !important;
+  font-size: 13px !important;
+}
+
+.sch-table-wrap .m-table td {
+  color: #ffffff !important;
+  font-size: 15px !important;
+}
+
+.sch-table-wrap .m-table td code,
+.sch-table-wrap .m-table td span,
+.sch-table-wrap .m-table td a {
+  color: #ffffff !important;
+  font-size: 15px !important;
 }
 
 /* ── Actions row (New / Remove) ──────────────────────────────── */

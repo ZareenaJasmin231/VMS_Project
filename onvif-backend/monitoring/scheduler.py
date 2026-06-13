@@ -14,10 +14,20 @@ class MonitoringScheduler:
 
     def _loop(self):
         print(f"[MONITOR] Background monitoring started (interval={self.interval}s)")
+        last_logged_time = 0
         while not self.stop_event.is_set():
             try:
                 check_all_nodes()
                 run_root_cause_analysis()
+                
+                current_time = time.time()
+                if current_time - last_logged_time >= 600:
+                    try:
+                        from .diagnostics_logger import log_diagnostics
+                        log_diagnostics()
+                        last_logged_time = current_time
+                    except Exception as diag_err:
+                        print(f"[MONITOR] Diagnostics logging failed: {diag_err}")
             except Exception as e:
                 print(f"[MONITOR] Error in monitoring loop: {e}")
 

@@ -200,6 +200,19 @@ export function renderMapViewSnapshot(ctx, options) {
     return inside;
   }
 
+  // Helper for polygon area (Shoelace formula)
+  function getPolygonArea(polygon) {
+    if (!polygon || polygon.length < 3) return 0;
+    let area = 0;
+    const n = polygon.length;
+    for (let i = 0; i < n; i++) {
+      const j = (i + 1) % n;
+      area += polygon[i].x * polygon[j].y;
+      area -= polygon[j].x * polygon[i].y;
+    }
+    return Math.abs(area) / 2;
+  }
+
   // ── 2. FOV Cones (Direct drawing for clarity) ──────────────────
   if (markers.length > 0) {
     markers.forEach(m => {
@@ -212,7 +225,9 @@ export function renderMapViewSnapshot(ctx, options) {
       const halfRad = (fovAngle / 2) * (Math.PI / 180);
       const angle = direction * (Math.PI / 180);
 
-      const zone = floorZones.find(z => z.polygon?.length >= 3 && pointInPolygon(m.x, m.y, z.polygon));
+      const containedZones = floorZones.filter(z => z.polygon?.length >= 3 && pointInPolygon(m.x, m.y, z.polygon));
+      containedZones.sort((a, b) => getPolygonArea(a.polygon) - getPolygonArea(b.polygon));
+      const zone = containedZones[0] || null;
 
       ctx.save();
       if (zone) {

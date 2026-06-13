@@ -332,9 +332,9 @@
 }
 
 .dm-rtsp-tag {
-  background: rgba(59,130,246,0.1);
-  border: 1px solid rgba(59,130,246,0.2);
-  color: #60a5fa;
+  background: var(--teal-subtle);
+  border: 1px solid var(--teal-glow);
+  color: var(--teal);
   font-size: 13px;
   padding: 1px 5px;
   border-radius: 3px;
@@ -356,8 +356,8 @@
   font-weight: 500;
   flex-shrink: 0;
 }
-.dm-status--online  { color: #10b981; }
-.dm-status--offline { color: #ef4444; }
+.dm-status--online  { color: var(--teal); }
+.dm-status--offline { color: var(--red); }
 .dm-status-dot {
   width: 6px;
   height: 6px;
@@ -370,20 +370,19 @@
 .dm-footer {
   display: flex;
   align-items: center;
-  /* Fix: justify buttons to the right, no margin-left hacks */
   justify-content: flex-end;
   gap: 8px;
   padding: 14px 20px;
   border-top: 1px solid var(--border-light, #1e2230);
-  flex-shrink: 0; /* never compress — always visible */
-  background: var(--bg-surface, #111318); /* prevent body content bleeding through */
+  flex-shrink: 0;
+  background: var(--bg-surface, #111318);
 }
 
 .dm-register-msg {
   flex: 1;
   font-size: 16px;
   color: var(--teal, #10b981);
-  margin-right: auto; /* push it left, keep buttons right */
+  margin-right: auto;
 }
 
 .dm-btn {
@@ -393,7 +392,6 @@
   font-weight: 500;
   cursor: pointer;
   transition: all 0.15s;
-  /* Make sure buttons are always on top and clickable */
   position: relative;
   z-index: 1;
 }
@@ -408,7 +406,7 @@
   border: 1px solid transparent;
   color: #fff;
 }
-.dm-btn--primary:hover:not(:disabled) { background: #0d9e6e; }
+.dm-btn--primary:hover:not(:disabled) { background: var(--teal-dim); }
 .dm-btn:disabled { opacity: 0.45; cursor: not-allowed; }
 
 /* ── Per-device registration status badges ── */
@@ -422,7 +420,8 @@
   letter-spacing: 0.01em;
 }
 .dm-reg--pending  { background: rgba(148,163,184,0.15); color: #94a3b8; border: 1px solid rgba(148,163,184,0.25); }
-.dm-reg--progress { background: rgba(59,130,246,0.12);  color: #60a5fa; border: 1px solid rgba(59,130,246,0.25); animation: dm-pulse 1.2s ease-in-out infinite; }
+.dm-reg--progress { background: var(--teal-subtle);  color: var(--teal); border: 1px solid var(--teal-glow); animation: dm-pulse 1.2s ease-in-out infinite; }
+
 .dm-reg--success  { background: rgba(34,197,94,0.12);   color: #4ade80; border: 1px solid rgba(34,197,94,0.25); }
 .dm-reg--error    { background: rgba(239,68,68,0.12);   color: #f87171; border: 1px solid rgba(239,68,68,0.25); }
 .dm-reg--warn     { background: rgba(234,179,8,0.12);   color: #facc15; border: 1px solid rgba(234,179,8,0.25); }
@@ -475,7 +474,7 @@
 .dm-cred-row {
   display: flex;
   align-items: center;
-  gap: 20px;          /* ← was 12px */
+  gap: 20px;
   padding: 11px 14px;
   background: rgba(255,255,255,0.03);
   border: 1px solid var(--border-light, #1e2230);
@@ -486,7 +485,7 @@
   display: flex;
   align-items: center;
   gap: 9px;
-  flex: 0 0 240px;
+  flex: 0 0 185px;
   min-width: 0;
   padding-right: 16px;
   border-right: 1px solid var(--border-light, #1e2230);
@@ -628,4 +627,4 @@ input[type="password"]::-webkit-contacts-auto-fill-button {
 }
 
 .dm-cam-name-input::placeholder { font-size: 11px; }
-.dm-cam-name-input { font-size: 12px; max-width: 120px; }
+.dm-cam-name-input { font-size: 12px; max-width: 140px; }

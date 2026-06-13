@@ -1282,6 +1282,22 @@ export default function DesignerView({ onBack }) {
   }, []);
 
   useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (fileDropRef.current && !fileDropRef.current.contains(e.target)) {
+        setFileDropdownOpen(false);
+      }
+      if (modesDropRef.current && !modesDropRef.current.contains(e.target)) {
+        setModesDropdownOpen(false);
+      }
+      if (layersDropRef.current && !layersDropRef.current.contains(e.target)) {
+        setLayersDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  useEffect(() => {
     const originalAlert = window.alert;
     window.alert = (msg) => showAlert("Designer View Alert", msg);
     return () => {
@@ -1317,6 +1333,14 @@ export default function DesignerView({ onBack }) {
   const [inspectorTab, setInspectorTab] = useState("cameras"); // "cameras" | "zones"
   const [retentionDays, setRetentionDays] = useState(30);
   const exportMenuRef = useRef(null);
+
+  // ── Modes / Layers / File dropdown states ──
+  const [modesDropdownOpen, setModesDropdownOpen] = useState(false);
+  const [layersDropdownOpen, setLayersDropdownOpen] = useState(false);
+  const [fileDropdownOpen, setFileDropdownOpen] = useState(false);
+  const modesDropRef = useRef(null);
+  const layersDropRef = useRef(null);
+  const fileDropRef = useRef(null);
 
   // ── Calibration Tape Measure states ──
   const [calPts, setCalPts] = useState([]);
@@ -3151,214 +3175,442 @@ export default function DesignerView({ onBack }) {
   })();
 
   return (
-    <div className="dv-root">
+    <div className="page-shell dv-root">
 
-      {/* ── Top bar ── */}
+      {/* ── Combined Header + Top bar ── */}
       <div className="dv-topbar">
-        <div className="dv-topbar__actions" style={{ marginLeft: 0, width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        {/* Left: Page Title */}
+        <div className="dv-topbar__title-section" style={{ display: "flex", alignItems: "center", paddingRight: "20px" }}>
+          <h1 className="page-title" style={{ fontSize: "28px", margin: 0 }}>Designer View</h1>
+        </div>
+
+        <div className="dv-topbar__actions" style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           
-          <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
-            {/* File Actions Group */}
-            <button className="dv-tbtn" onClick={() => fileInputRef.current?.click()} title="Import Floor Plan">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="13" height="13">
-                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/>
-              </svg>
-              Import Floor Plan
-            </button>
-            <input ref={fileInputRef} type="file" accept="image/*,.pdf" style={{ display: "none" }} onChange={handleFileChange} />
-
-            {hasFloor && (
-              <button className="dv-tbtn" style={{ borderColor: "#ef4444", color: "#ef4444", background: "rgba(239, 68, 68, 0.05)" }} onClick={removeFloorPlan} title="Delete Floor Plan">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="13" height="13">
-                  <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2M10 11v6M14 11v6"/>
-                </svg>
-                Delete Floor Plan
-              </button>
-            )}
-
-            <button className="dv-tbtn" onClick={() => jsonFileInputRef.current?.click()} title="Import Layout JSON">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="13" height="13">
-                <path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1M16 8l-4-4-4 4M12 4v12" />
-              </svg>
-              Import JSON
-            </button>
-            <input ref={jsonFileInputRef} type="file" accept=".json" style={{ display: "none" }} onChange={handleJsonImport} />
-
-            <button className="dv-tbtn" onClick={downloadJson} title="Download Layout JSON">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="13" height="13">
-                <path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1M12 16V4M8 12l4 4 4-4" />
-              </svg>
-              Download JSON
-            </button>
-
-            <button className="dv-tbtn" onClick={handleUndo} disabled={undoStack.length === 0} title="Undo last action">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="13" height="13">
-                <path d="M3 7v6h6M21 17a9 9 0 00-9-9 9 9 0 00-6 2.3L3 13" />
-              </svg>
-              Undo
-            </button>
-            <button className="dv-tbtn" onClick={handleRedo} disabled={redoStack.length === 0} title="Redo last action">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="13" height="13">
-                <path d="M21 7v6h-6M3 17a9 9 0 019-9 9 9 0 016 2.3l3 2.7" />
-              </svg>
-              Redo
-            </button>
-
-            <div className="dv-export-group" ref={exportMenuRef}>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+            
+            {/* ── File / Actions Dropdown ── */}
+            <div className="dv-icon-drop-wrap" ref={fileDropRef}>
               <button
-                className={`dv-tbtn dv-tbtn--export ${showExportMenu ? "dv-tbtn--active" : ""}`}
-                onClick={() => setShowExportMenu(!showExportMenu)}
-                disabled={placed.length === 0}
-                title="Export PNG snapshot"
+                className={`dv-icon-btn ${fileDropdownOpen ? "dv-icon-btn--active" : ""}`}
+                onClick={() => {
+                  setFileDropdownOpen(o => !o);
+                  setModesDropdownOpen(false);
+                  setLayersDropdownOpen(false);
+                }}
+                title="File & Actions"
               >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="13" height="13">
-                  <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/>
+                {/* Folder/File icon */}
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="18" height="18">
+                  <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
                 </svg>
-                Export PNG
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="10" height="10" style={{ marginLeft: 2, opacity: 0.6 }}>
-                  <polyline points="6 9 12 15 18 9" />
+                <span className="dv-icon-btn__label">File</span>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="10" height="10" className={`dv-icon-btn__chevron ${fileDropdownOpen ? "open" : ""}`}>
+                  <polyline points="6 9 12 15 18 9"/>
                 </svg>
               </button>
 
-              {showExportMenu && (
-                <div className="dv-export-menu">
-                  <button className="dv-export-item" onClick={() => exportPng("design")}>
-                    <div className="dv-export-item__icon">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
+              {fileDropdownOpen && (
+                <div className="dv-dropdown-panel dv-dropdown-panel--file" style={{ minWidth: "260px" }}>
+                  <div className="dv-dropdown-panel__title">Project File Actions</div>
+                  
+                  {/* Import Floor Plan */}
+                  <button
+                    className="dv-dropdown-item-btn"
+                    onClick={() => { setFileDropdownOpen(false); fileInputRef.current?.click(); }}
+                  >
+                    <div className="dv-dropdown-item-btn__icon">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16">
+                        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/>
+                      </svg>
+                    </div>
+                    <span>Import Floor Plan</span>
+                  </button>
+
+                  {/* Import JSON */}
+                  <button
+                    className="dv-dropdown-item-btn"
+                    onClick={() => { setFileDropdownOpen(false); jsonFileInputRef.current?.click(); }}
+                  >
+                    <div className="dv-dropdown-item-btn__icon">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16">
+                        <path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1M16 8l-4-4-4 4M12 4v12" />
+                      </svg>
+                    </div>
+                    <span>Import Layout JSON</span>
+                  </button>
+
+                  {/* Download JSON */}
+                  <button
+                    className="dv-dropdown-item-btn"
+                    onClick={() => { setFileDropdownOpen(false); downloadJson(); }}
+                  >
+                    <div className="dv-dropdown-item-btn__icon">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16">
+                        <path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1M12 16V4M8 12l4 4 4-4" />
+                      </svg>
+                    </div>
+                    <span>Download Layout JSON</span>
+                  </button>
+
+                  <div className="dv-dropdown-panel__title" style={{ marginTop: "10px" }}>Export Options</div>
+
+                  {/* Export Designer View */}
+                  <button
+                    className="dv-dropdown-card"
+                    disabled={placed.length === 0}
+                    style={{ opacity: placed.length === 0 ? 0.4 : 1, cursor: placed.length === 0 ? "not-allowed" : "pointer" }}
+                    onClick={() => { if (placed.length > 0) { setFileDropdownOpen(false); exportPng("design"); } }}
+                  >
+                    <div className="dv-dropdown-card__icon">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="22" height="22">
                         <rect x="3" y="3" width="18" height="18" rx="2" /><path d="M3 9h18M9 21V9" />
                       </svg>
                     </div>
-                    <div className="dv-export-item__label">
-                      <span>Download Designer View</span>
-                      <small>Exact snapshot of current layout</small>
+                    <div className="dv-dropdown-card__body">
+                      <span className="dv-dropdown-card__label">Export Designer View</span>
+                      <span className="dv-dropdown-card__desc">Exact snapshot of current layout</span>
                     </div>
                   </button>
-                  <button className="dv-export-item" onClick={() => exportPng("mapview_only_cams")}>
-                    <div className="dv-export-item__icon">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
+
+                  {/* Export Map View */}
+                  <button
+                    className="dv-dropdown-card"
+                    disabled={placed.length === 0}
+                    style={{ opacity: placed.length === 0 ? 0.4 : 1, cursor: placed.length === 0 ? "not-allowed" : "pointer" }}
+                    onClick={() => { if (placed.length > 0) { setFileDropdownOpen(false); exportPng("mapview_only_cams"); } }}
+                  >
+                    <div className="dv-dropdown-card__icon">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="22" height="22">
                         <rect x="3" y="3" width="18" height="18" rx="2" /><path d="M3 9h18M9 21V9" />
                       </svg>
                     </div>
-                    <div className="dv-export-item__label">
-                      <span>Download Map View</span>
-                      <small>Snapshot showing only cameras (no beams or legend)</small>
+                    <div className="dv-dropdown-card__body">
+                      <span className="dv-dropdown-card__label">Export Map View</span>
+                      <span className="dv-dropdown-card__desc">Only cameras (no beams/legend)</span>
                     </div>
                   </button>
-                  <button className="dv-export-item" onClick={() => exportPng("heatmap")}>
-                    <div className="dv-export-item__icon dv-export-item__icon--heatmap">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
+
+                  {/* Export Heatmap */}
+                  <button
+                    className="dv-dropdown-card"
+                    disabled={placed.length === 0}
+                    style={{ opacity: placed.length === 0 ? 0.4 : 1, cursor: placed.length === 0 ? "not-allowed" : "pointer" }}
+                    onClick={() => { if (placed.length > 0) { setFileDropdownOpen(false); exportPng("heatmap"); } }}
+                  >
+                    <div className="dv-dropdown-card__icon dv-dropdown-card__icon--heatmap">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="22" height="22">
                         <circle cx="12" cy="12" r="3" />
                         <path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
                       </svg>
                     </div>
-                    <div className="dv-export-item__label">
-                      <span>Download Heatmap</span>
-                      <small>Coverage intensity map</small>
+                    <div className="dv-dropdown-card__body">
+                      <span className="dv-dropdown-card__label">Export Heatmap</span>
+                      <span className="dv-dropdown-card__desc">Coverage blind-spot intensity</span>
                     </div>
                   </button>
+
+                  {hasFloor && (
+                    <>
+                      <div className="dv-dropdown-divider" style={{ margin: "8px 0" }} />
+                      {/* Delete Floor Plan */}
+                      <button
+                        className="dv-dropdown-item-btn dv-dropdown-item-btn--danger"
+                        onClick={() => { setFileDropdownOpen(false); removeFloorPlan(); }}
+                      >
+                        <div className="dv-dropdown-item-btn__icon">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16">
+                            <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2M10 11v6M14 11v6"/>
+                          </svg>
+                        </div>
+                        <span>Delete Floor Plan</span>
+                      </button>
+                    </>
+                  )}
+
+                </div>
+              )}
+            </div>
+            
+            <input ref={fileInputRef} type="file" accept="image/*,.pdf" style={{ display: "none" }} onChange={handleFileChange} />
+            <input ref={jsonFileInputRef} type="file" accept=".json" style={{ display: "none" }} onChange={handleJsonImport} />
+
+            {/* ── Modes Icon Button + Dropdown ── */}
+            <div className="dv-icon-drop-wrap" ref={modesDropRef}>
+              <button
+                className={`dv-icon-btn ${
+                  (modesDropdownOpen || mode !== "place") ? "dv-icon-btn--active" : ""
+                }`}
+                onClick={() => {
+                  setModesDropdownOpen(o => !o);
+                  setLayersDropdownOpen(false);
+                  setFileDropdownOpen(false);
+                }}
+                title="Modes"
+              >
+                {/* Active mode icon */}
+                {mode === "place" && (
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="18" height="18">
+                    <circle cx="12" cy="12" r="3"/>
+                    <circle cx="12" cy="12" r="8" strokeDasharray="3 3"/>
+                  </svg>
+                )}
+                {mode === "pan" && (
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="18" height="18">
+                    <path d="M5 9l-3 3 3 3M9 5l3-3 3 3M15 19l-3 3-3-3M19 9l3 3-3 3M12 3v18M3 12h18"/>
+                  </svg>
+                )}
+                {mode === "zone" && (
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="18" height="18">
+                    <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/>
+                  </svg>
+                )}
+                {mode === "calibrate" && (
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="18" height="18">
+                    <path d="M4 19h16M4 5h16M12 5v14M8 12h8" />
+                  </svg>
+                )}
+                
+                <span className="dv-icon-btn__label">Modes</span>
+                {mode !== "place" && <span className="dv-icon-btn__dot" />}
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="10" height="10" className={`dv-icon-btn__chevron ${modesDropdownOpen ? "open" : ""}`}>
+                  <polyline points="6 9 12 15 18 9"/>
+                </svg>
+              </button>
+
+              {modesDropdownOpen && (
+                <div className="dv-dropdown-panel" style={{ minWidth: "250px" }}>
+                  <div className="dv-dropdown-panel__title">Design Modes</div>
+                  <div className="dv-dropdown-cards">
+
+                    {/* Place Camera */}
+                    <button
+                      className={`dv-dropdown-card ${mode === "place" ? "dv-dropdown-card--active" : ""}`}
+                      onClick={() => { setMode("place"); setCalPts([]); setModesDropdownOpen(false); draw(); }}
+                    >
+                      <div className="dv-dropdown-card__icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="24" height="24">
+                          <circle cx="12" cy="12" r="3"/>
+                          <circle cx="12" cy="12" r="8" strokeDasharray="2 3"/>
+                        </svg>
+                      </div>
+                      <div className="dv-dropdown-card__body">
+                        <span className="dv-dropdown-card__label">Place Cam</span>
+                        <span className="dv-dropdown-card__desc">Drag/click models to layout</span>
+                      </div>
+                      {mode === "place" && <span className="dv-dropdown-card__check">✓</span>}
+                    </button>
+
+                    {/* Pan Map */}
+                    <button
+                      className={`dv-dropdown-card ${mode === "pan" ? "dv-dropdown-card--active" : ""}`}
+                      onClick={() => { setMode("pan"); setCalPts([]); setSelectedIdx(null); setSelectedModel(null); setModesDropdownOpen(false); draw(); }}
+                    >
+                      <div className="dv-dropdown-card__icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="24" height="24">
+                          <path d="M5 9l-3 3 3 3M9 5l3-3 3 3M15 19l-3 3-3-3M19 9l3 3-3 3M12 3v18M3 12h18"/>
+                        </svg>
+                      </div>
+                      <div className="dv-dropdown-card__body">
+                        <span className="dv-dropdown-card__label">Pan Map</span>
+                        <span className="dv-dropdown-card__desc">Drag to navigate the floor layout</span>
+                      </div>
+                      {mode === "pan" && <span className="dv-dropdown-card__check">✓</span>}
+                    </button>
+
+                    {/* Draw Zone */}
+                    <button
+                      className={`dv-dropdown-card ${mode === "zone" ? "dv-dropdown-card--active" : ""}`}
+                      onClick={() => { setMode("zone"); setCalPts([]); setSelectedIdx(null); setSelectedModel(null); drawingPointsRef.current = []; setDrawingPoints([]); setModesDropdownOpen(false); draw(); }}
+                    >
+                      <div className="dv-dropdown-card__icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="24" height="24">
+                          <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/>
+                        </svg>
+                      </div>
+                      <div className="dv-dropdown-card__body">
+                        <span className="dv-dropdown-card__label">Draw Zone</span>
+                        <span className="dv-dropdown-card__desc">Click points to draw area boundaries</span>
+                      </div>
+                      {mode === "zone" && <span className="dv-dropdown-card__check">✓</span>}
+                    </button>
+
+                    {/* Calibrate */}
+                    <button
+                      className={`dv-dropdown-card ${mode === "calibrate" ? "dv-dropdown-card--active" : ""}`}
+                      onClick={() => { setMode("calibrate"); setCalPts([]); setMouseMapPos(null); setSelectedIdx(null); setSelectedModel(null); setModesDropdownOpen(false); draw(); }}
+                    >
+                      <div className="dv-dropdown-card__icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="24" height="24">
+                          <path d="M4 19h16M4 5h16M12 5v14M8 12h8" />
+                        </svg>
+                      </div>
+                      <div className="dv-dropdown-card__body">
+                        <span className="dv-dropdown-card__label">Calibrate</span>
+                        <span className="dv-dropdown-card__desc">Visually measure scale with tape line</span>
+                      </div>
+                      {mode === "calibrate" && <span className="dv-dropdown-card__check">✓</span>}
+                    </button>
+
+                    {/* Auto-Detect Zones */}
+                    <button
+                      className={`dv-dropdown-card ${isDetectingZones ? "dv-dropdown-card--loading" : ""}`}
+                      disabled={isDetectingZones}
+                      onClick={async () => {
+                        setModesDropdownOpen(false);
+                        if (isDetectingZones) return;
+                        setIsDetectingZones(true);
+                        try {
+                          const r = await fetch(`${API}/api/designer/detect-zones`, {
+                            method: "POST",
+                            headers: getAuthHeaders(),
+                            body: JSON.stringify({ map_id: MAP_ID, floor_id: FLOOR_ID, source: "designer" })
+                          });
+                          if (!r.ok) {
+                            const errData = await r.json();
+                            alert(`CV Zone detection failed: ${errData.detail || r.statusText}`);
+                            return;
+                          }
+                          const data = await r.json();
+                          if (data.success && data.zones?.length > 0) {
+                            setDraftZones(data.zones);
+                            draftZonesRef.current = data.zones;
+                            alert(`Detected ${data.zones.length} potential zones. Hover/click inside them on the map to import!`);
+                            draw();
+                          } else {
+                            alert("No distinct closed zones detected on this floor plan image.");
+                          }
+                        } catch (e) {
+                          console.error(e);
+                          alert("An error occurred during CV zone detection.");
+                        } finally {
+                          setIsDetectingZones(false);
+                        }
+                      }}
+                    >
+                      <div className="dv-dropdown-card__icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="24" height="24">
+                          <path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
+                          <circle cx="12" cy="12" r="3" />
+                        </svg>
+                      </div>
+                      <div className="dv-dropdown-card__body">
+                        <span className="dv-dropdown-card__label">
+                          {isDetectingZones ? "Detecting…" : "Auto-Detect"}
+                        </span>
+                        <span className="dv-dropdown-card__desc">AI detects boundaries from image</span>
+                      </div>
+                      {draftZones.length > 0 && !isDetectingZones && (
+                        <span className="dv-dropdown-card__badge">{draftZones.length}</span>
+                      )}
+                      {isDetectingZones && <span className="dv-dropdown-card__spinner" />}
+                    </button>
+
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* ── Layers Icon Button + Dropdown ── */}
+            <div className="dv-icon-drop-wrap" ref={layersDropRef}>
+              <button
+                className={`dv-icon-btn ${
+                  (showHeatmap || showPpm || layersDropdownOpen) ? "dv-icon-btn--active" : ""
+                }`}
+                onClick={() => {
+                  setLayersDropdownOpen(o => !o);
+                  setModesDropdownOpen(false);
+                  setFileDropdownOpen(false);
+                }}
+                title="Layers"
+              >
+                {/* Layers stack icon */}
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="18" height="18">
+                  <polygon points="12 2 2 7 12 12 22 7 12 2"/>
+                  <polyline points="2 17 12 22 22 17"/>
+                  <polyline points="2 12 12 17 22 12"/>
+                </svg>
+                <span className="dv-icon-btn__label">Layers</span>
+                {(showHeatmap || showPpm) && <span className="dv-icon-btn__dot" />}
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="10" height="10" className={`dv-icon-btn__chevron ${layersDropdownOpen ? "open" : ""}`}>
+                  <polyline points="6 9 12 15 18 9"/>
+                </svg>
+              </button>
+
+              {layersDropdownOpen && (
+                <div className="dv-dropdown-panel" style={{ minWidth: "240px" }}>
+                  <div className="dv-dropdown-panel__title">Map Layers</div>
+                  <div className="dv-dropdown-cards">
+
+                    {/* Heatmap */}
+                    <button
+                      className={`dv-dropdown-card ${showHeatmap ? "dv-dropdown-card--active" : ""}`}
+                      onClick={() => { setShowHeatmap(h => !h); }}
+                    >
+                      <div className="dv-dropdown-card__icon dv-dropdown-card__icon--heatmap">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="24" height="24">
+                          <circle cx="12" cy="12" r="3"/>
+                          <path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+                        </svg>
+                      </div>
+                      <div className="dv-dropdown-card__body">
+                        <span className="dv-dropdown-card__label">Heatmap</span>
+                        <span className="dv-dropdown-card__desc">Coverage blind-spot intensity overlay</span>
+                      </div>
+                      <div className={`dv-dropdown-card__toggle ${showHeatmap ? "dv-dropdown-card__toggle--on" : ""}`} />
+                    </button>
+
+                    {/* Clarity Zones (PPM) */}
+                    <button
+                      className={`dv-dropdown-card ${showPpm ? "dv-dropdown-card--active" : ""}`}
+                      onClick={() => { setShowPpm(!showPpm); }}
+                    >
+                      <div className="dv-dropdown-card__icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="24" height="24">
+                          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" />
+                        </svg>
+                      </div>
+                      <div className="dv-dropdown-card__body">
+                        <span className="dv-dropdown-card__label">Clarity Zones</span>
+                        <span className="dv-dropdown-card__desc">PPM / DORI visual coverage categories</span>
+                      </div>
+                      <div className={`dv-dropdown-card__toggle ${showPpm ? "dv-dropdown-card__toggle--on" : ""}`} />
+                    </button>
+
+                  </div>
                 </div>
               )}
             </div>
 
             <div className="dv-toolbar-divider" />
 
-            {/* Interactive Tools Group (Pill-shaped switcher) */}
-            <div className="dv-toolbar-pill-group">
-              <button
-                className={`dv-tbtn dv-tbtn--pill ${mode === "place" ? "dv-tbtn--pill-active" : ""}`}
-                onClick={() => setMode("place")}
-                title="Place cameras mode"
-              >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="12" height="12">
-                  <circle cx="12" cy="12" r="3"/>
-                  <circle cx="12" cy="12" r="8" strokeDasharray="2 3"/>
-                </svg>
-                Place
-              </button>
+            {/* ── Undo / Redo ── */}
+            <button className="dv-tbtn" onClick={handleUndo} disabled={undoStack.length === 0} title="Undo last action" style={{ padding: "4px 8px" }}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="13" height="13">
+                <path d="M3 7v6h6M21 17a9 9 0 00-9-9 9 9 0 00-6 2.3L3 13" />
+              </svg>
+            </button>
+            <button className="dv-tbtn" onClick={handleRedo} disabled={redoStack.length === 0} title="Redo last action" style={{ padding: "4px 8px" }}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="13" height="13">
+                <path d="M21 7v6h-6M3 17a9 9 0 019-9 9 9 0 016 2.3l3 2.7" />
+              </svg>
+            </button>
 
-              <button
-                className={`dv-tbtn dv-tbtn--pill ${mode === "pan" ? "dv-tbtn--pill-active" : ""}`}
-                onClick={() => setMode("pan")}
-                title="Pan map mode"
-              >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="12" height="12">
-                  <path d="M5 9l-3 3 3 3M9 5l3-3 3 3M15 19l-3 3-3-3M19 9l3 3-3 3M12 3v18M3 12h18"/>
-                </svg>
-                Pan
-              </button>
-
-              <button
-                className={`dv-tbtn dv-tbtn--pill ${mode === "zone" ? "dv-tbtn--pill-active" : ""}`}
-                onClick={() => { setMode("zone"); drawingPointsRef.current = []; setDrawingPoints([]); }}
-                title="Draw zone mode"
-              >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="12" height="12">
-                  <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/>
-                </svg>
-                Draw Zone
-              </button>
-
-              <button
-                className={`dv-tbtn dv-tbtn--pill ${isDetectingZones ? "dv-tbtn--disabled" : ""}`}
-                style={{
-                  borderColor: draftZones.length > 0 ? "#10b98150" : undefined,
-                  color: draftZones.length > 0 ? "#10b981" : undefined,
-                }}
-                onClick={async () => {
-                  if (isDetectingZones) return;
-                  setIsDetectingZones(true);
-                  try {
-                    const r = await fetch(`${API}/api/designer/detect-zones`, {
-                      method: "POST",
-                      headers: getAuthHeaders(),
-                      body: JSON.stringify({ map_id: MAP_ID, floor_id: FLOOR_ID, source: "designer" })
-                    });
-                    if (!r.ok) {
-                      const errData = await r.json();
-                      alert(`CV Zone detection failed: ${errData.detail || r.statusText}`);
-                      return;
-                    }
-                    const data = await r.json();
-                    if (data.success && data.zones?.length > 0) {
-                      setDraftZones(data.zones);
-                      draftZonesRef.current = data.zones;
-                      alert(`Detected ${data.zones.length} potential zones. Hover/click inside them on the map to import!`);
-                      draw();
-                    } else {
-                      alert("No distinct closed zones detected on this floor plan image.");
-                    }
-                  } catch (e) {
-                    console.error(e);
-                    alert("An error occurred during CV zone detection.");
-                  } finally {
-                    setIsDetectingZones(false);
-                  }
-                }}
-                disabled={isDetectingZones}
-                title="Automatically extract zones using CV"
-              >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="12" height="12">
-                  <path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
-                </svg>
-                {isDetectingZones ? "Detecting..." : "Auto-Detect Zones"}
-              </button>
-            </div>
-
+            {/* ── Hints ── */}
             {mode === "zone" && (
-              <span className="dv-zone-hint" style={{ fontSize: "15px", color: "#F59E0B", background: "#F59E0B15", padding: "3px 10px", borderRadius: "99px", border: "0.5px solid #F59E0B55" }}>
+              <span className="dv-zone-hint" style={{ fontSize: "13px", color: "#F59E0B", background: "#F59E0B15", padding: "3px 10px", borderRadius: "99px", border: "0.5px solid #F59E0B55", whiteSpace: "nowrap" }}>
                 {drawingPoints.length === 0
-                  ? "Click to place first point"
+                  ? "Click map to start zone"
                   : drawingPoints.length < 3
-                    ? `${drawingPoints.length} pt${drawingPoints.length > 1 ? "s" : ""} — need ≥3`
-                    : "Click first point to close · Esc to cancel"}
+                    ? `${drawingPoints.length} pt${drawingPoints.length > 1 ? "s" : ""}`
+                    : "Click 1st point to close · Esc to cancel"}
               </span>
             )}
 
             {draftZones.length > 0 && (
-              <div style={{ display: "flex", gap: "4px" }}>
+              <div style={{ display: "flex", gap: "4px", alignItems: "center" }}>
                 <button
                   className="dv-tbtn"
-                  style={{ borderColor: "#10b981", background: "#10b98122", color: "#10b981" }}
+                  style={{ borderColor: "#10b981", background: "#10b98122", color: "#10b981", padding: "4px 8px" }}
                   onClick={() => {
                     showConfirm("Import All Zones", `Import all ${draftZones.length} detected zones?`, () => {
                       const newImportedZones = draftZones.map((dz, idx) => {
@@ -3384,7 +3636,7 @@ export default function DesignerView({ onBack }) {
                 </button>
                 <button
                   className="dv-tbtn"
-                  style={{ borderColor: "#ef4444", background: "#ef444411", color: "#ef4444" }}
+                  style={{ borderColor: "#ef4444", background: "#ef444411", color: "#ef4444", padding: "4px 8px" }}
                   onClick={() => {
                     setDraftZones([]);
                     draftZonesRef.current = [];
@@ -3396,38 +3648,13 @@ export default function DesignerView({ onBack }) {
               </div>
             )}
 
-            <div className="dv-toolbar-divider" />
+          </div>
 
-            {/* Overlays / Views Group */}
-            <button
-              className={`dv-tbtn ${showHeatmap ? "dv-tbtn--active" : ""}`}
-              onClick={() => setShowHeatmap(v => !v)}
-              disabled={placed.length === 0}
-              title="Toggle blind-spot heatmap"
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="12" height="12">
-                <circle cx="12" cy="12" r="3" />
-                <path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
-              </svg>
-              Heatmap
-            </button>
-            
-            <button
-              className={`dv-tbtn ${showPpm ? "dv-tbtn--active" : ""}`}
-              onClick={() => setShowPpm(!showPpm)}
-              title="Visualize image clarity (PPM) DORI zones"
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="12" height="12">
-                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" />
-              </svg>
-              Clarity Zones
-            </button>
+          <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
 
-            <div className="dv-toolbar-divider" />
-
-            {/* Scale Tape Calibration Controls */}
-            <div className="dv-scale-control" style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <label>Scale</label>
+            {/* ── Scale Widget ── */}
+            <div className="dv-scale-control" style={{ display: "flex", alignItems: "center", gap: 4, marginRight: 8 }}>
+              <span style={{ fontSize: 13, color: "rgba(255,255,255,0.45)" }}>Scale:</span>
               <input type="number" min="4" max="100" value={ppm}
                 onChange={e => {
                   const newPpm = Number(e.target.value) || PIXELS_PER_METRE;
@@ -3436,33 +3663,14 @@ export default function DesignerView({ onBack }) {
                   scheduleSave(placedRef.current, zonesRef.current, newPpm);
                   draw();
                 }}
-                style={{ width: "40px", padding: "3px 6px", background: "#0d1117", border: "0.5px solid #2e3d55", borderRadius: "4px", color: "#e8edf5", fontSize: "11.5px", textAlign: "center" }}
+                style={{ width: "36px", padding: "3px 4px", background: "#0d1117", border: "0.5px solid #2e3d55", borderRadius: "4px", color: "#e8edf5", fontSize: "11.5px", textAlign: "center" }}
               />
-              <span style={{ fontSize: 14, marginRight: 4 }}>px/m</span>
-              <button
-                className={`dv-tbtn ${mode === "calibrate" ? "dv-tbtn--active" : ""}`}
-                style={{ fontSize: 15, padding: "3px 8px", height: 24, display: "flex", alignItems: "center" }}
-                onClick={() => {
-                  if (mode === "calibrate") {
-                    setMode("place"); setCalPts([]); draw();
-                  } else {
-                    setMode("calibrate"); setCalPts([]); setMouseMapPos(null); draw();
-                  }
-                }}
-                title="Calibrate map scale visually using a tape measure line"
-              >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="10" height="10" style={{ marginRight: 3 }}>
-                  <path d="M4 19h16M4 5h16M12 5v14M8 12h8" />
-                </svg>
-                Calibrate
-              </button>
+              <span style={{ fontSize: 12, color: "rgba(255,255,255,0.4)" }}>px/m</span>
             </div>
 
-            <div className="dv-toolbar-divider" />
-
             {selectedPlaced && (
-              <button className="dv-tbtn dv-tbtn--danger" onClick={removeSelected}>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="12" height="12">
+              <button className="dv-tbtn dv-tbtn--danger" onClick={removeSelected} style={{ padding: "4px 8px" }}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="12" height="12" style={{ marginRight: 2 }}>
                   <polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14H6L5 6" />
                 </svg>
                 Remove
@@ -3473,24 +3681,26 @@ export default function DesignerView({ onBack }) {
               className={`dv-tbtn ${showStats ? "dv-tbtn--active" : ""}`}
               onClick={() => setShowStats(!showStats)}
               title="View proposal summary"
+              style={{ padding: "4px 8px" }}
             >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="12" height="12">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="12" height="12" style={{ marginRight: 2 }}>
                 <path d="M12 20V10M18 20V4M6 20v-4" />
               </svg>
-              Proposal Summary
+              Proposal
             </button>
 
             <button
               className="dv-tbtn dv-tbtn--danger"
               onClick={clearFloorCameras}
               title="Remove all cameras from floor (keeps floor plan)"
-              style={{ borderColor: "rgba(239, 68, 68, 0.25)", color: "#ef4444", background: "rgba(239, 68, 68, 0.05)" }}
+              style={{ borderColor: "rgba(239, 68, 68, 0.25)", color: "#ef4444", background: "rgba(239, 68, 68, 0.05)", padding: "4px 8px" }}
             >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="12" height="12" style={{ marginRight: 4 }}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="12" height="12" style={{ marginRight: 2 }}>
                 <polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14H6L5 6" />
               </svg>
-              Clear Floor
+              Clear Layout
             </button>
+
           </div>
 
         </div>

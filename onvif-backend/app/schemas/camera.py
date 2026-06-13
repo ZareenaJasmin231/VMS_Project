@@ -80,3 +80,15 @@ class StreamAssignRequest(BaseModel):
     recording_rtsp:    str
     live_profile:      str = ""
     recording_profile: str = ""
+
+class VideoEncoderSettingRequest(BaseModel):
+    ip:                str
+    port:              int = 80
+    username:          str = ""
+    password:          str = ""
+    profile_token:     str
+    resolution:        Optional[str] = None
+    encoding:          Optional[str] = None
+    fps:               Optional[int] = None
+    bitrate:           Optional[int] = None
+

@@ -454,7 +454,6 @@ export default function RecordingMethodPage() {
       <div className="page-header">
         <div className="page-header__left">
           <h1 className="page-title">Recording <span>Method</span></h1>
-          <p className="page-desc" style={{ color: "rgba(255, 255, 255, 0.5)" }}>Manage recording methods by groups. Configure continuous or scheduled recording.</p>
         </div>
         <SearchBar value={filter} onChange={setFilter} placeholder="Filter groups or cameras..." />
       </div>
@@ -483,10 +482,10 @@ export default function RecordingMethodPage() {
                       }}
                     />
                   </th>
-                  <th style={{ color: "rgba(255, 255, 255, 0.5)" }}>Group Name</th>
-                  <th style={{ width: 120, color: "rgba(255, 255, 255, 0.5)" }}>Continuous</th>
-                  <th style={{ width: 120, color: "rgba(255, 255, 255, 0.5)" }}>Scheduled</th>
-                  <th style={{ width: 150, color: "rgba(255, 255, 255, 0.5)" }}></th>
+                  <th style={{ color: "#ffffff" }}>Group Name</th>
+                  <th style={{ width: 120, color: "#ffffff" }}>Continuous</th>
+                  <th style={{ width: 120, color: "#ffffff" }}>Scheduled</th>
+                  <th style={{ width: 150, color: "#ffffff" }}></th>
                 </tr>
               </thead>
               <tbody>
@@ -508,7 +507,7 @@ export default function RecordingMethodPage() {
                       <td><span className="count-badge continuous">{continuousCount}</span></td>
                       <td><span className="count-badge scheduled">{scheduledCount}</span></td>
                       <td>
-                        <button className="m-btn m-btn--primary" onClick={() => setSelectedGroup(group)}>
+                        <button className="m-btn m-btn--primary" style={{ whiteSpace: "nowrap" }} onClick={() => setSelectedGroup(group)}>
                           View All Cameras
                         </button>
                       </td>
@@ -568,7 +567,7 @@ export default function RecordingMethodPage() {
           <div className="rm-detail-horizontal">
             <div className="rm-h-group">
               <div className="rm-h-field" ref={profileDropdownRef}>
-                <label className="rm-h-label" style={{ color: "rgba(255, 255, 255, 0.5)" }}>Profiles</label>
+                <label className="rm-h-label">Profiles</label>
                 <div className="rm-custom-select">
                   <button
                     type="button"
@@ -633,7 +632,7 @@ export default function RecordingMethodPage() {
               <div className="rm-h-sep" style={{ color: "rgba(255, 255, 255, 0.5)" }}>|</div>
 
               <div className="rm-h-field" ref={scheduleDropdownRef}>
-                <label className="rm-h-label" style={{ color: "rgba(255, 255, 255, 0.5)" }}>Recording mode</label>
+                <label className="rm-h-label">Recording mode</label>
                 <div className="rm-custom-select">
                   <button
                     type="button"
@@ -720,7 +719,7 @@ export default function RecordingMethodPage() {
               <div className="rm-h-sep" style={{ color: "rgba(255, 255, 255, 0.5)" }}>|</div>
 
               <div className="rm-h-field" style={{ display: "flex", alignItems: "center", gap: "10px", padding: "0 5px" }}>
-                <label htmlFor="motion-only-checkbox" className="rm-h-label" style={{ color: "rgba(255, 255, 255, 0.5)", marginRight: "5px", cursor: "pointer" }}>
+                <label htmlFor="motion-only-checkbox" className="rm-h-label" style={{ marginRight: "5px", cursor: "pointer" }}>
                   Record on Motion Only
                 </label>
                 <div style={{ display: "flex", alignItems: "center" }}>

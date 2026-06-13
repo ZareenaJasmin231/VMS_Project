@@ -931,13 +931,15 @@ export default function MaskingSection({ device, showToast, onMasksChange }) {
                     onBlur={() => commitRename(mask.id)}
                     onClick={e => e.stopPropagation()}
                   />
-                  <label className="mp-switch" onClick={e => e.stopPropagation()}>
+                  <label className="mp-toggle" onClick={e => e.stopPropagation()}>
                     <input 
                       type="checkbox" 
                       checked={!!mask.enabled} 
-                      onChange={() => toggleMask(mask.id)} 
+                      onChange={() => toggleMask(mask.id)}
                     />
-                    <span className="mp-switch-slider" />
+                    <span className="mp-toggle-track">
+                      <span className="mp-toggle-thumb" />
+                    </span>
                   </label>
                 </div>
                 <div className="mp-card-meta">

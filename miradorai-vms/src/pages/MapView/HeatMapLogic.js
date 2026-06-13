@@ -103,13 +103,27 @@ export function drawHeatmapToContext(
   const data        = imageData.data;
   const foundLevels = new Set();
 
+  // Helper for polygon area (Shoelace formula)
+  function getPolygonArea(polygon) {
+    if (!polygon || polygon.length < 3) return 0;
+    let area = 0;
+    const n = polygon.length;
+    for (let i = 0; i < n; i++) {
+      const j = (i + 1) % n;
+      area += polygon[i].x * polygon[j].y;
+      area -= polygon[j].x * polygon[i].y;
+    }
+    return Math.abs(area) / 2;
+  }
+
   // Pre-cache the containing zone for each marker to maximize performance
   const markerZones = new Map();
   if (allZones.length > 0) {
     for (const marker of markers) {
-      const zone = allZones.find(z => z.polygon?.length >= 3 && pointInPolygon(marker.x, marker.y, z.polygon));
-      if (zone) {
-        markerZones.set(marker, zone);
+      const containedZones = allZones.filter(z => z.polygon?.length >= 3 && pointInPolygon(marker.x, marker.y, z.polygon));
+      if (containedZones.length > 0) {
+        containedZones.sort((a, b) => getPolygonArea(a.polygon) - getPolygonArea(b.polygon));
+        markerZones.set(marker, containedZones[0]);
       }
     }
   }

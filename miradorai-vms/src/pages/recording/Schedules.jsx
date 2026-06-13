@@ -484,7 +484,6 @@ export default function Schedules() {
       <div className="page-header">
         <div className="page-header__left">
           <h1 className="page-title">Schedules</h1>
-          <p className="page-desc" style={{ color: "rgba(255, 255, 255, 0.5)" }}>Define weekly schedules and exceptions for recording and event triggers.</p>
         </div>
         <SearchBar value={filter} onChange={setFilter} placeholder="Filter schedules..." />
       </div>

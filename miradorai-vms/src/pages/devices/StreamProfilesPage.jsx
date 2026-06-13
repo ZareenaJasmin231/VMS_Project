@@ -52,7 +52,7 @@ function resolveIdx(profs, savedName, preferredLabels, fallbackIdx) {
 }
 
 /* ── Single profile row ──────────────────────────────────── */
-function ProfileRow({ profile, index, isSelected, accentColor, onSelect }) {
+function ProfileRow({ profile, index, isSelected, accentColor, onSelect, onEdit }) {
   const ls = getLabelStyle(profile.label);
   return (
     <div
@@ -77,12 +77,27 @@ function ProfileRow({ profile, index, isSelected, accentColor, onSelect }) {
       >
         {profile.label || `STREAM ${index + 1}`}
       </span>
+      {onEdit && (
+        <button
+          className="sp-profile-edit-btn"
+          title="Configure Encoder"
+          onClick={(e) => {
+            e.stopPropagation();
+            onEdit(profile);
+          }}
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
+            <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.1a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/>
+            <circle cx="12" cy="12" r="3"/>
+          </svg>
+        </button>
+      )}
     </div>
   );
 }
 
 /* ── Dual-lane card ──────────────────────────────────────── */
-function ONVIFProfilesCard({ camera, profiles, liveIdx, recIdx, onSelectLive, onSelectRec }) {
+function ONVIFProfilesCard({ camera, profiles, liveIdx, recIdx, onSelectLive, onSelectRec, onEdit }) {
   if (!camera || !profiles?.length) return null;
 
   const liveProfile = liveIdx !== null ? profiles[liveIdx] : null;
@@ -140,7 +155,7 @@ function ONVIFProfilesCard({ camera, profiles, liveIdx, recIdx, onSelectLive, on
           <div className="sp-lane-profiles">
   {profiles.map((p, i) => (
     <ProfileRow key={i} profile={p} index={i}
-      isSelected={liveIdx === i} accentColor="#f87171" onSelect={onSelectLive} />
+      isSelected={liveIdx === i} accentColor="#f87171" onSelect={onSelectLive} onEdit={onEdit} />
   ))}
 </div>
           {liveProfile?.rtsp_url && (
@@ -167,7 +182,7 @@ function ONVIFProfilesCard({ camera, profiles, liveIdx, recIdx, onSelectLive, on
           <div className="sp-lane-profiles">
   {profiles.map((p, i) => (
     <ProfileRow key={i} profile={p} index={i}
-      isSelected={recIdx === i} accentColor="#60a5fa" onSelect={onSelectRec} />
+      isSelected={recIdx === i} accentColor="#60a5fa" onSelect={onSelectRec} onEdit={onEdit} />
   ))}
 </div>
           {recProfile?.rtsp_url && (
@@ -248,6 +263,185 @@ function SelectionSummary({ liveProfile, recProfile }) {
   );
 }
 
+/* ── Configure Encoder Modal ─────────────────────────────── */
+function ConfigureEncoderModal({ camera, profile, onClose, onSaved }) {
+  const [loading, setLoading] = useState(false);
+  const [options, setOptions] = useState(null);
+  const [error, setError] = useState(null);
+  
+  const [codec, setCodec] = useState("");
+  const [resolution, setResolution] = useState("");
+  const [fps, setFps] = useState(15);
+  const [bitrate, setBitrate] = useState(2048);
+
+  useEffect(() => {
+    if (!profile) return;
+    setLoading(true);
+    setError(null);
+    
+    const query = new URLSearchParams({
+      ip: camera.ip,
+      port: camera.port || 80,
+      username: camera.username || "",
+      password: camera.password || "",
+      profile_token: profile.token
+    });
+    
+    fetch(`${API}/api/camera/encoder/options?${query.toString()}`)
+      .then(r => {
+        if (!r.ok) throw new Error("Failed to load options");
+        return r.json();
+      })
+      .then(data => {
+        setOptions(data);
+        setCodec(profile.encoding || data.supported_encodings?.[0] || "H264");
+        setResolution(profile.resolution || data.supported_resolutions?.[0] || "1920x1080");
+        setFps(profile.fps || data.fps_range?.max || 15);
+        setBitrate(profile.bitrate || 2048);
+        setLoading(false);
+      })
+      .catch(err => {
+        setError("Failed to load camera options, using standard defaults.");
+        setCodec(profile.encoding || "H264");
+        setResolution(profile.resolution || "1920x1080");
+        setFps(profile.fps || 15);
+        setBitrate(profile.bitrate || 2048);
+        setLoading(false);
+      });
+  }, [profile, camera]);
+
+  const handleSave = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+
+    try {
+      const res = await fetch(`${API}/api/camera/encoder/set`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ip: camera.ip,
+          port: camera.port || 80,
+          username: camera.username || "",
+          password: camera.password || "",
+          profile_token: profile.token,
+          resolution,
+          encoding: codec,
+          fps: parseInt(fps),
+          bitrate: parseInt(bitrate)
+        })
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        onSaved();
+      } else {
+        setError(data.detail || "Failed to update configuration.");
+      }
+    } catch (err) {
+      setError(err.message || "Network error occurred.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="cem-modal-overlay">
+      <div className="cem-modal-container">
+        <div className="cem-modal-header">
+          <h3>Configure Stream Encoder</h3>
+          <button className="cem-close-btn" onClick={onClose}>&times;</button>
+        </div>
+        
+        <form onSubmit={handleSave} className="cem-modal-body">
+          {error && <div className="cem-error-message">{error}</div>}
+          
+          <div className="cem-info-row">
+            <span className="cem-info-label">Profile:</span>
+            <span className="cem-info-value">{profile.name} ({profile.token})</span>
+          </div>
+
+          <div className="cem-form-group">
+            <label>Video Codec</label>
+            <select value={codec} onChange={e => setCodec(e.target.value)}>
+              {options?.supported_encodings ? (
+                options.supported_encodings.map(enc => (
+                  <option key={enc} value={enc}>{enc}</option>
+                ))
+              ) : (
+                <>
+                  <option value="H264">H264</option>
+                  <option value="H265">H265</option>
+                  <option value="MPEG4">MPEG4</option>
+                  <option value="JPEG">MJPEG (JPEG)</option>
+                </>
+              )}
+            </select>
+          </div>
+
+          <div className="cem-form-group">
+            <label>Resolution</label>
+            <select value={resolution} onChange={e => setResolution(e.target.value)}>
+              {options?.supported_resolutions ? (
+                options.supported_resolutions.map(res => (
+                  <option key={res} value={res}>{res}</option>
+                ))
+              ) : (
+                <>
+                  <option value="352x288">352x288 (CIF)</option>
+                  <option value="640x480">640x480 (VGA)</option>
+                  <option value="1280x720">1280x720 (720p)</option>
+                  <option value="1920x1080">1920x1080 (1080p Full HD)</option>
+                  <option value="3840x2160">3840x2160 (4K Ultra HD)</option>
+                </>
+              )}
+            </select>
+          </div>
+
+          <div className="cem-form-group">
+            <label>Frame Rate: {fps} FPS</label>
+            <input
+              type="range"
+              min={options?.fps_range?.min || 5}
+              max={options?.fps_range?.max || 30}
+              value={fps}
+              onChange={e => setFps(e.target.value)}
+            />
+            <div className="cem-range-labels">
+              <span>{options?.fps_range?.min || 5} FPS</span>
+              <span>{options?.fps_range?.max || 30} FPS</span>
+            </div>
+          </div>
+
+          <div className="cem-form-group">
+            <label>Bitrate Limit (kbps)</label>
+            <input
+              type="number"
+              value={bitrate}
+              min={128}
+              max={10000}
+              onChange={e => setBitrate(e.target.value)}
+            />
+          </div>
+
+          <div className="cem-warning-notice">
+            <strong>Notice:</strong> Applying these settings will save the parameters directly on the camera. The video recording/streaming server may momentarily drop connection to adapt to the new stream parameters.
+          </div>
+
+          <div className="cem-modal-footer">
+            <button type="button" className="cem-btn cem-btn-secondary" onClick={onClose} disabled={loading}>
+              Cancel
+            </button>
+            <button type="submit" className="cem-btn cem-btn-primary" disabled={loading}>
+              {loading ? "Saving..." : "Save Changes"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 /* ── Main Page ───────────────────────────────────────────── */
 export default function StreamProfilesPage() {
   const [camera,      setCamera]      = useState(null);
@@ -258,6 +452,7 @@ export default function StreamProfilesPage() {
   const [recIdx,      setRecIdx]      = useState(null);
   const [applying,    setApplying]    = useState(false);
   const [applyResult, setApplyResult] = useState(null);
+  const [editingProfile, setEditingProfile] = useState(null);
 
   const selectedIp = localStorage.getItem("miradorai_selected_camera_ip") || null;
   const selectedId = localStorage.getItem("miradorai_selected_camera_id") || null;
@@ -273,24 +468,21 @@ export default function StreamProfilesPage() {
       return;
     }
 
-    // ── Restore previously applied profile selections ──────────────────────
-    // Priority: DB saved name → label heuristic → positional fallback
-    // active_live_profile / active_rec_profile are set by /api/streams/assign
     const savedLive = data.active_live_profile || data.active_live_token || null;
     const savedRec  = data.active_rec_profile  || data.active_rec_token  || null;
 
     const liveI = resolveIdx(
       profs,
       savedLive,
-      ["MAIN"],          // prefer MAIN for live if no saved selection
-      0                  // final fallback: first profile
+      ["MAIN"],          
+      0                  
     );
 
     const recI = resolveIdx(
       profs,
       savedRec,
-      ["SUB", "EXTRA"],  // prefer SUB then EXTRA for recording
-      profs.length > 1 ? 1 : 0  // final fallback: second profile (or first if only one)
+      ["SUB", "EXTRA"],  
+      profs.length > 1 ? 1 : 0  
     );
 
     setLiveIdx(liveI);
@@ -298,7 +490,7 @@ export default function StreamProfilesPage() {
     setLoading(false);
   }
 
-  useEffect(() => {
+  const loadCameraData = () => {
     if (!selectedIp && !selectedId) return;
 
     setLoading(true);
@@ -330,14 +522,23 @@ export default function StreamProfilesPage() {
     } else {
       fallbackToLocalStorage();
     }
+  };
+
+  useEffect(() => {
+    loadCameraData();
   }, []);
 
-  /* ── Apply ───────────────────────────────────────────────
-     Sends both RTSPs independently.
-     On success: backend saves active_live_profile +
-     active_rec_profile to MongoDB so the next page load
-     restores the correct selections automatically.
-  ─────────────────────────────────────────────────────── */
+  const handleEncoderSaved = () => {
+    setEditingProfile(null);
+    setApplyResult({
+      ok: true,
+      msg: "Video encoder settings saved to camera successfully. Updating profiles list..."
+    });
+    loadCameraData();
+    setTimeout(() => setApplyResult(null), 5000);
+  };
+
+  /* ── Apply ─────────────────────────────────────────────── */
   const handleApply = async () => {
     if (liveIdx === null || recIdx === null) return;
     const liveProfile = profiles[liveIdx];
@@ -372,7 +573,7 @@ export default function StreamProfilesPage() {
       });
 
       let data = null;
-      try { data = await res.json(); } catch { /* non-JSON */ }
+      try { data = await res.json(); } catch { }
 
       if (data?.success === true) {
         setApplyResult({
@@ -380,22 +581,17 @@ export default function StreamProfilesPage() {
           msg: `Applied — Live: ${liveProfile.name} (${liveProfile.resolution || "?"}) · Recording: ${recProfile.name} (${recProfile.resolution || "?"})`,
         });
 
-        // ── Update localStorage so LiveView picks up new ws_url immediately
         const devs = loadDevicesFromStorage();
         const idx  = devs.findIndex((d) => d.ip === camera.ip);
         if (idx !== -1) {
           if (data.ws_url)     devs[idx].ws_url     = data.ws_url;
           if (data.stream_key) devs[idx].stream_key = data.stream_key;
-          // Also persist the active profile names locally so a localStorage
-          // fallback (when backend is down) still restores correctly
           devs[idx].active_live_profile = liveProfile.name;
           devs[idx].active_rec_profile  = recProfile.name;
           localStorage.setItem("miradorai_devices", JSON.stringify(devs));
-          window.dispatchEvent(new Event("storage")); // notify LiveViewPage
+          window.dispatchEvent(new Event("storage")); 
         }
 
-        // ── Also update local camera state so the UI shows correct selections
-        // even without a page refresh
         setCamera((prev) => ({
           ...prev,
           active_live_profile: liveProfile.name,
@@ -456,6 +652,7 @@ export default function StreamProfilesPage() {
           camera={camera} profiles={profiles}
           liveIdx={liveIdx} recIdx={recIdx}
           onSelectLive={setLiveIdx} onSelectRec={setRecIdx}
+          onEdit={setEditingProfile}
         />
       )}
 
@@ -472,6 +669,15 @@ export default function StreamProfilesPage() {
       <SelectionSummary liveProfile={liveProfile} recProfile={recProfile} />
 
       {applyResult && <ApplyToast ok={applyResult.ok} msg={applyResult.msg} />}
+
+      {editingProfile && (
+        <ConfigureEncoderModal
+          camera={camera}
+          profile={editingProfile}
+          onClose={() => setEditingProfile(null)}
+          onSaved={handleEncoderSaved}
+        />
+      )}
 
       <div className="page-footer">
         <span />
@@ -494,4 +700,4 @@ export default function StreamProfilesPage() {
       </div>
     </div>
   );
-}
+}

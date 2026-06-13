@@ -75,10 +75,6 @@ function EmptyState() {
         <div className="add-dev__empty-pulse" />
       </div>
       <p className="add-dev__empty-title">No devices enrolled yet</p>
-      <p className="add-dev__empty-sub">
-        Use <strong>Manual Search</strong> to discover ONVIF cameras on your network,
-        <br />or add a camera via <strong>Stream URL</strong>.
-      </p>
     </div>
   );
 }
@@ -105,11 +101,19 @@ function ContextMenu({ x, y, onEdit, onRemove, onStreamProfiles, onClose }) {
       className="ctx-menu"
       style={{
         position: "fixed",
-        top: Math.min(y, window.innerHeight - 130),
+        top: Math.min(y, window.innerHeight - 150),
         left: Math.min(x, window.innerWidth - 180),
         zIndex: 9999,
       }}
     >
+      <button className="ctx-item" onClick={() => { onStreamProfiles(); onClose(); }}>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14" style={{ flexShrink: 0 }}>
+          <path d="M15 10l4.553-2.276A1 1 0 0121 8.723v6.554a1 1 0 01-1.447.894L15 14"/>
+          <rect x="1" y="6" width="15" height="12" rx="2"/>
+        </svg>
+        Stream Profiles
+      </button>
+      <div className="ctx-divider" />
       <button className="ctx-item" onClick={() => { onEdit(); onClose(); }}>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14" style={{ flexShrink: 0 }}>
           <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
@@ -478,9 +482,13 @@ export default function AddDevicesPage({ onNavigate }) {
   }, [devices]);
 
   const handleStreamProfiles = useCallback((deviceId) => {
+    const device = devices.find((d) => d.id === deviceId);
+    if (device && device.ip) {
+      localStorage.setItem("miradorai_selected_camera_ip", device.ip);
+    }
     localStorage.setItem("miradorai_selected_camera_id", String(deviceId));
     if (onNavigate) onNavigate("stream-profiles");
-  }, [onNavigate]);
+  }, [devices, onNavigate]);
 
   // ── handleDiscoveredDevices ───────────────────────────────────────────────
   // selectedGroupId is set via openDiscovery() before the modal opens,
@@ -799,7 +807,6 @@ export default function AddDevicesPage({ onNavigate }) {
         <div className="page-header">
           <div className="page-header__left">
             <h1 className="page-title">Add <span>Devices</span></h1>
-            <p className="page-desc">Discover and enroll devices from your network into the MIRADOR VMS platform.</p>
           </div>
 
           <div className="add-dev__toolbar">
@@ -867,14 +874,7 @@ export default function AddDevicesPage({ onNavigate }) {
                         setFilterDropdownOpen(false);
                       }}
                       title="Delete group"
-                      style={{
-                        background: "none", border: "none", cursor: "pointer",
-                        color: "rgba(255,255,255,0.35)", fontSize: 13, lineHeight: 1,
-                        padding: "1px 3px", borderRadius: 3, flexShrink: 0,
-                        transition: "color 0.15s",
-                      }}
-                      onMouseEnter={e => e.currentTarget.style.color = "#ef4444"}
-                      onMouseLeave={e => e.currentTarget.style.color = "rgba(255,255,255,0.35)"}
+                      className="adp-dropdown-delete-btn"
                     >✕</button>
                   </li>
                 ))}

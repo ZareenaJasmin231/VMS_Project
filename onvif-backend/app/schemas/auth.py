@@ -24,3 +24,17 @@ class ResetPasswordRequest(BaseModel):
     email:            str
     new_password:     str
     confirm_password: str
+
+from typing import Optional, List
+
+class AdminCreateUserRequest(BaseModel):
+    email:    str
+    password: str
+    role:     str = "client"
+    allowedCameras: Optional[List[str]] = None
+
+class AdminUpdateUserRequest(BaseModel):
+    role:     Optional[str] = None
+    password: Optional[str] = None
+    allowedCameras: Optional[List[str]] = None
+

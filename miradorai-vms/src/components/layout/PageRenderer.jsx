@@ -27,8 +27,10 @@ import ActionRulesPage from "../../pages/recording/Actionrulespage";
 
 import ClientSettingsPage from "../../pages/client/ClientSettingsPage";
 import UserSettingsPage from "../../pages/client/Usersettingspage";
+import UserManagementPage from "../../pages/client/UserManagementPage";
 import StreamingPage from "../../pages/client/StreamingPage";
 import AboutPage from "../../pages/client/AboutPage";
+import ViewingStationsPage from "../../pages/client/ViewingStationsPage";
 
 import FirmwareUpgradePage from "../../pages/connectedservices/Firmwareupgradepage";
 import SmartSearchSettingsPage from "../../pages/smartsearcxh/Smartsearchsettingspage";
@@ -86,8 +88,10 @@ const MAP = {
   // ================= CLIENT =================
   "client-settings": ClientSettingsPage,
   "user-settings": UserSettingsPage,
+  "user-management": UserManagementPage,
   "streaming": StreamingPage,
   "about": AboutPage,
+  "viewing-stations": ViewingStationsPage,
 
   // ================= SERVICES =================
   "firmware-upgrade": FirmwareUpgradePage,
@@ -138,6 +142,13 @@ export default function PageRenderer({ activePage, onNavigate }) {
     }
   }, [activePage, role, navigate]);
 
+  // --- Admin check: hard-block user-management for non-admins ---
+  useEffect(() => {
+    if (activePage === "user-management" && role !== "admin") {
+      navigate("/live-view", { replace: true });
+    }
+  }, [activePage, role, navigate]);
+
   // --- Client: check if current page needs supervisor unlock ---
   useEffect(() => {
     if (role === "client" && CLIENT_SUPERVISOR_PAGES.includes(activePage) && !supervisorUnlocked) {
@@ -181,5 +192,5 @@ export default function PageRenderer({ activePage, onNavigate }) {
 
   // ✅ fallback to dashboard if page not found
   const Component = MAP[activePage] || DashboardPage;
-  return <Component onNavigate={onNavigate} />;
+  return <Component onNavigate={onNavigate || ((page) => navigate(`/${page}`))} />;
 }

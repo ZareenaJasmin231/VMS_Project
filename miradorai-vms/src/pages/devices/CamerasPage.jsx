@@ -346,7 +346,6 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
       <div className="page-header">
         <div className="page-header__left">
           <h1 className="page-title">Manage <span>Camera Groups</span></h1>
-          <p className="page-desc">Organize your devices into logical groups for easier management and bulk operations.</p>
         </div>
         <SearchBar value={filter} onChange={setFilter} placeholder="Filter groups or cameras..." />
       </div>
@@ -378,7 +377,7 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
               <tbody>
                 {filteredGroups.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="m-table__empty">
+                    <td colSpan={7} className="m-table__empty" style={{ textAlign: "center", height: "350px", verticalAlign: "middle", color: "var(--text-muted)", fontSize: "16px" }}>
                       {cameras.length === 0
                         ? "No cameras enrolled. Go to Add Devices to get started."
                         : "No groups match your filter."}
@@ -492,7 +491,7 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
                       <td>
                         <button
                           className="ec-btn ec-btn--primary"
-                          style={{ fontSize: "0.75rem", padding: "4px 10px" }}
+                          style={{ whiteSpace: "nowrap" }}
                           onClick={() => openGroupPanel(group)}
                         >
                           View All Cameras
@@ -509,16 +508,7 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
           {selectedGroup && (
             <div className="card cam-side-panel">
               <div className="cam-side-header">
-                <div className="cam-side-header__info">
-                  <h3>{selectedGroup.name}</h3>
-                  <div className="cam-side-header__meta">
-                    <span>{selectedGroup.cameras.length} Camera{selectedGroup.cameras.length !== 1 ? "s" : ""}</span>
-                    <span className="dot">•</span>
-                    <span className="active-count">
-                      {selectedGroup.cameras.filter(c => c.enabled !== false).length} Active
-                    </span>
-                  </div>
-                </div>
+                <h3>{selectedGroup.name}</h3>
                 <button className="close-btn" onClick={() => setSelectedGroup(null)}>✕</button>
               </div>
 

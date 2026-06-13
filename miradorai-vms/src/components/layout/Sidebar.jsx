@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { getNavConfig } from "../../data/navConfig";
 import { useAuth } from "../../context/AuthContext";
@@ -38,32 +38,34 @@ export default function Sidebar({ userRole }) {
 
   const toggle = (s) => setExpanded((p) => ({ ...p, [s]: !p[s] }));
 
+  // Listen for external collapse requests
+  useEffect(() => {
+    const handleCollapse = () => {
+      setIsCollapsed(true);
+      localStorage.setItem("sidebar-collapsed", "true");
+    };
+    window.addEventListener("collapse-sidebar", handleCollapse);
+    return () => window.removeEventListener("collapse-sidebar", handleCollapse);
+  }, []);
+
 
   return (
     <aside className={`sidebar ${isCollapsed ? "sidebar--collapsed" : ""}`} aria-label="Main navigation">
-      {/* Logo */}
       <div className="sidebar__logo">
-        <div className="sidebar__logo-mark">
-          <img src={logoImg} alt="MIRADOR" className="sidebar__logo-img" />
-        </div>
+        <button 
+          className="sidebar__logo-btn" 
+          onClick={toggleCollapse}
+          title={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
+        >
+          <div className="sidebar__logo-mark">
+            <img src={logoImg} alt="MIRADOR" className="sidebar__logo-img" />
+          </div>
+        </button>
         {!isCollapsed && (
           <div className="sidebar__logo-text">
             <span className="sidebar__logo-name">MIRADOR VMS</span>
           </div>
         )}
-        <button 
-          className="sidebar__collapse-toggle" 
-          onClick={toggleCollapse}
-          title={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
-        >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            {isCollapsed ? (
-              <path d="M13 17l5-5-5-5M6 17l5-5-5-5" />
-            ) : (
-              <path d="M11 17l-5-5 5-5M18 17l-5-5 5-5" />
-            )}
-          </svg>
-        </button>
       </div>
 
       {/* Search */}

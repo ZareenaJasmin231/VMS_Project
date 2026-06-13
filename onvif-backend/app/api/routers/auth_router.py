@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, Depends, Request
 from typing import Optional
 import re
 from datetime import datetime
-from app.schemas.auth import SignupRequest, LoginRequest, ForgotPasswordRequest, SupervisorPasswordRequest, SupervisorVerifyRequest, ResetPasswordRequest
+from app.schemas.auth import SignupRequest, LoginRequest, ForgotPasswordRequest, SupervisorPasswordRequest, SupervisorVerifyRequest, ResetPasswordRequest, AdminCreateUserRequest, AdminUpdateUserRequest
 from app.core.database import users_col, auth_logs_col, settings_col
 from app.core.security import create_token, verify_token, require_admin
 from passlib.context import CryptContext
@@ -79,7 +79,8 @@ def auth_login(req: LoginRequest, request: Request):
         "token": token,
         "user": {
             "email": user["email"],
-            "role": user["role"]
+            "role": user["role"],
+            "allowedCameras": user.get("allowedCameras", [])
         }
     }
 
@@ -162,5 +163,99 @@ def auth_reset_password(req: ResetPasswordRequest):
 
 
 # ------------------------------------------------------------------
-# Basic endpoints
+# User Management Endpoints (Admin Only)
 # ------------------------------------------------------------------
+
+@router.get("/users")
+def list_users(user=Depends(require_admin)):
+    if users_col is None:
+        raise HTTPException(status_code=500, detail="Database not connected")
+    all_users = list(users_col.find({}, {"_id": 0, "password": 0}))
+    return {"success": True, "users": all_users}
+
+@router.post("/users")
+def create_user(req: AdminCreateUserRequest, user=Depends(require_admin)):
+    if users_col is None:
+        raise HTTPException(status_code=500, detail="Database not connected")
+    if not req.email or not req.password:
+        raise HTTPException(status_code=400, detail="Email and password are required")
+    email_regex = r"^[^\s@]+@[^\s@]+\.[^\s@]+$"
+    if not re.match(email_regex, req.email):
+        raise HTTPException(status_code=400, detail="Invalid email format")
+    if len(req.password) < 6:
+        raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
+    if req.role not in ("admin", "client", "operator"):
+        raise HTTPException(status_code=400, detail="Role must be 'admin', 'client', or 'operator'")
+    if users_col.find_one({"email": req.email}):
+        raise HTTPException(status_code=400, detail="Email already registered")
+    hashed_password = pwd_context.hash(req.password)
+    user_doc = {
+        "email":     req.email,
+        "password":  hashed_password,
+        "role":      req.role,
+        "allowedCameras": req.allowedCameras or [],
+        "createdAt": datetime.utcnow().isoformat(),
+    }
+    try:
+        users_col.insert_one(user_doc)
+        print(f"[AUTH] ✅ Admin created user: {req.email}")
+    except Exception as e:
+        print(f"[AUTH] ❌ Admin user creation failed: {e}")
+        raise HTTPException(status_code=500, detail="Failed to create user")
+    return {"success": True, "message": "User created successfully!"}
+
+@router.patch("/users/{email}")
+def update_user(email: str, req: AdminUpdateUserRequest, user=Depends(require_admin)):
+    if users_col is None:
+        raise HTTPException(status_code=500, detail="Database not connected")
+    existing = users_col.find_one({"email": email})
+    if not existing:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    update_fields = {}
+    if req.role is not None:
+        if req.role not in ("admin", "client", "operator"):
+            raise HTTPException(status_code=400, detail="Role must be 'admin', 'client', or 'operator'")
+        update_fields["role"] = req.role
+        
+    if req.password is not None:
+        if len(req.password) < 6:
+            raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
+        update_fields["password"] = pwd_context.hash(req.password)
+        
+    if req.allowedCameras is not None:
+        update_fields["allowedCameras"] = req.allowedCameras
+        
+    if not update_fields:
+        return {"success": True, "message": "No changes requested."}
+        
+    update_fields["updatedAt"] = datetime.utcnow().isoformat()
+    try:
+        users_col.update_one({"email": email}, {"$set": update_fields})
+        print(f"[AUTH] ✅ Admin updated user: {email}")
+    except Exception as e:
+        print(f"[AUTH] ❌ Admin user update failed: {e}")
+        raise HTTPException(status_code=500, detail="Failed to update user")
+    return {"success": True, "message": "User updated successfully!"}
+
+@router.delete("/users/{email}")
+def delete_user(email: str, user=Depends(require_admin)):
+    if users_col is None:
+        raise HTTPException(status_code=500, detail="Database not connected")
+    
+    # Prevent self-deletion if logged in as the same user
+    if user.get("sub") == email:
+        raise HTTPException(status_code=400, detail="Cannot delete your own admin account")
+        
+    existing = users_col.find_one({"email": email})
+    if not existing:
+        raise HTTPException(status_code=404, detail="User not found")
+        
+    try:
+        users_col.delete_one({"email": email})
+        print(f"[AUTH] 🗑 Admin deleted user: {email}")
+    except Exception as e:
+        print(f"[AUTH] ❌ Admin user deletion failed: {e}")
+        raise HTTPException(status_code=500, detail="Failed to delete user")
+    return {"success": True, "message": "User deleted successfully!"}
+

@@ -127,6 +127,7 @@ export default function BackupPage() {
   const [manualEnabled, setManualEnabled] = useState(false);
   const [autoEnabled, setAutoEnabled]     = useState(false);
   const [showDestModal, setShowDestModal] = useState(false);
+  const [activeTab, setActiveTab]         = useState('storage');
 
   const [network, setNetwork] = useState({
     protocol: 'SMB', ip: '', port: 445, username: '', password: '', path: ''
@@ -465,7 +466,6 @@ export default function BackupPage() {
       <div className="backup-page-header">
         <div>
           <h1 className="backup-page-title">Backup Management</h1>
-          <p className="backup-page-desc">Configure automated storage mirroring and manual data exports.</p>
         </div>
         <div className="backup-stats-strip">
           <div className="stat-pill">
@@ -490,28 +490,19 @@ export default function BackupPage() {
         </div>
       </div>
 
-      {/* Path Info */}
-      {(status.local_path || status.network_path) && (
-        <div className="backup-info-bar">
-          <div className="info-item">
-            <FaFolder style={{ color: 'var(--teal)' }} />
-            <strong>Local:</strong> {status.local_path || 'Not detected'}
-          </div>
-          <FaArrowRight className="info-sep" />
-          <div className="info-item">
-            <FaServer style={{ color: 'var(--teal)' }} />
-            <strong>Target:</strong> {status.network_path || 'Unconfigured'}
-          </div>
-        </div>
-      )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-          {/* 1. Network Settings */}
-          <SectionCard icon={<FaServer />} title="Network Storage" badge={networkSaved ? 'Linked' : null}>
-            <div className="help-box">
-              <strong>Configuration:</strong> Define the primary network target for automated backups and data synchronization.
-            </div>
+
+      <div className="backup-tabs">
+        <button className={`backup-tab-btn ${activeTab === 'storage' ? 'active' : ''}`} onClick={() => setActiveTab('storage')}>Storage & Mirroring</button>
+        <button className={`backup-tab-btn ${activeTab === 'retention' ? 'active' : ''}`} onClick={() => setActiveTab('retention')}>Retention Policies</button>
+        <button className={`backup-tab-btn ${activeTab === 'export' ? 'active' : ''}`} onClick={() => setActiveTab('export')}>Data Export</button>
+      </div>
+
+      <div className="backup-tab-content" style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+        {activeTab === 'storage' && (
+          <>
+            {/* 1. Network Settings */}
+            <SectionCard icon={<FaServer />} title="Network Storage" badge={networkSaved ? 'Linked' : null}>
             <div className="form-grid">
               <div className="input-group">
                 <label>Protocol</label>
@@ -533,11 +524,11 @@ export default function BackupPage() {
                 <input type="text" className="backup-input" placeholder="\\host\share" value={network.path} onChange={e => setNetwork(n => ({ ...n, path: e.target.value }))} />
               </div>
             </div>
-            <div style={{ display: 'flex', gap: 12, marginTop: 20 }}>
-              <button className="btn-secondary" onClick={handleTestConnection} disabled={loading.test}>
+            <div style={{ display: 'flex', gap: 12, marginTop: 20, justifyContent: 'flex-end' }}>
+              <button className="btn-secondary" style={{ padding: '6px 14px', fontSize: '15px', width: 'max-content' }} onClick={handleTestConnection} disabled={loading.test}>
                 <FaBolt /> Test
               </button>
-              <button className="btn-primary" onClick={handleSaveNetwork} disabled={loading.saveNet}>
+              <button className="btn-primary" style={{ padding: '6px 14px', fontSize: '15px', width: 'max-content' }} onClick={handleSaveNetwork} disabled={loading.saveNet}>
                 Save Settings
               </button>
             </div>
@@ -545,23 +536,21 @@ export default function BackupPage() {
 
           {/* 3. Automatic Backup */}
           <SectionCard icon={<FaDatabase />} title="Automated Mirroring" enabled={autoEnabled} onToggle={handleAutoToggle} badge={status.auto_active ? 'Streaming' : null}>
-            <p className="backup-page-desc" style={{ maxWidth: 'none' }}>
-              When enabled, all new recording chunks are instantly mirrored to the network storage target in real-time.
-            </p>
           </SectionCard>
-        </div>
+        </>
+        )}
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+        {activeTab === 'export' && (
+          <>
           {/* 2. Manual Backup */}
-          <SectionCard icon={<FaHistory />} title="Data Export" enabled={manualEnabled} onToggle={setManualEnabled}>
-            {manualEnabled && (
+          <SectionCard icon={<FaHistory />} title="Data Export">
               <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
                 <div className="input-group">
                   <label>Source Cameras</label>
                   <div className="camera-selector">
                     {cameras.map(c => (
                       <div key={c.id} className="cam-item">
-                        <input type="checkbox" checked={manual.cameras.includes(c.ip)} onChange={() => toggleCamera(setManual, c.ip)} />
+                        <Toggle checked={manual.cameras.includes(c.ip)} onChange={() => toggleCamera(setManual, c.ip)} />
                         <span>{c.name || c.ip}</span>
                       </div>
                     ))}
@@ -588,14 +577,16 @@ export default function BackupPage() {
                     </div>
                   </div>
                 )}
-                <button className="btn-primary" onClick={handleManualClick} disabled={loading.manual || status.status === 'Processing'}>
+                <button className="btn-primary" style={{ padding: '6px 14px', fontSize: '15px', width: 'max-content', alignSelf: 'flex-end' }} onClick={handleManualClick} disabled={loading.manual || status.status === 'Processing'}>
                   <FaPlayCircle /> Export Records
                 </button>
               </div>
-            )}
-            {!manualEnabled && <p className="backup-page-desc">Enable to perform selective data exports to a specific destination.</p>}
           </SectionCard>
+          </>
+        )}
 
+        {activeTab === 'retention' && (
+          <>
           {/* 4. Retention */}
           <SectionCard icon={<FaHistory />} title="Retention Policy">
             <div className="input-group">
@@ -711,8 +702,8 @@ export default function BackupPage() {
               <button className="btn-primary" onClick={handleRetentionEnforce} disabled={loading.retain}>Enforce Now</button>
             </div>
             */}
-            <div style={{ display: 'flex', gap: 12, marginTop: 20 }}>
-              <button className="btn-primary" onClick={handleApplyRetention} disabled={loading.saveRetain}>Apply Retention Rules</button>
+            <div style={{ display: 'flex', gap: 12, marginTop: 20, justifyContent: 'flex-end' }}>
+              <button className="btn-primary" style={{ padding: '6px 14px', fontSize: '15px', width: 'max-content' }} onClick={handleApplyRetention} disabled={loading.saveRetain}>Apply Retention Rules</button>
             </div>
           </SectionCard>
 
@@ -723,7 +714,7 @@ export default function BackupPage() {
               <div className="camera-selector">
                 {cameras.map(c => (
                   <div key={c.id} className="cam-item">
-                    <input type="checkbox" checked={restore.cameras.includes(c.ip)} onChange={() => toggleCamera(setRestore, c.ip)} />
+                    <Toggle checked={restore.cameras.includes(c.ip)} onChange={() => toggleCamera(setRestore, c.ip)} />
                     <span>{c.name || c.ip}</span>
                   </div>
                 ))}
@@ -744,7 +735,8 @@ export default function BackupPage() {
             </button>
           </SectionCard>
           */}
-        </div>
+          </>
+        )}
       </div>
 
       {notification && (

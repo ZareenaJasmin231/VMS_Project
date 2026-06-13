@@ -3,7 +3,7 @@
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: #000;
+  background: var(--bg-base);
   overflow: hidden;
   gap: 0;
 }
@@ -26,7 +26,7 @@
   gap: 16px;
 }
 .lv-page-title {
-  font-size: 30px;
+  font-size: var(--font-size-heading);
   font-weight: 700;
   margin: 0;
   color: var(--text-primary);
@@ -40,16 +40,16 @@
   align-items: center;
   gap: 8px;
 }
-.lv-toolbar__count {
+.lv-toolbar__stream-count {
   font-size: 14px;
-  font-weight: 700;
-  color: var(--teal);
-  background: var(--teal-subtle);
-  padding: 1px 8px;
-  border-radius: 12px;
-  border: 1px solid var(--teal-glow);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  font-weight: 600;
+  color: #10b981 !important;
+  background: none;
+  padding: 0;
+  border-radius: 0;
+  border: none;
+  text-transform: none;
+  letter-spacing: 0;
 }
 .lv-toolbar__disabled-badge {
   display: inline-flex;
@@ -133,8 +133,8 @@
   display: grid;
   grid-template-columns: repeat(var(--cols), 1fr);
   grid-template-rows: repeat(var(--cols), 1fr);
-  gap: 1px;
-  background: var(--border);
+  gap: 12px;
+  background: var(--bg-base);
   overflow: hidden;
   min-height: 0;
   width: 100%;
@@ -147,8 +147,8 @@
   display: grid;
   grid-template-columns: 3fr 1fr;
   grid-template-rows: 1fr;
-  gap: 2px;
-  background: #2a2a2a;
+  gap: 12px;
+  background: var(--bg-base);
   overflow: hidden;
   min-height: 0;
   width: 100%;
@@ -169,16 +169,27 @@
 .lv-cell {
   position: relative;
   background: var(--bg-base);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
   overflow: hidden;
   cursor: pointer;
   min-height: 0;
   min-width: 0;
   display: flex;
   flex-direction: column;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), 
+              border-color 0.25s ease, 
+              box-shadow 0.25s ease;
+}
+.lv-cell:hover {
+  transform: translateY(-3px) scale(1.01);
+  border-color: rgba(0, 180, 160, 0.45);
+  box-shadow: 0 12px 30px rgba(0, 180, 160, 0.2), 0 8px 24px rgba(0, 0, 0, 0.6);
 }
 .lv-cell--selected {
-  outline: 2px solid var(--teal);
-  outline-offset: -2px;
+  border-color: var(--teal) !important;
+  box-shadow: 0 0 0 2px var(--teal), 0 8px 32px rgba(0, 180, 160, 0.35) !important;
 }
 .lv-cell:hover .lv-cell__header { opacity: 1; }
 
@@ -209,7 +220,7 @@
   50%       { opacity: 0.4; }
 }
 .lv-cell__name {
-  font-size: 15px;
+  font-size: var(--font-size-content);
   font-weight: 500;
   color: #fff;
   flex: 1;
@@ -224,7 +235,7 @@
   margin-left: auto;
 }
 .lv-cell__ip {
-  font-size: 14px;
+  font-size: var(--font-size-content);
   color: rgba(255,255,255,0.5);
   font-family: var(--font-mono);
 }
@@ -606,18 +617,18 @@
 
 /* ── Alert blinking border on camera cell ────────── */
 .lv-cam--alert {
-  border: 2px solid #E24B4A !important;
-  animation: lv-cam-blink 1.2s ease-in-out infinite;
+  border: 1px solid rgba(255, 75, 75, 0.8) !important;
+  animation: lv-cam-blink 1.5s ease-in-out infinite;
 }
 
 @keyframes lv-cam-blink {
   0%, 100% {
-    border-color: #E24B4A;
-    box-shadow: 0 0 0 3px rgba(226, 75, 74, 0.25);
+    border-color: rgba(255, 75, 75, 0.3) !important;
+    box-shadow: 0 0 8px rgba(255, 75, 75, 0.2), inset 0 0 12px rgba(255, 75, 75, 0.1);
   }
   50% {
-    border-color: #A32D2D;
-    box-shadow: 0 0 0 6px rgba(226, 75, 74, 0.10);
+    border-color: rgba(255, 120, 80, 0.9) !important;
+    box-shadow: 0 0 18px rgba(255, 100, 100, 0.6), inset 0 0 24px rgba(255, 100, 100, 0.4);
   }
 }
 
@@ -962,7 +973,7 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   padding: 6px 14px;
-  color: var(--text-secondary);
+  color: #fff;
   font-family: var(--font-ui);
   font-size: 16px;
   font-weight: 500;
@@ -983,8 +994,8 @@
 }
 
 .lv-grid-icon {
-  opacity: 0.7;
-  color: var(--text-secondary);
+  opacity: 0.9;
+  color: #fff;
   transition: color 0.2s ease;
 }
 
@@ -1068,7 +1079,7 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   padding: 6px 14px;
-  color: var(--text-secondary);
+  color: #fff;
   font-family: var(--font-ui);
   font-size: 16px;
   font-weight: 500;
@@ -1094,9 +1105,9 @@
   align-items: center;
   justify-content: center;
   gap: 16px;
-  padding: 5px 24px;
-  background: var(--bg-surface);
-  border-top: 1px solid var(--border);
+  padding: 6px 24px;
+  background: transparent;
+  border-top: none;
   flex-shrink: 0;
   width: 100%;
   box-sizing: border-box;
@@ -1200,7 +1211,7 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   padding: 6px 10px;
-  color: var(--text-secondary);
+  color: #fff;
   cursor: pointer;
   transition: all 0.2s ease;
   position: relative;
@@ -1366,7 +1377,62 @@
 
 /* ── Alert border on grid cells to prevent overflow clipping ── */
 .lv-cell--alert {
-  outline: 2px solid #E24B4A !important;
-  outline-offset: -2px;
+  border-color: #E24B4A !important;
+  box-shadow: 0 0 0 2px #E24B4A, 0 8px 32px rgba(226, 75, 74, 0.4) !important;
   animation: lv-cam-blink 1.2s ease-in-out infinite;
+}
+
+/* ── Draggable styling ── */
+.lv-cell[draggable="true"] {
+  cursor: grab;
+}
+.lv-cell[draggable="true"]:active {
+  cursor: grabbing;
+}
+
+/* ── Workstation Badge & Renaming UI ── */
+.lv-toolbar__station-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(4px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 20px;
+  font-family: var(--font-ui, sans-serif);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary, #94a3b8);
+  margin-left: 10px;
+  transition: all 0.2s ease;
+}
+
+.lv-toolbar__station-badge svg {
+  color: var(--teal, #14b8a6);
+}
+
+.lv-toolbar__station-badge:hover {
+  background: rgba(15, 23, 42, 0.65);
+  border-color: rgba(20, 184, 166, 0.3);
+}
+
+.lv-station-name-text {
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.lv-station-name-input {
+  background: transparent;
+  border: none;
+  outline: none;
+  color: #fff;
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  width: 120px;
+  padding: 0;
+  border-bottom: 1px dashed var(--teal, #14b8a6);
 }

@@ -1,0 +1,462 @@
+.vs-page {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 24px;
+  background: var(--bg-base, #090d16);
+  overflow-y: auto;
+  gap: 20px;
+}
+
+.vs-header {
+  margin-bottom: 8px;
+}
+
+.vs-title {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text-primary, #ffffff);
+  background: linear-gradient(135deg, #ffffff 0%, var(--teal, #14b8a6) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  margin-bottom: 4px;
+}
+
+.vs-subtitle {
+  font-size: 14px;
+  color: var(--text-muted, #94a3b8);
+}
+
+.vs-content-layout {
+  display: grid;
+  grid-template-columns: 380px 1fr;
+  gap: 20px;
+  align-items: flex-start;
+  flex: 1;
+  min-height: 0;
+}
+
+/* ── Panel Styles ── */
+.vs-panel {
+  background: var(--bg-surface, #0f172a);
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.08));
+  border-radius: 12px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  max-height: 75vh;
+}
+
+.vs-panel-header {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border, rgba(255, 255, 255, 0.08));
+  background: rgba(15, 23, 42, 0.2);
+}
+
+.vs-panel-header h2 {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary, #ffffff);
+  margin: 0;
+}
+
+.vs-panel-body {
+  padding: 20px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+/* ── State Message ── */
+.vs-state-msg {
+  font-size: 14px;
+  color: var(--text-muted, #94a3b8);
+  text-align: center;
+  padding: 40px 20px;
+  line-height: 1.6;
+}
+
+/* ── Terminal Cards ── */
+.vs-grid-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.vs-station-card {
+  padding: 14px 16px;
+  background: var(--bg-elevated, #1e293b);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.vs-station-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(20, 184, 166, 0.3);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+}
+
+.vs-station-card.selected {
+  border-color: var(--teal, #14b8a6) !important;
+  background: rgba(20, 184, 166, 0.06);
+  box-shadow: 0 0 0 2px var(--teal, #14b8a6), 0 8px 20px rgba(20, 184, 166, 0.1) !important;
+}
+
+.vs-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.vs-station-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.vs-station-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.vs-station-id {
+  font-size: 11px;
+  color: #ffffff;
+  font-family: monospace;
+  margin-top: 2px;
+}
+
+.vs-status-badge {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 2px 8px;
+  border-radius: 12px;
+}
+
+.vs-status-badge.online {
+  background: rgba(20, 184, 166, 0.15);
+  color: var(--teal, #14b8a6);
+}
+
+.vs-status-badge.offline {
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+}
+
+.vs-card-details {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.vs-detail-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+}
+
+.vs-detail-row .label {
+  color: #ffffff;
+}
+
+.vs-detail-row .value {
+  color: #ffffff;
+  font-weight: 500;
+}
+
+.vs-detail-row .value.highlight {
+  color: var(--teal, #14b8a6);
+}
+
+/* ── Builder Panel ── */
+.vs-builder-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 80px 40px;
+  text-align: center;
+  color: var(--text-muted, #94a3b8);
+  gap: 16px;
+}
+
+.vs-builder-empty svg {
+  color: rgba(255, 255, 255, 0.15);
+}
+
+.vs-builder-empty p {
+  font-size: 14px;
+  line-height: 1.5;
+  max-width: 300px;
+}
+
+.vs-builder-container {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.vs-builder-top {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.vs-builder-top h3 {
+  font-size: 16px;
+  font-weight: 600;
+  color: #fff;
+  margin: 0;
+}
+
+.vs-builder-top h3 .highlight {
+  color: var(--teal, #14b8a6);
+}
+
+.vs-warning-banner {
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.2);
+  color: #f59e0b;
+  font-size: 12px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  line-height: 1.4;
+}
+
+.vs-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.vs-form-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #ffffff;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.vs-grid-selector {
+  display: flex;
+  gap: 8px;
+}
+
+.vs-grid-btn {
+  flex: 1;
+  padding: 10px 14px;
+  background: var(--bg-elevated, #1e293b);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.vs-grid-btn:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: #fff;
+}
+
+.vs-grid-btn.active {
+  background: var(--teal, #14b8a6);
+  border-color: var(--teal, #14b8a6);
+  color: #000;
+  box-shadow: 0 4px 12px rgba(20, 184, 166, 0.3);
+}
+
+/* ── Builder Grid Config ── */
+.vs-builder-grid {
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 10px;
+  padding: 16px;
+  border: 1px dashed rgba(255, 255, 255, 0.08);
+}
+
+.vs-builder-cell {
+  background: var(--bg-elevated, #1e293b);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 6px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.vs-cell-num {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--teal, #14b8a6);
+  text-transform: uppercase;
+}
+
+.vs-cell-dropdown {
+  position: relative;
+  width: 100%;
+}
+
+.vs-cell-dropdown-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  background: var(--bg-elevated, #1e293b);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #ffffff;
+  font-size: 12px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  outline: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.vs-cell-dropdown-trigger:hover {
+  border-color: var(--teal, #14b8a6);
+}
+
+.vs-cell-dropdown-trigger.active {
+  border-color: var(--teal, #14b8a6);
+  background: rgba(20, 184, 166, 0.05);
+}
+
+.vs-cell-dropdown-label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.vs-cell-chevron {
+  transition: transform 0.2s ease;
+  flex-shrink: 0;
+  margin-left: 8px;
+}
+
+.vs-cell-chevron.open {
+  transform: rotate(180deg);
+}
+
+.vs-cell-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  width: 100%;
+  background: var(--bg-elevated, #1e293b);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  z-index: 100;
+  max-height: 200px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  padding: 4px;
+}
+
+.vs-cell-dropdown-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  color: #e2e8f0;
+  font-size: 12px;
+  padding: 8px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.vs-cell-dropdown-item:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: #ffffff;
+}
+
+.vs-cell-dropdown-item.selected {
+  background: rgba(20, 184, 166, 0.1);
+  color: var(--teal, #14b8a6);
+  font-weight: 600;
+}
+
+.vs-cell-preview-name {
+  font-size: 11px;
+  color: #ffffff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 2px;
+}
+
+/* ── Status Banner ── */
+.vs-status-banner {
+  padding: 10px 16px;
+  border-radius: 6px;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.vs-status-banner.success {
+  background: rgba(20, 184, 166, 0.1);
+  border: 1px solid rgba(20, 184, 166, 0.2);
+  color: var(--teal, #14b8a6);
+}
+
+.vs-status-banner.error {
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  color: #ef4444;
+}
+
+/* ── Push Actions ── */
+.vs-builder-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 10px;
+}
+
+.vs-push-btn {
+  width: 100%;
+  padding: 12px 24px;
+  background: linear-gradient(135deg, var(--teal, #14b8a6) 0%, #0d9488 100%);
+  border: none;
+  border-radius: 6px;
+  color: #000;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 14px rgba(20, 184, 166, 0.4);
+}
+
+.vs-push-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(20, 184, 166, 0.6);
+}
+
+.vs-push-btn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.vs-push-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  box-shadow: none;
+}

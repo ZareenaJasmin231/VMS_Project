@@ -3,14 +3,18 @@
 }
 .m-searchbar svg { position: absolute; left: 10px; width: 13px; height: 13px; color: var(--text-muted); }
 .m-searchbar input {
-  padding: 7px 12px 7px 32px;
+  padding: 0 10px 0 32px;
+  height: 34px;
   background: var(--bg-elevated);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-light, #2e3548);
+  border-radius: 6px;
   color: var(--text-primary);
-  font-size: 12px; font-family: var(--font-ui);
-  width: 220px; outline: none;
-  transition: border-color var(--transition);
+  font-size: 12px; 
+  font-family: inherit;
+  width: 220px; 
+  outline: none;
+  transition: border-color 0.15s;
+  box-sizing: border-box;
 }
 .m-searchbar input::placeholder { color: var(--text-muted); }
 .m-searchbar input:focus { border-color: var(--teal); }

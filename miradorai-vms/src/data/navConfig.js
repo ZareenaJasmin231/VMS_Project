@@ -51,11 +51,11 @@ const ADMIN_ONLY_NAV = [
     icon: ICONS.playback,
   },
   // ✅ FORENSIC SEARCH
-  {
-    section: "Forensic Search",
-    page: "forensic-search",
-    icon: ICONS.forensicSearch,
-  },
+  // {
+  //   section: "Forensic Search",
+  //   page: "forensic-search",
+  //   icon: ICONS.forensicSearch,
+  // },
   {
     section: "Designer View",
     page: "designer-view",
@@ -99,6 +99,8 @@ const SETTINGS_NAV = {
     { label: "Privacy Masking", page: "masking", icon: ICONS.masking },
     { label: "Schedules", page: "schedules", icon: ICONS.recording },
     { label: "Backup", page: "backup", icon: ICONS.backup },
+    { label: "Viewing Stations", page: "viewing-stations", icon: ICONS.client },
+    { label: "User Management", page: "user-management", icon: ICONS.client },
   ],
 };
 
@@ -109,10 +111,19 @@ const OPERATOR_NAV = [
 
 // ================= GET NAVIGATION CONFIG =================
 export const getNavConfig = (role = "client") => {
-  if (role === "admin")    return [...CORE_NAV, ...ADMIN_ONLY_NAV, SETTINGS_NAV];
-  if (role === "client")   return [...CLIENT_NAV, SETTINGS_NAV];
+  const filteredSettings = {
+    ...SETTINGS_NAV,
+    items: SETTINGS_NAV.items.filter(item => {
+      if (item.page === "user-management") {
+        return role === "admin";
+      }
+      return true;
+    })
+  };
+  if (role === "admin")    return [...CORE_NAV, ...ADMIN_ONLY_NAV, filteredSettings];
+  if (role === "client")   return [...CLIENT_NAV, filteredSettings];
   if (role === "operator") return OPERATOR_NAV;
-  return [...CLIENT_NAV, SETTINGS_NAV]; // fallback
+  return [...CLIENT_NAV, filteredSettings]; // fallback
 };
 
 // ================= DEFAULT EXPORT =================
@@ -162,6 +173,7 @@ export const PAGE_TITLES = {
   "storage-mgmt": "Storage Management",
   "client-settings": "Client Settings",
   "user-settings": "User Settings",
+  "user-management": "User Management",
   profile: "Profile",
   about: "About",
 

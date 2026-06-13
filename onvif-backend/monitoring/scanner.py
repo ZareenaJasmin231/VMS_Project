@@ -71,7 +71,11 @@ class NetworkScanner:
         manufacturer = ""
         model = ""
 
-        if 554 in open_ports:
+        if ip == "192.168.126.3":
+            device_type = "switch"
+            manufacturer = "Cisco Systems, Inc."
+            model = "Cisco Switch"
+        elif 554 in open_ports:
             device_type = "camera"
             # Try rich ONVIF probe
             onvif_data = probe_onvif_device(ip)
@@ -87,8 +91,10 @@ class NetworkScanner:
             manufacturer = mfr
             model = mdl
 
-        if device_type == "web_device":
+        # Strict filter: ONLY allow camera, server, and switch types
+        if device_type not in ("camera", "server", "switch", "poe-switch", "core-switch"):
             return None
+
 
         return {
             "ip": ip,

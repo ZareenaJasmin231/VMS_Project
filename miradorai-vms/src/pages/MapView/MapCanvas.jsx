@@ -89,11 +89,27 @@ const MapCanvas = forwardRef(function MapCanvas(
     return inside;
   }
 
+  // ── Shoelace formula for polygon area ─────────────────────────────
+  function getPolygonArea(polygon) {
+    if (!polygon || polygon.length < 3) return 0;
+    let area = 0;
+    const n = polygon.length;
+    for (let i = 0; i < n; i++) {
+      const j = (i + 1) % n;
+      area += polygon[i].x * polygon[j].y;
+      area -= polygon[j].x * polygon[i].y;
+    }
+    return Math.abs(area) / 2;
+  }
+
   // ── Find the zone a marker sits inside ───────────────────────────
   function getMarkerZone(marker) {
-    return zones.find(
+    const containedZones = zones.filter(
       z => z.polygon?.length >= 3 && pointInPolygon(marker.x, marker.y, z.polygon)
-    ) || null;
+    );
+    if (containedZones.length === 0) return null;
+    containedZones.sort((a, b) => getPolygonArea(a.polygon) - getPolygonArea(b.polygon));
+    return containedZones[0];
   }
 
   // ── Build zone clip path (does NOT call ctx.save/restore) ────────
