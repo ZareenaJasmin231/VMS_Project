@@ -40,6 +40,8 @@ _actively_recording_streams = set()
 
 _latest_face_urls: dict[str, str] = {}
 _last_trigger_log_times: dict[str, float] = {}
+_last_motion_trigger_times: dict[str, float] = {}
+_recording_durations: dict[str, dict[str, float]] = {}
 
 # ── MongoDB (shared client for all recorder operations) ─────────────
 MONGO_URI    = os.environ.get("MONGO_URI", "mongodb://mongo:27017/")
@@ -52,6 +54,8 @@ def trigger_motion(stream_name: str, face_url: str | None = None):
     meta = _camera_data.get(stream_name, {})
     if not meta.get("motion_only", False):
         return
+
+    _last_motion_trigger_times[stream_name] = time.time()
 
     if stream_name not in _motion_events:
         _motion_events[stream_name] = threading.Event()
@@ -382,6 +386,10 @@ def _record_loop(
             from app.utils.ffmpeg_utils import register_process, unregister_process
             register_process(proc)
 
+            chunk_start = time.time()
+            if motion_only and stream_name not in _last_motion_trigger_times:
+                _last_motion_trigger_times[stream_name] = chunk_start
+
             while proc.poll() is None:
                 if stop_event.is_set():
                     proc.send_signal(signal.SIGTERM)
@@ -390,7 +398,35 @@ def _record_loop(
                     except subprocess.TimeoutExpired:
                         proc.kill()
                     break
+
+                if motion_only:
+                    elapsed_since_motion = time.time() - _last_motion_trigger_times.get(stream_name, chunk_start)
+                    total_duration = time.time() - chunk_start
+                    
+                    if elapsed_since_motion > 30.0:
+                        local_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                        print(f"[RECORDER] [{local_time}] ⏹ No motion detected for 30s buffer. Stopping recording early for {stream_name}.")
+                        proc.send_signal(signal.SIGTERM)
+                        try:
+                            proc.wait(timeout=5)
+                        except subprocess.TimeoutExpired:
+                            proc.kill()
+                        break
+                        
+                    if total_duration >= 300.0:
+                        local_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                        print(f"[RECORDER] [{local_time}] ⏹ Reached 5-minute max recording limit. Stopping recording for {stream_name}.")
+                        proc.send_signal(signal.SIGTERM)
+                        try:
+                            proc.wait(timeout=5)
+                        except subprocess.TimeoutExpired:
+                            proc.kill()
+                        break
+
                 time.sleep(1)
+
+            final_duration = time.time() - chunk_start
+            _recording_durations.setdefault(stream_name, {})[time_str] = final_duration
 
             returncode = proc.returncode or 0
             if returncode not in (0, -15):

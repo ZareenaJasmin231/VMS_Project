@@ -267,8 +267,11 @@ def _save_metadata_to_db(camera_id, date_part, time_part, output_path, input_pat
 
         from datetime import timedelta
 
-        # Hardcode 300.0 to completely bypass ffprobe for segments, which causes massive lag
+        # Look up finalized chunk duration from the recorder, defaulting to 300.0 if not found
         duration_seconds = 300.0
+        durations_map = recorder._recording_durations.get(camera_id, {})
+        if time_part in durations_map:
+            duration_seconds = float(durations_map[time_part])
 
         start_dt = datetime.strptime(
             f"{date_part} {time_part}",

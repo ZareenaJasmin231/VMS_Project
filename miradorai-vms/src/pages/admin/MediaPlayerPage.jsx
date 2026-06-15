@@ -1020,8 +1020,9 @@ export default function MediaPlayerPage() {
               {!loadingFiles && filteredFiles.length === 0 && (
                 <div className="mp-empty-small">No recordings found.</div>
               )}
-              {Object.entries(groupedFiles).sort().map(([hour, hourFiles]) => {
+              {Object.entries(groupedFiles).sort((a, b) => b[0].localeCompare(a[0])).map(([hour, hourFiles]) => {
                 const isOpen = expandedHours.has(hour);
+                const sortedHourFiles = [...hourFiles].sort((a, b) => b.start_time.localeCompare(a.start_time));
                 return (
                   <div key={hour} className="mp-hour-group">
                     <button
@@ -1032,7 +1033,7 @@ export default function MediaPlayerPage() {
                       <span className="mp-hour-label">{hour}:00 h</span>
                       <span className="mp-hour-count">({hourFiles.length})</span>
                     </button>
-                    {isOpen && hourFiles.map((file) => (
+                    {isOpen && sortedHourFiles.map((file) => (
                       <div
                         key={file.start_time}
                         className={`mp-file-item ${playingFile?.start_time === file.start_time ? "playing" : ""}`}
