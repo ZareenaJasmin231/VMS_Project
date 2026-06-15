@@ -11,8 +11,15 @@ import {
   Cpu,
   MemoryStick,
   Calendar,
-  Download
+  Download,
+  Printer,
+  Mail,
+  ChevronDown,
+  Trash2
 } from "lucide-react";
+import jsPDF from "jspdf";
+import "jspdf-autotable";
+import * as XLSX from "xlsx";
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:80";
 
 const getAuthHeaders = () => {
@@ -587,6 +594,9 @@ const DashboardPage = () => {
   const [reportLoading, setReportLoading] = useState(false);
   const [reportCurrentPage, setReportCurrentPage] = useState(1);
   const [reportDropdownOpen, setReportDropdownOpen] = useState(false);
+  const [actionsDropdownOpen, setActionsDropdownOpen] = useState(false);
+  const actionsDropdownRef = useRef(null);
+
   const [reportSuccessMsg, setReportSuccessMsg] = useState("");
   const [reportErrorMsg, setReportErrorMsg] = useState("");
   const reportPerPage = 10;
@@ -758,6 +768,46 @@ const DashboardPage = () => {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+
+  const handleDownloadPDF = () => {
+    if (!reportData || reportData.length === 0) return;
+    const doc = new jsPDF();
+    doc.text(`${reportTypeMap[reportType]} Report`, 14, 15);
+    
+    const keys = Object.keys(reportData[0]);
+    const headers = keys.map(k => k.replace(/_/g, " ").toUpperCase());
+    const rows = reportData.map(row => keys.map(k => {
+      const val = row[k];
+      return val === null || val === undefined ? "—" : String(val);
+    }));
+
+    doc.autoTable({
+      head: [headers],
+      body: rows,
+      startY: 20,
+      theme: "striped",
+      styles: { fontSize: 8 }
+    });
+    doc.save(`${reportType}_report_${new Date().toISOString().slice(0,10)}.pdf`);
+  };
+
+  const handleDownloadExcel = () => {
+    if (!reportData || reportData.length === 0) return;
+    const keys = Object.keys(reportData[0]);
+    const mappedData = reportData.map(row => {
+      const obj = {};
+      keys.forEach(k => {
+        const headerName = k.replace(/_/g, " ").toUpperCase();
+        obj[headerName] = row[k] === null || row[k] === undefined ? "—" : row[k];
+      });
+      return obj;
+    });
+
+    const ws = XLSX.utils.json_to_sheet(mappedData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Report");
+    XLSX.writeFile(wb, `${reportType}_report_${new Date().toISOString().slice(0,10)}.xlsx`);
   };
 
   // Pagination for report
@@ -1555,7 +1605,7 @@ const DashboardPage = () => {
             </div>
           </div>
 
-          <div className="report-btn-group">
+          <div className="report-btn-group" ref={actionsDropdownRef} style={{ position: "relative" }}>
             <button
               onClick={handleGenerateReport}
               disabled={reportLoading}
@@ -1565,13 +1615,87 @@ const DashboardPage = () => {
             </button>
             
             {reportData.length > 0 && (
-              <button
-                onClick={handleDownloadCSV}
-                className="report-btn-secondary"
-              >
-                <Download size={14} />
-                Download CSV
-              </button>
+              <div className="report-actions-dropdown">
+                <button
+                  type="button"
+                  onClick={() => setActionsDropdownOpen(!actionsDropdownOpen)}
+                  className="report-btn-secondary"
+                  style={{ display: "flex", alignItems: "center", gap: "6px" }}
+                >
+                  <Download size={14} />
+                  <span>Export / Print</span>
+                  <ChevronDown size={14} style={{ transform: actionsDropdownOpen ? "rotate(180deg)" : "rotate(0)", transition: "transform .2s" }} />
+                </button>
+                {actionsDropdownOpen && (
+                  <ul className="report-actions-menu" style={{
+                    position: "absolute",
+                    top: "100%",
+                    right: 0,
+                    backgroundColor: "var(--bg-elevated)",
+                    border: "1px solid var(--border)",
+                    borderRadius: "8px",
+                    boxShadow: "0 8px 16px rgba(0,0,0,0.5)",
+                    zIndex: 100,
+                    listStyle: "none",
+                    padding: "6px 0",
+                    margin: "4px 0 0 0",
+                    minWidth: "160px"
+                  }}>
+                    <li className="report-actions-item" onClick={() => { handleDownloadCSV(); setActionsDropdownOpen(false); }} style={{
+                      padding: "8px 16px",
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "8px",
+                      color: "var(--text-primary)",
+                      fontSize: "13px",
+                      transition: "background 0.2s"
+                    }}>
+                      <Download size={13} />
+                      Export CSV
+                    </li>
+                    <li className="report-actions-item" onClick={() => { handleDownloadExcel(); setActionsDropdownOpen(false); }} style={{
+                      padding: "8px 16px",
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "8px",
+                      color: "var(--text-primary)",
+                      fontSize: "13px",
+                      transition: "background 0.2s"
+                    }}>
+                      <Download size={13} />
+                      Export Excel (.xlsx)
+                    </li>
+                    <li className="report-actions-item" onClick={() => { handleDownloadPDF(); setActionsDropdownOpen(false); }} style={{
+                      padding: "8px 16px",
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "8px",
+                      color: "var(--text-primary)",
+                      fontSize: "13px",
+                      transition: "background 0.2s"
+                    }}>
+                      <Download size={13} />
+                      Export PDF
+                    </li>
+                    <li className="report-actions-item" onClick={() => { window.print(); setActionsDropdownOpen(false); }} style={{
+                      padding: "8px 16px",
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "8px",
+                      color: "var(--text-primary)",
+                      fontSize: "13px",
+                      transition: "background 0.2s"
+                    }}>
+                      <Printer size={13} />
+                      Print Report
+                    </li>
+                  </ul>
+                )}
+              </div>
             )}
           </div>
         </div>

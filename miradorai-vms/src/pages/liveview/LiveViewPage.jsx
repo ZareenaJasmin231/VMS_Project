@@ -452,6 +452,11 @@ function AlertsPanel({ onAlertCountUpdate, onTotalAlertCountChange, isOpen }) {
       const data = await res.json();
       const filtered = (data.alerts || [])
         .filter((a) => a.status === "Active")
+        .filter((a) => {
+           const t = (a.type || "").toLowerCase();
+           const s = (a.scenario || "").toLowerCase();
+           return !t.includes("motion") && !s.includes("motion");
+        })
         .filter(isAlertAllowed);
       setAlerts(filtered);
 
@@ -673,7 +678,7 @@ function CameraCell({ device, onFullscreen, alertCount, onBadgeClick, isRecordin
       <div className="lv-cam__player" style={{ position: "relative" }}>
         {device.ws_url ? (
           <>
-            <WebRTCPlayer key={device.ws_url} serverUrl={device.ws_url} cameraId={device.id} onConnectChange={setIsLive} hasAudio={device.voice_observing || device.has_audio || device.audio_enabled || device.sound_option} />
+            <WebRTCPlayer key={device.ws_url} serverUrl={device.ws_url} cameraId={device.id} onConnectChange={setIsLive} />
             <MaskOverlay ip={device.ip} />
           </>
         ) : (
@@ -942,6 +947,11 @@ export default function LiveViewPage() {
         const counts = {};
         (data.alerts || [])
           .filter((a) => a.status === "Active")
+          .filter((a) => {
+             const t = (a.type || "").toLowerCase();
+             const s = (a.scenario || "").toLowerCase();
+             return !t.includes("motion") && !s.includes("motion");
+          })
           .filter(isAlertAllowed)
           .forEach((alert) => {
             const ip = (alert.ip || "").replace(/_/g, ".");
@@ -1004,6 +1014,11 @@ export default function LiveViewPage() {
       const normIp = (ip || "").replace(/_/g, ".");
       const filtered = (data.alerts || [])
         .filter((a) => a.status === "Active")
+        .filter((a) => {
+           const t = (a.type || "").toLowerCase();
+           const s = (a.scenario || "").toLowerCase();
+           return !t.includes("motion") && !s.includes("motion");
+        })
         .filter(isAlertAllowed)
         .filter((a) => (a.ip || "").replace(/_/g, ".") === normIp);
       setPopupAlerts(filtered);
@@ -1453,7 +1468,7 @@ export default function LiveViewPage() {
             <div className="lv-fullscreen-overlay__player" style={{ position: "relative" }}>
               {fsDevice.ws_url ? (
                 <>
-                  <WebRTCPlayer key={`fs-${fsDevice.ws_url}`} serverUrl={fsDevice.ws_url} cameraId={fsDevice.id} onConnectChange={setFsLive} hasAudio={fsDevice.voice_observing || fsDevice.has_audio || fsDevice.audio_enabled || fsDevice.sound_option} />
+                  <WebRTCPlayer key={`fs-${fsDevice.ws_url}`} serverUrl={fsDevice.ws_url} cameraId={fsDevice.id} onConnectChange={setFsLive} />
                   <MaskOverlay ip={fsDevice.ip} />
                 </>
               ) : (

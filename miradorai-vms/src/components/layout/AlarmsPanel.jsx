@@ -33,7 +33,8 @@ export default function AlarmsPanel({ open, onClose }) {
   const [tab,    setTab]    = useState("alarms");
   const [alarms, setAlarms] = useState(loadAlarms);
 
-  const unread = alarms.filter((a) => !a.read).length;
+  const displayAlarms = alarms.filter((a) => !a.category.toLowerCase().includes("motion"));
+  const unread = displayAlarms.filter((a) => !a.read).length;
 
   const persist = (updated) => {
     setAlarms(updated);
@@ -101,11 +102,11 @@ export default function AlarmsPanel({ open, onClose }) {
               </tr>
             </thead>
             <tbody>
-              {alarms.length === 0 ? (
+              {displayAlarms.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="alarms-table__empty">No alarms.</td>
                 </tr>
-              ) : alarms.map((a) => (
+              ) : displayAlarms.map((a) => (
                 <tr key={a.id} className={!a.read ? "alarms-table__row--unread" : ""}>
                   <td>
                     {!a.read && <div className="alarms-unread-dot" />}

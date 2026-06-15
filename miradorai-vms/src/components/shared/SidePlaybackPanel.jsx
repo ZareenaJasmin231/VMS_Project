@@ -109,7 +109,12 @@ export default function SidePlaybackPanel({ camera, onClose }) {
         const data = await res.json();
         const filtered = (data.alerts || [])
           .filter(a => a.status === "Active")
-          .filter(a => (a.ip || "").replace(/_/g, ".") === cameraIp);
+          .filter(a => (a.ip || "").replace(/_/g, ".") === cameraIp)
+          .filter((a) => {
+             const t = (a.type || "").toLowerCase();
+             const s = (a.scenario || "").toLowerCase();
+             return !t.includes("motion") && !s.includes("motion");
+          });
         setAlerts(filtered);
       }
     } catch (e) {

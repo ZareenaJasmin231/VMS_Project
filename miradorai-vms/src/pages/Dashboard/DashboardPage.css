@@ -1273,3 +1273,42 @@
     transform: none;
   }
 }
+
+/* ── Combined Actions Dropdown Styles ── */
+.report-actions-item:hover {
+  background: rgba(16, 185, 129, 0.15) !important;
+  color: var(--teal) !important;
+}
+
+/* ── Print Media Query for Report Printing ── */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .report-generation, .report-generation * {
+    visibility: visible;
+  }
+  .report-generation {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    background: white !important;
+    color: black !important;
+  }
+  .report-filters, .report-btn-group, .report-pag-btn, .report-pagination {
+    display: none !important;
+  }
+  .report-table-wrapper {
+    border: 1px solid #000 !important;
+  }
+  .report-table th {
+    background: #f0f0f0 !important;
+    color: black !important;
+    border-bottom: 2px solid #000 !important;
+  }
+  .report-table td {
+    color: black !important;
+    border-bottom: 1px solid #ddd !important;
+  }
+}

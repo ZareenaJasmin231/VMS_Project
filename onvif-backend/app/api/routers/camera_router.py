@@ -37,8 +37,6 @@ import urllib.parse
 from datetime import datetime
 import requests as http_requests
 
-from license.license_store import load_license
-from license.license_validator import validate_license
 from app.core.lifecycle import _analytics_tasks, OME_API, OME_AUTH, OME_WS_PORT
 from app.managers.health_manager import analytics_poll_loop as _analytics_poll_loop
 from app.core.database import analytics_col, analytics_subs_col
@@ -193,16 +191,6 @@ async def update_camera_by_ip(ip: str, request: Request):
 @router.post("/onvif/probe", dependencies=[Depends(verify_token)])
 async def onvif_probe(req: ProbeRequest):
     print(f"[ONVIF] Probing {req.ip}:{req.port} ...")
-    token = load_license()
-    valid, data = validate_license(token)
- 
-    if not valid:
-        raise HTTPException(status_code=400, detail="Invalid License")
- 
-    if cameras_col is not None:
-        current_count = cameras_col.count_documents({"enabled": True})
-        if current_count >= data["max_cameras"]:
-            raise HTTPException(status_code=400, detail="Camera limit exceeded")
  
     result = await asyncio.to_thread(
         probe_camera, req.ip, req.port, req.username, req.password, req.channel
@@ -332,16 +320,6 @@ async def onvif_probe(req: ProbeRequest):
 # ------------------------------------------------------------------
 @router.post("/streams/register", dependencies=[Depends(verify_token)])
 async def register_rtsp_stream(req: StreamRegisterRequest):
-    token = load_license()
-    valid, data = validate_license(token)
- 
-    if not valid:
-        return {"success": False, "error": "Invalid License"}
- 
-    if cameras_col is not None:
-        current_count = cameras_col.count_documents({"enabled": True})
-        if current_count >= data["max_cameras"]:
-            return {"success": False, "error": "Camera limit exceeded"}
  
     rtsp = req.rtsp_url.strip()
     print(f"[RTSP] Registering stream: {rtsp}")

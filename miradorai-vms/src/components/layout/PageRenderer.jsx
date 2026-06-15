@@ -31,6 +31,7 @@ import UserManagementPage from "../../pages/client/UserManagementPage";
 import StreamingPage from "../../pages/client/StreamingPage";
 import AboutPage from "../../pages/client/AboutPage";
 import ViewingStationsPage from "../../pages/client/ViewingStationsPage";
+import EmailSchedulesPage from "../../pages/client/EmailSchedulesPage";
 
 import FirmwareUpgradePage from "../../pages/connectedservices/Firmwareupgradepage";
 import SmartSearchSettingsPage from "../../pages/smartsearcxh/Smartsearchsettingspage";
@@ -92,6 +93,7 @@ const MAP = {
   "streaming": StreamingPage,
   "about": AboutPage,
   "viewing-stations": ViewingStationsPage,
+  "email-schedules": EmailSchedulesPage,
 
   // ================= SERVICES =================
   "firmware-upgrade": FirmwareUpgradePage,

@@ -360,31 +360,12 @@ def _fetch_ptz_info(cam, media_service) -> dict:
             return ptz_info
 
         token = profiles[0].token
-        ptz_info["supported"] = True
 
-        try:
-            presets = ptz_service.GetPresets({"ProfileToken": token})
-            ptz_info["presets"] = [
-                {
-                    "token": str(p.token),
-                    "name":  str(getattr(p, 'Name', f"Preset {i+1}")),
-                }
-                for i, p in enumerate(presets or [])
-            ]
-            print(f"[PTZ] {len(ptz_info['presets'])} preset(s) found")
-        except Exception as e:
-            print(f"[PTZ] GetPresets failed: {e}")
-
-        try:
-            config = ptz_service.GetConfiguration({"PTZConfigurationToken": token})
-            if config:
-                ptz_info["home_supported"] = True
-        except Exception:
-            pass
-
+        has_nodes = False
         try:
             nodes = ptz_service.GetNodes()
             if nodes:
+                has_nodes = True
                 node = nodes[0]
                 sup_spaces = getattr(node, 'SupportedPTZSpaces', None)
                 if sup_spaces:
@@ -394,6 +375,60 @@ def _fetch_ptz_info(cam, media_service) -> dict:
                     ptz_info["relative_move"] = bool(rel)
         except Exception as e:
             print(f"[PTZ] GetNodes failed: {e}")
+
+        has_configs = False
+        try:
+            configs = ptz_service.GetConfigurations()
+            if configs:
+                has_configs = True
+        except Exception:
+            pass
+
+        has_profile_ptz = any(getattr(p, 'PTZConfiguration', None) is not None for p in profiles)
+
+        # Print debug info directly to console/logs
+        try:
+            print(f"[PTZ-DEBUG] Probing IP: {ip}")
+            print(f"[PTZ-DEBUG] Profiles count: {len(profiles)}")
+            print(f"[PTZ-DEBUG] has_nodes: {has_nodes}")
+            try:
+                print(f"[PTZ-DEBUG] GetNodes output: {ptz_service.GetNodes()}")
+            except Exception as e:
+                print(f"[PTZ-DEBUG] GetNodes error: {e}")
+            print(f"[PTZ-DEBUG] has_configs: {has_configs}")
+            try:
+                print(f"[PTZ-DEBUG] GetConfigurations output: {ptz_service.GetConfigurations()}")
+            except Exception as e:
+                print(f"[PTZ-DEBUG] GetConfigurations error: {e}")
+            print(f"[PTZ-DEBUG] has_profile_ptz: {has_profile_ptz}")
+            for p in profiles:
+                print(f"[PTZ-DEBUG] Profile '{p.Name}' PTZConfiguration: {getattr(p, 'PTZConfiguration', None)}")
+        except Exception as log_err:
+            print(f"[PTZ-DEBUG] FAILED TO PRINT DEBUG LOG: {log_err}")
+
+        ptz_info["supported"] = bool(has_nodes or has_configs or has_profile_ptz)
+
+        # Only fetch presets and configuration features if PTZ is supported
+        if ptz_info["supported"]:
+            try:
+                presets = ptz_service.GetPresets({"ProfileToken": token})
+                ptz_info["presets"] = [
+                    {
+                        "token": str(p.token),
+                        "name":  str(getattr(p, 'Name', f"Preset {i+1}")),
+                    }
+                    for i, p in enumerate(presets or [])
+                ]
+                print(f"[PTZ] {len(ptz_info['presets'])} preset(s) found")
+            except Exception as e:
+                print(f"[PTZ] GetPresets failed: {e}")
+
+            try:
+                config = ptz_service.GetConfiguration({"PTZConfigurationToken": token})
+                if config:
+                    ptz_info["home_supported"] = True
+            except Exception:
+                pass
 
     except Exception as e:
         print(f"[PTZ] PTZ service failed: {e}")

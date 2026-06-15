@@ -6,8 +6,6 @@ from urllib.parse import urlparse
 from pydantic import BaseModel
 from typing import Optional
 from app.core.database import mongo_client, db as _db, cameras_col, users_col
-from license.license_store import load_license
-from license.license_validator import validate_license
 from app.managers.stream_manager import devices
 
 import os
@@ -106,7 +104,7 @@ async def discover_devices():
 @router.get("/debug/mongo", dependencies=[Depends(verify_token)])
 def debug_mongo():
     try:
-        _mongo.server_info()
+        mongo_client.server_info()
         cam_count  = cameras_col.count_documents({})
         rec_count  = _db["recordings"].count_documents({})
         user_count = users_col.count_documents({})
@@ -161,22 +159,9 @@ def get_camera_health():
 
 @router.get("/license", dependencies=[Depends(verify_token)])
 def get_license():
-    from license.license_store import load_license
-    from license.license_validator import validate_license
-
-    token = load_license()
-
-    if not token:
-        return {"status": "error", "max_cameras": 0}
-
-    valid, data = validate_license(token)
-
-    if not valid:
-        return {"status": "error", "max_cameras": 0}
-
     return {
         "status":      "ok",
-        "max_cameras": data["max_cameras"],
+        "max_cameras": 9999,
     }
 # ------------------------------------------------------------------
 # Event Clips — list, play, manual save

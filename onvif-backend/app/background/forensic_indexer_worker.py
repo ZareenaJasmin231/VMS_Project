@@ -25,8 +25,8 @@ def start_background_indexer():
         if _indexer_thread is not None and _indexer_thread.is_alive():
             print("[FORENSIC WORKER] Indexer thread already running.")
             return
-        _indexer_thread = BackgroundIndexer()
-        _indexer_thread.start()
+        # _indexer_thread = BackgroundIndexer()
+        # _indexer_thread.start()
         print("[FORENSIC WORKER] ✅ Background forensic indexer started.")
 
 

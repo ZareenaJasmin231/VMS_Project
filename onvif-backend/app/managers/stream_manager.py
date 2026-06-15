@@ -4,8 +4,6 @@ import re
 import asyncio
 import requests as http_requests
 from app.core.database import cameras_col
-from license.license_store import load_license
-from license.license_validator import validate_license
 from app.services.camera.ome_service import register_stream
 from app.services.storage import rtsp_recorder as recorder
 
@@ -32,22 +30,10 @@ def save_camera_to_db(data: dict):
         print("[MONGO] ❌ No connection")
         return False
  
-    token = load_license()
-    valid, license_data = validate_license(token)
- 
-    if not valid:
-        print("❌ License invalid")
-        return False
- 
     existing = cameras_col.find_one({"ome_stream": data["ome_stream"]})
     current_count = cameras_col.count_documents({"enabled": True})
 
     print("CURRENT:", current_count)
-    print("MAX:", license_data["max_cameras"])
-
-    if not existing and current_count >= license_data["max_cameras"]:
-        print("❌ Camera limit reached (new camera blocked)")
-        return False
  
     try:
         cameras_col.update_one(

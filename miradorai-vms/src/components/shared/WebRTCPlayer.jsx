@@ -604,7 +604,7 @@ function getOrCreateStream(serverUrl) {
   return streamCache[serverUrl];
 }
 
-function WebRTCPlayer({ serverUrl, cameraId, onConnectChange, hasAudio = false }) {
+function WebRTCPlayer({ serverUrl, cameraId, onConnectChange }) {
   const videoRef = useRef(null);
   const containerRef = useRef(null);
   const [connected, setConnected] = useState(false);
@@ -700,7 +700,7 @@ function WebRTCPlayer({ serverUrl, cameraId, onConnectChange, hasAudio = false }
       <video
         ref={videoRef}
         autoPlay
-        muted={hasAudio ? isMuted : true}
+        muted={isMuted}
         playsInline
         style={{
           width: '100%',
@@ -725,7 +725,7 @@ function WebRTCPlayer({ serverUrl, cameraId, onConnectChange, hasAudio = false }
           <span style={{ color: '#94a3b8', fontSize: 11 }}>{error}</span>
         </div>
       )}
-      {connected && !error && hasAudio && (
+      {connected && !error && (
         <button
           style={volumeBtnStyle}
           onClick={toggleMute}

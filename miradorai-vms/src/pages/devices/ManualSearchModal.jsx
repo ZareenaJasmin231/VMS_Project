@@ -465,7 +465,7 @@ export default function ManualSearchModal({
           model: json.model,
           firmware: json.firmware,
           serial: json.serial,
-          ptz: json.ptz ? "Yes" : "No",
+          ptz: (json.ptz === "Yes" || json.ptz === true) ? "Yes" : "No",
           profiles: json.profiles || [],
           all_profiles: allProfiles,
           stream_count: json.stream_count ?? (json.profiles?.length || 0),

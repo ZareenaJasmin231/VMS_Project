@@ -73,6 +73,7 @@ async def get_dashboard_summary():
 def get_action_rules():
     rules = list(_db["action_rules"].find({}, {"_id": 0}))
     return {"rules": rules}
+
 @router.get("/dashboard/events", dependencies=[Depends(verify_token)])
 async def get_dashboard_events(limit: int = 20):
     if analytics_col is None:
@@ -181,7 +182,6 @@ async def get_alerts(
         return {"alerts": []}
     
 @router.get("/alerts/thumbnail")
-# def get_alert_thumbnail(ip: str, time: str, request: Request = None):
 def get_alert_thumbnail(ip: str, time: str, crop: int = 1, request: Request = None):
     """
     Returns a JPEG crop/frame for an alert.
@@ -211,7 +211,6 @@ def get_alert_thumbnail(ip: str, time: str, crop: int = 1, request: Request = No
         print("IP   :", ip)
         print("TIME :", time)
         print("CROP :", crop)
-
 
         # ── 1. Parse timestamp ────────────────────────────────────────
         t = time.strip()
@@ -495,23 +494,64 @@ def get_alert_thumbnail(ip: str, time: str, crop: int = 1, request: Request = No
     except Exception as e:
         print(f"[ALERT THUMBNAIL] Error: {e}")
         return fallback_svg("Error")
-# @router.get("/alerts")
-# def get_alerts(limit: int = 50):
-#     try:
-#         alerts = list(
-#             watch_collection
-#             .find({})
-#             .sort("_id", -1)   # ✅ newest first (VERY IMPORTANT)
-#             .limit(limit)
-#         )
 
-#         # convert ObjectId → string
-#         for a in alerts:
-#             a["_id"] = str(a["_id"])
+from pydantic import BaseModel
+from typing import List
 
-#         return {"alerts": alerts}
+class ReportScheduleSchema(BaseModel):
+    report_type: str
+    schedule_type: str
+    recipients: List[str]
+    format: str
+    send_time: str = "09:00"
+    enabled: bool = True
 
-#     except Exception as e:
-#         return {"alerts": [], "error": str(e)}
+@router.get("/reports/schedules", dependencies=[Depends(verify_token)])
+def get_report_schedules():
+    try:
+        col = _db["report_schedules"]
+        schedules = list(col.find({}))
+        # Convert ObjectId -> string
+        for s in schedules:
+            s["id"] = str(s["_id"])
+            del s["_id"]
+        return {"success": True, "schedules": schedules}
+    except Exception as e:
+        return {"success": False, "error": str(e), "schedules": []}
 
+@router.post("/reports/schedules", dependencies=[Depends(verify_token)])
+def save_report_schedule(schedule: ReportScheduleSchema):
+    try:
+        col = _db["report_schedules"]
+        doc = schedule.dict()
+        doc["updated_at"] = datetime.utcnow().isoformat()
+        
+        # Check if identical schedule already exists (same report_type and schedule_type)
+        # and update it, otherwise insert a new one.
+        existing = col.find_one({
+            "report_type": doc["report_type"],
+            "schedule_type": doc["schedule_type"]
+        })
+        if existing:
+            # Reset last_run so the worker evaluates the new schedule parameters immediately
+            doc["last_run"] = None
+            col.update_one({"_id": existing["_id"]}, {"$set": doc})
+        else:
+            doc["created_at"] = datetime.utcnow().isoformat()
+            doc["last_run"] = None
+            col.insert_one(doc)
+            
+        return {"success": True}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
 
+@router.delete("/reports/schedules/{schedule_id}", dependencies=[Depends(verify_token)])
+def delete_report_schedule(schedule_id: str):
+    try:
+        col = _db["report_schedules"]
+        res = col.delete_one({"_id": ObjectId(schedule_id)})
+        if res.deleted_count > 0:
+            return {"success": True}
+        return {"success": False, "error": "Schedule not found"}
+    except Exception as e:
+        return {"success": False, "error": str(e)}

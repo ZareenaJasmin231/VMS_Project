@@ -624,11 +624,11 @@
 @keyframes lv-cam-blink {
   0%, 100% {
     border-color: rgba(255, 75, 75, 0.3) !important;
-    box-shadow: 0 0 8px rgba(255, 75, 75, 0.2), inset 0 0 12px rgba(255, 75, 75, 0.1);
+    box-shadow: 0 0 2px rgba(255, 75, 75, 0.2);
   }
   50% {
-    border-color: rgba(255, 120, 80, 0.9) !important;
-    box-shadow: 0 0 18px rgba(255, 100, 100, 0.6), inset 0 0 24px rgba(255, 100, 100, 0.4);
+    border-color: rgba(255, 120, 80, 0.8) !important;
+    box-shadow: 0 0 5px rgba(255, 100, 100, 0.4);
   }
 }
 
@@ -1378,7 +1378,6 @@
 /* ── Alert border on grid cells to prevent overflow clipping ── */
 .lv-cell--alert {
   border-color: #E24B4A !important;
-  box-shadow: 0 0 0 2px #E24B4A, 0 8px 32px rgba(226, 75, 74, 0.4) !important;
   animation: lv-cam-blink 1.2s ease-in-out infinite;
 }
 

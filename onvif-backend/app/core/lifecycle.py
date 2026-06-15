@@ -60,6 +60,13 @@ async def _startup_phase_1():
     except Exception as e:
         print(f"[STARTUP] ⚠ Forensic indexer failed to start: {e}")
 
+    try:
+        from app.background.email_report_worker import email_report_worker
+        await task_manager.start_task('email_report_scheduler', email_report_worker())
+        print("[STARTUP] ✅ Automated Email Report Scheduler background task started.")
+    except Exception as e:
+        print(f"[STARTUP] ⚠ Failed to start email report scheduler: {e}")
+
 async def _startup_phase_2():
     if cameras_col is not None:
         try:

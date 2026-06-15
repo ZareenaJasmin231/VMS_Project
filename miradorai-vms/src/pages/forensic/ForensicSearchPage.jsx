@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useDigitalZoom } from "../../hooks/useDigitalZoom";
+import { useAuth } from "../../context/AuthContext";
 import "./ForensicSearchPage.css";
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:80";
@@ -247,6 +248,7 @@ function ReindexModal({ cameras, onClose, onTrigger }) {
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function ForensicSearchPage() {
+  const { user } = useAuth();
   // Filter state
   const [startDate,    setStartDate]    = useState("");
   const [endDate,      setEndDate]      = useState("");
@@ -261,6 +263,23 @@ export default function ForensicSearchPage() {
   const [camerasList,  setCamerasList]  = useState([]);
   const [results,      setResults]      = useState([]);
   const [loading,      setLoading]      = useState(false);
+
+  const filteredCamerasList = useMemo(() => {
+    if (user?.role === "admin" || !user?.allowedCameras || user?.allowedCameras.length === 0) {
+      return camerasList;
+    }
+    return camerasList.filter(c => {
+      const stored = localStorage.getItem("miradorai_devices");
+      const devices = stored ? JSON.parse(stored) : [];
+      const dev = devices.find(d => 
+        String(d.id) === String(c.id) || 
+        d.ome_stream === c.id || 
+        d.ip === c.id
+      );
+      if (!dev) return false;
+      return user.allowedCameras.includes(String(dev.id));
+    });
+  }, [camerasList, user]);
   const [statusData,   setStatusData]   = useState(null);
   const [hasSearched,  setHasSearched]  = useState(false);
 
@@ -550,20 +569,20 @@ export default function ForensicSearchPage() {
               <span
                 style={{ cursor: "pointer", color: "#38bdf8", fontSize: "0.72rem" }}
                 onClick={() => {
-                  const allOn = camerasList.every(c => selectedCams[c.id]);
+                  const allOn = filteredCamerasList.every(c => selectedCams[c.id]);
                   const next  = {};
-                  camerasList.forEach(c => { next[c.id] = !allOn; });
+                  filteredCamerasList.forEach(c => { next[c.id] = !allOn; });
                   setSelectedCams(next);
                 }}
               >
-                {camerasList.every(c => selectedCams[c.id]) ? "Deselect All" : "Select All"}
+                {filteredCamerasList.every(c => selectedCams[c.id]) ? "Deselect All" : "Select All"}
               </span>
             </div>
             <div className="cam-selector-box">
-              {camerasList.length === 0 ? (
+              {filteredCamerasList.length === 0 ? (
                 <div className="no-cams-msg">No cameras enrolled</div>
               ) : (
-                camerasList.map(cam => (
+                filteredCamerasList.map(cam => (
                   <label key={cam.id} className="cam-checkbox-row">
                     <input
                       type="checkbox"
@@ -950,7 +969,7 @@ export default function ForensicSearchPage() {
       {/* ── ReIndex Modal ── */}
       {showReindex && (
         <ReindexModal
-          cameras={camerasList}
+          cameras={filteredCamerasList}
           onClose={() => setShowReindex(false)}
           onTrigger={handleReindex}
         />
