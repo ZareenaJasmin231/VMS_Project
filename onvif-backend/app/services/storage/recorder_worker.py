@@ -122,10 +122,26 @@ def main():
                     print(f"[WORKER-{worker_id}] ⏹ Stopping unassigned camera recorder: {stream_name}")
                     recorder.stop_camera(stream_name)
             
-            # 2. Start any assigned recorders that are not currently running
+            # 2. Start any assigned recorders that are not currently running, or restart if RTSP URL or profiles changed
             for stream_name, cam_info in assigned_map.items():
                 is_running = stream_name in recorder._recorders and recorder._recorders[stream_name].is_alive()
-                if not is_running:
+                
+                # Check if the RTSP URL of the running recorder differs from the assigned one
+                current_recorded_rtsp = recorder._camera_data.get(stream_name, {}).get("recording_rtsp") or recorder._camera_data.get(stream_name, {}).get("rtsp_url")
+                rtsp_changed = current_recorded_rtsp != cam_info["rtsp_url"]
+                
+                # Check if stream profiles changed
+                current_profiles = recorder._camera_data.get(stream_name, {}).get("stream_profiles")
+                assigned_profiles = cam_info["device_data"].get("stream_profiles")
+                profiles_changed = current_profiles != assigned_profiles
+                
+                if not is_running or rtsp_changed or profiles_changed:
+                    if is_running:
+                        reason = "RTSP URL changed" if rtsp_changed else "Stream profiles changed"
+                        print(f"[WORKER-{worker_id}] 🔄 {reason} for {stream_name}. Restarting recorder...")
+                        recorder.stop_camera(stream_name)
+                        time.sleep(1)  # Allow thread to exit
+                    
                     print(f"[WORKER-{worker_id}] 🎥 Starting assigned camera recorder: {stream_name}")
                     # Build mask filter if present
                     from app.services.ai import mask_service

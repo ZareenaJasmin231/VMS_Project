@@ -111,7 +111,10 @@ export default function DiscoveryModal({
     setIsScanning(false);
   };
 
-  useEffect(() => () => stopProgressTicker(), []);
+  useEffect(() => {
+    startDiscovery();
+    return () => stopProgressTicker();
+  }, []);
 
   const toggleOne = (id) => {
     const s = new Set(selectedDevices);
@@ -475,7 +478,7 @@ export default function DiscoveryModal({
                 <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
                 <path d="M11 8v6M8 11h6"/>
               </svg>
-              Network Discovery
+              Scan Network
             </div>
             <button className="dm-close" onClick={onClose} tabIndex={-1}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15">
@@ -522,8 +525,20 @@ export default function DiscoveryModal({
             )}
 
             {isScanning && (
-              <div className="dm-center">
-                <div className="dm-spinner"><div className="dm-spinner-ring"/></div>
+              <div className="dm-center dm-center--radar">
+                <div className="dm-radar-container">
+                  <div className="dm-radar">
+                    <div className="dm-radar-beam"></div>
+                    <div className="dm-radar-pulse dm-radar-pulse-1"></div>
+                    <div className="dm-radar-pulse dm-radar-pulse-2"></div>
+                    <div className="dm-radar-pulse dm-radar-pulse-3"></div>
+                  </div>
+                  <div className="dm-radar-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" width="28" height="28">
+                      <path d="M12 2v20M2 12h20M12 2a10 10 0 0 1 10 10 10 10 0 0 1-10 10A10 10 0 0 1 2 12 10 10 0 0 1 12 2z"/>
+                    </svg>
+                  </div>
+                </div>
                 <div className="dm-scan-msg">{statusMessage}</div>
                 <div className="dm-progress-wrap">
                   <div className="dm-progress-bar">

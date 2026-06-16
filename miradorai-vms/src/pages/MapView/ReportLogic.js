@@ -81,8 +81,14 @@ export function drawStorageReport(data) {
   ctx.textAlign = "left";
   ctx.textBaseline = "middle";
   ctx.fillStyle = "#0f172a";
-  ctx.font = "bold 34px sans-serif";
-  ctx.fillText("MIRADOR VMS", 175, 100);
+  
+  const companyTitle = data.companyName || "MIRADOR VMS";
+  if (companyTitle.length > 20) {
+      ctx.font = "bold 22px sans-serif";
+  } else {
+      ctx.font = "bold 34px sans-serif";
+  }
+  ctx.fillText(companyTitle, 175, 100);
   ctx.restore();
 
   // ── REPORT TITLE (Top Right Aligned) ──

@@ -173,18 +173,25 @@ async def rebalance_sharding():
         return
     
     try:
+        active_workers, standby_workers = get_configured_workers()
         # Fetch all enabled cameras
         all_cameras = list(cameras_col.find({"enabled": {"$ne": False}}))
         if not all_cameras:
             return
         
-        # Get active workers
-        active_workers, _ = get_configured_workers()
-        # Filter active workers to only those that are currently running/healthy
+        # Filter active workers to only those that have NOT crashed persistently (> 3 retries)
         healthy_workers = []
         for w_id in active_workers:
-            if w_id in _worker_processes and _worker_processes[w_id]["process"].poll() is None:
-                healthy_workers.append(w_id)
+            if _worker_retries.get(w_id, 0) > 3:
+                # Check if it's marked dead in heartbeats collection as well
+                try:
+                    hb_doc = _db["worker_heartbeats"].find_one({"worker_id": w_id})
+                    if hb_doc and hb_doc.get("status") == "dead":
+                        continue
+                except:
+                    pass
+                continue
+            healthy_workers.append(w_id)
                 
         if not healthy_workers:
             healthy_workers = active_workers # Fallback to all if none running

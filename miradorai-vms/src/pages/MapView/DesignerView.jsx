@@ -6,6 +6,7 @@ import HeatmapLayer from "./HeatmapLayer";
 import * as CctvCalc from "./CctvCalculators";
 import { drawStorageReport } from "./ReportLogic.js";
 import logoImg from "../../assets/logo.jpg";
+import sentinelLogoImg from "../../assets/logo.jpg";
 import * as pdfjsLib from "pdfjs-dist";
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url).toString();
 
@@ -636,7 +637,7 @@ function drawPlacedCamera(ctx, p, ppm, hovering, selected, zonesRef, activeZoneI
   const { angle, halfRad } = fovDrawParams(camera, direction);
   const radius = camera.rangeDay * ppm;
 
-  const S = 0.25;
+  const S = 1.20;
 
   // ★ FIX: origin matches MapCanvas (x + cos*1.5*S, forward) instead of old backward formula
   const originX = x + Math.cos(angle) * (1.5 * S);
@@ -881,19 +882,20 @@ function drawPlacedCamera(ctx, p, ppm, hovering, selected, zonesRef, activeZoneI
   ctx.shadowBlur = 0; ctx.restore();
 
   // ── Label ─────────────────────────────────────────────────────────
+  const displayLabel = p.customName || camera.model;
   if (showLabel) {
     ctx.save();
     ctx.translate(x, y);
     ctx.fillStyle = (selected || isHighlit) ? col : "#e8edf5";
     ctx.font = "bold 9px monospace";
     ctx.textAlign = "center"; ctx.textBaseline = "top";
-    ctx.fillText(camera.model, 0, 14 * S + 6);
+    ctx.fillText(displayLabel, 0, 14 * S + 6);
     ctx.restore();
   }
 
   // ── Hover tooltip ─────────────────────────────────────────────────
   if (hovering) {
-    const lbl = camera.model;
+    const lbl = displayLabel;
     ctx.font = "10.5px Inter, sans-serif";
     const tw = ctx.measureText(lbl).width;
     const bx = x - tw / 2 - 7;
@@ -1075,7 +1077,7 @@ function DvZoneSidebarItem({
                   fontWeight: isHighlit ? 600 : 400,
                   overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
                 }}>
-                  {p.camera.model}
+                  {p.customName || p.camera.model}
                 </span>
                 <button
                   onClick={e => { e.stopPropagation(); onRemoveCam(p.id); }}
@@ -1328,6 +1330,9 @@ export default function DesignerView({ onBack }) {
   const [inspectorTab, setInspectorTab] = useState("cameras"); // "cameras" | "zones"
   const [retentionDays, setRetentionDays] = useState(30);
   const exportMenuRef = useRef(null);
+
+  // ── Company Selection for Exports ──
+  const [selectedCompany, setSelectedCompany] = useState("mirador");
 
   // ── Modes / Layers / File dropdown states ──
   const [modesDropdownOpen, setModesDropdownOpen] = useState(false);
@@ -1641,8 +1646,8 @@ export default function DesignerView({ onBack }) {
     if (selectedIdx !== null && selectedIdx < placedRef.current.length) {
       const p = placedRef.current[selectedIdx];
       const { angle } = fovDrawParams(p.camera, p.direction);
-      const hx = p.x + Math.cos(angle) * 30;
-      const hy = p.y + Math.sin(angle) * 30;
+      const hx = p.x + Math.cos(angle) * 36;
+      const hy = p.y + Math.sin(angle) * 36;
       ctx.beginPath(); ctx.arc(hx, hy, 5, 0, Math.PI * 2);
       ctx.fillStyle = TYPE_COLORS[p.camera.type] || "#3b82f6"; ctx.fill();
       ctx.strokeStyle = "#fff8"; ctx.lineWidth = 1.2; ctx.stroke();
@@ -2282,7 +2287,8 @@ export default function DesignerView({ onBack }) {
   }
 
   function nearestPlaced(ix, iy) {
-    const thr = 30 / scaleRef.current;
+    const S = 1.20;
+    const thr = Math.max(30 / scaleRef.current, 25 * S);
     let best = -1, bestD = thr;
     placedRef.current.forEach((p, i) => {
       const d = Math.hypot(p.x - ix, p.y - iy);
@@ -2295,8 +2301,8 @@ export default function DesignerView({ onBack }) {
     if (selectedIdx === null) return false;
     const p = placedRef.current[selectedIdx]; if (!p) return false;
     const { angle } = fovDrawParams(p.camera, p.direction);
-    const hx = p.x + Math.cos(angle) * 30;
-    const hy = p.y + Math.sin(angle) * 30;
+    const hx = p.x + Math.cos(angle) * 36;
+    const hy = p.y + Math.sin(angle) * 36;
     return Math.hypot(ix - hx, iy - hy) < 12 / scaleRef.current;
   }
 
@@ -3101,8 +3107,7 @@ export default function DesignerView({ onBack }) {
   }));
   const heatmapCameras = placed.map(p => ({ id: p.id, status: "online" }));
 
-
-  function exportPng(exportMode = "design") {
+  function executeExportPng(exportMode = "design", company = "mirador") {
     const img = floorImgRef.current; if (!img) return;
     const oc = document.createElement("canvas");
     
@@ -3193,17 +3198,70 @@ export default function DesignerView({ onBack }) {
     const watermark = new Image();
     watermark.onload = () => {
       ctx.save();
-      ctx.globalAlpha = 0.65;
-      const logoWidth = 140;
+      // Reset transform so we draw the watermark in absolute physical pixels
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.globalAlpha = 0.9;
+      
+      // Determine watermark size based on canvas width, ensuring visibility on high-resolution images
+      // A typical logo should be around 7% - 8% of the canvas width, with absolute bounds to prevent it from being too tiny or huge.
+      const logoWidth = Math.max(160, Math.min(oc.width * 0.08, 550));
       const logoHeight = (watermark.height / watermark.width) * logoWidth;
-      const padding = 25;
-      // Draw at top-left corner
-      ctx.drawImage(watermark, padding, padding, logoWidth, logoHeight);
+      const padding = Math.max(25, Math.min(oc.width * 0.018, 90));
+      
+      const companyName = company === "mirador" ? "Mirador AI Technologies" : "SENTINEL TECHNOLOGIES PRIVATE LIMITED";
+      
+      // Calculate font size according to the logo width
+      // We want the text to sit centered beneath the logo, and its width to closely match the logo's width.
+      let trialFontSize = 14;
+      ctx.font = `bold ${trialFontSize}px Inter, sans-serif`;
+      let textWidth = ctx.measureText(companyName).width;
+      
+      // Scale font size proportionally to make text width match logo width, and add 5px as requested by the user
+      let fontSize = Math.floor(trialFontSize * (logoWidth / textWidth)) + 5;
+      
+      // Enforce bounds relative to logoWidth to keep text legible and balanced
+      const minFontSize = Math.max(17, Math.round(logoWidth * 0.075) + 5);
+      const maxFontSize = Math.max(25, Math.round(logoWidth * 0.15) + 5);
+      if (fontSize < minFontSize) fontSize = minFontSize;
+      if (fontSize > maxFontSize) fontSize = maxFontSize;
+      
+      ctx.font = `bold ${fontSize}px Inter, sans-serif`;
+      textWidth = ctx.measureText(companyName).width;
+      
+      const spaceBetween = Math.max(8, Math.round(logoWidth * 0.06));
+      
+      // Badge dimensions (padding around logo and text)
+      const badgePaddingX = Math.max(15, Math.round(logoWidth * 0.12));
+      const badgePaddingY = Math.max(12, Math.round(logoWidth * 0.09));
+      const badgeWidth = Math.max(logoWidth, textWidth) + badgePaddingX * 2;
+      const badgeHeight = logoHeight + spaceBetween + fontSize + badgePaddingY * 2;
+      
+      // Position the badge relative to the right edge of the physical canvas to prevent clipping
+      const badgeX = oc.width - padding - badgeWidth;
+      const badgeY = padding;
+      const centerX = badgeX + badgeWidth / 2;
+      const badgeCornerRadius = Math.max(6, Math.round(logoWidth * 0.05));
+      
+      // Background badge for watermark visibility
+      ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
+      ctx.beginPath();
+      ctx.roundRect(badgeX, badgeY, badgeWidth, badgeHeight, badgeCornerRadius);
+      ctx.fill();
+      
+      // Draw logo centered
+      ctx.drawImage(watermark, centerX - logoWidth / 2, badgeY + badgePaddingY, logoWidth, logoHeight);
+      
+      // Draw company text centered directly beneath the logo
+      ctx.fillStyle = "#0f172a";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "top";
+      ctx.fillText(companyName, centerX, badgeY + badgePaddingY + logoHeight + spaceBetween);
+      
       ctx.restore();
       finalizeAndDownload();
     };
     watermark.onerror = finalizeAndDownload;
-    watermark.src = logoImg;
+    watermark.src = company === "mirador" ? logoImg : sentinelLogoImg;
   }
 
   useEffect(() => {
@@ -3447,6 +3505,18 @@ export default function DesignerView({ onBack }) {
                     <span>Download Layout JSON</span>
                   </button>
 
+                  <div className="dv-dropdown-panel__title" style={{ marginTop: "10px" }}>Company Branding</div>
+                  <div style={{ padding: "8px 12px", display: "flex", flexDirection: "column", gap: "8px", background: "rgba(255,255,255,0.03)", borderRadius: "6px", margin: "0 8px" }}>
+                    <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer", color: "#e8edf5", fontSize: "13px" }}>
+                      <input type="radio" name="exportCompanyDrop" checked={selectedCompany === "mirador"} onChange={(e) => { e.stopPropagation(); setSelectedCompany("mirador"); }} onClick={e => e.stopPropagation()} />
+                      Mirador AI Technologies
+                    </label>
+                    <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer", color: "#e8edf5", fontSize: "13px" }}>
+                      <input type="radio" name="exportCompanyDrop" checked={selectedCompany === "sentinel"} onChange={(e) => { e.stopPropagation(); setSelectedCompany("sentinel"); }} onClick={e => e.stopPropagation()} />
+                      SENTINEL TECHNOLOGIES
+                    </label>
+                  </div>
+
                   <div className="dv-dropdown-panel__title" style={{ marginTop: "10px" }}>Export Options</div>
 
                   {/* Export Designer View */}
@@ -3454,7 +3524,7 @@ export default function DesignerView({ onBack }) {
                     className="dv-dropdown-card"
                     disabled={placed.length === 0}
                     style={{ opacity: placed.length === 0 ? 0.4 : 1, cursor: placed.length === 0 ? "not-allowed" : "pointer" }}
-                    onClick={() => { if (placed.length > 0) { setFileDropdownOpen(false); exportPng("design"); } }}
+                    onClick={() => { if (placed.length > 0) { setFileDropdownOpen(false); executeExportPng("design", selectedCompany); } }}
                   >
                     <div className="dv-dropdown-card__icon">
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="22" height="22">
@@ -3467,7 +3537,7 @@ export default function DesignerView({ onBack }) {
                     </div>
                   </button>
 
-                  {/* Export Map View */}
+                  {/* Export Map View
                   <button
                     className="dv-dropdown-card"
                     disabled={placed.length === 0}
@@ -3483,14 +3553,14 @@ export default function DesignerView({ onBack }) {
                       <span className="dv-dropdown-card__label">Export Map View</span>
                       <span className="dv-dropdown-card__desc">Only cameras (no beams/legend)</span>
                     </div>
-                  </button>
+                  </button> */}
 
                   {/* Export Heatmap */}
                   <button
                     className="dv-dropdown-card"
                     disabled={placed.length === 0}
                     style={{ opacity: placed.length === 0 ? 0.4 : 1, cursor: placed.length === 0 ? "not-allowed" : "pointer" }}
-                    onClick={() => { if (placed.length > 0) { setFileDropdownOpen(false); exportPng("heatmap"); } }}
+                    onClick={() => { if (placed.length > 0) { setFileDropdownOpen(false); executeExportPng("heatmap", selectedCompany); } }}
                   >
                     <div className="dv-dropdown-card__icon dv-dropdown-card__icon--heatmap">
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="22" height="22">
@@ -4240,300 +4310,6 @@ export default function DesignerView({ onBack }) {
           </div>
         </div>
 
-        {/* ── Canvas ── */}
-        <div className="dv-canvas-wrap" ref={wrapRef}
-          onDragOver={e => e.preventDefault()}
-          onDrop={onDrop}
-        >
-          <canvas ref={canvasRef} className="dv-canvas"
-            style={{ cursor: mode === "pan" ? "grab" : undefined }}
-            onMouseDown={onMouseDown}
-            onMouseMove={onMouseMove}
-            onMouseUp={onMouseUp}
-            onMouseLeave={onMouseUp}
-            onContextMenu={onContextMenu}
-          />
-
-          <HeatmapLayer
-            // isDesignerView={true} 
-            markers={heatmapMarkers}
-            cameras={heatmapCameras}
-            scaleRef={scaleRef}
-            offsetRef={offsetRef}
-            wrapRef={wrapRef}
-            showHeatmap={showHeatmap}
-            floorImgRef={floorImgRef}
-            activeZone={activeZone}
-            zones={zones}
-          />
-
-          {/* Floating Zoom HUD */}
-          <div className="dv-zoom-hud">
-            <button className="dv-zbtn dv-zbtn--fit" onClick={fitImage}>Fit</button>
-            <div className="dv-zoom-hud-divider" style={{ width: "1px", height: "14px", background: "rgba(46, 61, 85, 0.5)", margin: "0 4px" }} />
-            <button className="dv-zbtn" onClick={() => { const el = wrapRef.current; if (el) applyZoom(-0.2, el.clientWidth / 2, el.clientHeight / 2); }} title="Zoom Out">−</button>
-            <span className="dv-zoom-label">{zoomPct}%</span>
-            <button className="dv-zbtn" onClick={() => { const el = wrapRef.current; if (el) applyZoom(0.2, el.clientWidth / 2, el.clientHeight / 2); }} title="Zoom In">+</button>
-          </div>
-
-          {/* ── Visual Scale Bar overlay ── */}
-          {hasFloor && (
-            <div className="dv-scale-bar-overlay" title={`Map Scale: ${ppm} px/m`}>
-              <span className="dv-scale-bar-text">{scaleParams.meters} m</span>
-              <div className="dv-scale-bar-line" style={{ width: scaleParams.width }} />
-            </div>
-          )}
-
-          {placed.length === 0 && mode !== "zone" && (
-            <div className="dv-drop-hint">
-              <div className="dv-drop-hint__icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" width="48" height="48">
-                  <rect x="3" y="3" width="18" height="18" rx="2" />
-                  <circle cx="12" cy="12" r="4" />
-                  <path d="M12 8v-2M12 18v-2M8 12H6M18 12h-2" />
-                </svg>
-              </div>
-              <p>Drag a camera model from the library onto the floor plan</p>
-              <p className="dv-drop-hint__sub">or import a floor plan first</p>
-            </div>
-          )}
-
-          {mode === "zone" && drawingPoints.length === 0 && (
-            <div className="dv-drop-hint">
-              <div className="dv-drop-hint__icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="1" width="48" height="48">
-                  <polygon points="3,20 12,4 21,20" />
-                  <circle cx="3" cy="20" r="1.5" fill="#f59e0b" />
-                  <circle cx="12" cy="4" r="1.5" fill="#f59e0b" />
-                  <circle cx="21" cy="20" r="1.5" fill="#f59e0b" />
-                </svg>
-              </div>
-              <p style={{ color: "#f59e0b" }}>Click on the canvas to place zone vertices</p>
-              <p className="dv-drop-hint__sub">Click the first point again to close · Press Esc to cancel</p>
-            </div>
-          )}
-
-          {selectedPlaced && (
-            <div className="dv-selected-bar" style={{ pointerEvents: "auto", transition: "all 0.3s ease", ...(isSettingsMinimized ? { width: '48px', height: '48px', padding: '0', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', background: '#1e293b', border: '1px solid #3b82f6', overflow: 'hidden' } : {}) }}>
-              {isSettingsMinimized ? (
-                <button
-                  onClick={() => setIsSettingsMinimized(false)}
-                  style={{ background: 'none', border: 'none', color: '#60a5fa', cursor: 'pointer', outline: 'none', padding: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                  title="Open Camera Settings"
-                >
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="30" height="30">
-                    <circle cx="12" cy="12" r="3" />
-                    <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z" />
-                  </svg>
-                </button>
-              ) : (
-              <>
-                <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", marginBottom: 4 }}>
-                  <button
-                    onClick={() => setIsSettingsMinimized(true)}
-                    style={{ background: 'none', border: 'none', color: 'rgba(255, 255, 255, 0.5)', cursor: 'pointer', outline: 'none', display: 'flex', alignItems: 'center' }}
-                    onMouseEnter={e => e.currentTarget.style.color = '#ef4444'}
-                    onMouseLeave={e => e.currentTarget.style.color = 'rgba(255, 255, 255, 0.5)'}
-                    title="Minimize Settings"
-                  >
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14">
-                      <line x1="18" y1="6" x2="6" y2="18" />
-                      <line x1="6" y1="6" x2="18" y2="18" />
-                    </svg>
-                  </button>
-                </div>
-              {/* Column 1: Camera Basic Info */}
-              <div style={{ display: "flex", flexDirection: "column", width: 250, gap: 12, flexShrink: 0 }}>
-                <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", width: "100%" }}>
-                  <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
-                    <div style={{ marginTop: 2 }}>
-                      <CameraIcon type={selectedPlaced.camera.type} size={24} color={TYPE_COLORS[selectedPlaced.camera.type]} />
-                    </div>
-                    <strong style={{ fontSize: 16, color: "#ffffff", fontWeight: "700", lineHeight: 1.3 }}>{selectedPlaced.camera.brand} {selectedPlaced.camera.model}</strong>
-                  </div>
-                  <button
-                    onClick={() => setShowConfigDrawer(!showConfigDrawer)}
-                    style={{
-                      background: "none", border: "none", color: "rgba(255, 255, 255, 0.5)",
-                      fontSize: showConfigDrawer ? 16 : 14, cursor: "pointer", padding: "4px",
-                      display: "flex", alignItems: "center", justifyContent: "center", transition: "color 0.15s ease",
-                      flexShrink: 0,
-                    }}
-                    onMouseEnter={e => e.currentTarget.style.color = "#ffffff"}
-                    onMouseLeave={e => e.currentTarget.style.color = "rgba(255, 255, 255, 0.5)"}
-                    title={showConfigDrawer ? "Hide Configuration" : "Configure Camera"}
-                  >
-                    {showConfigDrawer ? "✕" : (
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" width="16" height="16">
-                        <circle cx="12" cy="12" r="3" />
-                        <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z" />
-                      </svg>
-                    )}
-                  </button>
-                </div>
-
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px 12px", background: "rgba(255,255,255,0.03)", padding: 12, borderRadius: 8, border: "1px solid rgba(255,255,255,0.05)" }}>
-                  <div style={{ display: "flex", flexDirection: "column" }}>
-                    <span style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", fontWeight: 700, textTransform: "uppercase" }}>HFOV</span>
-                    <span style={{ fontSize: 14, color: "#fff", fontWeight: 600 }}>{Math.round(selectedPlaced.camera.hfov)}°</span>
-                  </div>
-                  <div style={{ display: "flex", flexDirection: "column" }}>
-                    <span style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", fontWeight: 700, textTransform: "uppercase" }}>Range</span>
-                    <span style={{ fontSize: 14, color: "#fff", fontWeight: 600 }}>{selectedPlaced.camera.rangeDay} m</span>
-                  </div>
-                  <div style={{ display: "flex", flexDirection: "column" }}>
-                    <span style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", fontWeight: 700, textTransform: "uppercase" }}>Direction</span>
-                    <span style={{ fontSize: 14, color: "#fff", fontWeight: 600 }}>{Math.round(selectedPlaced.direction)}°</span>
-                  </div>
-                  <div style={{ display: "flex", flexDirection: "column" }}>
-                    <span style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", fontWeight: 700, textTransform: "uppercase" }}>Zone</span>
-                    {(() => {
-                      const cz = zones.find(z => z.polygon.length >= 3 && pointInPolygon(selectedPlaced.x, selectedPlaced.y, z.polygon));
-                      return cz ? (
-                        <span style={{ fontSize: 13, color: cz.color, fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 100 }}>{cz.name}</span>
-                      ) : <span style={{ fontSize: 13, color: "rgba(255,255,255,0.3)" }}>None</span>;
-                    })()}
-                  </div>
-                </div>
-
-                {/* Varifocal zoom slider */}
-                {selectedPlaced.camera.isVarifocal && (
-                  <div className="dv-selected-bar__zoom" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", background: "rgba(168, 85, 247, 0.1)", padding: "8px 12px", borderRadius: 8, border: "1px solid rgba(168, 85, 247, 0.2)" }}>
-                    <label style={{ fontSize: 13, color: "#c084fc", fontWeight: 700, letterSpacing: "0.03em" }}>ZOOM</label>
-                    <input
-                      type="range"
-                      min={selectedPlaced.camera.focalLength}
-                      max={selectedPlaced.camera.focalLengthMax}
-                      step="0.1"
-                      value={selectedPlaced.currentFocalLength || selectedPlaced.camera.focalLength}
-                      onChange={e => handleVarifocalChange(selectedIdx, Number(e.target.value))}
-                      style={{ flex: 1, height: 4, cursor: "pointer", accentColor: "#a855f7", margin: "0 10px" }}
-                    />
-                    <span style={{ fontFamily: "monospace", fontSize: 13, color: "#c084fc", fontWeight: 600 }}>
-                      {(selectedPlaced.currentFocalLength || selectedPlaced.camera.focalLength).toFixed(1)} mm
-                    </span>
-                  </div>
-                )}
-              </div>
-
-              {/* Column 2: Collapsible Scenario & Accessories Settings */}
-              {showConfigDrawer && (
-                <div style={{
-                  display: "flex", flexDirection: "column",
-                  gap: 12, background: "#080c14", border: "0.5px solid #1e2d3e",
-                  borderRadius: 8, padding: "12px 16px", width: 280,
-                  animation: "dvSlideDown 0.2s ease-out forwards",
-                }}>
-                  {/* Column 1: Scenarios */}
-                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                    <div style={{ fontSize: 15, fontWeight: 800, color: "#3b82f6", letterSpacing: "0.05em", textTransform: "uppercase" }}>Recording Scenarios</div>
-                    
-                    {/* Recording Mode */}
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6 }}>
-                      <span style={{ fontSize: 16, color: "rgba(255, 255, 255, 0.5)", fontWeight: "500" }}>Schedule:</span>
-                      <select
-                        value={selectedPlaced.recordingMode || "continuous"}
-                        onChange={e => handleCameraConfigChange(selectedIdx, "recordingMode", e.target.value)}
-                        style={{
-                          background: "#0d1117", border: "0.5px solid #2e3d55", borderRadius: 6,
-                          color: "#e8edf5", fontSize: 16, padding: "4px 8px", outline: "none", width: 130, height: 28, cursor: "pointer"
-                        }}
-                      >
-                        <option value="continuous">Continuous 24/7</option>
-                        <option value="motion20">Motion (20% Act)</option>
-                        <option value="motion50">Motion (50% Act)</option>
-                        <option value="scheduled">Scheduled (12h)</option>
-                      </select>
-                    </div>
-
-                    {/* FPS */}
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6 }}>
-                      <span style={{ fontSize: 16, color: "rgba(255, 255, 255, 0.5)", fontWeight: "500" }}>Frame Rate:</span>
-                      <select
-                        value={selectedPlaced.fps || 25}
-                        onChange={e => handleCameraConfigChange(selectedIdx, "fps", Number(e.target.value))}
-                        style={{
-                          background: "#0d1117", border: "0.5px solid #2e3d55", borderRadius: 6,
-                          color: "#e8edf5", fontSize: 16, padding: "4px 8px", outline: "none", width: 130, height: 28, cursor: "pointer"
-                        }}
-                      >
-                        <option value="15">15 FPS</option>
-                        <option value="25">25 FPS (Default)</option>
-                        <option value="30">30 FPS (High)</option>
-                      </select>
-                    </div>
-
-                    {/* Lighting */}
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6 }}>
-                      <span style={{ fontSize: 16, color: "rgba(255, 255, 255, 0.5)", fontWeight: "500" }}>Environment:</span>
-                      <select
-                        value={selectedPlaced.lighting || "normal"}
-                        onChange={e => handleCameraConfigChange(selectedIdx, "lighting", e.target.value)}
-                        style={{
-                          background: "#0d1117", border: "0.5px solid #2e3d55", borderRadius: 6,
-                          color: "#e8edf5", fontSize: 16, padding: "4px 8px", outline: "none", width: 130, height: 28, cursor: "pointer"
-                        }}
-                      >
-                        <option value="normal">Daytime / Normal</option>
-                        <option value="lowlight">Night / Low Light</option>
-                        <option value="backlight">Backlight / WDR</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  {/* Column 2: Mounting & Accessories */}
-                  <div style={{ display: "flex", flexDirection: "column", gap: 8, borderTop: "0.5px solid #1e2d3e", paddingTop: 16 }}>
-                    <div style={{ fontSize: 15, fontWeight: 800, color: "#f59e0b", letterSpacing: "0.05em", textTransform: "uppercase" }}>Mount & Accessories</div>
-                    
-                    {/* Mounting Bracket */}
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6 }}>
-                      <span style={{ fontSize: 16, color: "rgba(255, 255, 255, 0.5)", fontWeight: "500" }}>Bracket:</span>
-                      <select
-                        value={selectedPlaced.mounting || "default"}
-                        onChange={e => handleCameraConfigChange(selectedIdx, "mounting", e.target.value)}
-                        style={{
-                          background: "#0d1117", border: "0.5px solid #2e3d55", borderRadius: 6,
-                          color: "#e8edf5", fontSize: 16, padding: "4px 8px", outline: "none", width: 110, height: 28, cursor: "pointer"
-                        }}
-                      >
-                        <option value="default">None</option>
-                        <option value="wall">Wall Arm</option>
-                        <option value="ceiling">Ceiling Pendant</option>
-                        <option value="pole">Pole Adapter</option>
-                        <option value="corner">Corner Mount</option>
-                      </select>
-                    </div>
-
-                    {/* Accessories Checkboxes */}
-                    <div style={{ display: "flex", flexDirection: "column", gap: 5, marginTop: 4 }}>
-                      <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 16, color: "#cbd5e1", cursor: "pointer" }}>
-                        <input
-                          type="checkbox"
-                          checked={!!selectedPlaced.includeBackbox}
-                          onChange={e => handleCameraConfigChange(selectedIdx, "includeBackbox", e.target.checked)}
-                          style={{ accentColor: "#f59e0b", cursor: "pointer", width: 14, height: 14 }}
-                        />
-                        Weatherproof Backbox 
-                      </label>
-                      <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 16, color: "#cbd5e1", cursor: "pointer" }}>
-                        <input
-                          type="checkbox"
-                          checked={!!selectedPlaced.includePoe}
-                          onChange={e => handleCameraConfigChange(selectedIdx, "includePoe", e.target.checked)}
-                          style={{ accentColor: "#f59e0b", cursor: "pointer", width: 14, height: 14 }}
-                        />
-                        PoE Midspan Injector 
-                      </label>
-                    </div>
-                  </div>
-                </div>
-              )}
-              </>
-              )}
-            </div>
-          )}
-        </div>
-
         {/* ── Spec detail panel ── */}
         {selectedModel && (
           <div style={{
@@ -4581,7 +4357,13 @@ export default function DesignerView({ onBack }) {
                   className={`dv-inspector-tab ${inspectorTab === "cameras" ? "dv-inspector-tab--active" : ""}`}
                   onClick={() => setInspectorTab("cameras")}
                 >
-                  Cameras ({filteredCameras.length})
+                  Library ({filteredCameras.length})
+                </button>
+                <button
+                  className={`dv-inspector-tab ${inspectorTab === "placed" ? "dv-inspector-tab--active" : ""}`}
+                  onClick={() => setInspectorTab("placed")}
+                >
+                  Placed ({placed.length})
                 </button>
                 <button
                   className={`dv-inspector-tab ${inspectorTab === "zones" ? "dv-inspector-tab--active" : ""}`}
@@ -4620,7 +4402,53 @@ export default function DesignerView({ onBack }) {
 
               {/* Tab Content */}
               <div className="dv-inspector-content">
-                {inspectorTab === "cameras" ? (
+                {inspectorTab === "placed" ? (
+                  <div className="dv-inspector-flow">
+                    <div className="dv-inspector-section-title">Placed Cameras</div>
+                    <div className="dv-zone-scroller">
+                      {placed.length === 0 ? (
+                        <div style={{ padding: "10px 8px", fontSize: 14, color: "rgba(255, 255, 255, 0.5)", textAlign: "center" }}>
+                          No cameras placed
+                        </div>
+                      ) : (
+                        placed.map((p, idx) => {
+                          const col = TYPE_COLORS[p.camera.type] || "#3b82f6";
+                          const isHighlit = highlightedCamId === p.id;
+                          return (
+                            <div key={p.id} style={{ display: "flex", flexDirection: "column", background: isHighlit ? col + "11" : "transparent", borderLeft: isHighlit ? `2.5px solid ${col}` : "2.5px solid transparent", marginBottom: 2, padding: "8px 10px", cursor: "pointer", transition: "all 0.15s" }} onClick={() => handleHighlightCam(p.id)}>
+                               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                  <CameraIcon type={p.camera.type} size={18} color={col} />
+                                  <input 
+                                    type="text" 
+                                    value={p.customName !== undefined ? p.customName : p.camera.model}
+                                    onClick={e => e.stopPropagation()}
+                                    onChange={e => {
+                                      const updated = [...placedRef.current];
+                                      updated[idx] = { ...updated[idx], customName: e.target.value };
+                                      setPlaced(updated);
+                                      placedRef.current = updated;
+                                    }}
+                                    onBlur={() => {
+                                      scheduleSave(placedRef.current, zonesRef.current, ppmRef.current);
+                                      draw();
+                                    }}
+                                    onKeyDown={e => {
+                                      if (e.key === 'Enter') e.target.blur();
+                                    }}
+                                    style={{ flex: 1, background: "transparent", border: "none", borderBottom: "1px solid rgba(255,255,255,0.2)", color: "#fff", fontSize: 15, outline: "none", minWidth: 0 }}
+                                  />
+                                  <button onClick={(e) => { e.stopPropagation(); handleRemoveCamFromZone(p.id); }} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.5)", cursor: "pointer", fontSize: 16 }}>✕</button>
+                               </div>
+                               <div style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", marginTop: 4, marginLeft: 26 }}>
+                                  {p.camera.brand} · {p.camera.megapixels}MP · {p.camera.type}
+                                </div>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+                ) : inspectorTab === "cameras" ? (
                   <div className="dv-inspector-flow">
                     <div className="dv-inspector-section-title">Available Devices</div>
                     
@@ -4787,6 +4615,316 @@ export default function DesignerView({ onBack }) {
           )}
         </div>
 
+        {/* ── Canvas ── */}
+        <div className="dv-canvas-wrap" ref={wrapRef}
+          onDragOver={e => e.preventDefault()}
+          onDrop={onDrop}
+        >
+          <canvas ref={canvasRef} className="dv-canvas"
+            style={{ cursor: mode === "pan" ? "grab" : undefined }}
+            onMouseDown={onMouseDown}
+            onMouseMove={onMouseMove}
+            onMouseUp={onMouseUp}
+            onMouseLeave={onMouseUp}
+            onContextMenu={onContextMenu}
+          />
+
+          <HeatmapLayer
+            // isDesignerView={true} 
+            markers={heatmapMarkers}
+            cameras={heatmapCameras}
+            scaleRef={scaleRef}
+            offsetRef={offsetRef}
+            wrapRef={wrapRef}
+            showHeatmap={showHeatmap}
+            floorImgRef={floorImgRef}
+            activeZone={activeZone}
+            zones={zones}
+          />
+
+          {/* Floating Zoom HUD */}
+          <div className="dv-zoom-hud">
+            <button className="dv-zbtn dv-zbtn--fit" onClick={fitImage}>Fit</button>
+            <div className="dv-zoom-hud-divider" style={{ width: "1px", height: "14px", background: "rgba(46, 61, 85, 0.5)", margin: "0 4px" }} />
+            <button className="dv-zbtn" onClick={() => { const el = wrapRef.current; if (el) applyZoom(-0.2, el.clientWidth / 2, el.clientHeight / 2); }} title="Zoom Out">−</button>
+            <div style={{ display: "flex", alignItems: "center" }}>
+              <input
+                type="number"
+                value={zoomPct}
+                onChange={e => setZoomPct(Number(e.target.value))}
+                onBlur={() => {
+                  const el = wrapRef.current; if (!el) return;
+                  const W = el.clientWidth, H = el.clientHeight;
+                  const prev = scaleRef.current;
+                  const nextScale = Math.min(8, Math.max(0.08, zoomPct / 100));
+                  const cx = W / 2, cy = H / 2;
+                  scaleRef.current = nextScale;
+                  offsetRef.current = {
+                    x: cx - (cx - offsetRef.current.x) * (nextScale / prev),
+                    y: cy - (cy - offsetRef.current.y) * (nextScale / prev),
+                  };
+                  setZoomPct(Math.round(nextScale * 100)); draw();
+                }}
+                onKeyDown={e => {
+                  if (e.key === "Enter") e.target.blur();
+                }}
+                className="dv-zoom-input"
+                style={{ width: "40px", background: "transparent", border: "none", color: "#e8edf5", textAlign: "right", fontSize: "13px", outline: "none", fontWeight: 700 }}
+              />
+              <span className="dv-zoom-label" style={{ paddingLeft: 2 }}>%</span>
+            </div>
+            <button className="dv-zbtn" onClick={() => { const el = wrapRef.current; if (el) applyZoom(0.2, el.clientWidth / 2, el.clientHeight / 2); }} title="Zoom In">+</button>
+          </div>
+
+          {/* ── Visual Scale Bar overlay ── */}
+          {hasFloor && (
+            <div className="dv-scale-bar-overlay" title={`Map Scale: ${ppm} px/m`}>
+              <span className="dv-scale-bar-text">{scaleParams.meters} m</span>
+              <div className="dv-scale-bar-line" style={{ width: scaleParams.width }} />
+            </div>
+          )}
+
+          {placed.length === 0 && mode !== "zone" && (
+            <div className="dv-drop-hint">
+              <div className="dv-drop-hint__icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" width="48" height="48">
+                  <rect x="3" y="3" width="18" height="18" rx="2" />
+                  <circle cx="12" cy="12" r="4" />
+                  <path d="M12 8v-2M12 18v-2M8 12H6M18 12h-2" />
+                </svg>
+              </div>
+              <p>Drag a camera model from the library onto the floor plan</p>
+              <p className="dv-drop-hint__sub">or import a floor plan first</p>
+            </div>
+          )}
+
+          {mode === "zone" && drawingPoints.length === 0 && (
+            <div className="dv-drop-hint">
+              <div className="dv-drop-hint__icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="1" width="48" height="48">
+                  <polygon points="3,20 12,4 21,20" />
+                  <circle cx="3" cy="20" r="1.5" fill="#f59e0b" />
+                  <circle cx="12" cy="4" r="1.5" fill="#f59e0b" />
+                  <circle cx="21" cy="20" r="1.5" fill="#f59e0b" />
+                </svg>
+              </div>
+              <p style={{ color: "#f59e0b" }}>Click on the canvas to place zone vertices</p>
+              <p className="dv-drop-hint__sub">Click the first point again to close · Press Esc to cancel</p>
+            </div>
+          )}
+
+          {selectedPlaced && (
+            <div className="dv-selected-bar" style={{ pointerEvents: "auto", transition: "all 0.3s ease", ...(isSettingsMinimized ? { width: '48px', height: '48px', padding: '0', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', background: '#1e293b', border: '1px solid #3b82f6', overflow: 'hidden' } : {}) }}>
+              {isSettingsMinimized ? (
+                <button
+                  onClick={() => setIsSettingsMinimized(false)}
+                  style={{ background: 'none', border: 'none', color: '#60a5fa', cursor: 'pointer', outline: 'none', padding: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                  title="Open Camera Settings"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="30" height="30">
+                    <circle cx="12" cy="12" r="3" />
+                    <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z" />
+                  </svg>
+                </button>
+              ) : (
+              <>
+                <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", marginBottom: 4 }}>
+                  <button
+                    onClick={() => setIsSettingsMinimized(true)}
+                    style={{ background: 'none', border: 'none', color: 'rgba(255, 255, 255, 0.5)', cursor: 'pointer', outline: 'none', display: 'flex', alignItems: 'center' }}
+                    onMouseEnter={e => e.currentTarget.style.color = '#ef4444'}
+                    onMouseLeave={e => e.currentTarget.style.color = 'rgba(255, 255, 255, 0.5)'}
+                    title="Minimize Settings"
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14">
+                      <line x1="18" y1="6" x2="6" y2="18" />
+                      <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                  </button>
+                </div>
+              {/* Column 1: Camera Basic Info */}
+              <div style={{ display: "flex", flexDirection: "column", width: 250, gap: 12, flexShrink: 0 }}>
+                <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", width: "100%" }}>
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+                    <div style={{ marginTop: 2 }}>
+                      <CameraIcon type={selectedPlaced.camera.type} size={24} color={TYPE_COLORS[selectedPlaced.camera.type]} />
+                    </div>
+                    <strong style={{ fontSize: 16, color: "#ffffff", fontWeight: "700", lineHeight: 1.3 }}>
+                      {selectedPlaced.customName || selectedPlaced.camera.model} <span style={{ fontSize: 12, opacity: 0.6 }}>({selectedPlaced.camera.brand})</span>
+                    </strong>
+                  </div>
+                  <button
+                    onClick={() => setShowConfigDrawer(!showConfigDrawer)}
+                    style={{
+                      background: "none", border: "none", color: "rgba(255, 255, 255, 0.5)",
+                      fontSize: showConfigDrawer ? 16 : 14, cursor: "pointer", padding: "4px",
+                      display: "flex", alignItems: "center", justifyContent: "center", transition: "color 0.15s ease",
+                      flexShrink: 0,
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.color = "#ffffff"}
+                    onMouseLeave={e => e.currentTarget.style.color = "rgba(255, 255, 255, 0.5)"}
+                    title={showConfigDrawer ? "Hide Configuration" : "Configure Camera"}
+                  >
+                    {showConfigDrawer ? "✕" : (
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" width="16" height="16">
+                        <circle cx="12" cy="12" r="3" />
+                        <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z" />
+                      </svg>
+                    )}
+                  </button>
+                </div>
+
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px 12px", background: "rgba(255,255,255,0.03)", padding: 12, borderRadius: 8, border: "1px solid rgba(255,255,255,0.05)" }}>
+                  <div style={{ display: "flex", flexDirection: "column" }}>
+                    <span style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", fontWeight: 700, textTransform: "uppercase" }}>HFOV</span>
+                    <span style={{ fontSize: 14, color: "#fff", fontWeight: 600 }}>{Math.round(selectedPlaced.camera.hfov)}°</span>
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column" }}>
+                    <span style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", fontWeight: 700, textTransform: "uppercase" }}>Range</span>
+                    <span style={{ fontSize: 14, color: "#fff", fontWeight: 600 }}>{selectedPlaced.camera.rangeDay} m</span>
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column" }}>
+                    <span style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", fontWeight: 700, textTransform: "uppercase" }}>Direction</span>
+                    <span style={{ fontSize: 14, color: "#fff", fontWeight: 600 }}>{Math.round(selectedPlaced.direction)}°</span>
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column" }}>
+                    <span style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", fontWeight: 700, textTransform: "uppercase" }}>Zone</span>
+                    {(() => {
+                      const cz = zones.find(z => z.polygon.length >= 3 && pointInPolygon(selectedPlaced.x, selectedPlaced.y, z.polygon));
+                      return cz ? (
+                        <span style={{ fontSize: 13, color: cz.color, fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 100 }}>{cz.name}</span>
+                      ) : <span style={{ fontSize: 13, color: "rgba(255,255,255,0.3)" }}>None</span>;
+                    })()}
+                  </div>
+                </div>
+
+                {/* Varifocal zoom slider */}
+                {selectedPlaced.camera.isVarifocal && (
+                  <div className="dv-selected-bar__zoom" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", background: "rgba(168, 85, 247, 0.1)", padding: "8px 12px", borderRadius: 8, border: "1px solid rgba(168, 85, 247, 0.2)" }}>
+                    <label style={{ fontSize: 13, color: "#c084fc", fontWeight: 700, letterSpacing: "0.03em" }}>ZOOM</label>
+                    <input
+                      type="range"
+                      min={selectedPlaced.camera.focalLength}
+                      max={selectedPlaced.camera.focalLengthMax}
+                      step="0.1"
+                      value={selectedPlaced.currentFocalLength || selectedPlaced.camera.focalLength}
+                      onChange={e => handleVarifocalChange(selectedIdx, Number(e.target.value))}
+                      style={{ flex: 1, height: 4, cursor: "pointer", accentColor: "#a855f7", margin: "0 10px" }}
+                    />
+                    <span style={{ fontFamily: "monospace", fontSize: 13, color: "#c084fc", fontWeight: 600 }}>
+                      {(selectedPlaced.currentFocalLength || selectedPlaced.camera.focalLength).toFixed(1)} mm
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Column 2: Collapsible Scenario & Accessories Settings */}
+              {showConfigDrawer && (
+                <div style={{
+                  display: "flex", flexDirection: "column",
+                  gap: 12, background: "#080c14", border: "0.5px solid #1e2d3e",
+                  borderRadius: 8, padding: "12px 16px", width: 280,
+                  animation: "dvSlideDown 0.2s ease-out forwards",
+                }}>
+                  {/* Column 1: Scenarios */}
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    <div style={{ fontSize: 15, fontWeight: 800, color: "#3b82f6", letterSpacing: "0.05em", textTransform: "uppercase" }}>Recording Scenarios</div>
+                    
+                    {/* Recording Mode */}
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6 }}>
+                      <span style={{ fontSize: 16, color: "rgba(255, 255, 255, 0.5)", fontWeight: "500" }}>Schedule:</span>
+                      <select
+                        value={selectedPlaced.recordingMode || "continuous"}
+                        onChange={e => handleCameraConfigChange(selectedIdx, "recordingMode", e.target.value)}
+                        style={{
+                          background: "#0d1117", border: "0.5px solid #2e3d55", borderRadius: 6,
+                          color: "#e8edf5", fontSize: 16, padding: "4px 8px", outline: "none", width: 130, height: 28, cursor: "pointer"
+                        }}
+                      >
+                        <option value="continuous">Continuous 24/7</option>
+                        <option value="motion20">Motion (20% Act)</option>
+                        <option value="motion50">Motion (50% Act)</option>
+                        <option value="scheduled">Scheduled (12h)</option>
+                      </select>
+                    </div>
+
+                    {/* FPS */}
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6 }}>
+                      <span style={{ fontSize: 16, color: "rgba(255, 255, 255, 0.5)", fontWeight: "500" }}>Frame Rate:</span>
+                      <select
+                        value={selectedPlaced.fps || 25}
+                        onChange={e => handleCameraConfigChange(selectedIdx, "fps", Number(e.target.value))}
+                        style={{
+                          background: "#0d1117", border: "0.5px solid #2e3d55", borderRadius: 6,
+                          color: "#e8edf5", fontSize: 16, padding: "4px 8px", outline: "none", width: 130, height: 28, cursor: "pointer"
+                        }}
+                      >
+                        <option value={5}>5 FPS</option>
+                        <option value={10}>10 FPS</option>
+                        <option value={15}>15 FPS</option>
+                        <option value={20}>20 FPS</option>
+                        <option value={25}>25 FPS</option>
+                        <option value={30}>30 FPS</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Divider */}
+                  <div style={{ height: "0.5px", background: "#1e2d3e", margin: "4px 0" }} />
+
+                  {/* Column 2: Accessories */}
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    <div style={{ fontSize: 15, fontWeight: 800, color: "#a855f7", letterSpacing: "0.05em", textTransform: "uppercase" }}>Mounting & Power</div>
+                    
+                    {/* Mounting Arm */}
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6 }}>
+                      <span style={{ fontSize: 16, color: "rgba(255, 255, 255, 0.5)", fontWeight: "500" }}>Mounting:</span>
+                      <select
+                        value={selectedPlaced.mounting || "default"}
+                        onChange={e => handleCameraConfigChange(selectedIdx, "mounting", e.target.value)}
+                        style={{
+                          background: "#0d1117", border: "0.5px solid #2e3d55", borderRadius: 6,
+                          color: "#e8edf5", fontSize: 16, padding: "4px 8px", outline: "none", width: 130, height: 28, cursor: "pointer"
+                        }}
+                      >
+                        <option value="default">Default Mount</option>
+                        <option value="wall">Wall Arm</option>
+                        <option value="ceiling">Ceiling pendant</option>
+                        <option value="pole">Pole collar</option>
+                        <option value="corner">Corner plate</option>
+                      </select>
+                    </div>
+
+                    {/* Checkboxes */}
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 4 }}>
+                      <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 15, color: "#cbd5e1" }}>
+                        <input
+                          type="checkbox"
+                          checked={!!selectedPlaced.includeBackbox}
+                          onChange={e => handleCameraConfigChange(selectedIdx, "includeBackbox", e.target.checked)}
+                          style={{ width: 16, height: 16, accentColor: "#a855f7" }}
+                        />
+                        Weatherproof Backbox
+                      </label>
+                      <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 15, color: "#cbd5e1" }}>
+                        <input
+                          type="checkbox"
+                          checked={!!selectedPlaced.includePoe}
+                          onChange={e => handleCameraConfigChange(selectedIdx, "includePoe", e.target.checked)}
+                          style={{ width: 16, height: 16, accentColor: "#a855f7" }}
+                        />
+                        PoE Midspan Injector
+                      </label>
+                    </div>
+                  </div>
+                </div>
+              )}
+              </>
+              )}
+            </div>
+          )}
+        </div>
+
       </div>
 
       {showZoneNameModal && (
@@ -4811,6 +4949,7 @@ export default function DesignerView({ onBack }) {
           setNvrPrice={setNvrPrice}
           switchUnitPrice={switchUnitPrice}
           setSwitchUnitPrice={setSwitchUnitPrice}
+          selectedCompany={selectedCompany}
         />
       )}
 
@@ -5032,7 +5171,8 @@ function ProjectStatsPanel({
   nvrPrice,
   setNvrPrice,
   switchUnitPrice,
-  setSwitchUnitPrice
+  setSwitchUnitPrice,
+  selectedCompany
 }) {
   const [codec, setCodec] = useState("h265");
   const [activeTab, setActiveTab] = useState("perf"); // "perf" | "bom"
@@ -5070,6 +5210,7 @@ function ProjectStatsPanel({
       totalStorageTB,
       dailyStoragePerCamGB: avgBitrate * 3600 * 24 / (8 * 1024),
       dailyStorageTotalGB: totalBandwidth * 3600 * 24 / (8 * 1024),
+      companyName: selectedCompany === "mirador" ? "Mirador AI Technologies" : "SENTINEL TECHNOLOGIES PRIVATE LIMITED",
     };
     const img = new Image();
     img.onload = () => {
@@ -5087,7 +5228,7 @@ function ProjectStatsPanel({
       link.download = `Storage_Report_${codec.toUpperCase()}.png`;
       link.click();
     };
-    img.src = logoImg;
+    img.src = selectedCompany === "mirador" ? logoImg : sentinelLogoImg;
   };
 
   // Helper to get base price for a placed camera

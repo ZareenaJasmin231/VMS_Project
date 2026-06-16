@@ -571,7 +571,7 @@
 .lv-alert-card__serial {
   font-size: 15px;
   font-family: var(--font-mono);
-  color: var(--text-secondary);
+  color: #ffffff;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -593,7 +593,7 @@
 }
 .lv-alert-card__label {
   font-size: 15px;
-  color: rgba(255, 255, 255, 0.5);
+  color: #ffffff;
   width: 60px;
   flex-shrink: 0;
 }

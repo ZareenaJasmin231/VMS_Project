@@ -1331,7 +1331,7 @@
 .dv-scale-bar-overlay {
   position: absolute;
   bottom: 20px;
-  right: 500px;
+  right: 530px;
   background: rgba(13, 20, 32, 0.72);
   border: 0.5px solid rgba(255, 255, 255, 0.08);
   border-radius: 6px;
@@ -1758,12 +1758,30 @@
   width: 250px;
 }
 
-.dv-inspector:not(.dv-inspector--expanded) ~ .dv-zoom-hud {
+.dv-inspector:not(.dv-inspector--expanded) ~ .dv-canvas-wrap .dv-zoom-hud {
   right: 68px;
 }
 
-.dv-inspector:not(.dv-inspector--expanded) ~ .dv-scale-bar-overlay {
-  right: 228px;
+.dv-inspector:not(.dv-inspector--expanded) ~ .dv-canvas-wrap .dv-scale-bar-overlay {
+  right: 258px;
+}
+
+.dv-inspector.dv-inspector--expanded ~ .dv-canvas-wrap .dv-zoom-hud {
+  right: 340px;
+}
+
+.dv-inspector.dv-inspector--expanded ~ .dv-canvas-wrap .dv-scale-bar-overlay {
+  right: 530px;
+}
+
+/* Hide zoom input up/down spin buttons */
+.dv-zoom-input::-webkit-outer-spin-button,
+.dv-zoom-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.dv-zoom-input {
+  -moz-appearance: textfield;
 }
 
 .dv-inspector-toggle {

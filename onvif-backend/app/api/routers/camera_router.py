@@ -62,7 +62,6 @@ async def enable_camera_by_ip(ip: str):
     for device in matched:
         stream_name = device.get("ome_stream")
         rtsp_url    = device.get("rtsp_url")
-        rec_rtsp    = device.get("recording_rtsp", rtsp_url)
         if not stream_name or not rtsp_url:
             continue
         device["enabled"] = True
@@ -70,9 +69,8 @@ async def enable_camera_by_ip(ip: str):
             register_stream(stream_name, rtsp_url)
         except Exception as e:
             print(f"[ENABLE] OME re-register failed for {stream_name}: {e}")
-        recorder.start_camera(stream_name, rec_rtsp, device)
         started.append(stream_name)
-        print(f"[ENABLE] ✅ {stream_name} enabled and recording started")
+        print(f"[ENABLE] ✅ {stream_name} enabled. Recording will be started by the assigned worker process.")
     save_devices(devices)
     if cameras_col is not None:
         cameras_col.update_one({"ip": ip}, {"$set": {"enabled": True}})
@@ -91,9 +89,8 @@ async def disable_camera_by_ip(ip: str):
         if not stream_name:
             continue
         device["enabled"] = False
-        recorder.stop_camera(stream_name)
         stopped.append(stream_name)
-        print(f"[DISABLE] ⏹ {stream_name} disabled and recording stopped")
+        print(f"[DISABLE] ⏹ {stream_name} disabled. Recording will be stopped by the assigned worker process.")
     save_devices(devices)
     if cameras_col is not None:
         cameras_col.update_one({"ip": ip}, {"$set": {"enabled": False}})
@@ -213,12 +210,14 @@ async def onvif_probe(req: ProbeRequest):
         if req.username and not parsed.username:
             user_clean = req.username.strip()
             pass_clean = req.password.strip()
+            user_enc = urllib.parse.quote(user_clean, safe='')
+            pass_enc = urllib.parse.quote(pass_clean, safe='')
             host = parsed.hostname
             port = parsed.port
             if port:
-                netloc = f"{user_clean}:{pass_clean}@{host}:{port}"
+                netloc = f"{user_enc}:{pass_enc}@{host}:{port}"
             else:
-                netloc = f"{user_clean}:{pass_clean}@{host}"
+                netloc = f"{user_enc}:{pass_enc}@{host}"
             
             rtsp = urllib.parse.urlunparse((
                 parsed.scheme,
@@ -294,9 +293,7 @@ async def onvif_probe(req: ProbeRequest):
                 "group_id":        req.group_id,
                 "device_name":     req.device_name,
             })
-            recorder.start_camera(stream_name, rtsp, new_device if not existing else existing)
-
-            print(f"[ONVIF] 🎥 Recording started for {stream_name}")
+            print(f"[ONVIF] 🎥 Recording will be started by the assigned worker process for {stream_name}")
  
         else:
             print(f"[ONVIF] Stream {stream_name} already live in OME, skipping.")
@@ -419,8 +416,7 @@ async def register_rtsp_stream(req: StreamRegisterRequest):
  
  
     _watchdog_failures[stream_name] = 0
-    recorder.start_camera(stream_name, rtsp, new_device)
-    print(f"[RTSP] 🎥 Recording started for {stream_name}")
+    print(f"[RTSP] 🎥 Recording will be started by the assigned worker process for {stream_name}")
  
     return {
         "success":    True,
@@ -533,14 +529,10 @@ async def assign_streams(req: StreamAssignRequest):
     "updated_at":           datetime.utcnow(),
 })
 
-    # ── 4. Restart recorder with new recording RTSP ───────────────────
-    # IMPORTANT: stop first, wait 1s for the thread to fully exit,
-    # then start with the new RTSP URL so the profile change takes effect.
-    print(f"[ASSIGN] 🔄 Restarting recorder with new profile")
-    recorder.stop_camera(stream_name)
-    time.sleep(1)  # let the old thread fully exit before starting new one
-    recorder.start_camera(stream_name, req.recording_rtsp, device_entry)
-    print(f"[ASSIGN] ✅ Recorder restarted with: {req.recording_rtsp}")
+    # ── 4. Recording profile updated ──────────────────────────────────
+    # The assigned worker process will automatically detect the change
+    # and restart its recorder with the new profile RTSP URL.
+    print(f"[ASSIGN] ✅ Recording profile updated for {stream_name} to: {req.recording_rtsp}")
 
     # ── 5. Reset watchdog so the stream is not blacklisted ───────────
     _watchdog_failures[stream_name] = 0
@@ -618,10 +610,7 @@ async def set_encoder_profile_settings(req: VideoEncoderSettingRequest):
             if device.get("ip") == req.ip:
                 stream_name = device.get("ome_stream")
                 if stream_name:
-                    print(f"[ENCODER] Restarting recorder for active stream: {stream_name}")
-                    recorder.stop_camera(stream_name)
-                    await asyncio.sleep(1.0)
-                    recorder.start_camera(stream_name, device.get("recording_rtsp"), device)
+                    print(f"[ENCODER] Stream profiles updated for: {stream_name}")
     
     return {"success": True, "message": "Video encoder configuration updated successfully."}
 
