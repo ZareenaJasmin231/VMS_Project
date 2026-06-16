@@ -800,7 +800,9 @@ function SequenceDropdown({ value, onChange, sequences }) {
 export default function LiveViewPage() {
   const { user } = useAuth();
   const [devices,      setDevices]      = useState(loadDevices);
-  const [layout,       setLayout]       = useState("2x2"); // Default layout is 2x2 Grid
+  const [layout,       setLayout]       = useState(() => {
+    return sessionStorage.getItem("miradorai_liveview_layout") || "2x2";
+  }); // Default layout is 2x2 Grid
   const [currentPage,  setCurrentPage]  = useState(1);
   const [gridDropdownOpen, setGridDropdownOpen] = useState(false);
   const [gridFullscreen, setGridFullscreen] = useState(false);
@@ -839,6 +841,36 @@ export default function LiveViewPage() {
   const [alertsPanelOpen, setAlertsPanelOpen] = useState(true);
   const [totalAlertsCount, setTotalAlertsCount] = useState(0);
   const [sidePlaybackCam, setSidePlaybackCam] = useState(null);
+
+  // Sync layout state to sessionStorage whenever it changes
+  useEffect(() => {
+    sessionStorage.setItem("miradorai_liveview_layout", layout);
+  }, [layout]);
+
+  // Sync startup ID and reset layout if backend restarted (e.g. docker compose restart)
+  useEffect(() => {
+    const checkBackendStartup = async () => {
+      try {
+        const res = await fetch(`${API}/api/health`);
+        if (res.ok) {
+          const data = await res.json();
+          const currentStartupId = data.startup_id;
+          if (currentStartupId) {
+            const savedStartupId = sessionStorage.getItem("miradorai_backend_startup_id");
+            if (savedStartupId && savedStartupId !== currentStartupId) {
+              // Backend restarted! Reset layout to default.
+              setLayout("2x2");
+              sessionStorage.setItem("miradorai_liveview_layout", "2x2");
+            }
+            sessionStorage.setItem("miradorai_backend_startup_id", currentStartupId);
+          }
+        }
+      } catch (e) {
+        console.error("[LiveView] Health check startup ID sync failed:", e);
+      }
+    };
+    checkBackendStartup();
+  }, []);
   
   const fsRef = useRef(null);
   const dropdownRef = useRef(null);

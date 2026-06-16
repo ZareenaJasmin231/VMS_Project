@@ -49,7 +49,7 @@ export default function SidePlaybackPanel({ camera, onClose }) {
   const { zoom, zoomTransform, handlers } = useDigitalZoom(playerWrap, videoRef);
 
   // Tab State
-  const [activeTab, setActiveTab] = useState("archive"); // 'archive' | 'alerts'
+  const [activeTab, setActiveTab] = useState("alerts"); // 'archive' | 'alerts'
 
   // Archive Mode State
   const [selectedDate, setSelectedDate] = useState(
@@ -774,16 +774,16 @@ export default function SidePlaybackPanel({ camera, onClose }) {
       {/* Tabs Menu */}
       <div className="side-playback-tabs">
         <button
-          className={`side-playback-tab-btn ${activeTab === "archive" ? "active" : ""}`}
-          onClick={() => { setActiveTab("archive"); }}
-        >
-          Archive Playback
-        </button>
-        <button
           className={`side-playback-tab-btn ${activeTab === "alerts" ? "active" : ""}`}
           onClick={() => { setActiveTab("alerts"); }}
         >
           Recent Alerts
+        </button>
+        <button
+          className={`side-playback-tab-btn ${activeTab === "archive" ? "active" : ""}`}
+          onClick={() => { setActiveTab("archive"); }}
+        >
+          Archive Playback
         </button>
       </div>
 

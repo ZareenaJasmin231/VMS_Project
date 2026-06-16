@@ -44,6 +44,7 @@ _HTTP_KEYWORDS: dict[str, str] = {
     "vivotek": "camera", "pelco": "camera", "onvif": "camera",
     "network camera": "camera", "ip camera": "camera",
     "ipcam": "camera", "webcam": "camera",
+    "jsbase": "camera", "dui.password.js": "camera", "@webversion@": "camera",
     "cisco": "switch", "juniper": "switch", "ubiquiti": "switch",
     "unifi": "switch", "netgear": "switch", "d-link": "switch",
     "tp-link": "switch", "zyxel": "router", "mikrotik": "router",
@@ -66,6 +67,23 @@ _SNMP_KEYWORDS: dict[str, str] = {
     "routeros": "router", "openwrt": "router",
     "linux": "server", "windows": "server",
     "printer": "printer", "jetdirect": "printer",
+}
+
+_KEYWORD_TO_MANUFACTURER: dict[str, str] = {
+    "jsbase": "Dahua",
+    "dui.password.js": "Dahua",
+    "@webversion@": "Dahua",
+    "dahua": "Dahua",
+    "hikvision": "Hikvision",
+    "axis": "Axis",
+    "bosch": "Bosch",
+    "hanwha": "Hanwha",
+    "uniview": "Uniview",
+    "reolink": "Reolink",
+    "amcrest": "Amcrest",
+    "foscam": "Foscam",
+    "vivotek": "Vivotek",
+    "pelco": "Pelco",
 }
 
 
@@ -218,6 +236,19 @@ def _snmp_get_sysdescr(ip: str, community: str = "public", timeout: float = 1.5)
         return ""
 
 
+def _rtsp_banner_grab(ip: str, port: int = 554, timeout: float = 2.0) -> str:
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.settimeout(timeout)
+            s.connect((ip, port))
+            req = f"OPTIONS rtsp://{ip}:{port} RTSP/1.0\r\nCSeq: 1\r\nUser-Agent: LibVLC/3.0.16\r\n\r\n".encode()
+            s.sendall(req)
+            resp = s.recv(4096).decode("utf-8", errors="ignore").lower()
+            return resp
+    except:
+        return ""
+
+
 def _classify_device(ip: str, port: int, mac: str = "") -> tuple[str, str, str]:
     oui_type = _oui_lookup(mac)
     if oui_type and oui_type != "server":
@@ -233,17 +264,43 @@ def _classify_device(ip: str, port: int, mac: str = "") -> tuple[str, str, str]:
                 print(f"[CLASSIFY] {ip} → {dtype} (SNMP: '{sysdescr[:60]}')")
                 return dtype, manufacturer, ""
 
+    # Try RTSP banner grab first (works directly on RTSP port 554 without credentials)
+    rtsp_banner = _rtsp_banner_grab(ip, 554)
+    if rtsp_banner:
+        if 'realm="login to ' in rtsp_banner:
+            print(f"[CLASSIFY] {ip} → camera (RTSP banner Dahua realm match)")
+            return "camera", "Dahua", "Dahua Camera"
+
+        known_brands = ["hikvision", "dahua", "axis", "bosch", "hanwha", "uniview", "reolink", "amcrest", "foscam", "vivotek", "pelco"]
+        for b in known_brands:
+            if b in rtsp_banner:
+                mfg = b.capitalize()
+                print(f"[CLASSIFY] {ip} → camera (RTSP banner match: '{b}')")
+                return "camera", mfg, f"{mfg} Camera"
+
     banner = _http_banner_grab(ip, port)
     if banner:
         for kw, dtype in _HTTP_KEYWORDS.items():
             if kw in banner:
                 server_match = re.search(r'server:\s*([^\r\n]+)', banner)
                 model_hint   = server_match.group(1).strip()[:40] if server_match else ""
-                print(f"[CLASSIFY] {ip} → {dtype} (HTTP banner, kw='{kw}')")
-                return dtype, "", model_hint
+                
+                # Determine brand from keyword or banner
+                mfg = "Unknown"
+                if kw in _KEYWORD_TO_MANUFACTURER:
+                    mfg = _KEYWORD_TO_MANUFACTURER[kw]
+                else:
+                    known_brands = ["hikvision", "dahua", "axis", "bosch", "hanwha", "uniview", "reolink", "amcrest", "foscam", "vivotek", "pelco"]
+                    for b in known_brands:
+                        if b in kw or b in banner:
+                            mfg = b.capitalize()
+                            break
+                
+                print(f"[CLASSIFY] {ip} → {dtype} (HTTP banner, kw='{kw}', mfg='{mfg}')")
+                return dtype, mfg, model_hint
 
     print(f"[CLASSIFY] {ip} → unknown (no fingerprint matched)")
-    return "unknown", "", ""
+    return "unknown", "Unknown", ""
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -289,8 +346,15 @@ def probe_onvif_device(ip: str, port: int = 80, username: str = "", password: st
             rtsp_url = result.get('stream_uri', '')
             rtsp_url = re.sub(r"[&?]proto=Onvif", "", rtsp_url)
 
+            manufacturer = result.get('manufacturer')
+            if not manufacturer or manufacturer in ('Unknown', ''):
+                dtype, mfg, model_hint = _classify_device(ip, port)
+                if (not mfg or mfg == "Unknown") and port != 80:
+                    dtype, mfg, model_hint = _classify_device(ip, 80)
+                manufacturer = mfg if (mfg and mfg != "Unknown") else "Unknown"
+
             print(f"[DISCOVERY] ✅ CONFIRMED camera {ip}: "
-                  f"{result.get('manufacturer')} {result.get('model')} "
+                  f"{manufacturer} {result.get('model')} "
                   f"| {len(valid_profiles)} stream(s)")
 
             return {
@@ -298,8 +362,9 @@ def probe_onvif_device(ip: str, port: int = 80, username: str = "", password: st
                 'ip':            ip,
                 'mac': result.get('mac', 'Unknown'),
                 'status':        'online',
-                'manufacturer':  result.get('manufacturer', 'Unknown'),
+                'manufacturer':  manufacturer,
                 'model':         result.get('model', 'Unknown'),
+                'authenticated': True,
                 'firmware':      result.get('firmware', ''),
                 'rtsp_url':      rtsp_url,
                 'stream_uri':    rtsp_url,
@@ -312,13 +377,22 @@ def probe_onvif_device(ip: str, port: int = 80, username: str = "", password: st
             # It's definitely a camera, just needs credentials or uses non-standard ONVIF
             print(f"[DISCOVERY] ⚠ {ip} — port 554 open, ONVIF probe failed "
                   f"({result.get('error', '?')}) — including as auth-required camera")
+            
+            dtype, mfg, model_hint = _classify_device(ip, port)
+            if (not mfg or mfg == "Unknown") and port != 80:
+                dtype, mfg, model_hint = _classify_device(ip, 80)
+            
+            manufacturer = mfg if (mfg and mfg != "Unknown") else "Unknown"
+            model = f"{manufacturer} Camera" if manufacturer != "Unknown" else "Camera"
+            
             return {
                 'id':            f"device-{ip}",
                 'ip':            ip,
                 'mac':           'Unknown',
                 'status':        'online',
-                'manufacturer':  'Unknown',
-                'model':         'Camera (credentials required)',
+                'manufacturer':  manufacturer,
+                'model':         model,
+                'authenticated': False,
                 'device_type':   'camera',
                 'note':          'ONVIF probe failed — try adding credentials',
                 'discovered_at': datetime.utcnow().isoformat(),
@@ -327,13 +401,22 @@ def probe_onvif_device(ip: str, port: int = 80, username: str = "", password: st
     except Exception as e:
         # Exception but port 554 was confirmed open → still a camera
         print(f"[DISCOVERY] ⚠ {ip} — port 554 open, ONVIF exception: {e} — including as camera")
+        
+        dtype, mfg, model_hint = _classify_device(ip, port)
+        if (not mfg or mfg == "Unknown") and port != 80:
+            dtype, mfg, model_hint = _classify_device(ip, 80)
+            
+        manufacturer = mfg if (mfg and mfg != "Unknown") else "Unknown"
+        model = f"{manufacturer} RTSP Camera" if manufacturer != "Unknown" else "RTSP Camera"
+        
         return {
             'id':            f"device-{ip}",
             'ip':            ip,
             'mac':           'Unknown',
             'status':        'online',
-            'manufacturer':  'Unknown',
-            'model':         'RTSP Camera',
+            'manufacturer':  manufacturer,
+            'model':         model,
+            'authenticated': False,
             'device_type':   'camera',
             'discovered_at': datetime.utcnow().isoformat(),
         }
@@ -498,19 +581,36 @@ def discover_onvif_devices_simple(
 
     # ── Everything below is UNCHANGED from your original ───────────────────
     def probe_and_classify(ip: str, port: int):
+        # We must enforce that the RTSP port 554 is open.
+        # If it is not open, it is NOT a camera device we can stream from.
+        if not _has_rtsp_port(ip):
+            print(f"[DISCOVERY] ✗ {ip} — port 554 CLOSED — skipping classification")
+            return ip, None
+
         # ONVIF is usually on port 80, even if the port we detected was 554 (RTSP)
         onvif_ports_to_try = [80] if port == 554 else [port, 80]
         
         device_info = None
         for p in onvif_ports_to_try:
             device_info = probe_onvif_device(ip, p, username, password)
-            if device_info and device_info.get("model") != "Camera (credentials required)":
+            if device_info and device_info.get("authenticated"):
                 return ip, device_info
                 
         if device_info:
-            return ip, device_info # The fallback dict
+            # Try to enrich manufacturer/model using HTTP/SNMP banners even if ONVIF failed due to credentials
+            if device_info.get("manufacturer") == "Unknown" or not device_info.get("manufacturer"):
+                for http_port in ([80] if port == 554 else [port, 80]):
+                    dtype, mfg, model_hint = _classify_device(ip, http_port)
+                    if mfg and mfg != "Unknown":
+                        device_info["manufacturer"] = mfg
+                        device_info["model"] = f"{mfg} Camera"
+                        print(f"[DISCOVERY] Enriched credentials-required camera {ip} with manufacturer: {mfg}")
+                        break
+            return ip, device_info # The enriched fallback dict
 
-        device_type, manufacturer, model = _classify_device(ip, port)
+        # HTTP banner grab should be done on a web port (usually 80), not RTSP port 554
+        http_port = 80 if port == 554 else port
+        device_type, manufacturer, model = _classify_device(ip, http_port)
         if device_type == "camera":
             fallback = {
                 'id':            f"device-{ip}",
@@ -522,7 +622,7 @@ def discover_onvif_devices_simple(
                 'device_type':   'camera',
                 'discovered_at': datetime.utcnow().isoformat(),
             }
-            print(f"[DISCOVERY] ✓ Fingerprint-only camera at {ip}:{port}")
+            print(f"[DISCOVERY] ✓ Fingerprint-only camera at {ip}:{http_port}")
             return ip, fallback
         print(f"[DISCOVERY] ✗ {ip} — not a camera (type={device_type})")
         return ip, None
@@ -576,7 +676,13 @@ def discover_all(
     for d in ws_results:
         merged[d['ip']] = d
 
-    result = list(merged.values())
-    print(f"[DISCOVERY] ✅ Done — {len(result)} confirmed camera(s) "
+    # Filter out any devices where the manufacturer is unknown/unverified.
+    # This prevents streaming servers (like OvenMediaEngine), database hosts, or other non-camera VMs 
+    # from leaking into the auto-discovered camera list.
+    result = [
+        d for d in merged.values()
+        if d.get('manufacturer') and d.get('manufacturer') != 'Unknown'
+    ]
+    print(f"[DISCOVERY] ✅ Done — {len(result)} confirmed camera(s) after brand filtering "
           f"(WS={len(ws_results)}, subnet={len(subnet_results)})")
     return result

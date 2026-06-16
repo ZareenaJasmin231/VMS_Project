@@ -11,6 +11,7 @@ const GENERIC_TRIGGER_LIST = [
   { type: "Motion detection",        desc: "This type occurs when a camera detects motion within its defined area. The detection is performed by the camera which means that no processing load is added to the server." },
   { type: "Active Tampering Alarm",  desc: "Triggered when camera tampering is detected, such as blocking or defocusing the lens." },
   { type: "AXIS Cross Line Detection", desc: "Triggered when an object crosses a defined virtual line in the camera view." },
+  { type: "OccupancyCount",          desc: "Triggered based on the number of people/objects in a defined zone." },
   { type: "System Event and Error",  desc: "Triggered by system-level events such as storage failures or network issues." },
   { type: "Always active",           desc: "This trigger is always active and will continuously fire the associated actions." },
   { type: "Input/Output",            desc: "Triggered by digital input/output signals connected to the camera or server." },

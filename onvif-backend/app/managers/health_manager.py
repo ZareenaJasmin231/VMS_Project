@@ -77,6 +77,20 @@ async def analytics_poll_loop(ip: str, port: int, username: str, password: str, 
                         "received_at": datetime.now().isoformat(),
                     }
 
+                    # For Occupancy events, extract count from event or raw data
+                    if "occupancy" in alert["type"].lower():
+                        count_val = ev.get("count")
+                        if count_val is None:
+                            raw_data = ev.get("raw", {})
+                            count_val = raw_data.get("Value") or raw_data.get("Active") or raw_data.get("State") or raw_data.get("Occupancy") or raw_data.get("Count")
+                        if count_val is not None:
+                            try:
+                                alert["total"] = int(count_val)
+                                alert["human"] = int(count_val)
+                            except ValueError:
+                                alert["total"] = count_val
+                                alert["human"] = count_val
+
                     if analytics_col is not None:
                         analytics_col.insert_one(alert)
                     if watch_collection is not None:

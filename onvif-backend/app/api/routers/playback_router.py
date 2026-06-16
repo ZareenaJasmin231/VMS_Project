@@ -9,6 +9,65 @@ from app.services.storage import encrypt_service
 
 router = APIRouter(tags=["playback"])
 
+def _find_local_fallback_file(rec_dir: str, ip_prefix: str, alert_local_date: str, alert_local_secs: int, CHUNK_SECONDS: int) -> str | None:
+    best_file = None
+    best_diff = None
+    if not os.path.exists(rec_dir):
+        return None
+        
+    for entry in os.listdir(rec_dir):
+        entry_path = os.path.join(rec_dir, entry)
+        if not os.path.isdir(entry_path):
+            continue
+            
+        # Sharded folders walk fallback
+        if entry.startswith("shard"):
+            try:
+                for cam_folder in os.listdir(entry_path):
+                    if not cam_folder.startswith(ip_prefix):
+                        continue
+                    date_dir = os.path.join(entry_path, cam_folder, alert_local_date)
+                    if not os.path.isdir(date_dir):
+                        continue
+                    for fname in os.listdir(date_dir):
+                        if not fname.endswith(".enc"):
+                            continue
+                        stem = fname.replace(".enc", "")
+                        try:
+                            fparts = re.split(r"[-:]", stem)
+                            fh, fm, fs = int(fparts[0]), int(fparts[1]), int(fparts[2])
+                            file_secs  = fh * 3600 + fm * 60 + fs
+                        except:
+                            continue
+                        diff = alert_local_secs - file_secs
+                        if 0 <= diff <= CHUNK_SECONDS + 30:
+                            if best_diff is None or diff < best_diff:
+                                best_diff = diff
+                                best_file = os.path.join(date_dir, fname)
+            except:
+                pass
+        # Legacy/direct fallback
+        elif entry.startswith(ip_prefix):
+            date_dir = os.path.join(rec_dir, entry, alert_local_date)
+            if os.path.isdir(date_dir):
+                for fname in os.listdir(date_dir):
+                    if not fname.endswith(".enc"):
+                        continue
+                    stem = fname.replace(".enc", "")
+                    try:
+                        fparts = re.split(r"[-:]", stem)
+                        fh, fm, fs = int(fparts[0]), int(fparts[1]), int(fparts[2])
+                        file_secs  = fh * 3600 + fm * 60 + fs
+                    except:
+                        continue
+                    diff = alert_local_secs - file_secs
+                    if 0 <= diff <= CHUNK_SECONDS + 30:
+                        if best_diff is None or diff < best_diff:
+                            best_diff = diff
+                            best_file = os.path.join(date_dir, fname)
+                            
+    return best_file
+
 @router.get("/api/event-playback")
 def event_playback(ip: str, time: str, request: Request = None, stream: int = 0):
     """
@@ -121,30 +180,10 @@ def event_playback(ip: str, time: str, request: Request = None, stream: int = 0)
             best_file = None
             best_diff = None
 
-            # First try local filesystem
-            if os.path.exists(rec_dir):
-                for cam_folder in os.listdir(rec_dir):
-                    if not cam_folder.startswith(ip_prefix):
-                        continue
-                    date_dir = os.path.join(rec_dir, cam_folder, alert_local_date)
-                    if not os.path.isdir(date_dir):
-                        continue
-                    for fname in os.listdir(date_dir):
-                        if not fname.endswith(".enc"):
-                            continue
-                        stem = fname.replace(".enc", "")
-                        try:
-                            fparts = re.split(r"[-:]", stem)
-                            fh, fm, fs = int(fparts[0]), int(fparts[1]), int(fparts[2])
-                            file_secs  = fh * 3600 + fm * 60 + fs
-                        except Exception:
-                            continue
-                        diff = alert_local_secs - file_secs
-                        if 0 <= diff <= CHUNK_SECONDS + 30:
-                            if best_diff is None or diff < best_diff:
-                                best_diff = diff
-                                best_file = os.path.join(date_dir, fname)
-                                print(f"FS candidate: {best_file}  diff={diff:.0f}s")
+            # First try local filesystem (sharded & legacy support)
+            best_file = _find_local_fallback_file(rec_dir, ip_prefix, alert_local_date, alert_local_secs, CHUNK_SECONDS)
+            if best_file:
+                print(f"FS candidate: {best_file}")
             
             # Then try MinIO
             if not best_file:
@@ -496,29 +535,8 @@ def event_playback_hls(ip: str, time_str: str, filename: str):
                 best_file = None
                 best_diff = None
 
-                # First try local filesystem
-                if os.path.exists(rec_dir):
-                    for cam_folder in os.listdir(rec_dir):
-                        if not cam_folder.startswith(ip_prefix):
-                            continue
-                        date_dir = os.path.join(rec_dir, cam_folder, alert_local_date)
-                        if not os.path.isdir(date_dir):
-                            continue
-                        for fname in os.listdir(date_dir):
-                            if not fname.endswith(".enc"):
-                                continue
-                            stem = fname.replace(".enc", "")
-                            try:
-                                fparts = re.split(r"[-:]", stem)
-                                fh, fm, fs = int(fparts[0]), int(fparts[1]), int(fparts[2])
-                                file_secs  = fh * 3600 + fm * 60 + fs
-                            except Exception:
-                                continue
-                            diff = alert_local_secs - file_secs
-                            if 0 <= diff <= CHUNK_SECONDS + 30:
-                                if best_diff is None or diff < best_diff:
-                                    best_diff = diff
-                                    best_file = os.path.join(date_dir, fname)
+                # First try local filesystem (sharded & legacy support)
+                best_file = _find_local_fallback_file(rec_dir, ip_prefix, alert_local_date, alert_local_secs, CHUNK_SECONDS)
 
                 # Then try MinIO
                 if not best_file:

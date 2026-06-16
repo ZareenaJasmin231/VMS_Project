@@ -102,6 +102,8 @@ def _map_event_type(topic: str) -> str:
     topic_lower = topic.lower()
     if "motion" in topic_lower:
         return "Motion"
+    if "occupancy" in topic_lower:
+        return "OccupancyCount"
     if "objectinfield" in topic_lower or "objectsinside" in topic_lower or "fielddetector" in topic_lower:
         return "Object Detection"
     if "crossingline" in topic_lower or "linedetector" in topic_lower or "linecrossing" in topic_lower or "crossed" in topic_lower:
@@ -335,7 +337,7 @@ def pull_bosch_events(
 
         # ── Filter out baseline snapshots and "off" states ────────────
         prop_op = raw.get("PropertyOperation", "").lower()
-        if prop_op == "initialized":
+        if prop_op == "initialized" and "occupancy" not in topic.lower():
             continue   # just the camera's current-state snapshot on subscribe
 
         value = (raw.get("Value") or raw.get("Active") or raw.get("State") or "").lower()

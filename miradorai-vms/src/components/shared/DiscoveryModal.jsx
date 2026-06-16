@@ -19,13 +19,15 @@ export default function DiscoveryModal({
   const [statusMessage, setStatusMessage] = useState("Initializing network scan...");
   const [error, setError] = useState(null);
   const [hasScanned, setHasScanned] = useState(false);
-  const [deviceCreds, setDeviceCreds] = useState({});
+  const [brandCreds, setBrandCreds] = useState({});
+  const [cameraCreds, setCameraCreds] = useState({});
   const [showCredModal, setShowCredModal] = useState(false);
   const [showPasswords, setShowPasswords] = useState({});
   const [isRegistering, setIsRegistering] = useState(false);
   const [regStatus, setRegStatus] = useState({});
   const [openDropdownId, setOpenDropdownId] = useState(null);
   const [alertMsg, setAlertMsg] = useState("");
+  const [collapsedBrands, setCollapsedBrands] = useState(new Set());
 
   const progressTimerRef = useRef(null);
   const dropdownRef = useRef(null);
@@ -71,7 +73,7 @@ export default function DiscoveryModal({
     setDiscoveredDevices([]);
     setSelectedDevices(new Set());
     setRegStatus({});
-    setDeviceCreds({});
+    setBrandCreds({});
     setProgress(0);
     setHasScanned(false);
     setStatusMessage("Scanning network for ONVIF cameras…");
@@ -127,32 +129,63 @@ export default function DiscoveryModal({
     setAlertMsg("");
   };
 
+  const toggleBrandCollapse = (brand) => {
+    setCollapsedBrands((prev) => {
+      const next = new Set(prev);
+      if (next.has(brand)) {
+        next.delete(brand);
+      } else {
+        next.add(brand);
+      }
+      return next;
+    });
+  };
+
   const handleAddClick = () => {
-    const init = {};
-    discoveredDevices
-      .filter((d) => selectedDevices.has(d.id))
-      .forEach((d) => {
-        init[d.id] = deviceCreds[d.id] || { username: "", password: "", cameraName: "", groupId: selectedGroupId || "default" };
-      });
-    setDeviceCreds(init);
+    const initBrand = {};
+    const initCam = {};
+    const selectedList = discoveredDevices.filter((d) => selectedDevices.has(d.id));
+    const selectedBrands = new Set(selectedList.map(d => d.manufacturer || "Unknown"));
+    
+    selectedBrands.forEach(brand => {
+      initBrand[brand] = brandCreds[brand] || { username: "", password: "" };
+    });
+    
+    selectedList.forEach(device => {
+      const displayName = getDeviceDisplayName(device);
+      initCam[device.id] = cameraCreds[device.id] || {
+        name: displayName,
+        groupId: selectedGroupId || "default"
+      };
+    });
+    
+    setBrandCreds(initBrand);
+    setCameraCreds(initCam);
     setShowCredModal(true);
   };
 
-  const updateCred = (deviceId, field, value) => {
-    setDeviceCreds((prev) => ({
+  const updateBrandCred = (brand, field, value) => {
+    setBrandCreds((prev) => ({
+      ...prev,
+      [brand]: { ...prev[brand], [field]: value },
+    }));
+  };
+
+  const updateCameraCred = (deviceId, field, value) => {
+    setCameraCreds((prev) => ({
       ...prev,
       [deviceId]: { ...prev[deviceId], [field]: value },
     }));
   };
 
-  const togglePasswordVisibility = (deviceId) => {
+  const togglePasswordVisibility = (brand) => {
     setShowPasswords((prev) => ({
       ...prev,
-      [deviceId]: !prev[deviceId],
+      [brand]: !prev[brand],
     }));
   };
 
-  const handleCredKeyDown = (e, deviceId, isLast) => {
+  const handleCredKeyDown = (e, brand, isLast) => {
     if (e.key === "Enter" && isLast) {
       handleEnroll();
     }
@@ -170,15 +203,16 @@ export default function DiscoveryModal({
 
     const results = await Promise.all(
       toAdd.map(async (device) => {
-
-        const creds = deviceCreds[device.id] || {};
+        const brand = device.manufacturer || "Unknown";
+        const brandInfo = brandCreds[brand] || {};
+        const camInfo = cameraCreds[device.id] || {};
 
         const probePayload = {
           ip: device.ip,
-          username: creds.username || "",
-          password: creds.password || "",
-          group_id: creds.groupId || "default",
-          device_name: creds.cameraName || ""
+          username: brandInfo.username || "",
+          password: brandInfo.password || "",
+          group_id: camInfo.groupId || "default",
+          device_name: camInfo.name || ""
         };
 
         const devicePort = device.port;
@@ -268,11 +302,11 @@ export default function DiscoveryModal({
           id: `device-${device.ip}-${Date.now()}`,
           type: "entrance",
           name:
-            creds.cameraName ||
+            camInfo.name ||
             enrichedName ||
             `Camera @ ${device.ip}`,
           ip: device.ip,
-          group_id: creds.groupId || "default",
+          group_id: camInfo.groupId || "default",
           mac: data?.mac || device.mac || "—",
           status: ws_url ? "Online" : "Offline",
           manufacturer: enrichedManufacturer,
@@ -338,6 +372,97 @@ export default function DiscoveryModal({
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [showCredModal, selectedList]);
+
+  // Group discovered devices by manufacturer/brand
+  const groupedDevices = {};
+  discoveredDevices.forEach((device) => {
+    const brand = device.manufacturer || "Unknown";
+    if (!groupedDevices[brand]) {
+      groupedDevices[brand] = [];
+    }
+    groupedDevices[brand].push(device);
+  });
+
+  // Helper to compare IP addresses numerically in ascending order
+  const compareIps = (ipA, ipB) => {
+    const partsA = (ipA || "").split('.').map(num => parseInt(num, 10) || 0);
+    const partsB = (ipB || "").split('.').map(num => parseInt(num, 10) || 0);
+    for (let i = 0; i < Math.max(partsA.length, partsB.length); i++) {
+      const valA = partsA[i] ?? 0;
+      const valB = partsB[i] ?? 0;
+      if (valA !== valB) {
+        return valA - valB;
+      }
+    }
+    return 0;
+  };
+
+  // Sort devices within each brand group by IP in ascending order
+  Object.keys(groupedDevices).forEach((brand) => {
+    groupedDevices[brand].sort((a, b) => compareIps(a.ip, b.ip));
+  });
+
+  const sortedBrands = Object.keys(groupedDevices).sort((a, b) => {
+    if (a === "Unknown") return 1;
+    if (b === "Unknown") return -1;
+    return a.localeCompare(b);
+  });
+
+  const isBrandAllSelected = (brand) => {
+    const brandDevices = groupedDevices[brand] || [];
+    return brandDevices.every((d) => selectedDevices.has(d.id));
+  };
+
+  const toggleBrandAll = (brand) => {
+    const brandDevices = groupedDevices[brand] || [];
+    const allSel = isBrandAllSelected(brand);
+    setSelectedDevices((prev) => {
+      const next = new Set(prev);
+      brandDevices.forEach((d) => {
+        if (allSel) {
+          next.delete(d.id);
+        } else {
+          next.add(d.id);
+        }
+      });
+      return next;
+    });
+    setAlertMsg("");
+  };
+
+  const getDeviceDisplayName = (device) => {
+    if (device.name) return device.name;
+    const model = device.model || "Camera";
+    const mfg = device.manufacturer || "Unknown";
+    if (mfg !== "Unknown" && model !== "Unknown") {
+      if (model.toLowerCase().startsWith(mfg.toLowerCase())) {
+        return model;
+      }
+      return `${mfg} ${model}`;
+    }
+    return model;
+  };
+
+  // Group selected devices by manufacturer/brand for credentials modal
+  const selectedGrouped = {};
+  selectedList.forEach((device) => {
+    const brand = device.manufacturer || "Unknown";
+    if (!selectedGrouped[brand]) {
+      selectedGrouped[brand] = [];
+    }
+    selectedGrouped[brand].push(device);
+  });
+
+  // Sort selected devices within each brand group by IP in ascending order
+  Object.keys(selectedGrouped).forEach((brand) => {
+    selectedGrouped[brand].sort((a, b) => compareIps(a.ip, b.ip));
+  });
+
+  const selectedBrands = Object.keys(selectedGrouped).sort((a, b) => {
+    if (a === "Unknown") return 1;
+    if (b === "Unknown") return -1;
+    return a.localeCompare(b);
+  });
 
   return (
     <>
@@ -423,42 +548,82 @@ export default function DiscoveryModal({
                   </button>
                 </div>
                 <div className="dm-device-list">
-                  {discoveredDevices.map((device, index) => {
-                    const sel = selectedDevices.has(device.id);
+                  {sortedBrands.map((brand) => {
+                    const brandDevices = groupedDevices[brand] || [];
+                    const isCollapsed = collapsedBrands.has(brand);
+                    const allSelected = isBrandAllSelected(brand);
                     return (
-                      <div
-                        key={device.id}
-                        className={`dm-device ${sel ? "dm-device--selected" : ""} ${isRegistering ? "dm-device--disabled" : ""}`}
-                        onClick={() => !isRegistering && toggleOne(device.id)}
-                      >
-                        <input
-                          type="checkbox"
-                          className="dm-cb"
-                          checked={sel}
-                          disabled={isRegistering}
-                          tabIndex={3 + index}
-                          onChange={() => toggleOne(device.id)}
-                          onClick={(e) => e.stopPropagation()}
-                        />
-                        <div className="dm-device-icon">
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="16" height="16">
-                            <rect x="2" y="7" width="15" height="10" rx="2"/>
-                            <path d="M17 9l5-3v12l-5-3"/>
-                          </svg>
+                      <div key={brand} className="dm-brand-group">
+                        <div className="dm-brand-header" onClick={() => toggleBrandCollapse(brand)}>
+                          <div className="dm-brand-title">
+                            <span className={`dm-brand-caret ${isCollapsed ? "dm-brand-caret--collapsed" : ""}`}>
+                              ▼
+                            </span>
+                            <strong>{brand}</strong> ({brandDevices.length} Camera{brandDevices.length !== 1 ? "s" : ""})
+                          </div>
                         </div>
-                        <div className="dm-device-info">
-                          <div className="dm-device-name">{device.name || `Camera @ ${device.ip}`}</div>
 
-                        </div>
-                        {isRegistering && sel
-                          ? <RegBadge deviceId={device.id} />
-                          : (
-                            <div className={`dm-status ${device.status === "online" ? "dm-status--online" : "dm-status--offline"}`}>
-                              <span className="dm-status-dot"/>
-                              {device.status === "online" ? "Online" : "Offline"}
+                        {!isCollapsed && (
+                          <div className="dm-brand-content">
+                            <div className="dm-brand-select-all" onClick={() => toggleBrandAll(brand)}>
+                              <input
+                                type="checkbox"
+                                className="dm-cb"
+                                checked={allSelected}
+                                disabled={isRegistering}
+                                onChange={() => toggleBrandAll(brand)}
+                                onClick={(e) => e.stopPropagation()}
+                              />
+                              <span className="dm-brand-select-all-label">Select All {brand}</span>
                             </div>
-                          )
-                        }
+
+                            <div className="dm-brand-devices">
+                              {brandDevices.map((device, index) => {
+                                const sel = selectedDevices.has(device.id);
+                                return (
+                                  <div
+                                    key={device.id}
+                                    className={`dm-device ${sel ? "dm-device--selected" : ""} ${isRegistering ? "dm-device--disabled" : ""}`}
+                                    onClick={() => !isRegistering && toggleOne(device.id)}
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      className="dm-cb"
+                                      checked={sel}
+                                      disabled={isRegistering}
+                                      tabIndex={3 + index}
+                                      onChange={() => toggleOne(device.id)}
+                                      onClick={(e) => e.stopPropagation()}
+                                    />
+                                    <div className="dm-device-icon">
+                                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="16" height="16">
+                                        <rect x="2" y="7" width="15" height="10" rx="2"/>
+                                        <path d="M17 9l5-3v12l-5-3"/>
+                                      </svg>
+                                    </div>
+                                    <div className="dm-device-info" style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+                                      <div className="dm-device-name" style={{ fontWeight: "600", fontSize: "16px", color: "#fff" }}>
+                                        {getDeviceDisplayName(device)}
+                                      </div>
+                                      <div className="dm-device-ip" style={{ color: "#fff", fontFamily: "monospace", fontSize: "13.5px" }}>
+                                        {device.ip}
+                                      </div>
+                                    </div>
+                                    {isRegistering && sel
+                                      ? <RegBadge deviceId={device.id} />
+                                      : (
+                                        <div className={`dm-status ${device.status === "online" ? "dm-status--online" : "dm-status--offline"}`}>
+                                          <span className="dm-status-dot"/>
+                                          {device.status === "online" ? "Online" : "Offline"}
+                                        </div>
+                                      )
+                                    }
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     );
                   })}
@@ -547,117 +712,138 @@ export default function DiscoveryModal({
             <div className="dm-cred-body">
 
               <p className="dm-cred-hint">
-                Enter credentials for each camera.
+                Enter credentials once for all selected cameras of each brand.
               </p>
 
               <div className="dm-cred-list">
-                {selectedList.map((device, index) => {
-                  const isLast  = index === selectedList.length - 1;
-                  const baseTab = index * 3 + 1;
+                {selectedBrands.map((brand, bIndex) => {
+                  const brandDevices = selectedGrouped[brand] || [];
+                  const isLast = bIndex === selectedBrands.length - 1;
+                  const baseTab = bIndex * 200 + 1;
                   return (
-                    <div key={device.id} className="dm-cred-row">
-                      <div className="dm-cred-cam">
-                        <div className="dm-cred-cam-icon">
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="15" height="15">
-                            <rect x="2" y="7" width="15" height="10" rx="2"/>
-                            <path d="M17 9l5-3v12l-5-3"/>
-                          </svg>
+                    <div key={brand} className="dm-brand-cred-card">
+                      {/* LEFT COLUMN: Selected camera names and group allocations */}
+                      <div className="dm-brand-cred-left">
+                        <div className="dm-brand-cred-header">
+                          <span className="dm-brand-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="16" height="16">
+                              <rect x="2" y="7" width="15" height="10" rx="2"/>
+                              <path d="M17 9l5-3v12l-5-3"/>
+                            </svg>
+                          </span>
+                          <span className="dm-brand-cred-title">
+                            {brand} ({brandDevices.length} camera{brandDevices.length !== 1 ? "s" : ""})
+                          </span>
                         </div>
-                        <div className="dm-cred-cam-info">
-                          <div className="dm-cred-cam-name">{device.ip}</div>
+
+                        <div className="dm-brand-cams-list">
+                          {brandDevices.map((device, devIndex) => {
+                            const camSetting = cameraCreds[device.id] || { name: getDeviceDisplayName(device), groupId: "default" };
+                            const camTabBase = baseTab + devIndex * 2;
+                            return (
+                              <div key={device.id} className="dm-brand-cam-item">
+                                <div className="dm-brand-cam-ip">{device.ip}</div>
+                                
+                                <input
+                                  className="dm-cred-input dm-cam-name-input"
+                                  placeholder="Camera Name"
+                                  tabIndex={camTabBase}
+                                  value={camSetting.name}
+                                  onChange={(e) => updateCameraCred(device.id, "name", e.target.value)}
+                                  autoComplete="off"
+                                />
+
+                                <div className="dm-custom-select" style={{ width: "120px" }} ref={openDropdownId === device.id ? dropdownRef : null}>
+                                  <button
+                                    type="button"
+                                    className="dm-select-btn"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setOpenDropdownId(openDropdownId === device.id ? null : device.id);
+                                    }}
+                                  >
+                                    <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                      {(!camSetting.groupId || camSetting.groupId === "default") 
+                                        ? "Default" 
+                                        : groups?.find(g => g.id === camSetting.groupId)?.name || "Default"}
+                                    </span>
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: openDropdownId === device.id ? "rotate(180deg)" : "rotate(0)", transition: "transform .2s", color: "var(--text-muted)", flexShrink: 0, marginLeft: "4px" }}>
+                                      <path d="M6 9l6 6 6-6"/>
+                                    </svg>
+                                  </button>
+                                  {openDropdownId === device.id && (
+                                    <ul className="dm-dropdown-menu">
+                                      <li
+                                        className={`dm-dropdown-item ${(!camSetting.groupId || camSetting.groupId === "default") ? "active" : ""}`}
+                                        onClick={() => { updateCameraCred(device.id, "groupId", "default"); setOpenDropdownId(null); }}
+                                      >
+                                        Default
+                                      </li>
+                                      {groups?.map((g) => (
+                                        <li
+                                          key={g.id}
+                                          className={`dm-dropdown-item ${camSetting.groupId === g.id ? "active" : ""}`}
+                                          onClick={() => { updateCameraCred(device.id, "groupId", g.id); setOpenDropdownId(null); }}
+                                        >
+                                          {g.name}
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
 
-                      <div className="dm-cred-fields">
-
-
-                        <input
-                          className="dm-cred-input dm-cam-name-input"
-                          placeholder="Name (Optional)"
-                          tabIndex={baseTab}
-                          value={deviceCreds[device.id]?.cameraName || ""}
-                          onChange={(e) => updateCred(device.id, "cameraName", e.target.value)}
-                          autoComplete="off"
-                        />
-                        <div className="dm-custom-select" style={{ flex: 1, minWidth: 0 }} ref={openDropdownId === device.id ? dropdownRef : null}>
-                          <button
-                            type="button"
-                            className="dm-select-btn"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setOpenDropdownId(openDropdownId === device.id ? null : device.id);
-                            }}
-                          >
-                            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                              {(!deviceCreds[device.id]?.groupId || deviceCreds[device.id]?.groupId === "default") 
-                                ? "Default" 
-                                : groups?.find(g => g.id === deviceCreds[device.id]?.groupId)?.name || "Default"}
-                            </span>
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: openDropdownId === device.id ? "rotate(180deg)" : "rotate(0)", transition: "transform .2s", color: "var(--text-muted)", flexShrink: 0, marginLeft: "6px" }}>
-                              <path d="M6 9l6 6 6-6"/>
-                            </svg>
-                          </button>
-                          {openDropdownId === device.id && (
-                            <ul className="dm-dropdown-menu">
-                              <li
-                                className={`dm-dropdown-item ${(!deviceCreds[device.id]?.groupId || deviceCreds[device.id]?.groupId === "default") ? "active" : ""}`}
-                                onClick={() => { updateCred(device.id, "groupId", "default"); setOpenDropdownId(null); }}
-                              >
-                                Default
-                              </li>
-                              {groups?.map((g) => (
-                                <li
-                                  key={g.id}
-                                  className={`dm-dropdown-item ${deviceCreds[device.id]?.groupId === g.id ? "active" : ""}`}
-                                  onClick={() => { updateCred(device.id, "groupId", g.id); setOpenDropdownId(null); }}
-                                >
-                                  {g.name}
-                                </li>
-                              ))}
-                            </ul>
-                          )}
-                        </div>
-
-                        <input
-                          className="dm-cred-input"
-                          placeholder="Username"
-                          tabIndex={baseTab + 1}
-                          value={deviceCreds[device.id]?.username || ""}
-                          onChange={(e) => updateCred(device.id, "username", e.target.value)}
-                          autoComplete="off"
-                        />
-
-                        <div className="dm-password-wrapper">
+                      {/* RIGHT COLUMN: Single Username and Password fields for the brand */}
+                      <div className="dm-brand-cred-fields">
+                        <div className="dm-cred-field-col">
+                          <label className="dm-cred-sublabel">Username</label>
                           <input
-                            className="dm-cred-input dm-password-input"
-                            placeholder="Password"
-                            type={showPasswords[device.id] ? "text" : "password"}
-                            tabIndex={baseTab + 2}
-                            value={deviceCreds[device.id]?.password || ""}
-                            onChange={(e) => updateCred(device.id, "password", e.target.value)}
-                            onKeyDown={(e) => handleCredKeyDown(e, device.id, isLast)}
-                            autoComplete="new-password"
+                            className="dm-cred-input"
+                            placeholder="Username"
+                            tabIndex={baseTab + brandDevices.length * 2}
+                            value={brandCreds[brand]?.username || ""}
+                            onChange={(e) => updateBrandCred(brand, "username", e.target.value)}
+                            autoComplete="off"
                           />
-                          <button
-                            type="button"
-                            className="dm-eye-btn"
-                            onClick={() => togglePasswordVisibility(device.id)}
-                            tabIndex={-1}
-                          >
-                            {showPasswords[device.id] ? (
-                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                                <circle cx="12" cy="12" r="3"/>
-                              </svg>
-                            ) : (
-                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
-                                <line x1="1" y1="1" x2="23" y2="23"/>
-                              </svg>
-                            )}
-                          </button>
                         </div>
 
+                        <div className="dm-cred-field-col">
+                          <label className="dm-cred-sublabel">Password</label>
+                          <div className="dm-password-wrapper">
+                            <input
+                              className="dm-cred-input dm-password-input"
+                              placeholder="Password"
+                              type={showPasswords[brand] ? "text" : "password"}
+                              tabIndex={baseTab + brandDevices.length * 2 + 1}
+                              value={brandCreds[brand]?.password || ""}
+                              onChange={(e) => updateBrandCred(brand, "password", e.target.value)}
+                              onKeyDown={(e) => handleCredKeyDown(e, brand, isLast)}
+                              autoComplete="new-password"
+                            />
+                            <button
+                              type="button"
+                              className="dm-eye-btn"
+                              onClick={() => togglePasswordVisibility(brand)}
+                              tabIndex={-1}
+                            >
+                              {showPasswords[brand] ? (
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                                  <circle cx="12" cy="12" r="3"/>
+                                </svg>
+                              ) : (
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                  <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
+                                  <line x1="1" y1="1" x2="23" y2="23"/>
+                                </svg>
+                              )}
+                            </button>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   );
@@ -669,14 +855,14 @@ export default function DiscoveryModal({
               <button
                 className="dm-btn dm-btn--cancel"
                 onClick={() => setShowCredModal(false)}
-                tabIndex={selectedList.length * 3 + 1}
+                tabIndex={9998}
               >
                 Back
               </button>
               <button
                 className="dm-btn dm-btn--primary"
                 onClick={handleEnroll}
-                tabIndex={selectedList.length * 3 + 2}
+                tabIndex={9999}
               >
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="13" height="13">
                   <polyline points="20 6 9 17 4 12"/>

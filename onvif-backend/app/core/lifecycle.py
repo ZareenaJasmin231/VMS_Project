@@ -8,7 +8,7 @@ from datetime import datetime
 
 from app.background_task_manager import task_manager
 from monitoring.scheduler import scheduler as infrastructure_scheduler
-from app.managers.stream_manager import devices, get_devices_by_ip, stream_watchdog
+from app.managers.stream_manager import devices, get_devices_by_ip, stream_watchdog, supervise_worker_pool, stop_worker_pool
 from app.managers.health_manager import system_health_collector, camera_health_collector, analytics_poll_loop
 from app.core.database import db as _db, cameras_col, analytics_subs_col
 from utils.terminal_logger import log_terminal
@@ -66,6 +66,13 @@ async def _startup_phase_1():
         print("[STARTUP] ✅ Automated Email Report Scheduler background task started.")
     except Exception as e:
         print(f"[STARTUP] ⚠ Failed to start email report scheduler: {e}")
+
+    try:
+        from discovery_host import start_discovery_host_server
+        start_discovery_host_server()
+        print("[STARTUP] ✅ Discovery Host Scan server started on port 19999.")
+    except Exception as e:
+        print(f"[STARTUP] ⚠ Failed to start Discovery Host Scan server: {e}")
 
 async def _startup_phase_2():
     if cameras_col is not None:
@@ -276,8 +283,7 @@ async def _startup_phase_2():
                 print(f"[ANALYTICS] ♻ Restored for {sub_ip}")
 
     _health_monitor_task = await task_manager.start_task('health_monitor', start_health_monitoring(my_devices, cameras_col))
-    encrypt_service.start_watcher()
-    recorder.start_recording_all(my_devices)
+    await task_manager.start_task('worker_pool_supervisor', supervise_worker_pool())
     try:
         from app.services.ai import motion_detector
         motion_detector.manager.start()
@@ -287,19 +293,25 @@ async def _startup_phase_2():
     await task_manager.start_task('system_health', system_health_collector())
     await task_manager.start_task('camera_health', camera_health_collector())
     enabled_count = sum(1 for d in my_devices if d.get("enabled") is not False)
-    print(f"[STARTUP] 🎥 Recording started for {enabled_count}/{len(my_devices)} enabled camera(s)")
+    print(f"[STARTUP] 🎥 Sharded recording pool active for {enabled_count}/{len(my_devices)} enabled camera(s)")
 
     print(f"[STARTUP] ✓ Stream health monitoring started")
 
+    try:
+        from app.api.routers.system_router import start_background_discovery
+        start_background_discovery()
+        print("[STARTUP] ✓ Background network camera discovery started")
+    except Exception as e:
+        print(f"[STARTUP] ❌ Failed to start background discovery: {e}")
+
 async def _shutdown_phase_1():
-    print("[SHUTDOWN] Stopping recorders, motion detectors, and encryption watcher...")
+    print("[SHUTDOWN] Stopping worker pool and motion detectors...")
     try:
         from app.services.ai import motion_detector
         motion_detector.manager.stop()
     except Exception as e:
         print(f"[SHUTDOWN] Error stopping motion detector manager: {e}")
-    recorder.stop_all()
-    encrypt_service.stop_watcher()
+    stop_worker_pool()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):

@@ -46,9 +46,9 @@ DAHUA_TOPIC_MAP: dict[str, tuple[str, str]] = {
     "LineCrossing":         ("LineCrossing",     "Line Crossing"),
 
     # People Counting
-    "PeopleCounter":        ("PeopleCounting",   "People Counting"),
-    "People":               ("PeopleCounting",   "People Counting"),
-    "Counting":             ("PeopleCounting",   "People Counting"),
+    "PeopleCounter":        ("OccupancyCount",   "People Counting"),
+    "People":               ("OccupancyCount",   "People Counting"),
+    "Counting":             ("OccupancyCount",   "People Counting"),
 
     # Face Detection
     "FaceDetector":         ("FaceDetection",    "Face Detection"),
@@ -345,8 +345,8 @@ def pull_dahua_events(
         except Exception:
             pass
 
-        # ── Skip initialized snapshots ────────────────────────────────
-        if prop_op == "initialized":
+        # ── Skip initialized snapshots (except for count/occupancy) ───
+        if prop_op == "initialized" and "counting" not in topic.lower() and "counter" not in topic.lower() and "occupancy" not in topic.lower():
             continue
 
         # ── Skip empty items ──────────────────────────────────────────
@@ -380,7 +380,7 @@ def pull_dahua_events(
         else:
             # Fallback: guess from items
             if "Count" in items or "ObjectCount" in items:
-                event_type, scenario_name = "PeopleCounting", "People Counting"
+                event_type, scenario_name = "OccupancyCount", "People Counting"
             elif "IsMotion" in items:
                 event_type, scenario_name = "Motion", "Motion Detection"
             else:

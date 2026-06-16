@@ -2,7 +2,9 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 import os
 import shutil
 from app.core.security import verify_token
-from app.core.database import db as _db
+from app.core.database import db as _db, cameras_col
+from app.services.storage import rtsp_recorder as recorder
+from app.services.storage import encrypt_service
 
 router = APIRouter(prefix="/api", tags=["storage_ext"])
 
@@ -84,7 +86,21 @@ def storage_selection():
     for cam in docs:
         stream         = cam.get("ome_stream", "")
         recordings_dir = recorder.get_recordings_dir()
-        cam_dir        = os.path.join(recordings_dir, stream)
+        
+        # Check sharded path first
+        cam_dir = None
+        if os.path.exists(recordings_dir):
+            try:
+                for entry in os.listdir(recordings_dir):
+                    if entry.startswith("shard"):
+                        test_path = os.path.join(recordings_dir, entry, stream)
+                        if os.path.exists(test_path):
+                            cam_dir = test_path
+                            break
+            except Exception as e:
+                print(f"[STORAGE] Error scanning recordings dir for shards: {e}")
+        if not cam_dir:
+            cam_dir = os.path.join(recordings_dir, stream)
         used_bytes = 0
         oldest     = None
         if os.path.exists(cam_dir):

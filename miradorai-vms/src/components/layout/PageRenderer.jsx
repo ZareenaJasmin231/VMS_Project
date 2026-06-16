@@ -119,7 +119,7 @@ const MAP = {
 const CLIENT_SUPERVISOR_PAGES = ["media-player", "backup", "masking"];
 
 // Pages the OPERATOR role is allowed to access
-const OPERATOR_ALLOWED_PAGES = ["live-view", "add-devices", "about"];
+const OPERATOR_ALLOWED_PAGES = ["designer-view"];
 
 // Friendly names for the supervisor modal
 const SUPERVISOR_PAGE_NAMES = {
@@ -140,7 +140,7 @@ export default function PageRenderer({ activePage, onNavigate }) {
   // --- Operator: hard-block any page not in their allowed list ---
   useEffect(() => {
     if (role === "operator" && !OPERATOR_ALLOWED_PAGES.includes(activePage)) {
-      navigate("/live-view", { replace: true });
+      navigate("/designer-view", { replace: true });
     }
   }, [activePage, role, navigate]);
 

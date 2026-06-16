@@ -5,6 +5,7 @@ encrypt_service.py — fixed MongoDB connection + synced recording path
 import os
 import sys
 import io
+import sqlite3
 
 if hasattr(sys.stdout, 'reconfigure'):
     try:
@@ -57,6 +58,115 @@ print(f"[ENCRYPT] Connecting to MongoDB at {MONGO_URI}")
 _mongo_client       = MongoClient(MONGO_URI, serverSelectionTimeoutMS=10000)
 _db                 = _mongo_client["mirador-vms"]
 metadata_collection = _db["recordings"]
+
+# ------------------------------------------------------------------
+# SQLite Failsafe Queue for Local-First Writes
+# ------------------------------------------------------------------
+_SQLITE_QUEUE_DB = os.environ.get("SQLITE_QUEUE_DB")
+if not _SQLITE_QUEUE_DB:
+    # If running inside Docker container, use the mounted /app/data volume path
+    if os.path.exists("/app/data"):
+        _SQLITE_QUEUE_DB = "/app/data/local_metadata_queue.db"
+    else:
+        # Native Windows fallback
+        _SQLITE_QUEUE_DB = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "devices_data", "local_metadata_queue.db"))
+
+# Create parent directories if they don't exist
+try:
+    os.makedirs(os.path.dirname(_SQLITE_QUEUE_DB), exist_ok=True)
+except:
+    pass
+
+def init_sqlite_queue():
+    try:
+        os.makedirs(os.path.dirname(_SQLITE_QUEUE_DB), exist_ok=True)
+        conn = sqlite3.connect(_SQLITE_QUEUE_DB)
+        cursor = conn.cursor()
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS metadata_queue (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                camera_id TEXT,
+                date_part TEXT,
+                time_part TEXT,
+                file_path TEXT,
+                duration_seconds REAL,
+                end_time TEXT,
+                file_size INTEGER,
+                created_at TEXT,
+                status TEXT DEFAULT 'pending'
+            )
+        """)
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"[ENCRYPT] ❌ Failed to initialize SQLite queue: {e}")
+
+# Call on import
+init_sqlite_queue()
+
+def queue_metadata_locally(camera_id, date_part, time_part, file_path, duration_seconds, end_time, file_size):
+    try:
+        conn = sqlite3.connect(_SQLITE_QUEUE_DB)
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO metadata_queue 
+            (camera_id, date_part, time_part, file_path, duration_seconds, end_time, file_size, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """, (camera_id, date_part, time_part, file_path, duration_seconds, end_time, file_size, datetime.utcnow().isoformat()))
+        conn.commit()
+        conn.close()
+        print(f"[ENCRYPT] 💾 Queued segment locally in SQLite for {camera_id} / {date_part} / {time_part}")
+    except Exception as e:
+        print(f"[ENCRYPT] ❌ Failed to write to SQLite queue: {e}")
+
+def flush_local_queue_to_mongodb():
+    if metadata_collection is None:
+        return
+    try:
+        conn = sqlite3.connect(_SQLITE_QUEUE_DB)
+        cursor = conn.cursor()
+        cursor.execute("SELECT id, camera_id, date_part, time_part, file_path, duration_seconds, end_time, file_size FROM metadata_queue WHERE status = 'pending'")
+        rows = cursor.fetchall()
+        if not rows:
+            conn.close()
+            return
+        
+        print(f"[ENCRYPT] 🔄 Found {len(rows)} pending segments in SQLite queue. Pushing to MongoDB...")
+        synced_ids = []
+        for row in rows:
+            db_id, camera_id, date_part, time_part, file_path, duration_seconds, end_time, file_size = row
+            try:
+                metadata_collection.update_one(
+                    {
+                        "camera_id":  camera_id,
+                        "date":       date_part,
+                        "start_time": time_part,
+                    },
+                    {
+                        "$set": {
+                            "file_path":  file_path,
+                            "duration_seconds": duration_seconds,
+                            "end_time": end_time,
+                            "file_size":  file_size,
+                            "created_at": datetime.utcnow(),
+                        }
+                    },
+                    upsert=True
+                )
+                synced_ids.append(db_id)
+            except Exception as mongo_err:
+                print(f"[ENCRYPT] ❌ Failed to flush SQLite row {db_id} to Mongo: {mongo_err}")
+                break # Stop processing if DB is still unreachable
+        
+        if synced_ids:
+            # Delete synced rows
+            placeholders = ",".join("?" for _ in synced_ids)
+            cursor.execute(f"DELETE FROM metadata_queue WHERE id IN ({placeholders})", synced_ids)
+            conn.commit()
+            print(f"[ENCRYPT] ✅ Successfully flushed {len(synced_ids)} segments from SQLite to MongoDB.")
+        conn.close()
+    except Exception as e:
+        print(f"[ENCRYPT] ❌ Error flushing local SQLite queue: {e}")
 
 def migrate_existing_recordings():
     """
@@ -262,27 +372,27 @@ def _get_video_duration_seconds(path: str) -> float:
 
 
 def _save_metadata_to_db(camera_id, date_part, time_part, output_path, input_path=None):
+    file_size = os.path.getsize(output_path) if os.path.exists(output_path) else 0
+    from datetime import timedelta
+
+    # Look up finalized chunk duration from the recorder, defaulting to 300.0 if not found
+    duration_seconds = 300.0
+    durations_map = recorder._recording_durations.get(camera_id, {})
+    if time_part in durations_map:
+        duration_seconds = float(durations_map[time_part])
+
     try:
-        file_size = os.path.getsize(output_path) if os.path.exists(output_path) else 0
-
-        from datetime import timedelta
-
-        # Look up finalized chunk duration from the recorder, defaulting to 300.0 if not found
-        duration_seconds = 300.0
-        durations_map = recorder._recording_durations.get(camera_id, {})
-        if time_part in durations_map:
-            duration_seconds = float(durations_map[time_part])
-
         start_dt = datetime.strptime(
             f"{date_part} {time_part}",
             "%Y-%m-%d %H-%M-%S"
         )
+    except Exception:
+        start_dt = datetime.now()
 
-        end_dt = start_dt + timedelta(seconds=duration_seconds)
+    end_dt = start_dt + timedelta(seconds=duration_seconds)
+    end_time = end_dt.strftime("%H-%M-%S")
 
-        end_time = end_dt.strftime("%H-%M-%S")
-
-        minio_key = f"{camera_id}/{date_part}/{os.path.basename(output_path)}"
+    try:
         metadata_collection.update_one(
             {
                 "camera_id":  camera_id,
@@ -302,7 +412,8 @@ def _save_metadata_to_db(camera_id, date_part, time_part, output_path, input_pat
         )
         print(f"[ENCRYPT] 📄 Saved to MongoDB (Upserted): {camera_id} / {date_part} / {time_part} file_size={file_size} duration={duration_seconds} end_time={end_time}")
     except Exception as e:
-        print(f"[ENCRYPT] ❌ MongoDB upsert FAILED: {e}")
+        print(f"[ENCRYPT] ❌ MongoDB upsert FAILED: {e} — writing to local SQLite queue instead")
+        queue_metadata_locally(camera_id, date_part, time_part, output_path, duration_seconds, end_time, file_size)
 
 
 def _save_meta_sidecar(camera_id, date_part, time_part, output_path):
@@ -576,9 +687,37 @@ def decrypt_to_temp_file(enc_path: str, suffix: str = ".ts") -> str:
         return tmp.name
     return ""
 
+def get_local_fallback_path(recordings_dir: str, object_key: str) -> str | None:
+    """Find local file path by checking direct and sharded paths under recordings_dir."""
+    if not object_key:
+        return None
+    direct_path = os.path.join(recordings_dir, object_key)
+    if os.path.exists(direct_path):
+        return direct_path
+    if os.path.exists(recordings_dir):
+        try:
+            for entry in os.listdir(recordings_dir):
+                if entry.startswith("shard"):
+                    sharded_path = os.path.join(recordings_dir, entry, object_key)
+                    if os.path.exists(sharded_path):
+                        return sharded_path
+        except Exception as e:
+            print(f"[DECRYPT] Error listing recordings dir: {e}")
+    return None
+
 def decrypt_file_stream(input_path: str):
     """Generator that decrypts a file in chunks for streaming, supporting local and MinIO paths."""
     is_minio = input_path.startswith("minio:")
+    
+    # Fast local fallback: if MinIO path is requested but local copy exists, use it!
+    if is_minio:
+        object_key = input_path.replace("minio:", "")
+        local_path = get_local_fallback_path(recorder.get_recordings_dir(), object_key)
+        if local_path:
+            input_path = local_path
+            is_minio = False
+            print(f"[DECRYPT] 🚀 Local copy found at {local_path} — using local playback")
+
     f = None
     stream = None
     
@@ -677,44 +816,26 @@ def _upload_and_cleanup_enc_files(recordings_dir):
         for fname in files:
             if fname.endswith(".enc"):
                 full_path = os.path.join(root, fname)
+                if full_path in _uploaded_enc_files:
+                    continue
                 try:
                     mtime = os.path.getmtime(full_path)
-                    if full_path in _uploaded_enc_files:
-                        if now - mtime > 600: # 10 minutes
-                            try:
-                                os.remove(full_path)
-                                meta_path = full_path.replace('.enc', '.meta')
-                                if os.path.exists(meta_path):
-                                    os.remove(meta_path)
-                                print(f"[ENCRYPT] 🧹 Cleaned up local file: {full_path}")
-                                _uploaded_enc_files.discard(full_path)
-                            except Exception:
-                                pass
-                        continue
+                    camera_id, date_part, _ = _parse_path(full_path)
+                    time_part = fname.replace(".enc", "").replace("_motion_based", "")
                     
-                    if now - mtime > 600:
-                        camera_id, date_part, _ = _parse_path(full_path)
-                        time_part = fname.replace(".enc", "").replace("_motion_based", "")
-                        doc = metadata_collection.find_one({
-                            "camera_id": camera_id,
-                            "date": date_part,
-                            "start_time": time_part
-                        })
-                        if doc and doc.get("file_path", "").startswith("minio:"):
-                            try:
-                                os.remove(full_path)
-                                meta_path = full_path.replace('.enc', '.meta')
-                                if os.path.exists(meta_path):
-                                    os.remove(meta_path)
-                                print(f"[ENCRYPT] 🧹 Fast cleanup (already in DB): {full_path}")
-                            except Exception:
-                                pass
-                            continue
+                    # Deduplicate: check if this file is already in MongoDB pointing to MinIO
+                    doc = metadata_collection.find_one({
+                        "camera_id": camera_id,
+                        "date": date_part,
+                        "start_time": time_part
+                    })
+                    if doc and doc.get("file_path", "").startswith("minio:"):
+                        _uploaded_enc_files.add(full_path)
+                        continue
                         
                     if now - mtime > 30:
                         try:
                             from app.utils import minio_client
-                            camera_id, date_part, _ = _parse_path(full_path)
                             minio_key = f"{camera_id}/{date_part}/{fname}"
                             minio_meta_key = f"{camera_id}/{date_part}/{fname.replace('.enc', '.meta')}"
                             
@@ -725,7 +846,6 @@ def _upload_and_cleanup_enc_files(recordings_dir):
                                 minio_client.upload_file(minio_meta_key, meta_path)
                                 
                             # Update MongoDB to point to MinIO
-                            time_part = fname.replace(".enc", "").replace("_motion_based", "")
                             try:
                                 metadata_collection.update_one(
                                     {
@@ -745,8 +865,8 @@ def _upload_and_cleanup_enc_files(recordings_dir):
                             _uploaded_enc_files.add(full_path)
                         except Exception as e:
                             print(f"[ENCRYPT] MinIO upload failed: {e}")
-                except Exception:
-                    pass
+                except Exception as e:
+                    print(f"[ENCRYPT] Error processing file {fname}: {e}")
 
 def _poll_loop():
     recordings_dir = recorder.get_recordings_dir()
@@ -754,6 +874,7 @@ def _poll_loop():
     os.makedirs(recordings_dir, exist_ok=True)
     while not _stop_event.is_set():
         try:
+            flush_local_queue_to_mongodb()
             _scan_and_encrypt()
             _upload_and_cleanup_enc_files(recordings_dir)
         except Exception as e:

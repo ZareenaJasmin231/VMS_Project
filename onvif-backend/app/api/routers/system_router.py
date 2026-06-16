@@ -6,41 +6,63 @@ from urllib.parse import urlparse
 from pydantic import BaseModel
 from typing import Optional
 from app.core.database import mongo_client, db as _db, cameras_col, users_col
-from app.managers.stream_manager import devices
+from app.managers.stream_manager import (
+    normalize_stream_name,
+    save_camera_to_db,
+    save_devices,
+    stream_exists_in_ome,
+    devices
+)
+from app.services.camera.ome_service import register_stream
+from app.services.storage import rtsp_recorder as recorder
+import uuid
 
 import os
 
+STARTUP_ID = str(uuid.uuid4())
+
 MONGO_URI = os.environ.get("MONGO_URI", "mongodb://mongo:27017/")
+OME_HOST_IP = os.environ.get("OME_HOST_IP", "192.168.126.200")
+OME_WS_PORT = os.environ.get("OME_WS_PORT", "3333")
 
-router = APIRouter(prefix="/api", tags=["system"])
+CACHED_DISCOVERED_DEVICES = []
+_discovery_in_progress = False
 
-@router.get("/health")
-def health():
-    import os
-    from monitoring.scheduler import scheduler
-    watchdog_active = scheduler.thread.is_alive() if scheduler.thread else False
-    return {
-        "status": "ok",
-        "version": os.environ.get("APP_VERSION", "1.0.0"),
-        "watchdog": "Active" if watchdog_active else "Inactive"
-    }
-
-
-
-@router.get("/discover-devices", dependencies=[Depends(verify_token)])
-async def discover_devices():
+async def run_discovery_pipeline():
+    global CACHED_DISCOVERED_DEVICES, _discovery_in_progress
+    if _discovery_in_progress:
+        return
+    _discovery_in_progress = True
+    print("[BACKGROUND-DISCOVERY] Starting network scan...")
     try:
         from app.services.camera.discovery_service import discover_all
-        print("[DISCOVER] Starting network discovery...")
-        found = await asyncio.to_thread(discover_all, 4, 150)
-        print(f"[DISCOVER] Found {len(found)} device(s)")
- 
+        found = await asyncio.to_thread(discover_all, 4, 1000)
+        print(f"[BACKGROUND-DISCOVERY] Found {len(found)} device(s)")
+
+        # Enrich discovered devices with their registered details (like exact model name) if already in database/VMS
+        from app.managers.stream_manager import load_devices
+        try:
+            registered_devices = load_devices()
+            registered_by_ip = {r.get("ip"): r for r in registered_devices if r.get("ip")}
+            for device in found:
+                ip = device.get("ip")
+                if ip in registered_by_ip:
+                    reg_dev = registered_by_ip[ip]
+                    if reg_dev.get("manufacturer") and reg_dev.get("manufacturer") != "Unknown":
+                        device["manufacturer"] = reg_dev["manufacturer"]
+                    if reg_dev.get("model") and reg_dev.get("model") != "Unknown":
+                        device["model"] = reg_dev["model"]
+                    if reg_dev.get("mac") and reg_dev.get("mac") != "Unknown":
+                        device["mac"] = reg_dev["mac"]
+        except Exception as enrich_err:
+            print(f"[BACKGROUND-DISCOVERY] ⚠ Failed to enrich with registered devices: {enrich_err}")
+
         for device in found:
             rtsp_url = device.get("rtsp_url")
             ip       = device.get("ip")
 
             if not rtsp_url:
-                print(f"[DISCOVER] ⏭ {ip} — no RTSP URL found, skipping OME")
+                print(f"[BACKGROUND-DISCOVERY] ⏭ {ip} — no RTSP URL found, skipping OME")
                 device["ws_url"]        = None
                 device["stream_key"]    = None
                 device["stream_status"] = "credentials_required"
@@ -49,7 +71,7 @@ async def discover_devices():
             from urllib.parse import urlparse
             parsed = urlparse(rtsp_url)
             if not parsed.username:
-                print(f"[DISCOVER] ⚠ {ip} — no credentials in RTSP URL, skipping OME")
+                print(f"[BACKGROUND-DISCOVERY] ⚠ {ip} — no credentials in RTSP URL, skipping OME")
                 device["ws_url"]        = None
                 device["stream_key"]    = None
                 device["stream_status"] = "credentials_required"
@@ -57,13 +79,13 @@ async def discover_devices():
             stream_name = normalize_stream_name(ip)
 
             if stream_exists_in_ome(stream_name):
-                print(f"[DISCOVER] ✅ {ip} already in OME")
+                print(f"[BACKGROUND-DISCOVERY] ✅ {ip} already in OME")
                 status_code = 200
             else:
                 ome_result  = register_stream(stream_name, rtsp_url)
                 status_code = ome_result.get("statusCode", 0) \
                               if isinstance(ome_result, dict) else 0
-                print(f"[DISCOVER] OME register {ip}: HTTP {status_code}")
+                print(f"[BACKGROUND-DISCOVERY] OME register {ip}: HTTP {status_code}")
  
             if status_code in (200, 201, 409):
                 device["ws_url"]        = f"ws://{OME_HOST_IP}:{OME_WS_PORT}/app/{stream_name}"
@@ -89,8 +111,37 @@ async def discover_devices():
                 device["ws_url"]        = None
                 device["stream_key"]    = None
                 device["stream_status"] = "error"
- 
-        return {"devices": found}
+
+        CACHED_DISCOVERED_DEVICES = found
+        print(f"[BACKGROUND-DISCOVERY] Cached list updated with {len(found)} device(s)")
+    except Exception as e:
+        print(f"[BACKGROUND-DISCOVERY] ❌ Discovery pipeline error: {e}")
+    finally:
+        _discovery_in_progress = False
+
+def start_background_discovery():
+    asyncio.create_task(run_discovery_pipeline())
+
+router = APIRouter(prefix="/api", tags=["system"])
+
+@router.get("/health")
+def health():
+    import os
+    from monitoring.scheduler import scheduler
+    watchdog_active = scheduler.thread.is_alive() if scheduler.thread else False
+    return {
+        "status": "ok",
+        "version": os.environ.get("APP_VERSION", "1.0.0"),
+        "watchdog": "Active" if watchdog_active else "Inactive",
+        "startup_id": STARTUP_ID
+    }
+
+@router.get("/discover-devices", dependencies=[Depends(verify_token)])
+async def discover_devices():
+    try:
+        if not _discovery_in_progress:
+            start_background_discovery()
+        return {"devices": CACHED_DISCOVERED_DEVICES}
  
     except Exception as e:
         print(f"[DISCOVER] ❌ Discovery error: {e}")

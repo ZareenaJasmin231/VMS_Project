@@ -288,9 +288,37 @@ def decrypt_bytes(raw: bytes) -> io.BytesIO:
         _validate_mp4(data)   # ← catch wrong-key silently-corrupt output early
     return io.BytesIO(data)
 
+def get_local_fallback_path(recordings_dir: str, object_key: str) -> str | None:
+    """Find local file path by checking direct and sharded paths under recordings_dir."""
+    if not object_key:
+        return None
+    direct_path = os.path.join(recordings_dir, object_key)
+    if os.path.exists(direct_path):
+        return direct_path
+    if os.path.exists(recordings_dir):
+        try:
+            for entry in os.listdir(recordings_dir):
+                if entry.startswith("shard"):
+                    sharded_path = os.path.join(recordings_dir, entry, object_key)
+                    if os.path.exists(sharded_path):
+                        return sharded_path
+        except Exception as e:
+            print(f"[DECRYPT] Error listing recordings dir: {e}")
+    return None
+
 def _decrypt(file_path: str) -> io.BytesIO:
     """Decrypt a .enc file on disk or MinIO and return BytesIO of the MP4 payload."""
-    if file_path.startswith("minio:"):
+    is_minio = file_path.startswith("minio:")
+    if is_minio:
+        # Check local fallback
+        object_key = file_path.replace("minio:", "")
+        local_path = get_local_fallback_path(recorder.get_recordings_dir(), object_key)
+        if local_path:
+            file_path = local_path
+            is_minio = False
+            print(f"[DECRYPT] 🚀 Local copy found at {local_path} — using local fast read")
+
+    if is_minio:
         try:
             from app.utils.minio_client import minio_client, MINIO_BUCKET
             object_key = file_path.replace("minio:", "")
@@ -804,7 +832,16 @@ def list_recordings_cameras():
             for entry in os.listdir(path):
                 full_path = os.path.join(path, entry)
                 if os.path.isdir(full_path):
-                    if entry not in ("Non-indexed Files", "lost+found", "Config"):
+                    if entry.startswith("shard"):
+                        try:
+                            for sub_entry in os.listdir(full_path):
+                                sub_full_path = os.path.join(full_path, sub_entry)
+                                if os.path.isdir(sub_full_path):
+                                    if sub_entry not in ("Non-indexed Files", "lost+found", "Config"):
+                                        results.add(sub_entry)
+                        except:
+                            pass
+                    elif entry not in ("Non-indexed Files", "lost+found", "Config"):
                         results.add(entry)
         except:
             pass
@@ -864,6 +901,15 @@ def play_recording(
     enc_path = doc.get("file_path", "")
     is_minio = enc_path.startswith("minio:")
     object_key = enc_path.replace("minio:", "") if is_minio else None
+
+    # Check local fallback
+    if is_minio:
+        local_fallback = get_local_fallback_path(recorder.get_recordings_dir(), object_key)
+        if local_fallback:
+            enc_path = local_fallback
+            is_minio = False
+            object_key = None
+            print(f"[PLAY] 🚀 Local copy found at {enc_path} — using local fast playback")
 
     if not is_minio and not os.path.exists(enc_path):
         raise HTTPException(status_code=404, detail=f"Encrypted file missing: {enc_path}")

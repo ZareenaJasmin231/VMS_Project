@@ -182,8 +182,8 @@ def pull_and_print(session):
         prop_op  = (body.get("PropertyOperation") or "").strip()
         utc_time = body.get("UtcTime", "")
 
-        # Skip baseline snapshots
-        if prop_op.lower() == "initialized":
+        # Skip baseline snapshots (except for occupancy)
+        if prop_op.lower() == "initialized" and "occupancy" not in topic.lower():
             continue
 
         # Skip ignored topics (stream stats, relay, etc.)

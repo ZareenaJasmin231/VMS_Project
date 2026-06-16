@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import "./DesignerView.css";
 import { fovDrawParams } from "./CameraModelDB";
-import { drawHeatmapToContext, drawHeatmapLegendToCanvas, drawDesignLegendToCanvas, drawDoriLegendToCanvas } from "./HeatmapLogic";
+import { drawHeatmapToContext, drawHeatmapLegendToCanvas, drawDesignLegendToCanvas } from "./HeatmapLogic";
 import HeatmapLayer from "./HeatmapLayer";
 import * as CctvCalc from "./CctvCalculators";
 import { drawStorageReport } from "./ReportLogic.js";
@@ -636,7 +636,7 @@ function drawPlacedCamera(ctx, p, ppm, hovering, selected, zonesRef, activeZoneI
   const { angle, halfRad } = fovDrawParams(camera, direction);
   const radius = camera.rangeDay * ppm;
 
-  const S = 0.62;
+  const S = 0.25;
 
   // ★ FIX: origin matches MapCanvas (x + cos*1.5*S, forward) instead of old backward formula
   const originX = x + Math.cos(angle) * (1.5 * S);
@@ -733,7 +733,7 @@ function drawPlacedCamera(ctx, p, ppm, hovering, selected, zonesRef, activeZoneI
         ctx.moveTo(originX, originY);
         ctx.arc(originX, originY, dVal, angle - halfRad, angle + halfRad);
         ctx.closePath();
-        ctx.fillStyle = z.c + "14";
+        ctx.fillStyle = z.c + "30";
         ctx.fill();
         ctx.restore();
       });
@@ -744,36 +744,24 @@ function drawPlacedCamera(ctx, p, ppm, hovering, selected, zonesRef, activeZoneI
 
         ctx.beginPath();
         ctx.arc(originX, originY, dVal, angle - halfRad, angle + halfRad);
-        ctx.strokeStyle = z.c + "33";
-        ctx.lineWidth = 1;
+        ctx.strokeStyle = z.c + "77";
+        ctx.lineWidth = 1.5;
         ctx.stroke();
-
-        ctx.save();
-        ctx.translate(originX, originY);
-        ctx.rotate(angle - halfRad + 0.04);
-        ctx.fillStyle = z.c;
-        ctx.font = "bold 8px monospace";
-        ctx.fillText(z.l, Math.max(5, dVal - 45), -3);
-        ctx.restore();
       });
     }
 
-    // ── Range circle (dashed) ─────────────────────────────────────────
+  }
+
+  endClip();
+
+  // ── Range circle (dashed, PTZ only) ───────────────────────────────
+  if (camera.type === "ptz") {
     ctx.save();
     ctx.setLineDash([4, 3]);
     ctx.beginPath(); ctx.arc(x, y, radius, 0, Math.PI * 2);
     ctx.strokeStyle = col + "33"; ctx.lineWidth = 0.8; ctx.stroke();
     ctx.setLineDash([]); ctx.restore();
   }
-
-  endClip();
-
-  // ── Range circle (dashed) ─────────────────────────────────────────
-  ctx.save();
-  ctx.setLineDash([4, 3]);
-  ctx.beginPath(); ctx.arc(x, y, radius, 0, Math.PI * 2);
-  ctx.strokeStyle = col + "33"; ctx.lineWidth = 0.8; ctx.stroke();
-  ctx.setLineDash([]); ctx.restore();
 
   // ── Camera body (Type-specific shapes, S=0.62) ──────────────────
   ctx.save();
@@ -1139,6 +1127,8 @@ export default function DesignerView({ onBack }) {
   const placedRef = useRef([]);
   useEffect(() => { placedRef.current = placed; }, [placed]);
 
+  const [saveStatus, setSaveStatus] = useState("saved"); // "saving" | "saved" | "failed"
+
   // Stateful interactive pricing in Indian Rupees (INR)
   const [cameraPrices, setCameraPrices] = useState({});
   const [accessoryPrices, setAccessoryPrices] = useState({});
@@ -1267,6 +1257,8 @@ export default function DesignerView({ onBack }) {
 
 
   const [sidebarExpanded, setSidebarExpanded] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isSettingsMinimized, setIsSettingsMinimized] = useState(false);
   const [highlightedCamId, setHighlightedCamId] = useState(null);
   const highlightedCamIdRef = useRef(null);
   useEffect(() => { highlightedCamIdRef.current = highlightedCamId; }, [highlightedCamId]);
@@ -1320,6 +1312,9 @@ export default function DesignerView({ onBack }) {
   const [selectedModel, setSelectedModel] = useState(null);
   const [dragCamera, setDragCamera] = useState(null); // eslint-disable-line
   const [selectedIdx, setSelectedIdx] = useState(null);
+  const selectedIdxRef = useRef(null);
+  useEffect(() => { selectedIdxRef.current = selectedIdx; }, [selectedIdx]);
+  const copiedCameraRef = useRef(null);
   const [hoveredIdx, setHoveredIdx] = useState(null);
   const [zoomPct, setZoomPct] = useState(100);
   const [mode, setMode] = useState("place");
@@ -1353,15 +1348,44 @@ export default function DesignerView({ onBack }) {
 
   const [showCalibrateModal, setShowCalibrateModal] = useState(false);
   const [calibrateDistPx, setCalibrateDistPx] = useState(0);
-  const [calibrateRealMeters, setCalibrateRealMeters] = useState("5.0");
+  const [calibrateRealWidth, setCalibrateRealWidth] = useState("5.0");
+  const [calibrateRealLength, setCalibrateRealLength] = useState("5.0");
+
+  // Internal shadowed apiSaveLayout that updates React state for cloud save status
+  const apiSaveLayout = useCallback(async ({ placed, zones, ppm, floorPlan = null }) => {
+    setSaveStatus("saving");
+    try {
+      const response = await fetch(`${API}/api/designer`, {
+        method: "POST",
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          map_id: MAP_ID,
+          floor_id: FLOOR_ID,
+          placed: placed.map(p => ({ id: p.id, x: p.x, y: p.y, direction: p.direction, camera: p.camera })),
+          zones: zones.map(z => ({ id: z.id, name: z.name, color: z.color, polygon: z.polygon })),
+          ppm,
+          floor_plan: floorPlan,
+        }),
+      });
+      if (response.ok) {
+        setSaveStatus("saved");
+      } else {
+        setSaveStatus("failed");
+      }
+    } catch (e) {
+      console.error("[DESIGNER] ❌ Save failed", e);
+      setSaveStatus("failed");
+    }
+  }, []);
 
   // ── Debounced save ────────────────────────────────────────────────────────
   const scheduleSave = useCallback((placedList, zonesList, currentPpm) => {
+    setSaveStatus("saving");
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(() => {
       apiSaveLayout({ placed: placedList, zones: zonesList, ppm: currentPpm });
     }, 800);
-  }, []);
+  }, [apiSaveLayout]);
 
   // ── Canvas draw ───────────────────────────────────────────────────────────
   const draw = useCallback(() => {
@@ -1424,6 +1448,7 @@ export default function DesignerView({ onBack }) {
         // Draw live line to mouse or second point
         const ptB = pts.length > 1 ? pts[1] : mousePos;
         if (ptB) {
+          // 1. Draw diagonal straight-line measurement
           ctx.beginPath();
           ctx.moveTo(ptA.x, ptA.y);
           ctx.lineTo(ptB.x, ptB.y);
@@ -1431,6 +1456,18 @@ export default function DesignerView({ onBack }) {
           ctx.lineWidth = 2;
           ctx.setLineDash([4, 3]);
           ctx.stroke();
+          ctx.setLineDash([]);
+
+          // 2. Draw bounding box/rectangle showing width and length
+          ctx.strokeStyle = "rgba(245, 158, 11, 0.4)";
+          ctx.lineWidth = 1.2;
+          ctx.setLineDash([3, 3]);
+          ctx.strokeRect(
+            Math.min(ptA.x, ptB.x),
+            Math.min(ptA.y, ptB.y),
+            Math.abs(ptB.x - ptA.x),
+            Math.abs(ptB.y - ptA.y)
+          );
           ctx.setLineDash([]);
 
           // Draw second point
@@ -1445,18 +1482,51 @@ export default function DesignerView({ onBack }) {
           ctx.moveTo(ptB.x, ptB.y - 15); ctx.lineTo(ptB.x, ptB.y + 15);
           ctx.stroke();
 
-          // Distance label in pixels
+          // Horizontal & Vertical measurements in pixels and meters (dx, dy)
+          const dx = Math.abs(ptB.x - ptA.x);
+          const dy = Math.abs(ptB.y - ptA.y);
+          const currentPpm = ppmRef.current || PIXELS_PER_METRE;
+
+          // Horizontal (Width) Label on bottom or top of the box
+          if (dx > 8) {
+            const wx = (ptA.x + ptB.x) / 2;
+            const wy = Math.min(ptA.y, ptB.y) - 8;
+            ctx.fillStyle = "#10151fec";
+            const wLbl = `W: ${Math.round(dx)} px (${(dx / currentPpm).toFixed(2)} m)`;
+            ctx.font = "bold 9px monospace";
+            const wTw = ctx.measureText(wLbl).width;
+            ctx.fillRect(wx - wTw / 2 - 4, wy - 6, wTw + 8, 13);
+            ctx.strokeStyle = "rgba(245, 158, 11, 0.6)"; ctx.strokeRect(wx - wTw / 2 - 4, wy - 6, wTw + 8, 13);
+            ctx.fillStyle = "#f59e0b";
+            ctx.textAlign = "center"; ctx.textBaseline = "middle";
+            ctx.fillText(wLbl, wx, wy + 1);
+          }
+
+          // Vertical (Length) Label on right or left of the box
+          if (dy > 8) {
+            const lx = Math.max(ptA.x, ptB.x) + 8;
+            const ly = (ptA.y + ptB.y) / 2;
+            ctx.fillStyle = "#10151fec";
+            const lLbl = `L: ${Math.round(dy)} px (${(dy / currentPpm).toFixed(2)} m)`;
+            ctx.font = "bold 9px monospace";
+            const lTw = ctx.measureText(lLbl).width;
+            ctx.fillRect(lx - 4, ly - 6, lTw + 8, 13);
+            ctx.strokeStyle = "rgba(245, 158, 11, 0.6)"; ctx.strokeRect(lx - 4, ly - 6, lTw + 8, 13);
+            ctx.fillStyle = "#f59e0b";
+            ctx.textAlign = "left"; ctx.textBaseline = "middle";
+            ctx.fillText(lLbl, lx, ly + 1);
+          }
+
+          // Diagonal distance label (placed near the line midpoint)
           const dPx = Math.hypot(ptB.x - ptA.x, ptB.y - ptA.y);
           const midX = (ptA.x + ptB.x) / 2;
           const midY = (ptA.y + ptB.y) / 2;
-
           ctx.fillStyle = "#10151fec";
-          const lbl = `${Math.round(dPx)} px`;
+          const lbl = `Diag: ${Math.round(dPx)} px (${(dPx / currentPpm).toFixed(2)} m)`;
           ctx.font = "bold 10px monospace";
           const tw = ctx.measureText(lbl).width;
           ctx.fillRect(midX - tw / 2 - 5, midY - 9, tw + 10, 16);
           ctx.strokeStyle = "#f59e0b"; ctx.strokeRect(midX - tw / 2 - 5, midY - 9, tw + 10, 16);
-          
           ctx.fillStyle = "#f59e0b";
           ctx.textAlign = "center"; ctx.textBaseline = "middle";
           ctx.fillText(lbl, midX, midY - 1);
@@ -2007,7 +2077,7 @@ export default function DesignerView({ onBack }) {
 
   useEffect(() => {
     fitImage();
-  }, [inspectorExpanded, fitImage]);
+  }, [inspectorExpanded]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const renameSlide = useCallback((slideId, newName) => {
     setSlides(prev => prev.map(s => s.id === slideId ? { ...s, name: newName } : s));
@@ -2630,6 +2700,16 @@ export default function DesignerView({ onBack }) {
         setCalPts([ptA, p]);
         calPtsRef.current = [ptA, p];
         setCalibrateDistPx(distPx);
+        
+        // Calculate horizontal and vertical components in pixels
+        const dx = Math.abs(p.x - ptA.x);
+        const dy = Math.abs(p.y - ptA.y);
+        const currentPpm = ppmRef.current || PIXELS_PER_METRE;
+        
+        // Populate modal meters inputs based on current PPM
+        setCalibrateRealWidth((dx / currentPpm).toFixed(2));
+        setCalibrateRealLength((dy / currentPpm).toFixed(2));
+        
         setShowCalibrateModal(true);
         draw();
       }
@@ -2878,7 +2958,7 @@ export default function DesignerView({ onBack }) {
           const typedarray = new Uint8Array(this.result);
           const pdf = await pdfjsLib.getDocument({ data: typedarray }).promise;
           const page = await pdf.getPage(1);
-          const viewport = page.getViewport({ scale: 2.0 });
+          const viewport = page.getViewport({ scale: 6.0 });
           
           const canvas = document.createElement("canvas");
           const context = canvas.getContext("2d");
@@ -2889,7 +2969,7 @@ export default function DesignerView({ onBack }) {
           context.fillRect(0, 0, canvas.width, canvas.height);
           
           await page.render({ canvasContext: context, viewport: viewport }).promise;
-          const dataUrl = canvas.toDataURL("image/jpeg", 0.7);
+          const dataUrl = canvas.toDataURL("image/png");
           addNewSlide(dataUrl, name);
         } catch (err) {
           console.error("Failed to parse PDF", err);
@@ -3025,8 +3105,18 @@ export default function DesignerView({ onBack }) {
   function exportPng(exportMode = "design") {
     const img = floorImgRef.current; if (!img) return;
     const oc = document.createElement("canvas");
-    oc.width = img.width; oc.height = img.height;
+    
+    // Use the current zoom scale to guarantee the exported image is as crisp as the screen
+    const exportScale = Math.max(1, scaleRef.current || 1);
+    
+    oc.width = img.width * exportScale;
+    oc.height = img.height * exportScale;
     const ctx = oc.getContext("2d");
+    
+    ctx.fillStyle = "#10151f";
+    ctx.fillRect(0, 0, oc.width, oc.height);
+    
+    ctx.scale(exportScale, exportScale);
     ctx.drawImage(img, 0, 0);
     if (exportMode === "design") {
       // Draw zones — border only, no fill (matches live canvas)
@@ -3050,10 +3140,6 @@ export default function DesignerView({ onBack }) {
       });
       placedRef.current.forEach(p => drawPlacedCamera(ctx, p, ppm, false, false, zonesRef, activeZoneIdRef, null, false, showPpm));
       drawDesignLegendToCanvas(ctx, oc.width, oc.height, { placedCameras: placedRef.current, compact: true });
-      // If Clarity Zones mode is active, also draw the DORI legend on the exported image
-      if (showPpm) {
-        drawDoriLegendToCanvas(ctx, oc.width, oc.height);
-      }
     } else if (exportMode === "mapview_only_cams") {
       // Draw zones — border only, no fill (matches live canvas)
       zonesRef.current.forEach(zone => {
@@ -3075,12 +3161,17 @@ export default function DesignerView({ onBack }) {
       hcvs.width = oc.width; hcvs.height = oc.height;
       const hctx = hcvs.getContext("2d");
       const foundLevels = drawHeatmapToContext(hctx, hcvs.width, hcvs.height, {
-        markers: heatmapMarkers, cameras: heatmapCameras, scale: 1,
+        markers: heatmapMarkers, cameras: heatmapCameras, scale: exportScale,
         offset: { x: 0, y: 0 }, activeZone: zones.find(z => z.id === activeZoneId) || null,
         allZones: zones,
-        floorImg: img, step: 2, clear: true,
+        floorImg: img, step: Math.max(1, Math.round(2 * exportScale)), clear: true,
       });
+      
+      ctx.save();
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.globalAlpha = 0.85; ctx.drawImage(hcvs, 0, 0); ctx.globalAlpha = 1.0;
+      ctx.restore();
+      
       zonesRef.current.forEach(zone => {
         if (zone.polygon.length < 2) return;
         ctx.save(); ctx.beginPath();
@@ -3091,22 +3182,75 @@ export default function DesignerView({ onBack }) {
       placedRef.current.forEach(p => drawPlacedCamera(ctx, p, ppm, false, false, zonesRef, activeZoneIdRef, null, false, showPpm));
       drawHeatmapLegendToCanvas(ctx, oc.width, oc.height, { foundLevels, compact: true });
     }
-    const a = document.createElement("a");
-    a.download = exportMode === "heatmap" ? "coverage_heatmap.png" : exportMode === "mapview_only_cams" ? "map_view.png" : "designer_layout.png";
-    a.href = oc.toDataURL("image/png");
-    a.click();
-    setShowExportMenu(false);
+    const finalizeAndDownload = () => {
+      const a = document.createElement("a");
+      a.download = exportMode === "heatmap" ? "coverage_heatmap.png" : exportMode === "mapview_only_cams" ? "map_view.png" : "designer_layout.png";
+      a.href = oc.toDataURL("image/png");
+      a.click();
+      setShowExportMenu(false);
+    };
+
+    const watermark = new Image();
+    watermark.onload = () => {
+      ctx.save();
+      ctx.globalAlpha = 0.65;
+      const logoWidth = 140;
+      const logoHeight = (watermark.height / watermark.width) * logoWidth;
+      const padding = 25;
+      // Draw at top-left corner
+      ctx.drawImage(watermark, padding, padding, logoWidth, logoHeight);
+      ctx.restore();
+      finalizeAndDownload();
+    };
+    watermark.onerror = finalizeAndDownload;
+    watermark.src = logoImg;
   }
 
   useEffect(() => {
     const h = e => {
+      // Don't intercept if typing in an input
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
       if (e.key === "Escape" && modeRef.current === "zone") {
         drawingPointsRef.current = []; setDrawingPoints([]); setMode("place"); draw();
+      }
+
+      // Copy (Ctrl+C)
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c') {
+        const sIdx = selectedIdxRef.current;
+        if (sIdx !== null && sIdx >= 0 && sIdx < placedRef.current.length) {
+          copiedCameraRef.current = JSON.parse(JSON.stringify(placedRef.current[sIdx]));
+        }
+      }
+
+      // Paste (Ctrl+V)
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'v') {
+        if (copiedCameraRef.current) {
+          recordState();
+          const p = copiedCameraRef.current;
+          
+          const pasteX = mouseMapPosRef.current ? mouseMapPosRef.current.x : p.x + 20;
+          const pasteY = mouseMapPosRef.current ? mouseMapPosRef.current.y : p.y + 20;
+
+          const newEntry = {
+            ...p,
+            id: `placed_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+            x: pasteX,
+            y: pasteY
+          };
+          
+          const updated = [...placedRef.current, newEntry];
+          placedRef.current = updated;
+          setPlaced(updated);
+          setSelectedIdx(updated.length - 1);
+          draw();
+          apiSaveLayout({ placed: updated, zones: zonesRef.current, ppm: ppmRef.current });
+        }
       }
     };
     window.addEventListener("keydown", h);
     return () => window.removeEventListener("keydown", h);
-  }, [draw]);
+  }, [draw, recordState, apiSaveLayout]);
 
   const selectedPlaced = selectedIdx !== null ? placed[selectedIdx] : null;
   const activeZone = zones.find(z => z.id === activeZoneId) || null;
@@ -3180,8 +3324,59 @@ export default function DesignerView({ onBack }) {
       {/* ── Combined Header + Top bar ── */}
       <div className="dv-topbar">
         {/* Left: Page Title */}
-        <div className="dv-topbar__title-section" style={{ display: "flex", alignItems: "center", paddingRight: "20px" }}>
+        <div className="dv-topbar__title-section" style={{ display: "flex", alignItems: "center", paddingRight: "20px", gap: "12px" }}>
           <h1 className="page-title" style={{ fontSize: "28px", margin: 0 }}>Designer View</h1>
+          
+          {/* Cloud Save Status Indicator */}
+          <div style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "6px",
+            padding: "4px 10px",
+            borderRadius: "6px",
+            background: saveStatus === "saving" ? "rgba(59, 130, 246, 0.1)" : saveStatus === "failed" ? "rgba(239, 68, 68, 0.1)" : "rgba(16, 185, 129, 0.1)",
+            border: saveStatus === "saving" ? "0.5px solid rgba(59, 130, 246, 0.3)" : saveStatus === "failed" ? "0.5px solid rgba(239, 68, 68, 0.3)" : "0.5px solid rgba(16, 185, 129, 0.3)",
+            fontSize: "13px",
+            fontWeight: "600",
+            color: saveStatus === "saving" ? "#60a5fa" : saveStatus === "failed" ? "#f87171" : "#34d399",
+            transition: "all 0.3s ease"
+          }}>
+            <style>{`
+              @keyframes dv-spin {
+                0% { transform: rotate(0deg); }
+                100% { transform: rotate(360deg); }
+              }
+              .dv-status-spinner {
+                animation: dv-spin 1s linear infinite;
+              }
+            `}</style>
+            {saveStatus === "saving" && (
+              <>
+                <svg className="dv-status-spinner" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" width="12" height="12">
+                  <circle cx="12" cy="12" r="10" strokeDasharray="30 10" />
+                </svg>
+                <span>Saving to cloud...</span>
+              </>
+            )}
+            {saveStatus === "saved" && (
+              <>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" width="12" height="12">
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+                <span>All changes saved</span>
+              </>
+            )}
+            {saveStatus === "failed" && (
+              <>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" width="12" height="12">
+                  <circle cx="12" cy="12" r="10" />
+                  <line x1="12" y1="8" x2="12" y2="12" />
+                  <line x1="12" y1="16" x2="12.01" y2="16" />
+                </svg>
+                <span>Save failed</span>
+              </>
+            )}
+          </div>
         </div>
 
         <div className="dv-topbar__actions" style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
@@ -3333,6 +3528,29 @@ export default function DesignerView({ onBack }) {
             
             <input ref={fileInputRef} type="file" accept="image/*,.pdf" style={{ display: "none" }} onChange={handleFileChange} />
             <input ref={jsonFileInputRef} type="file" accept=".json" style={{ display: "none" }} onChange={handleJsonImport} />
+
+            {/* ── Direct Mode Buttons ── */}
+            <button
+              className={`dv-icon-btn ${mode === "pan" ? "dv-icon-btn--active" : ""}`}
+              onClick={() => { setMode("pan"); setCalPts([]); setSelectedIdx(null); setSelectedModel(null); setModesDropdownOpen(false); draw(); }}
+              title="Pan Map"
+              style={{ padding: "8px" }}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="18" height="18">
+                <path d="M5 9l-3 3 3 3M9 5l3-3 3 3M15 19l-3 3-3-3M19 9l3 3-3 3M12 3v18M3 12h18"/>
+              </svg>
+            </button>
+            <button
+              className={`dv-icon-btn ${mode === "place" ? "dv-icon-btn--active" : ""}`}
+              onClick={() => { setMode("place"); setCalPts([]); setModesDropdownOpen(false); draw(); }}
+              title="Place Camera"
+              style={{ padding: "8px" }}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="18" height="18">
+                <circle cx="12" cy="12" r="3"/>
+                <circle cx="12" cy="12" r="8" strokeDasharray="2 3"/>
+              </svg>
+            </button>
 
             {/* ── Modes Icon Button + Dropdown ── */}
             <div className="dv-icon-drop-wrap" ref={modesDropRef}>
@@ -3713,16 +3931,42 @@ export default function DesignerView({ onBack }) {
         <div 
           className="dv-slides-sidebar"
           style={{
-            width: "220px",
+            width: isSidebarCollapsed ? "40px" : "220px",
             background: "#0d1117",
             borderRight: "0.5px solid #1e2d3e",
             display: "flex",
             flexDirection: "column",
             flexShrink: 0,
             overflow: "hidden",
-            userSelect: "none"
+            userSelect: "none",
+            transition: "width 0.3s ease"
           }}
         >
+          {/* Toggle Button */}
+          <button
+            onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+            style={{
+              background: "none",
+              border: "none",
+              color: "#60a5fa",
+              padding: "12px",
+              cursor: "pointer",
+              display: "flex",
+              justifyContent: isSidebarCollapsed ? "center" : "flex-end",
+              borderBottom: "0.5px solid #1e2d3e",
+              outline: "none"
+            }}
+            title={isSidebarCollapsed ? "Open Sidebar" : "Close Sidebar"}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16">
+              {isSidebarCollapsed ? (
+                <path d="M5 12h14M12 5l7 7-7 7" />
+              ) : (
+                <path d="M19 12H5M12 19l-7-7 7-7" />
+              )}
+            </svg>
+          </button>
+          
           <div 
             style={{
               padding: "12px 14px",
@@ -3732,7 +3976,7 @@ export default function DesignerView({ onBack }) {
               textTransform: "uppercase",
               letterSpacing: "0.05em",
               color: "#7a8499",
-              display: "flex",
+              display: isSidebarCollapsed ? "none" : "flex",
               alignItems: "center",
               justifyContent: "space-between"
             }}
@@ -3770,7 +4014,7 @@ export default function DesignerView({ onBack }) {
               flex: 1,
               overflowY: "auto",
               padding: "10px",
-              display: "flex",
+              display: isSidebarCollapsed ? "none" : "flex",
               flexDirection: "column",
               gap: "12px",
               scrollbarWidth: "thin",
@@ -4032,177 +4276,6 @@ export default function DesignerView({ onBack }) {
             <button className="dv-zbtn" onClick={() => { const el = wrapRef.current; if (el) applyZoom(0.2, el.clientWidth / 2, el.clientHeight / 2); }} title="Zoom In">+</button>
           </div>
 
-          {/* ── Floating DORI Legend ── */}
-          {showPpm && (
-            <div 
-              className="dv-dori-legend"
-              style={{
-                position: "absolute",
-                top: "14px",
-                left: "14px",
-                background: "rgba(13, 20, 32, 0.95)",
-                border: "1px solid rgba(168, 85, 247, 0.6)",
-                borderRadius: "10px",
-                padding: "10px 14px",
-                boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.05)",
-                backdropFilter: "blur(10px)",
-                zIndex: 9000,
-                minWidth: "195px",
-                userSelect: "none",
-                pointerEvents: "none",
-                display: "flex",
-                flexDirection: "column",
-                gap: "8px"
-              }}
-            >
-              <div 
-                className="dv-dori-legend__title"
-                style={{
-                  fontSize: "14px",
-                  fontWeight: "800",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.08em",
-                  color: "#c084fc",
-                  borderBottom: "0.5px solid rgba(255, 255, 255, 0.15)",
-                  paddingBottom: "6px",
-                  display: "flex",
-                  alignItems: "center"
-                }}
-              >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" width="11" height="11" style={{ display: "inline-block", verticalAlign: "middle", marginRight: 4, color: "#a855f7" }}>
-                  <circle cx="12" cy="12" r="10" />
-                  <circle cx="12" cy="12" r="4" />
-                </svg>
-                DORI Zones 
-              </div>
-              <div 
-                className="dv-dori-legend__items"
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "6px"
-                }}
-              >
-                <div 
-                  className="dv-dori-legend__item"
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "8px"
-                  }}
-                >
-                  <span 
-                    className="dv-dori-legend__color" 
-                    style={{ 
-                      width: "7px",
-                      height: "7px",
-                      borderRadius: "50%",
-                      flexShrink: 0,
-                      boxShadow: "0 0 4px #a855f7",
-                      background: "#a855f7" 
-                    }} 
-                  />
-                  <span 
-                    className="dv-dori-legend__label"
-                    style={{
-                      fontSize: "10.5px",
-                      color: "#cbd5e1"
-                    }}
-                  >
-                    <strong style={{ color: "#ffffff", fontWeight: "700" }}>Identification</strong> (250+ px/m)
-                  </span>
-                </div>
-                <div 
-                  className="dv-dori-legend__item"
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "8px"
-                  }}
-                >
-                  <span 
-                    className="dv-dori-legend__color" 
-                    style={{ 
-                      width: "7px",
-                      height: "7px",
-                      borderRadius: "50%",
-                      flexShrink: 0,
-                      boxShadow: "0 0 4px #f97316",
-                      background: "#f97316" 
-                    }} 
-                  />
-                  <span 
-                    className="dv-dori-legend__label"
-                    style={{
-                      fontSize: "10.5px",
-                      color: "#cbd5e1"
-                    }}
-                  >
-                    <strong style={{ color: "#ffffff", fontWeight: "700" }}>Recognition</strong> (125+ px/m)
-                  </span>
-                </div>
-                <div 
-                  className="dv-dori-legend__item"
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "8px"
-                  }}
-                >
-                  <span 
-                    className="dv-dori-legend__color" 
-                    style={{ 
-                      width: "7px",
-                      height: "7px",
-                      borderRadius: "50%",
-                      flexShrink: 0,
-                      boxShadow: "0 0 4px #eab308",
-                      background: "#eab308" 
-                    }} 
-                  />
-                  <span 
-                    className="dv-dori-legend__label"
-                    style={{
-                      fontSize: "10.5px",
-                      color: "#cbd5e1"
-                    }}
-                  >
-                    <strong style={{ color: "#ffffff", fontWeight: "700" }}>Observation</strong> (62+ px/m)
-                  </span>
-                </div>
-                <div 
-                  className="dv-dori-legend__item"
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "8px"
-                  }}
-                >
-                  <span 
-                    className="dv-dori-legend__color" 
-                    style={{ 
-                      width: "7px",
-                      height: "7px",
-                      borderRadius: "50%",
-                      flexShrink: 0,
-                      boxShadow: "0 0 4px #3b82f6",
-                      background: "#3b82f6" 
-                    }} 
-                  />
-                  <span 
-                    className="dv-dori-legend__label"
-                    style={{
-                      fontSize: "10.5px",
-                      color: "#cbd5e1"
-                    }}
-                  >
-                    <strong style={{ color: "#ffffff", fontWeight: "700" }}>Detection</strong> (25+ px/m)
-                  </span>
-                </div>
-              </div>
-            </div>
-          )}
-
           {/* ── Visual Scale Bar overlay ── */}
           {hasFloor && (
             <div className="dv-scale-bar-overlay" title={`Map Scale: ${ppm} px/m`}>
@@ -4241,13 +4314,40 @@ export default function DesignerView({ onBack }) {
           )}
 
           {selectedPlaced && (
-            <div className="dv-selected-bar" style={{ pointerEvents: "auto" }}>
+            <div className="dv-selected-bar" style={{ pointerEvents: "auto", transition: "all 0.3s ease", ...(isSettingsMinimized ? { width: '48px', height: '48px', padding: '0', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', background: '#1e293b', border: '1px solid #3b82f6', overflow: 'hidden' } : {}) }}>
+              {isSettingsMinimized ? (
+                <button
+                  onClick={() => setIsSettingsMinimized(false)}
+                  style={{ background: 'none', border: 'none', color: '#60a5fa', cursor: 'pointer', outline: 'none', padding: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                  title="Open Camera Settings"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="30" height="30">
+                    <circle cx="12" cy="12" r="3" />
+                    <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z" />
+                  </svg>
+                </button>
+              ) : (
+              <>
+                <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", marginBottom: 4 }}>
+                  <button
+                    onClick={() => setIsSettingsMinimized(true)}
+                    style={{ background: 'none', border: 'none', color: 'rgba(255, 255, 255, 0.5)', cursor: 'pointer', outline: 'none', display: 'flex', alignItems: 'center' }}
+                    onMouseEnter={e => e.currentTarget.style.color = '#ef4444'}
+                    onMouseLeave={e => e.currentTarget.style.color = 'rgba(255, 255, 255, 0.5)'}
+                    title="Minimize Settings"
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14">
+                      <line x1="18" y1="6" x2="6" y2="18" />
+                      <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                  </button>
+                </div>
               {/* Column 1: Camera Basic Info */}
               <div style={{ display: "flex", flexDirection: "column", width: 250, gap: 12, flexShrink: 0 }}>
                 <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", width: "100%" }}>
                   <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
                     <div style={{ marginTop: 2 }}>
-                      <CameraIcon type={selectedPlaced.camera.type} size={18} color={TYPE_COLORS[selectedPlaced.camera.type]} />
+                      <CameraIcon type={selectedPlaced.camera.type} size={24} color={TYPE_COLORS[selectedPlaced.camera.type]} />
                     </div>
                     <strong style={{ fontSize: 16, color: "#ffffff", fontWeight: "700", lineHeight: 1.3 }}>{selectedPlaced.camera.brand} {selectedPlaced.camera.model}</strong>
                   </div>
@@ -4427,6 +4527,8 @@ export default function DesignerView({ onBack }) {
                     </div>
                   </div>
                 </div>
+              )}
+              </>
               )}
             </div>
           )}
@@ -4768,7 +4870,7 @@ export default function DesignerView({ onBack }) {
                 </div>
                 <div>
                   <div className="dv-stats-panel__title" style={{ fontSize: 18, fontWeight: 700, color: "#fff" }}>Calibrate Map Scale</div>
-                  <div className="dv-stats-panel__sub" style={{ fontSize: 15, color: "rgba(255, 255, 255, 0.5)" }}>Define real-world distance</div>
+                  <div className="dv-stats-panel__sub" style={{ fontSize: 15, color: "rgba(255, 255, 255, 0.5)" }}>Define real-world dimensions</div>
                 </div>
               </div>
               <button className="dv-stats-panel__close" onClick={() => {
@@ -4782,32 +4884,61 @@ export default function DesignerView({ onBack }) {
 
             <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
               <p style={{ fontSize: 16, color: "rgba(255, 255, 255, 0.5)", lineHeight: 1.5 }}>
-                You have drawn a line of <strong style={{ color: "#f59e0b" }}>{Math.round(calibrateDistPx)} pixels</strong> on the map.
-                Specify the physical distance in meters to calculate the scale.
+                You have measured a box of:
+                <br />
+                • Width: <strong style={{ color: "#f59e0b" }}>{Math.round(Math.abs(calPts[1]?.x - calPts[0]?.x))} px</strong>
+                <br />
+                • Length: <strong style={{ color: "#f59e0b" }}>{Math.round(Math.abs(calPts[1]?.y - calPts[0]?.y))} px</strong>
               </p>
 
-              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                <label style={{ fontSize: 15, fontWeight: 600, color: "#cbd5e1" }}>Real-World Distance (meters)</label>
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <input
-                    type="number"
-                    step="any"
-                    value={calibrateRealMeters}
-                    onChange={e => setCalibrateRealMeters(e.target.value)}
-                    style={{
-                      flex: 1,
-                      background: "#0d1117",
-                      border: "1px solid #2e3d55",
-                      borderRadius: 4,
-                      color: "#e8edf5",
-                      fontSize: 17,
-                      padding: "8px 10px",
-                      outline: "none"
-                    }}
-                    placeholder="e.g. 5.0"
-                    autoFocus
-                  />
-                  <span style={{ fontSize: 17, color: "rgba(255, 255, 255, 0.5)" }}>meters</span>
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  <label style={{ fontSize: 15, fontWeight: 600, color: "#cbd5e1" }}>Real-World Width (meters)</label>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <input
+                      type="number"
+                      step="any"
+                      value={calibrateRealWidth}
+                      onChange={e => setCalibrateRealWidth(e.target.value)}
+                      style={{
+                        flex: 1,
+                        background: "#0d1117",
+                        border: "1px solid #2e3d55",
+                        borderRadius: 4,
+                        color: "#e8edf5",
+                        fontSize: 17,
+                        padding: "8px 10px",
+                        outline: "none"
+                      }}
+                      placeholder="e.g. 10.0"
+                      autoFocus
+                    />
+                    <span style={{ fontSize: 17, color: "rgba(255, 255, 255, 0.5)" }}>meters</span>
+                  </div>
+                </div>
+
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  <label style={{ fontSize: 15, fontWeight: 600, color: "#cbd5e1" }}>Real-World Length (meters)</label>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <input
+                      type="number"
+                      step="any"
+                      value={calibrateRealLength}
+                      onChange={e => setCalibrateRealLength(e.target.value)}
+                      style={{
+                        flex: 1,
+                        background: "#0d1117",
+                        border: "1px solid #2e3d55",
+                        borderRadius: 4,
+                        color: "#e8edf5",
+                        fontSize: 17,
+                        padding: "8px 10px",
+                        outline: "none"
+                      }}
+                      placeholder="e.g. 8.0"
+                    />
+                    <span style={{ fontSize: 17, color: "rgba(255, 255, 255, 0.5)" }}>meters</span>
+                  </div>
                 </div>
               </div>
 
@@ -4836,13 +4967,27 @@ export default function DesignerView({ onBack }) {
                 <button
                   className="mv-modal__btn mv-modal__btn--confirm"
                   onClick={() => {
-                    const meters = parseFloat(calibrateRealMeters);
-                    if (meters > 0 && calibrateDistPx > 0) {
-                      const newPpm = calibrateDistPx / meters;
+                    const wMeters = parseFloat(calibrateRealWidth);
+                    const lMeters = parseFloat(calibrateRealLength);
+                    
+                    const dx = Math.abs(calPts[1].x - calPts[0].x);
+                    const dy = Math.abs(calPts[1].y - calPts[0].y);
+                    
+                    let ppmVals = [];
+                    if (wMeters > 0 && dx > 0.1) {
+                      ppmVals.push(dx / wMeters);
+                    }
+                    if (lMeters > 0 && dy > 0.1) {
+                      ppmVals.push(dy / lMeters);
+                    }
+                    
+                    if (ppmVals.length > 0) {
+                      const newPpm = ppmVals.reduce((a, b) => a + b, 0) / ppmVals.length;
                       setPpm(newPpm);
                       ppmRef.current = newPpm;
                       scheduleSave(placedRef.current, zonesRef.current, newPpm);
                     }
+                    
                     setCalPts([]);
                     calPtsRef.current = [];
                     setShowCalibrateModal(false);
