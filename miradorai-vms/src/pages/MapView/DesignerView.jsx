@@ -6,7 +6,7 @@ import HeatmapLayer from "./HeatmapLayer";
 import * as CctvCalc from "./CctvCalculators";
 import { drawStorageReport } from "./ReportLogic.js";
 import logoImg from "../../assets/logo.jpg";
-import sentinelLogoImg from "../../assets/logo.jpg";
+import sentinelLogoImg from "../../assets/sentinel logo.jpg";
 import * as pdfjsLib from "pdfjs-dist";
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url).toString();
 
@@ -3513,7 +3513,7 @@ export default function DesignerView({ onBack }) {
                     </label>
                     <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer", color: "#e8edf5", fontSize: "13px" }}>
                       <input type="radio" name="exportCompanyDrop" checked={selectedCompany === "sentinel"} onChange={(e) => { e.stopPropagation(); setSelectedCompany("sentinel"); }} onClick={e => e.stopPropagation()} />
-                      SENTINEL TECHNOLOGIES
+                      Sentinel Technologies
                     </label>
                   </div>
 

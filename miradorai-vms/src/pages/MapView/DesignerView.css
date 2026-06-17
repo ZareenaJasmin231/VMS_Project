@@ -2292,3 +2292,68 @@
   background: rgba(255, 255, 255, 0.06);
   margin: 6px 0;
 }
+.dv-export-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.7);
+  backdrop-filter: blur(5px);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 999999;
+}
+
+.dv-export-modal {
+  width: 400px;
+  background: #10151f;
+  border: 1px solid #2e3d55;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.dv-export-modal-header {
+  padding: 18px;
+  font-size: 18px;
+  font-weight: 700;
+  color: white;
+  border-bottom: 1px solid #1e2d3e;
+}
+
+.dv-export-modal-body {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.dv-export-option {
+  background: #161c28;
+  border: 1px solid #2e3d55;
+  border-radius: 8px;
+  padding: 14px;
+  color: white;
+  font-size: 16px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.dv-export-option:hover {
+  border-color: #1D9E75;
+  background: rgba(29,158,117,.15);
+}
+
+.dv-export-modal-footer {
+  padding: 15px;
+  border-top: 1px solid #1e2d3e;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.dv-export-cancel {
+  padding: 8px 16px;
+  border-radius: 6px;
+  border: 1px solid #2e3d55;
+  background: #202938;
+  color: white;
+  cursor: pointer;
+}
