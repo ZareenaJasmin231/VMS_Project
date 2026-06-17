@@ -163,6 +163,13 @@ export default function MediaPlayerPage() {
   const [exportStartTime, setExportStartTime] = useState("00:00");
   const [exportEndTime, setExportEndTime] = useState("23:59");
   const [exporting, setExporting] = useState(false);
+
+  // ── Verify Signature Modal ──────────────────────────────────────
+  const [showVerifyModal, setShowVerifyModal] = useState(false);
+  const [verifyVideoFile, setVerifyVideoFile] = useState(null);
+  const [verifySigFile, setVerifySigFile] = useState(null);
+  const [verifying, setVerifying] = useState(false);
+  const [verifyResult, setVerifyResult] = useState(null); // { valid, message }
   const [snapshotFlash, setSnapshotFlash] = useState(false);
   const [isVideoLoading, setIsVideoLoading] = useState(false);
   const [toast, setToast] = useState(null); // { msg, type: 'success'|'error' }
@@ -666,7 +673,7 @@ export default function MediaPlayerPage() {
 
     const safeTime = playingFile.start_time.replace(/[:\/]/g, "-");
     const safeDate = playingFile.date.replace(/[:\/]/g, "-");
-    const filename = `${playingFile.camera_id}_${safeDate}_${safeTime}.mp4`;
+    const filename = `${playingFile.camera_id}_${safeDate}_${safeTime}.zip`;
     const url = `${STREAM_API}/api/recordings/download`
       + `?camera_id=${encodeURIComponent(playingFile.camera_id)}`
       + `&date=${encodeURIComponent(playingFile.date)}`
@@ -721,6 +728,30 @@ export default function MediaPlayerPage() {
     } catch (err) {
       console.error("Download error:", err);
       showToast("Failed to download video: " + err.message, "error");
+    }
+  };
+
+  // ── Verify Signature ────────────────────────────────────────────
+  const handleVerifySignature = async () => {
+    if (!verifyVideoFile || !verifySigFile) return;
+    setVerifying(true);
+    setVerifyResult(null);
+    try {
+      const formData = new FormData();
+      formData.append("video_file", verifyVideoFile);
+      formData.append("signature_file", verifySigFile);
+      const res = await fetch(`${STREAM_API}/api/recordings/verify-signature`, {
+        method: "POST",
+        headers: authHeaders(),
+        body: formData,
+      });
+      if (!res.ok) throw new Error(`Server returned ${res.status}`);
+      const data = await res.json();
+      setVerifyResult(data);
+    } catch (err) {
+      setVerifyResult({ valid: false, message: err.message });
+    } finally {
+      setVerifying(false);
     }
   };
 
@@ -1010,6 +1041,18 @@ export default function MediaPlayerPage() {
                   <line x1="12" y1="15" x2="12" y2="3" />
                 </svg>
                 Export
+              </button>
+
+              <button
+                className="mp-action-btn mp-verify-btn-side"
+                onClick={() => { setShowVerifyModal(true); setVerifyResult(null); setVerifyVideoFile(null); setVerifySigFile(null); }}
+                title="Verify digital signature of an exported video"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" width="13" height="13">
+                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                  <polyline points="9 12 11 14 15 10" />
+                </svg>
+                Verify
               </button>
             </div>
 
@@ -1443,6 +1486,119 @@ export default function MediaPlayerPage() {
                 disabled={exporting || !selectedCam}
               >
                 {exporting ? "Exporting…" : "Download ZIP"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Verify Signature Modal ── */}
+      {showVerifyModal && (
+        <div
+          className="mp-export-modal-overlay"
+          onClick={(e) => { if (e.target === e.currentTarget && !verifying) setShowVerifyModal(false); }}
+        >
+          <div className="mp-export-modal mp-verify-modal">
+            <div className="mp-export-header">
+              <span className="mp-export-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16" style={{ marginRight: 8, verticalAlign: "middle", color: "var(--teal)" }}>
+                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                  <polyline points="9 12 11 14 15 10" />
+                </svg>
+                Verify Digital Signature
+              </span>
+              <button
+                className="mp-export-close"
+                onClick={() => { if (!verifying) setShowVerifyModal(false); }}
+                disabled={verifying}
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16"><path d="M18 6 6 18M6 6l12 12" /></svg>
+              </button>
+            </div>
+
+            <div className="mp-export-body">
+              <p className="mp-verify-desc">
+                Upload the <strong>.mp4</strong> video and its matching <strong>.sig</strong> signature file (both found inside your downloaded ZIP) to check if the video has been tampered with.
+              </p>
+
+              <div className="mp-verify-upload-row">
+                <div className="mp-verify-upload-group">
+                  <label className="mp-export-date-label">Video File (.mp4)</label>
+                  <label className="mp-verify-file-pick" htmlFor="verify-mp4-input">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="14" height="14">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                      <polyline points="17 8 12 3 7 8" />
+                      <line x1="12" y1="3" x2="12" y2="15" />
+                    </svg>
+                    {verifyVideoFile ? verifyVideoFile.name : "Choose file…"}
+                  </label>
+                  <input id="verify-mp4-input" type="file" accept=".mp4,video/mp4" style={{ display: "none" }}
+                    onChange={(e) => { setVerifyVideoFile(e.target.files[0] || null); setVerifyResult(null); }} />
+                </div>
+
+                <div className="mp-verify-upload-group">
+                  <label className="mp-export-date-label">Signature File (.sig)</label>
+                  <label className="mp-verify-file-pick" htmlFor="verify-sig-input">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="14" height="14">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                      <polyline points="17 8 12 3 7 8" />
+                      <line x1="12" y1="3" x2="12" y2="15" />
+                    </svg>
+                    {verifySigFile ? verifySigFile.name : "Choose file…"}
+                  </label>
+                  <input id="verify-sig-input" type="file" accept=".sig" style={{ display: "none" }}
+                    onChange={(e) => { setVerifySigFile(e.target.files[0] || null); setVerifyResult(null); }} />
+                </div>
+              </div>
+
+              {verifyResult && (
+                <div className={`mp-verify-result ${verifyResult.valid ? "mp-verify-valid" : "mp-verify-invalid"}`}>
+                  <div className="mp-verify-result-icon">
+                    {verifyResult.valid ? (
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="28" height="28">
+                        <circle cx="12" cy="12" r="10" />
+                        <polyline points="9 12 11 14 15 10" />
+                      </svg>
+                    ) : (
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="28" height="28">
+                        <circle cx="12" cy="12" r="10" />
+                        <line x1="15" y1="9" x2="9" y2="15" />
+                        <line x1="9" y1="9" x2="15" y2="15" />
+                      </svg>
+                    )}
+                  </div>
+                  <div className="mp-verify-result-text">
+                    <strong>{verifyResult.valid ? "Signature Valid" : "Signature Invalid"}</strong>
+                    <span>{verifyResult.message || (verifyResult.valid ? "This video is authentic and has not been tampered with." : "This video may have been altered.")}</span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="mp-export-footer">
+              <button
+                className="mp-export-btn mp-export-cancel"
+                onClick={() => setShowVerifyModal(false)}
+                disabled={verifying}
+              >
+                Close
+              </button>
+              <button
+                className="mp-export-btn mp-verify-action"
+                onClick={handleVerifySignature}
+                disabled={verifying || !verifyVideoFile || !verifySigFile}
+              >
+                {verifying ? (
+                  <><span className="mp-verify-spinner" /> Verifying…</>
+                ) : (
+                  <>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="13" height="13">
+                      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                      <polyline points="9 12 11 14 15 10" />
+                    </svg>
+                    Verify Signature
+                  </>
+                )}
               </button>
             </div>
           </div>

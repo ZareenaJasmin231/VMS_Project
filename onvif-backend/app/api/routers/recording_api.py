@@ -40,6 +40,7 @@ from cryptography.hazmat.primitives import padding
 from cryptography.hazmat.backends import default_backend
 
 from app.services.storage import rtsp_recorder as recorder
+from app.services.storage import signature_service
 
 # ------------------------------------------------------------------
 # Config
@@ -1112,6 +1113,7 @@ def download_recording(
     date:       str = Query(...),
     start_time: str = Query(...),
     format:     str = Query("mp4"),
+    background_tasks: BackgroundTasks = None,
 ):
     format = format.lower()
     if format not in ("mp4", "avi", "asf"):
@@ -1146,28 +1148,40 @@ def download_recording(
     safe_time = start_time.replace(":", "-").replace("/", "-")
     safe_date = date.replace("/", "-")
     safe_cam  = re.sub(r'[^\w\-.]', '_', camera_id)
-    filename  = f"{safe_cam}_{safe_date}_{safe_time}.{format}"
+    base_filename  = f"{safe_cam}_{safe_date}_{safe_time}"
+    filename  = f"{base_filename}.{format}"
+    sig_filename = f"{base_filename}.sig"
 
-    media_types = {
-        "mp4": "video/mp4",
-        "avi": "video/x-msvideo",
-        "asf": "video/x-ms-asf"
-    }
-    media_type = media_types[format]
-
-    return Response(
-        content=data,
-        media_type=media_type,
-        headers={
-            # Simple quoted filename is most compatible for downloads
-            "Content-Disposition": f"attachment; filename=\"{filename}\"",
-            "Content-Length":      str(len(data)),
-            "Content-Type":        media_type,
-            "Accept-Ranges":       "bytes",
-            "Cache-Control":       "no-store",
-            **_CORS_HEADERS,
-        }
-    )
+    try:
+        signature = signature_service.sign_data(data)
+        public_key = signature_service.get_public_key_pem()
+        
+        temp_zip = tempfile.NamedTemporaryFile(suffix=".zip", delete=False)
+        zip_path = temp_zip.name
+        temp_zip.close()
+        
+        with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_STORED) as zf:
+            zf.writestr(filename, data)
+            zf.writestr(sig_filename, signature)
+            zf.writestr("public_key.pem", public_key)
+            
+        if background_tasks:
+            background_tasks.add_task(os.unlink, zip_path)
+            
+        return FileResponse(
+            path=zip_path,
+            media_type="application/zip",
+            headers={
+                "Content-Disposition": f"attachment; filename=\"{base_filename}.zip\"",
+                "Cache-Control":       "no-store",
+                **_CORS_HEADERS,
+            }
+        )
+    except Exception as e:
+        print(f"[DOWNLOAD] Zip creation failed: {e}")
+        if 'zip_path' in locals() and os.path.exists(zip_path):
+            os.unlink(zip_path)
+        raise HTTPException(status_code=500, detail=f"Failed to create secure zip: {e}")
 
 @recording_router.get("/{camera_id_or_path}")
 def list_camera_recordings(camera_id_or_path: str, date: str = Query(None)):
@@ -1227,7 +1241,28 @@ async def decrypt_file(file: UploadFile = File(...)):
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Decryption failed: {str(e)}")
+class VerifySignatureResponse(BaseModel):
+    valid: bool
+    message: str
 
+@recording_router.post("/verify-signature", response_model=VerifySignatureResponse)
+async def verify_signature(
+    video_file: UploadFile = File(...),
+    signature_file: UploadFile = File(...)
+):
+    try:
+        video_data = await video_file.read()
+        signature_data = await signature_file.read()
+        
+        is_valid = signature_service.verify_signature(video_data, signature_data)
+        
+        if is_valid:
+            return {"valid": True, "message": "Signature is valid. Video has not been tampered with."}
+        else:
+            return {"valid": False, "message": "Signature is invalid. Video may have been tampered with or signature does not match."}
+    except Exception as e:
+        print(f"[VERIFY] Error verifying signature: {e}")
+        return {"valid": False, "message": f"Verification error: {str(e)}"}
 
 @recording_router.post("/export-zip")
 def export_zip(request: ExportZipRequest, background_tasks: BackgroundTasks):
@@ -1281,9 +1316,16 @@ def export_zip(request: ExportZipRequest, background_tasks: BackgroundTasks):
         # ZIP_DEFLATED wastes CPU and can corrupt the moov atom alignment
         # that some players rely on, causing VLC to reject the file.
         with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_STORED) as zf:
+            try:
+                public_key = signature_service.get_public_key_pem()
+                zf.writestr("public_key.pem", public_key)
+            except Exception as e:
+                print(f"[EXPORT-ZIP] Could not add public key: {e}")
+
             for doc in all_docs:
                 enc_path = (doc.get("file_path", "") or "").replace("\\", "/")
-                if not enc_path or not os.path.exists(enc_path):
+                is_minio = enc_path.startswith("minio:")
+                if not enc_path or (not is_minio and not os.path.exists(enc_path)):
                     decrypt_errors.append(f"File missing: {enc_path}")
                     continue
 
@@ -1303,7 +1345,15 @@ def export_zip(request: ExportZipRequest, background_tasks: BackgroundTasks):
                 safe_cam  = re.sub(r'[^\w\-.]', '_', doc.get('camera_id', 'cam'))
                 safe_date = (doc.get('date', '') or '').replace('/', '-')
                 safe_time = (doc.get('start_time', '') or '').replace(':', '-').replace('/', '-')
-                out_name  = f"{safe_cam}_{safe_date}_{safe_time}.{req_format}"
+                base_name = f"{safe_cam}_{safe_date}_{safe_time}"
+                out_name  = f"{base_name}.{req_format}"
+                sig_name  = f"{base_name}.sig"
+
+                try:
+                    signature = signature_service.sign_data(decrypted_data)
+                    zf.writestr(sig_name, signature)
+                except Exception as sig_err:
+                    print(f"[EXPORT-ZIP] Warning: could not sign {out_name}: {sig_err}")
 
                 zf.writestr(out_name, decrypted_data)
                 file_count += 1

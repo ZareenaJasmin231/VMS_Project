@@ -495,7 +495,8 @@ export default function SidePlaybackPanel({ camera, onClose }) {
 
     const safeTime = playingFile.start_time.replace(/[:\/]/g, "-");
     const safeDate = playingFile.date.replace(/[:\/]/g, "-");
-    const filename = `${playingFile.camera_id}_${safeDate}_${safeTime}.mp4`;
+    // const filename = `${playingFile.camera_id}_${safeDate}_${safeTime}.mp4`;
+    const filename = `${playingFile.camera_id}_${safeDate}_${safeTime}.zip`;
     const url = `${API}/api/recordings/download`
       + `?camera_id=${encodeURIComponent(playingFile.camera_id)}`
       + `&date=${encodeURIComponent(playingFile.date)}`
