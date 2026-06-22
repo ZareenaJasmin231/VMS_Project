@@ -19,7 +19,7 @@ try:
     from app.core.database import mongo_client
     MONGO_URI  = os.environ.get("MONGO_URI", "mongodb://mongo:27017/")
     _mongo     = mongo_client
-    _masks_col = _mongo["mirador-vms"]["masks"]
+    _masks_col = _mongo["vms_db"]["masks"]
 except Exception:
     pass
 

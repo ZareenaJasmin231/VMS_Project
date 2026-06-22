@@ -17,7 +17,7 @@ _stations_col = None
 try:
     from app.core.database import mongo_client
     if mongo_client:
-        _stations_col = mongo_client["mirador-vms"]["viewing_stations"]
+        _stations_col = mongo_client["vms_db"]["viewing_stations"]
         print("[STATIONS] ✅ MongoDB backend ready")
 except Exception as e:
     print(f"[STATIONS] ⚠️ MongoDB unavailable ({e}) — using JSON fallback")

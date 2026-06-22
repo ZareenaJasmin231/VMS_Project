@@ -46,7 +46,7 @@ _recording_durations: dict[str, dict[str, float]] = {}
 # ── MongoDB (shared client for all recorder operations) ─────────────
 MONGO_URI    = os.environ.get("MONGO_URI", "mongodb://mongo:27017/")
 _mongo       = mongo_client
-_db = _mongo["mirador-vms"] if _mongo else None
+_db = _mongo["vms_db"] if _mongo else None
 _schedules = _db["schedules"] if _db is not None else None
 
 def trigger_motion(stream_name: str, face_url: str | None = None):
@@ -234,111 +234,143 @@ def set_recordings_dir(path: str):
         print(f"[RECORDER] ⚠ Could not create recording directory '{path}': {e}")
 
 
-def _record_loop(
-    stream_name: str,
-    rtsp_url: str,
-    stop_event: threading.Event,
-    camera_data: dict | None = None,
-    vf_filter: str = "",
-):
-    print(f"[RECORDER] ▶ Starting recorder for {stream_name}"
-          f"{' (with mask filter)' if vf_filter else ''}")
+class CameraRecorder:
+    def __init__(self, stream_name: str, rtsp_url: str, camera_data: dict | None = None, vf_filter: str = ""):
+        self.stream_name = stream_name
+        self.rtsp_url = rtsp_url
+        self.camera_data = camera_data or {}
+        self.vf_filter = vf_filter
+        
+        self.state = "IDLE"  # IDLE, RECORDING, TERMINATING
+        self.proc = None
+        self.chunk_start = 0
+        self.time_str = ""
+        self.out_dir = ""
+        self.filename = ""
+        self.out_file = ""
+        self.terminate_start = 0
+        
+        self.stop_event = threading.Event()
 
-    while not stop_event.is_set():
-        # Always use host system clock for proper syncage with saved time
-        now = datetime.now()
+    def is_alive(self) -> bool:
+        return self.state in ("RECORDING", "TERMINATING")
 
-        # ── Check Schedule ──────────────────────────────────────────
-        # If schedule is OFF, wait and poll.
-        # Re-fetch metadata from our central store so updates apply immediately
-        meta = _camera_data.get(stream_name, camera_data or {})
-        schedule_id = meta.get("assigned_schedule_id")
-        if not is_schedule_on(schedule_id, now):
-            print(f"[RECORDER] 💤 Schedule OFF for {stream_name} — sleeping 30s")
-            stop_event.wait(30)
-            continue
+    def tick(self):
+        if self.stop_event.is_set():
+            if self.state == "RECORDING":
+                self._stop_ffmpeg()
+            elif self.state == "TERMINATING":
+                self._check_termination()
+            return
 
-        # ── Check Motion-Only Mode ──────────────────────────────────
-        motion_only = meta.get("motion_only", False)
-        if motion_only:
-            if stream_name not in _motion_events:
-                _motion_events[stream_name] = threading.Event()
-            # Clear any pending triggers before waiting
-            _motion_events[stream_name].clear()
-            print(f"[RECORDER] 🔍 {stream_name} is in motion-only mode. Waiting for motion trigger...")
-            
-            triggered = False
-            while not stop_event.is_set():
-                if _motion_events[stream_name].wait(timeout=1.0):
-                    _motion_events[stream_name].clear()
-                    triggered = True
-                    break
-            
-            if not triggered or stop_event.is_set():
-                continue
-            
-            # Recalculate 'now' after waiting for motion, so timestamps match the trigger
+        if self.state == "IDLE":
+            # ── Check Schedule ──────────────────────────────────────────
             now = datetime.now()
+            meta = _camera_data.get(self.stream_name, self.camera_data)
+            schedule_id = meta.get("assigned_schedule_id")
+            if not is_schedule_on(schedule_id, now):
+                return
 
+            # ── Check Motion-Only Mode ──────────────────────────────────
+            motion_only = meta.get("motion_only", False)
+            if motion_only:
+                if self.stream_name not in _motion_events:
+                    _motion_events[self.stream_name] = threading.Event()
+                if not _motion_events[self.stream_name].is_set():
+                    return
+                _motion_events[self.stream_name].clear()
+                now = datetime.now()
+
+            self._start_ffmpeg(now, motion_only)
+
+        elif self.state == "RECORDING":
+            poll_code = self.proc.poll()
+            if poll_code is not None:
+                self._finalize_chunk(poll_code)
+                return
+
+            meta = _camera_data.get(self.stream_name, self.camera_data)
+            motion_only = meta.get("motion_only", False)
+            now_time = time.time()
+            elapsed_total = now_time - self.chunk_start
+
+            if motion_only:
+                elapsed_since_motion = now_time - _last_motion_trigger_times.get(self.stream_name, self.chunk_start)
+                if elapsed_since_motion > 30.0:
+                    local_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    print(f"[RECORDER] [{local_time}] ⏹ No motion detected for 30s buffer. Stopping recording early for {self.stream_name}.")
+                    self._stop_ffmpeg()
+                    return
+                if elapsed_total >= 300.0:
+                    local_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    print(f"[RECORDER] [{local_time}] ⏹ Reached 5-minute max recording limit. Stopping recording for {self.stream_name}.")
+                    self._stop_ffmpeg()
+                    return
+            else:
+                if elapsed_total >= CHUNK_SECONDS:
+                    self._stop_ffmpeg()
+                    return
+
+        elif self.state == "TERMINATING":
+            self._check_termination()
+
+    def _start_ffmpeg(self, now, motion_only):
         date_str  = now.strftime("%Y-%m-%d")
-        time_str  = now.strftime("%H-%M-%S")
-        timestamp = f"{date_str}_{time_str}"
+        self.time_str  = now.strftime("%H-%M-%S")
+        timestamp = f"{date_str}_{self.time_str}"
         if motion_only:
-            filename = f"{timestamp}_motion_based.mp4"
+            self.filename = f"{timestamp}_motion_based.mp4"
         else:
-            filename = f"{timestamp}.mp4"
+            self.filename = f"{timestamp}.mp4"
 
-        # ── Use the current effective recordings dir (respects runtime override) ──
         recordings_dir = get_recordings_dir()
-        out_dir  = os.path.join(recordings_dir, stream_name, date_str)
-        os.makedirs(out_dir, exist_ok=True)
-        out_file = os.path.join(out_dir, filename)
+        self.out_dir  = os.path.join(recordings_dir, self.stream_name, date_str)
+        os.makedirs(self.out_dir, exist_ok=True)
+        self.out_file = os.path.join(self.out_dir, self.filename)
 
         local_time_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
         if motion_only:
-            face_url = _latest_face_urls.pop(stream_name, None)
-            print(f"[RECORDER] [{local_time_str}] 🏃 Motion triggered for {stream_name}! Starting 5-minute recording (File: {filename}, Face: {face_url})...")
+            face_url = _latest_face_urls.pop(self.stream_name, None)
+            print(f"[RECORDER] [{local_time_str}] 🏃 Motion triggered for {self.stream_name}! Starting 5-minute recording (File: {self.filename}, Face: {face_url})...")
             
-            # Save log to ui_logs collection
             try:
-                _db["ui_logs"].insert_one({
-                    "user_email": "system",
-                    "user_role": "system",
-                    "action": f"[RECORDER] [{local_time_str}] 🏃 Motion triggered for {stream_name}! Starting 5-minute recording (File: {filename})...",
-                    "category": "recording",
-                    "details": {
-                        "camera_id": stream_name, 
-                        "event": "recording_started", 
-                        "duration": CHUNK_SECONDS,
-                        "file_name": filename,
-                        "face_url": face_url
-                    },
-                    "timestamp": datetime.utcnow().isoformat() + "Z"
-                })
+                if _db is not None:
+                    _db["ui_logs"].insert_one({
+                        "user_email": "system",
+                        "user_role": "system",
+                        "action": f"[RECORDER] [{local_time_str}] 🏃 Motion triggered for {self.stream_name}! Starting 5-minute recording (File: {self.filename})...",
+                        "category": "recording",
+                        "details": {
+                            "camera_id": self.stream_name, 
+                            "event": "recording_started", 
+                            "duration": CHUNK_SECONDS,
+                            "file_name": self.filename,
+                            "face_url": face_url
+                        },
+                        "timestamp": datetime.utcnow().isoformat() + "Z"
+                    })
             except Exception as e:
-                print(f"[RECORDER] Failed to log recording start to DB: {e}")
+                print(f"[RECORDER] Failed to log motion trigger to DB: {e}")
 
-        if motion_only:
-            print(f"[RECORDER] [{local_time_str}] 💾 Recording {stream_name} -> {out_dir}")
-
-        # ── Re-fetch mask filter each chunk so newly drawn masks apply immediately ──
-        current_vf = vf_filter
-        if camera_data and camera_data.get("ip"):
-            fresh_vf = mask_service.build_ffmpeg_vf(camera_data["ip"]) or ""
+        current_vf = self.vf_filter
+        meta = _camera_data.get(self.stream_name, self.camera_data)
+        if meta and meta.get("ip"):
+            fresh_vf = mask_service.build_ffmpeg_vf(meta["ip"]) or ""
             if fresh_vf != current_vf:
                 if fresh_vf:
-                    print(f"[RECORDER] 🎭 Mask filter updated for {stream_name}: {fresh_vf}")
+                    print(f"[RECORDER] 🎭 Mask filter updated for {self.stream_name}: {fresh_vf}")
                 else:
-                    print(f"[RECORDER] 🎭 Mask filter cleared for {stream_name}")
-            current_vf = fresh_vf
+                    print(f"[RECORDER] 🎭 Mask filter cleared for {self.stream_name}")
+                current_vf = fresh_vf
+                self.vf_filter = fresh_vf
 
         if current_vf:
             cmd = [
                 FFMPEG_BIN,
                 "-loglevel",       "error",
                 "-rtsp_transport", "tcp",
-                "-i",              rtsp_url,
+                "-i",              self.rtsp_url,
                 "-t",              str(CHUNK_SECONDS),
                 "-vf",             current_vf,
                 "-c:v",            "libx264",
@@ -353,14 +385,14 @@ def _record_loop(
                 "-movflags", "+faststart",
                 "-avoid_negative_ts", "make_zero",
                 "-y",
-                os.path.join(out_dir, f"{time_str}_%03d.ts")
+                os.path.join(self.out_dir, f"{self.time_str}_%03d.ts")
             ]
         else:
             cmd = [
                 FFMPEG_BIN,
                 "-loglevel",       "error",
                 "-rtsp_transport", "tcp",
-                "-i",              rtsp_url,
+                "-i",              self.rtsp_url,
                 "-t",              str(CHUNK_SECONDS),
                 "-c:v",            "copy",
                 "-c:a",            "aac",
@@ -372,151 +404,81 @@ def _record_loop(
                 "-movflags", "+faststart",
                 "-avoid_negative_ts", "make_zero",
                 "-y",
-                os.path.join(out_dir, f"{time_str}_%03d.ts")
+                os.path.join(self.out_dir, f"{self.time_str}_%03d.ts")
             ]
 
-        _actively_recording_streams.add(stream_name)
+        _actively_recording_streams.add(self.stream_name)
         try:
-            proc = subprocess.Popen(
+            self.proc = subprocess.Popen(
                 cmd,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.PIPE,
             )
+            from app.utils.ffmpeg_utils import register_process
+            register_process(self.proc)
             
-            from app.utils.ffmpeg_utils import register_process, unregister_process
-            register_process(proc)
-
-            chunk_start = time.time()
-            if motion_only and stream_name not in _last_motion_trigger_times:
-                _last_motion_trigger_times[stream_name] = chunk_start
-
-            while proc.poll() is None:
-                if stop_event.is_set():
-                    proc.send_signal(signal.SIGTERM)
-                    try:
-                        proc.wait(timeout=5)
-                    except subprocess.TimeoutExpired:
-                        proc.kill()
-                    break
-
-                if motion_only:
-                    elapsed_since_motion = time.time() - _last_motion_trigger_times.get(stream_name, chunk_start)
-                    total_duration = time.time() - chunk_start
-                    
-                    if elapsed_since_motion > 30.0:
-                        local_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                        print(f"[RECORDER] [{local_time}] ⏹ No motion detected for 30s buffer. Stopping recording early for {stream_name}.")
-                        proc.send_signal(signal.SIGTERM)
-                        try:
-                            proc.wait(timeout=5)
-                        except subprocess.TimeoutExpired:
-                            proc.kill()
-                        break
-                        
-                    if total_duration >= 300.0:
-                        local_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                        print(f"[RECORDER] [{local_time}] ⏹ Reached 5-minute max recording limit. Stopping recording for {stream_name}.")
-                        proc.send_signal(signal.SIGTERM)
-                        try:
-                            proc.wait(timeout=5)
-                        except subprocess.TimeoutExpired:
-                            proc.kill()
-                        break
-
-                time.sleep(1)
-
-            final_duration = time.time() - chunk_start
-            _recording_durations.setdefault(stream_name, {})[time_str] = final_duration
-
-            returncode = proc.returncode or 0
-            if returncode not in (0, -15):
-                stderr_out = proc.stderr.read().decode(errors="replace").strip()
-                print(f"[RECORDER] ⚠ ffmpeg exited {returncode} for {stream_name}: {stderr_out[-200:]}")
-                time.sleep(5)
-            else:
-                if motion_only:
-                    print(f"[RECORDER] [{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] ✅ Chunk saved: {out_file}")
-
+            self.chunk_start = time.time()
+            if motion_only and self.stream_name not in _last_motion_trigger_times:
+                _last_motion_trigger_times[self.stream_name] = self.chunk_start
+            
+            self.state = "RECORDING"
         except FileNotFoundError:
             print(f"[RECORDER] ❌ ffmpeg not found. Install ffmpeg and ensure it is on PATH.")
-            stop_event.wait(30)
+            self.state = "IDLE"
         except Exception as exc:
-            print(f"[RECORDER] ❌ Unexpected error for {stream_name}: {exc}")
-            time.sleep(5)
-        finally:
-            if 'proc' in locals():
-                unregister_process(proc)
-            _actively_recording_streams.discard(stream_name)
+            print(f"[RECORDER] ❌ Unexpected error for {self.stream_name}: {exc}")
+            self.state = "IDLE"
 
-    print(f"[RECORDER] ⏹ Stopped recorder for {stream_name}")
-    _camera_data.pop(stream_name, None)
+    def _stop_ffmpeg(self):
+        if self.proc and self.proc.poll() is None:
+            try:
+                self.proc.send_signal(signal.SIGTERM)
+            except Exception:
+                pass
+            self.state = "TERMINATING"
+            self.terminate_start = time.time()
+        else:
+            self.state = "IDLE"
 
+    def _check_termination(self):
+        poll_code = self.proc.poll()
+        if poll_code is not None:
+            self._finalize_chunk(poll_code)
+            return
+        
+        if time.time() - self.terminate_start > 5.0:
+            print(f"[RECORDER] ⚠️ ffmpeg for {self.stream_name} did not exit on SIGTERM. Killing...")
+            try:
+                self.proc.kill()
+            except Exception:
+                pass
+            poll_code = self.proc.wait()
+            self._finalize_chunk(poll_code)
 
-# _segmenters:  dict[str, subprocess.Popen] = {}
+    def _finalize_chunk(self, poll_code):
+        final_duration = time.time() - self.chunk_start
+        _recording_durations.setdefault(self.stream_name, {})[self.time_str] = final_duration
 
+        from app.utils.ffmpeg_utils import unregister_process
+        if self.proc:
+            unregister_process(self.proc)
 
-# def start_segmenter(stream_name: str, rtsp_url: str, vf_filter: str = ""):
-#     """Start background rolling segmenter for instant 10s playback clips."""
-#     try:
-#         temp_dir = os.path.join(get_recordings_dir(), "temp_segments", stream_name)
-#         # Clear out any stale segments from previous runs to ensure fresh buffer
-#         import shutil
-#         if os.path.exists(temp_dir):
-#             shutil.rmtree(temp_dir)
-#         os.makedirs(temp_dir, exist_ok=True)
+        returncode = poll_code or 0
+        if returncode not in (0, -15):
+            try:
+                stderr_out = self.proc.stderr.read().decode(errors="replace").strip()
+                print(f"[RECORDER] ⚠ ffmpeg exited {returncode} for {self.stream_name}: {stderr_out[-200:]}")
+            except Exception:
+                pass
+        else:
+            meta = _camera_data.get(self.stream_name, self.camera_data)
+            motion_only = meta.get("motion_only", False)
+            if motion_only:
+                print(f"[RECORDER] [{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] ✅ Chunk saved: {self.out_file}")
 
-#         if vf_filter:
-#             cmd = [
-#                 FFMPEG_BIN, "-y",
-#                 "-loglevel", "error",
-#                 "-rtsp_transport", "tcp",
-#                 "-i", rtsp_url,
-#                 "-vf", vf_filter,
-#                 "-c:v", "libx264",
-#                 "-preset", "ultrafast",
-#                 "-crf", "28",
-#                 "-an",
-#                 "-f", "segment",
-#                 "-segment_time", "2",
-#                 "-segment_wrap", "10",
-#                 "-segment_list", os.path.join(temp_dir, "playlist.m3u8"),
-#                 os.path.join(temp_dir, "seg_%03d.ts")
-#             ]
-#         else:
-#             cmd = [
-#                 FFMPEG_BIN, "-y",
-#                 "-loglevel", "error",
-#                 "-rtsp_transport", "tcp",
-#                 "-i", rtsp_url,
-#                 "-c", "copy",
-#                 "-an",
-#                 "-f", "segment",
-#                 "-segment_time", "2",
-#                 "-segment_wrap", "10",
-#                 "-segment_list", os.path.join(temp_dir, "playlist.m3u8"),
-#                 os.path.join(temp_dir, "seg_%03d.ts")
-#             ]
-
-#         proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-#         _segmenters[stream_name] = proc
-#         print(f"[RECORDER] 🔄 Rolling segmenter started for {stream_name}")
-#     except Exception as e:
-#         print(f"[RECORDER] ❌ Failed to start segmenter for {stream_name}: {e}")
-
-
-# def stop_segmenter(stream_name: str):
-#     """Stop the background rolling segmenter."""
-#     if stream_name in _segmenters:
-#         proc = _segmenters.pop(stream_name)
-#         try:
-#             proc.terminate()
-#             proc.wait(timeout=5)
-#         except Exception:
-#             try:
-#                 proc.kill()
-#             except Exception:
-#                 pass
-#         print(f"[RECORDER] ⏹ Stopped segmenter for {stream_name}")       
+        _actively_recording_streams.discard(self.stream_name)
+        self.proc = None
+        self.state = "IDLE"
 
 
 def start_camera(
@@ -529,7 +491,6 @@ def start_camera(
         print(f"[RECORDER] 🔄 Force restarting {stream_name}")
         stop_camera(stream_name)
 
-    # Auto-load mask filter from mask_service if no explicit vf_filter was passed
     if not vf_filter and camera_data and camera_data.get("ip"):
         ip = camera_data.get("ip", "")
         vf_filter = mask_service.build_ffmpeg_vf(ip) or ""
@@ -537,32 +498,38 @@ def start_camera(
             print(f"[RECORDER] 🎭 Mask filter loaded for {stream_name}: {vf_filter}")
 
     _vf_filters[stream_name] = vf_filter
-
-    stop_event = threading.Event()
-    _stop_flags[stream_name] = stop_event
-
-    t = threading.Thread(
-        target=_record_loop,
-        args=(stream_name, rtsp_url, stop_event, camera_data, vf_filter),
-        daemon=True,
-        name=f"recorder-{stream_name}",
-    )
-    _recorders[stream_name] = t
     _camera_data[stream_name] = camera_data or {}
-    t.start()
-    print(f"[RECORDER] 🎥 Started: {stream_name} → {get_recordings_dir()}")
-    # # Start the parallel unencrypted rolling segmenter
-    # start_segmenter(stream_name, rtsp_url, vf_filter)
+    
+    recorder_obj = CameraRecorder(stream_name, rtsp_url, camera_data, vf_filter)
+    _recorders[stream_name] = recorder_obj
+    print(f"[RECORDER] 🎥 Started threadless: {stream_name} → {get_recordings_dir()}")
+
+
 def stop_camera(stream_name: str):
     """Stop recording a single camera."""
-    # stop_segmenter(stream_name)
-    if stream_name in _stop_flags:
-        _stop_flags[stream_name].set()
-        if stream_name in _recorders:
-            _recorders[stream_name].join(timeout=10)
+    if stream_name in _recorders:
+        rec = _recorders[stream_name]
+        rec.stop_event.set()
+        
+        # Synchronously stop the process and wait for it
+        if rec.state == "RECORDING":
+            rec._stop_ffmpeg()
+            t0 = time.time()
+            while rec.state == "TERMINATING" and time.time() - t0 < 3.0:
+                rec._check_termination()
+                time.sleep(0.1)
+            if rec.state == "TERMINATING":
+                try:
+                    rec.proc.kill()
+                except Exception:
+                    pass
+                rec.proc.wait()
+                rec._finalize_chunk(rec.proc.returncode)
+
         _recorders.pop(stream_name, None)
         _stop_flags.pop(stream_name, None)
         _vf_filters.pop(stream_name, None)
+        _camera_data.pop(stream_name, None)
         print(f"[RECORDER] ⏹ Stopped: {stream_name}")
     else:
         print(f"[RECORDER] ℹ No active recorder found for: {stream_name}")
@@ -583,7 +550,6 @@ def start_recording_all(devices: list):
         rtsp_url    = device.get("rtsp_url")
 
         if stream_name and rtsp_url:
-            # Reload mask filter fresh from mask_service on every startup
             ip = device.get("ip", "")
             vf = mask_service.build_ffmpeg_vf(ip) or "" if ip else _vf_filters.get(stream_name, "")
             start_camera(stream_name, rtsp_url, device, vf_filter=vf)
@@ -591,8 +557,17 @@ def start_recording_all(devices: list):
 
 def stop_all():
     """Stop all active recorders."""
-    for name in list(_stop_flags.keys()):
+    for name in list(_recorders.keys()):
         stop_camera(name)
+
+
+def tick_all():
+    """Tick all active threadless recorders."""
+    for rec in list(_recorders.values()):
+        try:
+            rec.tick()
+        except Exception as e:
+            print(f"[RECORDER] Error ticking recorder for {rec.stream_name}: {e}")
 
 
 if __name__ == "__main__":
@@ -615,7 +590,8 @@ if __name__ == "__main__":
         print(f"[RECORDER] Running — recording {enabled_count}/{len(devices)} enabled camera(s). Ctrl+C to stop.")
         try:
             while True:
-                time.sleep(10)
+                tick_all()
+                time.sleep(1)
         except KeyboardInterrupt:
             print("\n[RECORDER] Shutting down...")
             stop_all()

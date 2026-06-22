@@ -710,6 +710,286 @@ def _classify_event(topic: str) -> str:
 
 
 # ─────────────────────────────────────────────────────────────────
+# NATIVE MANUFACTURER API — Per-stream encoding capabilities
+# ONVIF returns the same encoder chip capabilities for all streams.
+# Camera web UIs use their proprietary APIs for accurate per-stream data.
+# ─────────────────────────────────────────────────────────────────
+
+_ENC_SORT_ORDER = {"H264B": 1, "H264": 2, "H264H": 3, "H265": 4, "MPEG4": 5, "JPEG": 6}
+
+def _map_native_codecs(codec_list):
+    """Map native codec names (H.264, H.265, MJPEG) to our internal names."""
+    supported = []
+    for codec in codec_list:
+        c = codec.strip().upper().replace(".", "")
+        if c in ("H264", "H264B", "H264H"):
+            if "H264B" not in supported: supported.append("H264B")
+            if "H264" not in supported: supported.append("H264")
+            if "H264H" not in supported: supported.append("H264H")
+        elif c in ("H265", "H265+", "HEVC"):
+            if "H265" not in supported: supported.append("H265")
+        elif c in ("MJPEG", "MJPG", "JPEG"):
+            if "JPEG" not in supported: supported.append("JPEG")
+        elif c == "MPEG4":
+            if "MPEG4" not in supported: supported.append("MPEG4")
+    return sorted(supported, key=lambda x: _ENC_SORT_ORDER.get(x, 10))
+
+
+def _fetch_hikvision_stream_caps(ip, username, password, profiles):
+    """
+    Use Hikvision ISAPI to get REAL per-stream encoding capabilities.
+    /ISAPI/Streaming/channels/{channelId}/capabilities returns XML with
+    <videoCodecType opt="H.264,H.265,MJPEG"> per channel.
+    Channel IDs: 101=main, 102=sub, 103=third stream.
+    """
+    import xml.etree.ElementTree as ET
+    from requests.auth import HTTPDigestAuth
+
+    for profile in profiles:
+        label = (profile.get("label") or "").upper()
+        if label == "MAIN":
+            channel_id = 101
+        elif label == "SUB":
+            channel_id = 102
+        else:
+            channel_id = 103
+
+        try:
+            url = f"http://{ip}/ISAPI/Streaming/channels/{channel_id}/capabilities"
+            r = requests.get(url, auth=HTTPDigestAuth(username, password),
+                             timeout=5, verify=False)
+            if r.status_code != 200:
+                continue
+
+            # Strip XML namespace for easier parsing
+            text = re.sub(r'\s+xmlns="[^"]*"', '', r.text)
+            root = ET.fromstring(text)
+
+            video = root.find('.//Video')
+            if video is None:
+                continue
+
+            # Parse videoCodecType opt attribute
+            codec_elem = video.find('videoCodecType')
+            if codec_elem is not None:
+                opt = codec_elem.get('opt', '')
+                if opt:
+                    native_codecs = [c.strip() for c in opt.split(',') if c.strip()]
+                    mapped = _map_native_codecs(native_codecs)
+                    if mapped:
+                        profile["supported_encodings"] = mapped
+                        print(f"[ISAPI] {ip} ch{channel_id} ({label}): {mapped}")
+
+            # Also parse supported resolutions
+            res_w_elem = video.find('videoResolutionWidth')
+            res_h_elem = video.find('videoResolutionHeight')
+            if res_w_elem is not None and res_h_elem is not None:
+                w_opts = res_w_elem.get('opt', '').split(',')
+                h_opts = res_h_elem.get('opt', '').split(',')
+                if w_opts and h_opts and len(w_opts) == len(h_opts):
+                    res_list = [f"{w.strip()}x{h.strip()}" for w, h in zip(w_opts, h_opts)]
+                    if res_list:
+                        profile["supported_resolutions"] = res_list
+
+        except Exception as e:
+            print(f"[ISAPI] Failed for {ip} ch{channel_id}: {e}")
+
+    return profiles
+
+
+def _fetch_dahua_stream_caps(ip, username, password, profiles):
+    """
+    Use Dahua CGI or JSON-RPC to get REAL per-stream encoding capabilities.
+    Tries multiple endpoints and response formats for maximum compatibility.
+    """
+    from requests.auth import HTTPDigestAuth, HTTPBasicAuth
+    import hashlib
+    import json
+
+    raw_text = None
+
+    # Try multiple Dahua HTTP CGI endpoints first
+    endpoints = [
+        f"http://{ip}/cgi-bin/encode.cgi?action=getConfigCaps",
+        f"http://{ip}/cgi-bin/configManager.cgi?action=getConfig&name=Encode",
+        f"http://{ip}/cgi-bin/encode.cgi?action=getConfigCaps&channel=0",
+    ]
+    
+    auth_methods = [
+        HTTPDigestAuth(username, password),
+        HTTPBasicAuth(username, password),
+    ]
+
+    for url in endpoints:
+        for auth in auth_methods:
+            try:
+                r = requests.get(url, auth=auth, timeout=5, verify=False)
+                # 404 means endpoint disabled
+                if r.status_code == 200 and len(r.text) > 50:
+                    raw_text = r.text
+                    break
+            except Exception as e:
+                pass
+        if raw_text:
+            break
+
+    main_codecs = set()
+    sub_codecs = set()
+    main_res = None
+    sub_res = None
+
+    # ── FALLBACK TO JSON-RPC IF CGI FAILS (Dahua Lite / Newer firmware) ──
+    if not raw_text:
+        try:
+            login_url = f"http://{ip}/RPC2_Login"
+            rpc_url = f"http://{ip}/RPC2"
+            
+            # Step 1: Get challenge
+            r1 = requests.post(login_url, json={
+                "method": "global.login", "params": {"userName": username, "password": "", "clientType": "Web3.0"}, "id": 1
+            }, timeout=3, verify=False).json()
+            
+            realm = r1.get("params", {}).get("realm")
+            random_str = r1.get("params", {}).get("random")
+            session = r1.get("session") or (r1.get("params") or {}).get("session")
+            
+            if realm and random_str:
+                # Step 2: Login with Hash
+                h1 = hashlib.md5(f"{username}:{realm}:{password}".encode()).hexdigest().upper()
+                h2 = hashlib.md5(f"{username}:{random_str}:{h1}".encode()).hexdigest().upper()
+                
+                r2 = requests.post(login_url, json={
+                    "method": "global.login", "params": {"userName": username, "password": h2, "clientType": "Web3.0"}, "id": 2, "session": session
+                }, timeout=3, verify=False).json()
+                
+                sess2 = r2.get("session", session)
+                
+                # Step 3: Fetch Encode Capabilities via devVideoEncode.getCaps
+                r3 = requests.post(rpc_url, json={
+                    "method": "devVideoEncode.getCaps", "params": {}, "id": 3, "session": sess2
+                }, timeout=3, verify=False).json()
+                
+                caps = r3.get("params", {}).get("caps", {})
+                encode_types = caps.get("EncodeTypes", [])
+                
+                # If we found EncodeTypes, we map them exactly like the Dahua Web UI Javascript does.
+                if encode_types:
+                    for enc in encode_types:
+                        enc = enc.upper()
+                        if "H.264" in enc or "H264" in enc:
+                            # Dahua UI always provides B, Main, and H options if H.264 is supported
+                            for c in ["H.264B", "H.264", "H.264H"]:
+                                main_codecs.add(c)
+                                sub_codecs.add(c)
+                        elif "H.265" in enc or "H265" in enc:
+                            main_codecs.add("H.265")
+                            sub_codecs.add("H.265")
+                        else:
+                            main_codecs.add(enc)
+                            sub_codecs.add(enc)
+                            
+                    # Dahua Sub streams almost universally support MJPEG
+                    sub_codecs.add("MJPEG")
+                    
+                    # For cameras where Main stream also supports MJPEG, it would be in EncodeTypes,
+                    # but we'll ensure MJPEG is added if it was explicitly there.
+                    if "MJPEG" in encode_types or "JPEG" in encode_types:
+                        main_codecs.add("MJPEG")
+
+                # Logout
+                requests.post(rpc_url, json={"method": "global.logout", "params": {}, "id": 4, "session": sess2}, timeout=1, verify=False)
+                
+        except Exception as e:
+            print(f"[DAHUA RPC] Failed: {e}")
+
+    # ── PARSE CGI TEXT RESPONSE (if we got one) ──
+    if raw_text:
+        for line in raw_text.splitlines():
+            line = line.strip()
+            if not line or '=' not in line:
+                continue
+            key, _, value = line.partition('=')
+            key = key.strip()
+            value = value.strip()
+
+            if re.search(r'(caps\[\d+\]\.)?MainFormat\[0\]\.Video\.(CompressionTypes|Compress)', key):
+                for c in value.split(','):
+                    if c.strip(): main_codecs.add(c.strip())
+            elif re.search(r'(caps\[\d+\]\.)?ExtraFormat\[0\]\.Video\.(CompressionTypes|Compress)', key):
+                for c in value.split(','):
+                    if c.strip(): sub_codecs.add(c.strip())
+            elif re.search(r'(caps\[\d+\]\.)?MainFormat\[0\]\.Video\.ResolutionTypes', key):
+                main_res = [r.strip() for r in value.split(',') if r.strip()]
+            elif re.search(r'(caps\[\d+\]\.)?ExtraFormat\[0\]\.Video\.ResolutionTypes', key):
+                sub_res = [r.strip() for r in value.split(',') if r.strip()]
+
+    # ── APPLY DISCOVERED CODECS TO PROFILES ──
+    if not main_codecs and not sub_codecs:
+        return profiles
+
+    main_list = list(main_codecs)
+    sub_list = list(sub_codecs)
+    
+    # Sort them to look pretty in the UI dropdown (H.264B, H.264, H.264H, MJPEG, H.265)
+    sort_order = {"H.264B": 1, "H.264": 2, "H.264H": 3, "MJPEG": 4, "JPEG": 4, "H.265": 5}
+    main_list.sort(key=lambda x: sort_order.get(x, 99))
+    sub_list.sort(key=lambda x: sort_order.get(x, 99))
+    
+    for profile in profiles:
+        label = (profile.get("label") or "").upper()
+        if label == "MAIN" and main_list:
+            mapped = _map_native_codecs(main_list)
+            if mapped:
+                profile["supported_encodings"] = mapped
+            if main_res:
+                profile["supported_resolutions"] = main_res
+        elif label == "SUB" and sub_list:
+            mapped = _map_native_codecs(sub_list)
+            if mapped:
+                profile["supported_encodings"] = mapped
+            if sub_res:
+                profile["supported_resolutions"] = sub_res
+
+    return profiles
+
+
+def _enrich_profiles_with_native_caps(ip, username, password, manufacturer, profiles):
+    """
+    Master function: detect camera brand and use its native API to get
+    accurate per-stream encoding capabilities. Falls back to ONVIF data
+    if native API is unavailable.
+    
+    Detection priority:
+      1. RTSP URL pattern (most reliable — cannot be spoofed)
+      2. Manufacturer string from ONVIF
+    """
+    mfr = (manufacturer or "").lower()
+
+    # Check RTSP URLs for brand fingerprints (most reliable detection)
+    rtsp_urls = " ".join(p.get("rtsp_url", "") for p in profiles).lower()
+    
+    is_hikvision = (
+        any(k in mfr for k in ("hikvision", "hikvisio", "hik")) or
+        "streaming/channels" in rtsp_urls or
+        "/isapi/" in rtsp_urls
+    )
+    is_dahua = (
+        any(k in mfr for k in ("dahua", "zhejiang", "private")) or
+        "cam/realmonitor" in rtsp_urls
+    )
+
+    if is_hikvision:
+        print(f"[NATIVE] {ip} — Hikvision detected (mfr={manufacturer}), using ISAPI")
+        return _fetch_hikvision_stream_caps(ip, username, password, profiles)
+    elif is_dahua:
+        print(f"[NATIVE] {ip} — Dahua detected (mfr={manufacturer}), using CGI")
+        return _fetch_dahua_stream_caps(ip, username, password, profiles)
+    else:
+        print(f"[NATIVE] {ip} — {manufacturer} not recognized, keeping ONVIF data")
+        return profiles
+
+
+# ─────────────────────────────────────────────────────────────────
 # MAIN PROBE FUNCTION
 # ─────────────────────────────────────────────────────────────────
 
@@ -850,6 +1130,8 @@ def probe_camera(ip: str, port: int, username: str, password: str, channel: int 
             print(f"[ONVIF] ⚠ Could not check enrollment count: {e}")
 
         if profiles:
+            encoder_map = {}
+
             for idx, p in enumerate(profiles):
                 try:
                     stream_setup = media_service.create_type("GetStreamUri")
@@ -862,21 +1144,68 @@ def probe_camera(ip: str, port: int, username: str, password: str, channel: int 
                     if idx == 0:
                         stream_uri = uri
 
-                    vec     = p.VideoEncoderConfiguration
+                    vec     = getattr(p, 'VideoEncoderConfiguration', None)
                     res = enc = fps = bitrate = None
+                    width = 0
+                    height = 0
 
+                    supported_encs = []
+                    supported_res = []
                     if vec:
-                        try:    res     = f"{vec.Resolution.Width}x{vec.Resolution.Height}"
+                        try:
+                            width = vec.Resolution.Width
+                            height = vec.Resolution.Height
+                            res = f"{width}x{height}"
                         except: pass
-                        try:    enc     = str(vec.Encoding)
+                        try:
+                            enc = str(vec.Encoding)
+                            if enc == "H264" and hasattr(vec, 'H264'):
+                                prof = str(getattr(vec.H264, 'H264Profile', ''))
+                                if prof == 'Baseline': enc = 'H264B'
+                                elif prof == 'High': enc = 'H264H'
                         except: pass
                         try:    fps     = int(vec.RateControl.FrameRateLimit)
                         except: pass
                         try:    bitrate = int(vec.RateControl.BitrateLimit)
                         except: pass
 
+                        # Fetch dynamic options for THIS profile so DB is fully accurate
+                        try:
+                            opt_res = media_service.GetVideoEncoderConfigurationOptions({
+                                'ConfigurationToken': vec.token,
+                                'ProfileToken': p.token
+                            })
+                            if opt_res:
+                                h264_opts = getattr(opt_res, 'H264', None)
+                                if h264_opts:
+                                    profs = getattr(h264_opts, 'H264ProfilesSupported', [])
+                                    if isinstance(profs, str): profs = [profs]
+                                    has_prof = False
+                                    for pr in profs:
+                                        pr_str = str(pr).upper()
+                                        if pr_str == 'BASELINE': supported_encs.append('H264B'); has_prof = True
+                                        elif pr_str == 'MAIN': supported_encs.append('H264'); has_prof = True
+                                        elif pr_str == 'HIGH': supported_encs.append('H264H'); has_prof = True
+                                    if not has_prof: supported_encs.append('H264')
+                                    for r in getattr(h264_opts, 'ResolutionsAvailable', []): supported_res.append(f"{r.Width}x{r.Height}")
+                                
+                                h265_opts = getattr(opt_res, 'H265', None) or getattr(getattr(opt_res, 'Extension', None), 'H265', None)
+                                if h265_opts: 
+                                    supported_encs.append('H265')
+                                    for r in getattr(h265_opts, 'ResolutionsAvailable', []): supported_res.append(f"{r.Width}x{r.Height}")
+                                    
+                                jpeg_opts = getattr(opt_res, 'Jpeg', None)
+                                if jpeg_opts: 
+                                    supported_encs.append('JPEG')
+                                    for r in getattr(jpeg_opts, 'ResolutionsAvailable', []): supported_res.append(f"{r.Width}x{r.Height}")
+                                
+                                mpeg4_opts = getattr(opt_res, 'Mpeg4', None)
+                                if mpeg4_opts: supported_encs.append('MPEG4')
+                        except Exception as opts_err:
+                            pass
+
                     # Better labeling for multi-channel units (NVRs/Modular cams)
-                    source_token = getattr(p.VideoSourceConfiguration, 'SourceToken', 'unknown') if p.VideoSourceConfiguration else 'unknown'
+                    source_token = getattr(p.VideoSourceConfiguration, 'SourceToken', 'unknown') if getattr(p, 'VideoSourceConfiguration', None) else 'unknown'
                     source_idx = 0
                     try:
                         for s_idx, src in enumerate(video_sources):
@@ -884,8 +1213,6 @@ def probe_camera(ip: str, port: int, username: str, password: str, channel: int 
                                 source_idx = s_idx + 1
                                 break
                     except: pass
-
-                    label = f"Cam {source_idx} - {p.Name}" if source_idx > 0 else p.Name
 
                     # Skip profiles from inactive camera slots (empty slots on Axis modular units)
                     # Also skip if the encoder itself reports 0x0 resolution (common placeholder)
@@ -895,22 +1222,75 @@ def probe_camera(ip: str, port: int, username: str, password: str, channel: int 
                         print(f"[ONVIF]   ⏭ Skipping {p.Name} — {reason}")
                         continue
 
-                    profile_list.append({
-                        "name":         label,
-                        "token":        p.token,
-                        "label":        label,
-                        "source":       source_idx,
-                        "source_token": source_token,
-                        "resolution":   res,
-                        "encoding":     enc,
-                        "fps":          fps,
-                        "bitrate":      bitrate,
-                        "rtsp_url":     uri,
-                    })
+                    # Group by VideoEncoderConfiguration token, fallback to resolution/fps combo if missing
+                    enc_token = getattr(vec, 'token', None) if vec else None
+                    if not enc_token:
+                        enc_token = f"enc_fallback_{res}_{fps}_{bitrate}"
+
+                    # Group key is composite to ensure NVR channels don't overwrite each other
+                    group_key = f"{source_idx}_{enc_token}"
+                    
+                    if group_key not in encoder_map:
+                        order = {"H264B": 1, "H264": 2, "H264H": 3, "H265": 4, "MPEG4": 5, "JPEG": 6}
+                        final_encs = sorted(list(set(supported_encs)), key=lambda x: order.get(x, 10)) if supported_encs else ["H264", "H265", "JPEG"]
+                        
+                        encoder_map[group_key] = {
+                            "name":         p.Name,
+                            "token":        p.token,
+                            "source":       source_idx,
+                            "source_token": source_token,
+                            "resolution":   res,
+                            "width":        width,
+                            "height":       height,
+                            "encoding":     enc,
+                            "fps":          fps,
+                            "bitrate":      bitrate,
+                            "rtsp_url":     uri,
+                            "supported_encodings": final_encs,
+                            "supported_resolutions": list(set(supported_res)),
+                            "error":        None
+                        }
                 except Exception as e:
+                    # Capture failed profiles temporarily to show errors or fallback
                     profile_list.append({
                         "name": p.Name, "token": p.token,
                         "label": f"STREAM {idx+1}", "error": str(e),
+                    })
+
+            # Process mapped encoders to assign intelligent roles (MAIN, SUB, EXTRA)
+            # We must assign roles *per camera source/channel*
+            from collections import defaultdict
+            streams_by_source = defaultdict(list)
+            for key, stream_data in encoder_map.items():
+                streams_by_source[stream_data["source"]].append(stream_data)
+
+            for src_idx, streams in streams_by_source.items():
+                # Sort descending by Resolution area, then by Bitrate, then by FPS
+                streams.sort(key=lambda x: (x["width"] * x["height"], x["bitrate"] or 0, x["fps"] or 0), reverse=True)
+                
+                for i, stream_data in enumerate(streams):
+                    if i == 0:
+                        role = "MAIN"
+                    elif i == 1:
+                        role = "SUB"
+                    else:
+                        role = "EXTRA"
+                    
+                    label_prefix = f"Cam {src_idx} - " if src_idx > 0 else ""
+                    
+                    profile_list.append({
+                        "name":         f"{label_prefix}{stream_data['name']}",
+                        "token":        stream_data["token"],
+                        "label":        role,
+                        "source":       stream_data["source"],
+                        "source_token": stream_data["source_token"],
+                        "resolution":   stream_data["resolution"],
+                        "encoding":     stream_data["encoding"],
+                        "fps":          stream_data["fps"],
+                        "bitrate":      stream_data["bitrate"],
+                        "rtsp_url":     stream_data["rtsp_url"],
+                        "supported_encodings": stream_data.get("supported_encodings", []),
+                        "supported_resolutions": stream_data.get("supported_resolutions", [])
                     })
 
         # Sort profiles: Move the "next" channel to the top
@@ -935,6 +1315,16 @@ def probe_camera(ip: str, port: int, username: str, password: str, channel: int 
 
         if not valid_profiles:
             return {"success": False, "error": "No valid RTSP stream URLs found"}
+
+        # ── Use manufacturer native API for ACCURATE per-stream encoding caps ──
+        # ONVIF returns identical encoder capabilities for all streams.
+        # Camera web UIs use ISAPI/CGI which know the real per-stream restrictions.
+        try:
+            valid_profiles = _enrich_profiles_with_native_caps(
+                ip, username, password, info.Manufacturer, valid_profiles
+            )
+        except Exception as native_err:
+            print(f"[NATIVE] {ip} — native API enrichment failed: {native_err}, keeping ONVIF data")
 
         mac = "—"
         try:
@@ -1446,7 +1836,27 @@ def get_video_encoder_options(ip: str, port: int, username: str, password: str, 
                 # Check H264
                 h264_opts = getattr(raw_opts, 'H264', None)
                 if h264_opts:
-                    discovered_encs.append("H264")
+                    # Extract supported profiles like Baseline, Main, High
+                    profiles_supp = getattr(h264_opts, 'H264ProfilesSupported', [])
+                    if isinstance(profiles_supp, str):
+                        profiles_supp = [profiles_supp]
+                    
+                    has_profiles = False
+                    for p in profiles_supp:
+                        p_str = str(p).upper()
+                        if p_str == 'BASELINE':
+                            discovered_encs.append("H264B")
+                            has_profiles = True
+                        elif p_str == 'MAIN':
+                            discovered_encs.append("H264")
+                            has_profiles = True
+                        elif p_str == 'HIGH':
+                            discovered_encs.append("H264H")
+                            has_profiles = True
+                    
+                    if not has_profiles:
+                        discovered_encs.append("H264")
+                        
                     res_avail = getattr(h264_opts, 'ResolutionsAvailable', [])
                     for res in res_avail:
                         discovered_res.append(f"{res.Width}x{res.Height}")
@@ -1491,7 +1901,8 @@ def get_video_encoder_options(ip: str, port: int, username: str, password: str, 
                         except: return 0
                     resolutions = sorted(list(set(discovered_res)), key=sort_key)
                 if discovered_encs:
-                    encodings = list(set(discovered_encs))
+                    order = {"H264B": 1, "H264": 2, "H264H": 3, "H265": 4, "MPEG4": 5, "JPEG": 6}
+                    encodings = sorted(list(set(discovered_encs)), key=lambda x: order.get(x, 10))
         except Exception as opt_err:
             print(f"[ONVIF OPTIONS] Could not query options: {opt_err}. Using generic fallbacks.")
             
@@ -1509,7 +1920,8 @@ def get_video_encoder_options(ip: str, port: int, username: str, password: str, 
 
 def set_video_encoder_setting(ip: str, port: int, username: str, password: str,
                               profile_token: str, resolution: str = None,
-                              encoding: str = None, fps: int = None, bitrate: int = None) -> dict:
+                              encoding: str = None, fps: int = None, bitrate: int = None,
+                              bitrate_type: str = None, iframe_interval: int = None) -> dict:
     try:
         cam = _make_cam(ip, port, username, password)
         media_service = cam.create_media_service()
@@ -1545,6 +1957,18 @@ def set_video_encoder_setting(ip: str, port: int, username: str, password: str,
                 cfg.Encoding = "Jpeg"
             elif enc_upper in ("MPEG4", "MP4"):
                 cfg.Encoding = "Mpeg4"
+            elif enc_upper == "H264B":
+                cfg.Encoding = "H264"
+                if hasattr(cfg, 'H264'):
+                    cfg.H264.H264Profile = "Baseline"
+            elif enc_upper == "H264H":
+                cfg.Encoding = "H264"
+                if hasattr(cfg, 'H264'):
+                    cfg.H264.H264Profile = "High"
+            elif enc_upper == "H264":
+                cfg.Encoding = "H264"
+                if hasattr(cfg, 'H264'):
+                    cfg.H264.H264Profile = "Main"
             else:
                 cfg.Encoding = encoding
             
@@ -1553,6 +1977,25 @@ def set_video_encoder_setting(ip: str, port: int, username: str, password: str,
             
         if bitrate:
             cfg.RateControl.BitrateLimit = int(bitrate)
+            
+        if iframe_interval is not None:
+            if hasattr(cfg, 'H264'):
+                cfg.H264.GovLength = int(iframe_interval)
+            elif hasattr(cfg, 'H265'):
+                cfg.H265.GovLength = int(iframe_interval)
+                
+        # Some older cameras might not have BitrateType in RateControl, or it might be read-only
+        if bitrate_type:
+            # We wrap in try-except because python-zeep might throw if schema doesn't match
+            try:
+                # usually Constant or Variable in ONVIF
+                target_type = "Constant" if bitrate_type.upper() == "CBR" else "Variable"
+                
+                # Check if RateControl has an EncodingInterval or type
+                # ONVIF 10 has no Type field in RateControl natively across all profiles
+                pass # Only set GovLength for now to avoid schema errors unless tested with a specific device
+            except Exception:
+                pass
             
         media_service.SetVideoEncoderConfiguration({
             'Configuration': cfg,
@@ -1564,4 +2007,4 @@ def set_video_encoder_setting(ip: str, port: int, username: str, password: str,
         
     except Exception as e:
         print(f"[ONVIF ENCODER] ❌ Failed to update encoder configuration on {ip}: {e}")
-        return {"success": False, "error": str(e)}
+        return {"success": False, "error": str(e)}

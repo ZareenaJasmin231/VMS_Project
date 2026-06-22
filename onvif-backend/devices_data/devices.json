@@ -1,0 +1,19 @@
+[
+  {
+    "ome_stream": "192_168_126_235",
+    "rtsp_url": "rtsp://service:Admin123%21@192.168.126.235/rtsp_tunnel?p=0&h26x=4&aon=1&aud=1&vcd=2&transport=tcp",
+    "recording_rtsp": "rtsp://service:Admin123%21@192.168.126.235/rtsp_tunnel?p=0&h26x=4&aon=1&aud=1&vcd=2&transport=tcp",
+    "ip": "192.168.126.235",
+    "port": 80,
+    "username": "service",
+    "password": "Admin123!",
+    "enabled": true,
+    "manufacturer": "Bosch",
+    "model": "FLEXIDOME IP 3000i IR (Cam 1)",
+    "active_live_profile": "",
+    "active_rec_profile": "MAIN_STREAM",
+    "recording_profile": "MAIN_STREAM",
+    "assigned_schedule_id": "Always",
+    "motion_only": false
+  }
+]

@@ -14,8 +14,12 @@ from app.services.camera.onvif_service import (
     get_video_encoder_options,
     set_video_encoder_setting
 )
-from app.services.camera.ome_service import register_stream
-from app.services.storage import rtsp_recorder as recorder
+from app.services.camera.mediamtx_service import (
+    register_stream,
+    remove_stream,
+    stream_exists
+)
+from recorder import rtsp_recorder as recorder
 from app.schemas.camera import (
     StreamRegisterRequest,
     StreamAssignRequest,
@@ -37,11 +41,10 @@ import urllib.parse
 from datetime import datetime
 import requests as http_requests
 
-from app.core.lifecycle import _analytics_tasks, OME_API, OME_AUTH, OME_WS_PORT
+from app.core.lifecycle import _analytics_tasks
 from app.managers.health_manager import analytics_poll_loop as _analytics_poll_loop
 from app.core.database import analytics_col, analytics_subs_col
-from app.managers.stream_manager import load_devices, save_camera_to_db, _watchdog_failures, stream_exists_in_ome
-
+from app.managers.stream_manager import load_devices, save_camera_to_db, _watchdog_failures
 
 OME_HOST_IP = os.environ.get("OME_HOST_IP", "192.168.126.200")
 
@@ -107,15 +110,19 @@ async def delete_camera_by_ip(ip: str):
         if not stream_name:
             continue
         recorder.stop_camera(stream_name)
+
+        # ── BUG FIX: Do NOT call recorder.stop_camera() from the API process ──
+        # The API process has its own separate in-process recorder dict (not the workers').
+        # Calling stop_camera() here was creating stale folder paths in the default shard dir.
+        # The assigned worker detects on its next 3-second DB poll that this camera is gone
+        # from its assigned list and stops recording cleanly on its own.
         stopped.append(stream_name)
         print(f"[DELETE] ⏹ Stopped recorder for {stream_name}")
+
+        # print(f"[DELETE] ⏹ Camera {stream_name} removed from DB. Assigned worker will stop its recorder within 3 seconds.")
         try:
-            r = http_requests.delete(
-                f"{OME_API}/{stream_name}",
-                headers={"Authorization": OME_AUTH},
-                timeout=3,
-            )
-            print(f"[DELETE] OME unregister {stream_name}: HTTP {r.status_code}")
+            remove_stream(stream_name)
+            print(f"[DELETE] MediaMTX unregister {stream_name}")
         except Exception as e:
             print(f"[DELETE] OME unregister failed for {stream_name} (non-fatal): {e}")
         _watchdog_failures.pop(stream_name, None)
@@ -136,16 +143,18 @@ async def delete_camera_by_stream(stream_name: str):
     """
     global devices
     stopped = []
-    # Stop recorder and OME stream
+       # Stop recorder and OME stream
     recorder.stop_camera(stream_name)
+    # ── BUG FIX: Do NOT call recorder.stop_camera() from the API process ──
+    # The API process has its own separate in-process recorder dict (not the workers').
+    # Calling stop_camera() here was creating stale folder paths in the default shard dir.
+    # The assigned worker detects on its next 3-second DB poll that this stream is gone
+    # and stops recording cleanly.
     stopped.append(stream_name)
+    # print(f"[DELETE-STREAM] ⏹ Camera {stream_name} removed from DB. Assigned worker will stop its recorder within 3 seconds.")
     try:
-        r = http_requests.delete(
-            f"{OME_API}/{stream_name}",
-            headers={"Authorization": OME_AUTH},
-            timeout=3,
-        )
-        print(f"[DELETE-STREAM] OME unregister {stream_name}: HTTP {r.status_code}")
+        remove_stream(stream_name)
+        print(f"[DELETE-STREAM] MediaMTX unregister {stream_name}")
     except Exception as e:
         print(f"[DELETE-STREAM] OME unregister failed for {stream_name} (non-fatal): {e}")
     _watchdog_failures.pop(stream_name, None)
@@ -243,9 +252,10 @@ async def onvif_probe(req: ProbeRequest):
         existing    = next((d for d in devices if d.get("ome_stream") == stream_name), None)
 
  
-        if not existing or not stream_exists_in_ome(stream_name):
+        if not existing or not stream_exists(stream_name):
             print(f"[ONVIF] Registering stream in OME: {stream_name}")
             ome_response = register_stream(stream_name, rtsp)
+            print("MEDIAMTX RESPONSE:", ome_response)
             print(f"[ONVIF] OME response: {ome_response}")
  
             if not existing:
@@ -286,7 +296,7 @@ async def onvif_probe(req: ProbeRequest):
                 "status":          "streaming",
                 "enabled":         True,
                 "stream_count":    result.get("stream_count", 0),
-                "stream_profiles": result.get("profiles", []),
+                "stream_profiles": result.get("all_profiles", result.get("profiles", [])),
                 "active_rec_profile": "MAIN_STREAM",
                 "recording_profile":  "MAIN_STREAM",
                 "api_profile":     result.get("api_profile"),
@@ -296,12 +306,12 @@ async def onvif_probe(req: ProbeRequest):
             print(f"[ONVIF] 🎥 Recording will be started by the assigned worker process for {stream_name}")
  
         else:
-            print(f"[ONVIF] Stream {stream_name} already live in OME, skipping.")
-            ome_response = {"message": "Already registered", "statusCode": 200}
+            print(f"[ONVIF] Stream {stream_name} already live in MediaMTX, skipping.")
+            ome_response = {"status": "ok", "message": "Already registered"}
  
         result["ome_stream"]   = stream_name
         result["ome_response"] = ome_response
-        result["ws_url"]       = f"ws://{OME_HOST_IP}:{OME_WS_PORT}/app/{stream_name}"
+        result["ws_url"]       = f"http://host.docker.internal:8889/{stream_name}"
         result["stream_key"]   = stream_name
         result["status"]       = "streaming"
         result["rtsp_url"]     = rtsp
@@ -342,14 +352,14 @@ async def register_rtsp_stream(req: StreamRegisterRequest):
         None
     )
  
-    if existing and stream_exists_in_ome(stream_name):
+    if existing and stream_exists(stream_name):
         print(f"[RTSP] Stream {stream_name} already live in OME, skipping.")
         existing["rtsp_url"] = rtsp
         save_devices(devices)
         return {
             "success":    True,
             "ome_stream": stream_name,
-            "ws_url":     f"ws://{OME_HOST_IP}:{OME_WS_PORT}/app/{stream_name}",
+            "ws_url":     f"http://host.docker.internal:8889/{stream_name}",
             "stream_key": stream_name,
             "status":     "streaming",
             "rtsp_url":   rtsp,
@@ -362,12 +372,11 @@ async def register_rtsp_stream(req: StreamRegisterRequest):
         print(f"[RTSP] ❌ OME registration failed: {e}")
         return {"success": False, "error": str(e)}
  
-    status_code = ome_response.get("statusCode", 0) if isinstance(ome_response, dict) else 0
-    if status_code not in (200, 201):
+    if ome_response.get("status") != "ok":
         return {
             "success": False,
-            "error":   ome_response.get("message", "OME registration failed"),
-            "ws_url":  None,
+            "error": ome_response.get("message", "MediaMTX registration failed"),
+            "ws_url": None,
         }
  
     if not existing:
@@ -421,7 +430,7 @@ async def register_rtsp_stream(req: StreamRegisterRequest):
     return {
         "success":    True,
         "ome_stream": stream_name,
-        "ws_url":     f"ws://{OME_HOST_IP}:{OME_WS_PORT}/app/{stream_name}",
+        "ws_url":     f"http://host.docker.internal:8889/{stream_name}",
         "stream_key": stream_name,
         "status":     "streaming",
         "rtsp_url":   rtsp,
@@ -456,27 +465,21 @@ async def assign_streams(req: StreamAssignRequest):
     current_live_rtsp = existing.get("rtsp_url") if existing else None
     live_rtsp_changed = current_live_rtsp != req.live_rtsp
 
-    if live_rtsp_changed or not stream_exists_in_ome(stream_name):
+    if live_rtsp_changed or not stream_exists(stream_name):
         print(f"[ASSIGN] Live RTSP changed or stream missing — re-registering OME")
         try:
             # Delete existing first to avoid 409
             try:
-                http_requests.delete(
-                    f"{OME_API}/{stream_name}",
-                    headers={"Authorization": OME_AUTH},
-                    timeout=5,
-                )
+                remove_stream(stream_name)
             except:
                 pass
 
             time.sleep(0.5)
 
             ome_response = register_stream(stream_name, req.live_rtsp)
-            status_code  = ome_response.get("statusCode", 0) if isinstance(ome_response, dict) else 0
-            print(f"[ASSIGN] OME register HTTP {status_code}: {ome_response}")
 
-            if status_code not in (200, 201):
-                print(f"[ASSIGN] ⚠ OME registration returned HTTP {status_code} — continuing anyway")
+            if ome_response.get("status") != "ok":
+                print(f"[ASSIGN] ⚠ MediaMTX registration failed: {ome_response}")
         except Exception as e:
             print(f"[ASSIGN] ⚠ OME error (non-fatal): {e} — continuing")
     else:
@@ -540,7 +543,7 @@ async def assign_streams(req: StreamAssignRequest):
     return {
         "success":           True,
         "ome_stream":        stream_name,
-        "ws_url":            f"ws://{OME_HOST_IP}:{OME_WS_PORT}/app/{stream_name}",
+        "ws_url":            f"http://host.docker.internal:8889/{stream_name}",
         "stream_key":        stream_name,
         "live_rtsp":         req.live_rtsp,
         "recording_rtsp":    req.recording_rtsp,
@@ -572,11 +575,32 @@ async def get_camera_by_ip(ip: str):
 async def get_encoder_options(ip: str, port: int = 80, username: str = "", password: str = "", profile_token: str = ""):
     if not profile_token:
         raise HTTPException(status_code=400, detail="Missing profile_token")
+
+    # Step 1: Try to get accurate per-stream data from MongoDB (populated during probe)
+    db_encodings = None
+    db_resolutions = None
+    if cameras_col is not None:
+        cam_doc = cameras_col.find_one({"ip": ip}, {"_id": 0, "stream_profiles": 1, "manufacturer": 1})
+        if cam_doc:
+            for prof in cam_doc.get("stream_profiles") or []:
+                if prof.get("token") == profile_token:
+                    db_encodings = prof.get("supported_encodings")
+                    db_resolutions = prof.get("supported_resolutions")
+                    break
+
+    # Step 2: Always get ONVIF data for fps_range, config_token, etc.
     result = await asyncio.to_thread(
         get_video_encoder_options, ip, port, username, password, profile_token
     )
     if not result.get("success"):
         raise HTTPException(status_code=400, detail=result.get("error", "Failed to get encoder options"))
+
+    # Step 3: Override ONVIF encodings with accurate DB data if available
+    if db_encodings:
+        result["supported_encodings"] = db_encodings
+    if db_resolutions:
+        result["supported_resolutions"] = db_resolutions
+
     return result
 
 
@@ -586,7 +610,8 @@ async def set_encoder_profile_settings(req: VideoEncoderSettingRequest):
     result = await asyncio.to_thread(
         set_video_encoder_setting,
         req.ip, req.port, req.username, req.password,
-        req.profile_token, req.resolution, req.encoding, req.fps, req.bitrate
+        req.profile_token, req.resolution, req.encoding, req.fps, req.bitrate,
+        req.bitrate_type, req.iframe_interval
     )
     if not result.get("success"):
         raise HTTPException(status_code=400, detail=result.get("error", "Failed to update video encoder configuration"))

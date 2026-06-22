@@ -2,17 +2,29 @@ import os
 import json
 import re
 import sys
+
+from pathlib import Path
+env_path = Path(__file__).parent.parent.parent.parent / ".env"
+if env_path.exists():
+    for line in env_path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if line and not line.startswith("#") and "=" in line:
+            key, val = line.split("=", 1)
+            os.environ.setdefault(key.strip(), val.strip().strip("'\""))
+
 import subprocess
 import asyncio
 import requests as http_requests
 from datetime import datetime
 from app.core.database import cameras_col, db as _db
-from app.services.camera.ome_service import register_stream
-from app.services.storage import rtsp_recorder as recorder
+from app.services.camera.mediamtx_service import register_stream
+from recorder import rtsp_recorder as recorder
 
 DEVICES_FILE  = os.environ.get("DEVICES_FILE", os.path.join(os.path.dirname(__file__), "..", "..", "devices_data", "devices.json"))
-OME_API       = os.environ.get("OME_URL", "http://ome:8081/v1/vhosts/default/apps/app/streams")
-OME_AUTH      = "Basic bXl2bXNhY2Nlc3N0b2tlbg=="
+MEDIAMTX_API = os.environ.get(
+    "MEDIAMTX_API_URL",
+    "http://localhost:9997"
+)
 WATCHDOG_INTERVAL      = 5
 WATCHDOG_MAX_RETRIES   = 20
 WATCHDOG_BACKOFF_RESET = 10
@@ -119,11 +131,10 @@ def save_devices(devs):
     except Exception as e:
         print(f"[DEVICES] ⚠ Could not save devices.json: {e}")
 
-def stream_exists_in_ome(stream_name: str) -> bool:
+def stream_exists_in_mediamtx(stream_name: str) -> bool:
     try:
         r = http_requests.get(
-            f"{OME_API}/{stream_name}",
-            headers={"Authorization": OME_AUTH},
+            f"{MEDIAMTX_API}/v3/config/paths/get/{stream_name}",
             timeout=3,
         )
         return r.status_code == 200
@@ -245,13 +256,14 @@ async def start_worker_pool():
             if w_id not in _worker_processes or _worker_processes[w_id]["process"].poll() is not None:
                 cmd = [
                     sys.executable,
-                    os.path.join(os.path.dirname(__file__), "..", "services", "storage", "recorder_worker.py"),
+                    os.path.join(os.path.dirname(__file__), "..", "..", "recorder", "recorder_worker.py"),
                     "--worker-id", w_id,
                     "--shard-path", shard_path
                 ]
                 print(f"[STREAM MANAGER] Spawning active worker {w_id} on path {shard_path}...")
                 
                 worker_env = os.environ.copy()
+                worker_env["SQLITE_QUEUE_DB"] = os.path.join(shard_path, "local_metadata_queue.db")
                 creation_flags = 0
                 if sys.platform == "win32":
                     creation_flags = subprocess.CREATE_NO_WINDOW
@@ -294,7 +306,7 @@ async def start_worker_pool():
             if s_id not in _worker_processes or _worker_processes[s_id]["process"].poll() is not None:
                 cmd = [
                     sys.executable,
-                    os.path.join(os.path.dirname(__file__), "..", "services", "storage", "recorder_worker.py"),
+                    os.path.join(os.path.dirname(__file__), "..", "..", "recorder", "recorder_worker.py"),
                     "--worker-id", s_id,
                     "--shard-path", shard_path,
                     "--standby"
@@ -302,6 +314,7 @@ async def start_worker_pool():
                 print(f"[STREAM MANAGER] Spawning standby worker {s_id} on path {shard_path}...")
                 
                 worker_env = os.environ.copy()
+                worker_env["SQLITE_QUEUE_DB"] = os.path.join(shard_path, "local_metadata_queue.db")
                 creation_flags = 0
                 if sys.platform == "win32":
                     creation_flags = subprocess.CREATE_NO_WINDOW
@@ -343,18 +356,49 @@ async def supervise_worker_pool():
         try:
             await start_worker_pool() # Ensure they are running
             
-            # Watch for process crashes
+            # Watch for process crashes and frozen workers (missed heartbeats)
+            now = datetime.utcnow()
             for w_id, info in list(_worker_processes.items()):
                 proc = info["process"]
+                
+                # Check 1: Process exit
                 exit_code = proc.poll()
-                if exit_code is not None:
-                    print(f"[STREAM MANAGER] ⚠️ Worker subprocess {w_id} exited with code {exit_code}!")
+                is_dead = exit_code is not None
+                
+                # Check 2: Missed heartbeats (for primary active workers that should be writing heartbeats)
+                if not is_dead and not info.get("standby", False):
                     try:
-                        stderr_out = proc.stderr.read().decode(errors="replace").strip()
-                        if stderr_out:
-                            print(f"[STREAM MANAGER] Worker stderr: {stderr_out}")
-                    except Exception:
-                        pass
+                        hb = _db["worker_heartbeats"].find_one({"worker_id": w_id})
+                        if hb and hb.get("last_seen"):
+                            last_seen = hb["last_seen"]
+                            elapsed = (now - last_seen).total_seconds()
+                            if elapsed > 30:  # Timeout if no heartbeat for 30s (3 missed)
+                                print(f"[STREAM MANAGER] 🚨 Worker subprocess {w_id} has frozen! No heartbeat for {elapsed:.1f}s. Terminating process...")
+                                try:
+                                    import psutil
+                                    parent = psutil.Process(proc.pid)
+                                    for child in parent.children(recursive=True):
+                                        child.kill()
+                                    parent.kill()
+                                except Exception as kill_err:
+                                    print(f"[STREAM MANAGER] Failed to kill frozen worker process via psutil: {kill_err}")
+                                    try:
+                                        proc.kill()
+                                    except Exception:
+                                        pass
+                                is_dead = True
+                    except Exception as hb_err:
+                        print(f"[STREAM MANAGER] Error verifying heartbeat for {w_id}: {hb_err}")
+                
+                if is_dead:
+                    if exit_code is not None:
+                        print(f"[STREAM MANAGER] ⚠️ Worker subprocess {w_id} exited with code {exit_code}!")
+                        try:
+                            stderr_out = proc.stderr.read().decode(errors="replace").strip()
+                            if stderr_out:
+                                print(f"[STREAM MANAGER] Worker stderr: {stderr_out}")
+                        except Exception:
+                            pass
                     
                     # Remove from active processes list
                     _worker_processes.pop(w_id, None)
@@ -474,7 +518,7 @@ async def stream_watchdog():
                 else:
                     continue
 
-            if not stream_exists_in_ome(stream_name):
+            if not stream_exists_in_mediamtx(stream_name):
                 print(f"[WATCHDOG] ⚠️  Stream {stream_name} is down — re-registering...")
                 try:
                     result      = register_stream(stream_name, rtsp_url)
@@ -494,3 +538,24 @@ async def stream_watchdog():
                 _watchdog_failures[stream_name] = 0
 
         await asyncio.sleep(WATCHDOG_INTERVAL)
+
+async def main():
+    print("[STREAM MANAGER] Booting standalone Stream Manager & Worker Supervisor...")
+    # Run the worker pool supervisor and watchdog concurrently
+    await asyncio.gather(
+        supervise_worker_pool(),
+        stream_watchdog()
+    )
+
+if __name__ == "__main__":
+    try:
+        import sys
+        if sys.platform == 'win32':
+            asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        print("\n[STREAM MANAGER] Shutdown requested...")
+        try:
+            stop_worker_pool()
+        except KeyboardInterrupt:
+            pass

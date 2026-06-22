@@ -4,8 +4,9 @@ from datetime import datetime, timezone
 from app.core.database import mongo_client
 
 MONGO_URI = os.environ.get("MONGO_URI", "mongodb://mongo:27017/")
+MONGO_DB_NAME = os.environ.get("MONGO_DB_NAME", "vms_db")
 client = mongo_client
-db = client["mirador-vms"] if client else None
+db = client[MONGO_DB_NAME] if client else None
 
 def calculate_retention_stats(free_gb):
     if db is None:
@@ -38,7 +39,7 @@ def log_diagnostics():
         return
         
     # 1. Gather Storage Metrics
-    from app.services.storage import rtsp_recorder as recorder
+    from recorder import rtsp_recorder as recorder
     rec_dir = recorder.get_recordings_dir()
     try:
         usage = shutil.disk_usage(rec_dir if os.path.exists(rec_dir) else "/")

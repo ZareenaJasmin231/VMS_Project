@@ -18,9 +18,9 @@ aiohttp
 # opencv-python-headless
 # numpy
 opencv-python-headless>=4.8.0    # Frame extraction for forensic indexer
-numpy>=1.24.0
-ultralytics>=8.0.0               # YOLOv8 detection + ByteTrack
-torch==2.3.1+cu121               # PyTorch (CUDA 12.1)
-torchvision==0.18.1+cu121        # Torchvision (CUDA 12.1)
-scikit-learn>=1.0.0              # DBSCAN clustering for Re-ID
+numpy<2.0.0
+# ultralytics>=8.0.0               # YOLOv8 detection + ByteTrack
+# torch==2.3.1+cu121               # PyTorch (CUDA 12.1)
+# torchvision==0.18.1+cu121        # Torchvision (CUDA 12.1)
+# scikit-learn>=1.0.0              # DBSCAN clustering for Re-ID
 minio==7.2.20

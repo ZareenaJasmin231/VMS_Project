@@ -7,8 +7,8 @@ import {
 } from 'react-icons/fa';
 import './BackupPage.css';
 
-const API     = "http://localhost:80/api/backup";
-const CAM_API = "http://localhost:80/api/cameras";
+const API = (import.meta.env.VITE_API_URL || "") + "/api/backup";
+const CAM_API = (import.meta.env.VITE_API_URL || "") + "/api/cameras";
 
 // ── Destination options ───────────────────────────────────────────────────────
 const DEST_OPTIONS = [

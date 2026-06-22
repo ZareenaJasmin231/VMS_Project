@@ -1,1 +1,126 @@
-[{"ome_stream": "192_168_126_237", "rtsp_url": "rtsp://admin:admin123@192.168.126.237:554/cam/realmonitor?channel=1&subtype=0&unicast=true", "recording_rtsp": "rtsp://admin:admin123@192.168.126.237:554/cam/realmonitor?channel=1&subtype=0&unicast=true", "ip": "192.168.126.237", "port": 80, "username": "", "password": "", "enabled": true}, {"ome_stream": "192_168_126_239", "rtsp_url": "rtsp://admin:admin123@192.168.126.239:554/cam/realmonitor?channel=1&subtype=0&unicast=true", "recording_rtsp": "rtsp://admin:admin123@192.168.126.239:554/cam/realmonitor?channel=1&subtype=0&unicast=true", "ip": "192.168.126.239", "port": 80, "username": "", "password": "", "enabled": true}, {"ome_stream": "192_168_126_236", "rtsp_url": "rtsp://admin:admin123@192.168.126.236:554/cam/realmonitor?channel=1&subtype=0&unicast=true", "recording_rtsp": "rtsp://admin:admin123@192.168.126.236:554/cam/realmonitor?channel=1&subtype=0&unicast=true", "ip": "192.168.126.236", "port": 80, "username": "", "password": "", "enabled": true}]
+[
+  {
+    "ome_stream": "192_168_126_236",
+    "rtsp_url": "rtsp://admin:admin123@192.168.126.236:554/cam/realmonitor?channel=1&subtype=0&unicast=true&transport=tcp",
+    "recording_rtsp": "rtsp://admin:admin123@192.168.126.236:554/cam/realmonitor?channel=1&subtype=0&unicast=true&proto=Onvif",
+    "ip": "192.168.126.236",
+    "port": 80,
+    "username": "admin",
+    "password": "admin123",
+    "enabled": true,
+    "active_live_profile": "MAIN",
+    "active_rec_profile": "MediaProfile00000",
+    "recording_profile": "MediaProfile00000"
+  },
+  {
+    "ome_stream": "192_168_126_237",
+    "rtsp_url": "rtsp://admin:admin123@192.168.126.237:554/cam/realmonitor?channel=1&subtype=0&unicast=true&transport=tcp",
+    "recording_rtsp": "rtsp://admin:admin123@192.168.126.237:554/cam/realmonitor?channel=1&subtype=0&unicast=true&transport=tcp",
+    "ip": "192.168.126.237",
+    "port": 80,
+    "username": "admin",
+    "password": "admin123",
+    "enabled": true,
+    "active_live_profile": "",
+    "active_rec_profile": "",
+    "recording_profile": ""
+  },
+  {
+    "ome_stream": "192_168_126_239",
+    "rtsp_url": "rtsp://admin:admin123@192.168.126.239:554/cam/realmonitor?channel=1&subtype=0&unicast=true&transport=tcp",
+    "recording_rtsp": "rtsp://admin:admin123@192.168.126.239:554/cam/realmonitor?channel=1&subtype=0&unicast=true&transport=tcp",
+    "ip": "192.168.126.239",
+    "port": 80,
+    "username": "admin",
+    "password": "admin123",
+    "enabled": true,
+    "active_live_profile": "",
+    "active_rec_profile": "",
+    "recording_profile": ""
+  },
+
+{
+  "ome_stream": "192_168_126_238",
+  "active_rec_profile": "MAIN_STREAM",
+  "added_at": {
+    "$date": "2026-06-04T04:20:31.037Z"
+  },
+  "api_profile": null,
+  "device_name": "ENTRY ",
+  "enabled": true,
+  "group_id": "group-1780315499491",
+  "ip": "192.168.126.238",
+  "mac": "00-07-5f-d0-e3-ba",
+  "manufacturer": "Bosch",
+  "model": "FLEXIDOME IP 3000i IR (Cam 1)",
+  "password": "Admin123!",
+  "port": 80,
+  "recording_profile": "MAIN_STREAM",
+  "recording_rtsp": "rtsp://service:Admin123!@192.168.126.238/rtsp_tunnel?p=0&h26x=4&vcd=2&transport=tcp",
+  "rtsp_url": "rtsp://service:Admin123!@192.168.126.238/rtsp_tunnel?p=0&h26x=4&vcd=2&transport=tcp",
+  "status": "streaming",
+  "stream_count": 3,
+  "stream_profiles": [
+    {
+      "name": "Cam 1 - H26x_L1S1",
+      "token": "0",
+      "label": "Cam 1 - H26x_L1S1",
+      "source": 1,
+      "source_token": "1",
+      "resolution": "3072x1728",
+      "encoding": "H264",
+      "fps": 20,
+      "bitrate": 11300,
+      "rtsp_url": "rtsp://192.168.126.238/rtsp_tunnel?p=0&h26x=4&vcd=2"
+    },
+    {
+      "name": "Cam 1 - H26x_L1S2",
+      "token": "1",
+      "label": "Cam 1 - H26x_L1S2",
+      "source": 1,
+      "source_token": "1",
+      "resolution": "768x432",
+      "encoding": "H264",
+      "fps": 20,
+      "bitrate": 2000,
+      "rtsp_url": "rtsp://192.168.126.238/rtsp_tunnel?p=1&inst=2&h26x=4"
+    },
+    {
+      "name": "Cam 1 - JPEG_L1S3",
+      "token": "2",
+      "label": "Cam 1 - JPEG_L1S3",
+      "source": 1,
+      "source_token": "1",
+      "resolution": "3072x1728",
+      "encoding": "JPEG",
+      "fps": 1,
+      "bitrate": 6000,
+      "rtsp_url": "rtsp://192.168.126.238/rtsp_tunnel?h26x=0"
+    }
+  ],
+  "username": "service",
+  "last_health_check": {
+    "$date": "2026-06-04T10:19:51.186Z"
+  },
+  "stream_status": {
+    "exists": true,
+    "connected": true,
+    "bytesIn": 0,
+    "bytesOut": 0,
+    "state": ""
+  }
+},  {
+    "ome_stream": "192_168_126_235",
+    "rtsp_url": "rtsp://service:Admin123%21@192.168.126.235/rtsp_tunnel?p=0&h26x=4&aon=1&aud=1&vcd=2&transport=tcp",
+    "recording_rtsp": "rtsp://service:Admin123%21@192.168.126.235/rtsp_tunnel?p=0&h26x=4&aon=1&aud=1&vcd=2&transport=tcp",
+    "ip": "192.168.126.235",
+    "manufacturer": "Bosch", 
+    "port": 80,
+    "username": "service",
+    "password": "Admin123!",
+    "enabled": true,
+    "active_live_profile": "",
+    "active_rec_profile": "",
+    "recording_profile": ""
+  }
+]

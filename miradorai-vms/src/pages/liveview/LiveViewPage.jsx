@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import WebRTCPlayer from "../../components/shared/WebRTCPlayer";
+import WebRTCPlayer_MediaMTX from "../../components/shared/WebRTCPlayer_MediaMTX";
+import HlsPlayer from "../../components/shared/HlsPlayer";
 import Hls from "hls.js";
 import { useDigitalZoom } from "../../hooks/useDigitalZoom";
 import SidePlaybackPanel from "../../components/shared/SidePlaybackPanel";
@@ -135,7 +136,6 @@ function MaskOverlay({ ip }) {
 }
 
 // ── AlertPopup ────────────────────────────────────────────────────
-// ── AlertPopup ────────────────────────────────────────────────────
 function AlertPopup({ ip, alerts, onClose }) {
   const [playingAlert, setPlayingAlert] = useState(null);
   const [videoUrl,     setVideoUrl]     = useState(null);
@@ -153,7 +153,6 @@ function AlertPopup({ ip, alerts, onClose }) {
   const playerWrap = useRef(null);
   const { zoom, zoomTransform, handlers } = useDigitalZoom(playerWrap, videoRef);
 
-  // Revoke blob URL when it changes or on unmount
   useEffect(() => {
     return () => {
       if (videoUrl && videoUrl.startsWith("blob:")) {
@@ -162,14 +161,12 @@ function AlertPopup({ ip, alerts, onClose }) {
     };
   }, [videoUrl]);
 
-  // Handle HLS.js loading and binding dynamically
   useEffect(() => {
     if (!videoUrl || videoLoading) return;
 
     const video = videoRef.current;
     if (!video) return;
 
-    // Clean up any existing Hls instance
     if (hlsRef.current) {
       hlsRef.current.destroy();
       hlsRef.current = null;
@@ -210,7 +207,6 @@ function AlertPopup({ ip, alerts, onClose }) {
           }
         });
       } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
-        // Native HLS (Safari)
         video.src = videoUrl;
         video.addEventListener("loadedmetadata", () => {
           video.play().catch(() => {});
@@ -219,7 +215,6 @@ function AlertPopup({ ip, alerts, onClose }) {
         setVideoError("HLS streaming is not supported on this browser.");
       }
     } else {
-      // Non-HLS fallback (e.g. blobs, raw MP4s)
       video.src = videoUrl;
     }
 
@@ -248,7 +243,6 @@ function AlertPopup({ ip, alerts, onClose }) {
 
       const normIp = (ip || "").replace(/_/g, ".");
 
-      // Fetch JSON response containing the clipUrl
       const url =
         `${API}/api/event-playback` +
         `?ip=${encodeURIComponent(normIp)}` +
@@ -288,7 +282,6 @@ function AlertPopup({ ip, alerts, onClose }) {
     <div className="alp-overlay" onClick={onClose}>
       <div className="alp-modal" onClick={(e) => e.stopPropagation()}>
 
-        {/* Header */}
         <div className="alp-header">
           <div className="alp-header__left">
             {playingAlert && (
@@ -312,7 +305,6 @@ function AlertPopup({ ip, alerts, onClose }) {
           <button className="alp-close-btn" onClick={onClose}>✕</button>
         </div>
 
-        {/* ── Video Player View ── */}
         {playingAlert && (
           <div className="alp-player-area">
 
@@ -351,7 +343,6 @@ function AlertPopup({ ip, alerts, onClose }) {
                   />
                 </div>
 
-                {/* Sharpness Slider */}
                 <div className="alp-sharpness-container" style={{
                   display: "flex",
                   alignItems: "center",
@@ -381,7 +372,6 @@ function AlertPopup({ ip, alerts, onClose }) {
 
             <div className="alp-playback-meta" style={{ marginTop: "16px" }}>
               <span className="alp-meta-chip">{playingAlert.type || "—"}</span>
-              {/* <span className="alp-meta-chip">{playingAlert.scenario || "—"}</span> */}
               <span className="alp-meta-time">
                 {playingAlert.time
                   ? playingAlert.time.split("T")[1]?.split("+")[0]
@@ -391,7 +381,6 @@ function AlertPopup({ ip, alerts, onClose }) {
           </div>
         )}
 
-        {/* ── Alert List View ── */}
         {!playingAlert && (
           <div className="alp-list">
             {alerts.length === 0 ? (
@@ -402,7 +391,6 @@ function AlertPopup({ ip, alerts, onClose }) {
                   <div key={i} className="alp-row">
                     <div className="alp-row__info">
                       <span className="alp-row__type">{alert.type || "Unknown"}</span>
-                      {/* <span className="alp-row__scenario">{alert.scenario || "—"}</span> */}
                       <span className="alp-row__time">
                         {alert.time
                           ? alert.time.split("T")[1]?.split("+")[0]
@@ -432,6 +420,7 @@ function AlertPopup({ ip, alerts, onClose }) {
     </div>
   );
 }
+
 // ── AlertsPanel ───────────────────────────────────────────────────
 function AlertsPanel({ onAlertCountUpdate, onTotalAlertCountChange, isOpen }) {
   const [alerts,  setAlerts]  = useState([]);
@@ -451,17 +440,30 @@ function AlertsPanel({ onAlertCountUpdate, onTotalAlertCountChange, isOpen }) {
       });
       const data = await res.json();
       const filtered = (data.alerts || [])
-        .filter((a) => a.status === "Active")
         .filter((a) => {
            const t = (a.type || "").toLowerCase();
            const s = (a.scenario || "").toLowerCase();
-           return !t.includes("motion") && !s.includes("motion");
+           return !t.includes("motion") && !s.includes("motion") && t !== "unknown" && t !== "" && !t.includes("tns1:");
         })
         .filter(isAlertAllowed);
-      setAlerts(filtered);
+      const perCamCounts = {};
+      const finalAlerts = [];
+      filtered.forEach((alert) => {
+        const ip = normalizeIp(alert.ip);
+        if (ip) {
+          perCamCounts[ip] = (perCamCounts[ip] || 0) + 1;
+          if (perCamCounts[ip] <= 50) {
+            finalAlerts.push(alert);
+          }
+        } else {
+          finalAlerts.push(alert);
+        }
+      });
+      
+      setAlerts(finalAlerts);
 
       const counts = {};
-      filtered.forEach((alert) => {
+      finalAlerts.forEach((alert) => {
         const ip = normalizeIp(alert.ip);
         if (ip) {
           counts[ip] = (counts[ip] || 0) + 1;
@@ -484,7 +486,6 @@ function AlertsPanel({ onAlertCountUpdate, onTotalAlertCountChange, isOpen }) {
   return (
     <div className={`lv-alerts-panel ${!isOpen ? "lv-alerts-panel--collapsed" : ""}`}>
 
-      {/* Header */}
       <div className="lv-alerts-panel__header">
         <div className="lv-alerts-panel__title">
           <span className="lv-alerts-panel__dot" />
@@ -493,7 +494,6 @@ function AlertsPanel({ onAlertCountUpdate, onTotalAlertCountChange, isOpen }) {
         </div>
       </div>
 
-      {/* Alert list */}
       <div className="lv-alerts-panel__list">
         {loading ? (
           <div className="lv-alerts-panel__empty">Loading...</div>
@@ -502,8 +502,6 @@ function AlertsPanel({ onAlertCountUpdate, onTotalAlertCountChange, isOpen }) {
         ) : (
           alerts.map((alert, i) => {
             const isActive = alert.status === "Active";
-            const type     = (alert.type || "").toLowerCase();
-
             const ipStr = alert.ip || alert.serial || "";
             let typeClass = "lv-alert-card--other";
             if      (ipStr.includes("235")) typeClass = "lv-alert-card--cam235";
@@ -517,7 +515,6 @@ function AlertsPanel({ onAlertCountUpdate, onTotalAlertCountChange, isOpen }) {
 
             const cameraName = getCameraNameByIpOrSerial(alert.ip || alert.serial);
             const displayId = (alert.ip || alert.serial || "Unknown").replace(/_/g, ".");
-            const thumbnailUrl = `${API}/api/alerts/thumbnail?ip=${alert.ip}&time=${alert.time || alert.received_at}`;
 
             return (
               <div
@@ -536,13 +533,6 @@ function AlertsPanel({ onAlertCountUpdate, onTotalAlertCountChange, isOpen }) {
                       <span className="lv-alert-card__label">Event</span>
                       <span className="lv-alert-card__value">{alert.type || "—"}</span>
                     </div>
-
-                    {/* 
-                    <div className="lv-alert-card__row">
-                      <span className="lv-alert-card__label">Event</span>
-                      <span className="lv-alert-card__value">{alert.scenario || "—"}</span>
-                    </div> 
-                    */}
 
                     {(alert.type === "OccupancyCount" || alert.scenario === "OccupancyCount") && (
                       <div className="lv-alert-card__row">
@@ -571,13 +561,6 @@ function AlertsPanel({ onAlertCountUpdate, onTotalAlertCountChange, isOpen }) {
                       </div>
                     )}
 
-                    {alert.object_id && (
-                      <div className="lv-alert-card__row">
-                        <span className="lv-alert-card__label">Object ID</span>
-                        <span className="lv-alert-card__value">{alert.object_id}</span>
-                      </div>
-                    )}
-
                     <div className="lv-alert-card__row">
                       <span className="lv-alert-card__label">Date</span>
                       <span className="lv-alert-card__value">
@@ -585,21 +568,6 @@ function AlertsPanel({ onAlertCountUpdate, onTotalAlertCountChange, isOpen }) {
                       </span>
                     </div>
                   </div>
-
-                  {/* <div className="lv-alert-card__thumbnail-container">
-                    <img
-                      src={`${API}/api/alerts/thumbnail?ip=${alert.ip}&time=${alert.time || alert.received_at}&crop=1`}
-                      alt="Alert preview"
-                      className="lv-alert-card__thumbnail"
-                      onClick={() => setZoomedImage({
-                        url: `${API}/api/alerts/thumbnail?ip=${alert.ip}&time=${alert.time || alert.received_at}&crop=0`,
-                        cameraName,
-                        ip: displayId,
-                        type: alert.type || alert.scenario,
-                        time: timeOnly || alert.received_at
-                      })}
-                    />
-                  </div> */}
                 </div>
               </div>
             );
@@ -607,7 +575,6 @@ function AlertsPanel({ onAlertCountUpdate, onTotalAlertCountChange, isOpen }) {
         )}
       </div>
 
-      {/* Zoom Modal Overlay */}
       {zoomedImage && (
         <div className="lv-image-modal" onClick={() => setZoomedImage(null)}>
           <div className="lv-image-modal__content" onClick={(e) => e.stopPropagation()}>
@@ -624,22 +591,19 @@ function AlertsPanel({ onAlertCountUpdate, onTotalAlertCountChange, isOpen }) {
 }
 
 // ── CameraCell ────────────────────────────────────────────────────
-function CameraCell({ device, onFullscreen, alertCount, onBadgeClick, isRecording, onLiveChange }) {
+function CameraCell({ device, streamMode, onFullscreen, alertCount, onBadgeClick, isRecording, onLiveChange }) {
   const showRec = localStorage.getItem("miradorai_show_rec_ind") !== "false";
   const [isLive, setIsLive] = useState(false);
 
   useEffect(() => {
-    onLiveChange?.(isLive);
-  }, [isLive, onLiveChange]);
+    onLiveChange?.(device.ip, isLive);
+  }, [device.ip, isLive, onLiveChange]);
 
   return (
     <div
       className={`lv-cam ${alertCount > 0 ? "lv-cam--alert" : ""}`}
       style={{ position: "relative" }}
     >
-      {/* CRITICAL: badge is rendered OUTSIDE lv-cam__player so it sits
-          on top of the video; pointer-events: auto in CSS makes it clickable.
-          We stop propagation so the parent lv-cell onClick (setSelected) doesn't fire. */}
       {alertCount > 0 && (
         <div
           className="lv-cam__alert-badge"
@@ -662,6 +626,7 @@ function CameraCell({ device, onFullscreen, alertCount, onBadgeClick, isRecordin
         )}
         <div className="lv-cell__actions">
           <span className="lv-cell__ip">{device.ip}</span>
+ 
           <button
             className="lv-cell__fs-btn"
             onClick={onFullscreen}
@@ -676,9 +641,22 @@ function CameraCell({ device, onFullscreen, alertCount, onBadgeClick, isRecordin
       </div>
 
       <div className="lv-cam__player" style={{ position: "relative" }}>
-        {device.ws_url ? (
+        {device.ws_url || device.rtsp_url ? (
           <>
-            <WebRTCPlayer key={device.ws_url} serverUrl={device.ws_url} cameraId={device.id} onConnectChange={setIsLive} />
+            {streamMode === "webrtc" ? (
+              <WebRTCPlayer_MediaMTX
+                key={device.stream_key || device.ome_stream || (device.ip ? device.ip.replace(/\./g, "_") : "")}
+                streamKey={device.stream_key || device.ome_stream || (device.ip ? device.ip.replace(/\./g, "_") : "")}
+                cameraId={device.id}
+                onConnectChange={setIsLive}
+              />
+            ) : (
+              <HlsPlayer
+                key={`hls-${device.stream_key || device.ome_stream || (device.ip ? device.ip.replace(/\./g, "_") : "")}`}
+                streamKey={device.stream_key || device.ome_stream || (device.ip ? device.ip.replace(/\./g, "_") : "")}
+                onConnectChange={setIsLive}
+              />
+            )}
             <MaskOverlay ip={device.ip} />
           </>
         ) : (
@@ -802,10 +780,21 @@ export default function LiveViewPage() {
   const [devices,      setDevices]      = useState(loadDevices);
   const [layout,       setLayout]       = useState(() => {
     return sessionStorage.getItem("miradorai_liveview_layout") || "2x2";
-  }); // Default layout is 2x2 Grid
+  });
   const [currentPage,  setCurrentPage]  = useState(1);
   const [gridDropdownOpen, setGridDropdownOpen] = useState(false);
   const [gridFullscreen, setGridFullscreen] = useState(false);
+  const [modeDropdownOpen, setModeDropdownOpen] = useState(false);
+
+  const [streamMode, setStreamMode] = useState(() => {
+    return localStorage.getItem("liveview_stream_mode") || "hls";
+  });
+
+  useEffect(() => {
+    localStorage.setItem("liveview_stream_mode", streamMode);
+  }, [streamMode]);
+
+ 
 
   const [stationDetails] = useState(getOrCreateStationDetails);
   const [stationName, setStationName] = useState(stationDetails.sname);
@@ -827,12 +816,11 @@ export default function LiveViewPage() {
   const [activeSequenceId, setActiveSequenceId] = useState("all");
   const [showSequenceModal, setShowSequenceModal] = useState(false);
 
-
-
   const [selectedCamId, setSelectedCamId] = useState(null);
   const [liveStatus,   setLiveStatus]   = useState({});
   const [fsDevice,     setFsDevice]     = useState(null);
   const [fsLive,       setFsLive]       = useState(false);
+  const [fsMenuOpen,   setFsMenuOpen]   = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [alertCounts,  setAlertCounts]  = useState({});
   const [popupIp,      setPopupIp]      = useState(null);
@@ -842,12 +830,10 @@ export default function LiveViewPage() {
   const [totalAlertsCount, setTotalAlertsCount] = useState(0);
   const [sidePlaybackCam, setSidePlaybackCam] = useState(null);
 
-  // Sync layout state to sessionStorage whenever it changes
   useEffect(() => {
     sessionStorage.setItem("miradorai_liveview_layout", layout);
   }, [layout]);
 
-  // Sync startup ID and reset layout if backend restarted (e.g. docker compose restart)
   useEffect(() => {
     const checkBackendStartup = async () => {
       try {
@@ -858,7 +844,6 @@ export default function LiveViewPage() {
           if (currentStartupId) {
             const savedStartupId = sessionStorage.getItem("miradorai_backend_startup_id");
             if (savedStartupId && savedStartupId !== currentStartupId) {
-              // Backend restarted! Reset layout to default.
               setLayout("2x2");
               sessionStorage.setItem("miradorai_liveview_layout", "2x2");
             }
@@ -873,6 +858,7 @@ export default function LiveViewPage() {
   }, []);
   
   const fsRef = useRef(null);
+  const fsMenuRef = useRef(null);
   const dropdownRef = useRef(null);
   const gridAreaRef = useRef(null);
   const showRec = localStorage.getItem("miradorai_show_rec_ind") !== "false";
@@ -884,18 +870,19 @@ export default function LiveViewPage() {
     });
   }, []);
 
-  // Handle clicking outside of dropdown
   useEffect(() => {
     const handler = (e) => {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
         setGridDropdownOpen(false);
+      }
+      if (fsMenuRef.current && !fsMenuRef.current.contains(e.target)) {
+        setFsMenuOpen(false);
       }
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  // Grid native fullscreen toggler
   const toggleGridFullscreen = () => {
     if (!gridAreaRef.current) return;
     if (!document.fullscreenElement) {
@@ -917,7 +904,6 @@ export default function LiveViewPage() {
     return () => document.removeEventListener("fullscreenchange", handleFsChange);
   }, []);
 
-  // Poll active recording status from backend
   useEffect(() => {
     const fetchRecordingStatus = async () => {
       try {
@@ -937,14 +923,12 @@ export default function LiveViewPage() {
     return () => clearInterval(interval);
   }, []);
 
-  // Sync devices from localStorage
   useEffect(() => {
     const update = () => setDevices(loadDevices());
     window.addEventListener("storage", update);
     return () => window.removeEventListener("storage", update);
   }, []);
 
-  // Fullscreen change listener for single camera fsDevice
   useEffect(() => {
     const onChange = () => {
       const active = !!(
@@ -968,7 +952,6 @@ export default function LiveViewPage() {
     };
   }, []);
 
-  // Pre-populate alert counts from DB on page load
   useEffect(() => {
     const loadInitialCounts = async () => {
       try {
@@ -997,7 +980,6 @@ export default function LiveViewPage() {
     loadInitialCounts();
   }, []);
 
-  // Request fullscreen when fsDevice is set
   useEffect(() => {
     if (!fsDevice || !fsRef.current) return;
     const el  = fsRef.current;
@@ -1032,11 +1014,12 @@ export default function LiveViewPage() {
     } else {
       setFsDevice(null);
       setFsLive(false);
+      setFsMenuOpen(false);
       setIsFullscreen(false);
     }
   }, []);
 
-  // ── Open alert popup for a specific camera IP ─────────────────
+ 
   const openAlertPopup = useCallback(async (ip) => {
     try {
       const res  = await fetch(`${API}/api/alerts?limit=100`, {
@@ -1097,33 +1080,24 @@ export default function LiveViewPage() {
     return [...filteredActiveCams].sort((a, b) => {
       const aCount = alertCounts[a.ip] || 0;
       const bCount = alertCounts[b.ip] || 0;
-      const aLive = a.ws_url ? (liveStatus[a.ip] || false) : false;
-      const bLive = b.ws_url ? (liveStatus[b.ip] || false) : false;
 
-      // Primary: Live vs Not Live (Connecting / Offline always last)
-      if (aLive && !bLive) return -1;
-      if (!aLive && bLive) return 1;
-
-      // Secondary: Alerts count
       if (aCount !== bCount) {
         return bCount - aCount;
       }
 
-      // Tertiary: Fallback to order in devices array to respect custom drag layout
       const aIdx = devices.findIndex(d => d.id === a.id);
       const bIdx = devices.findIndex(d => d.id === b.id);
       return aIdx - bIdx;
     });
-  }, [filteredActiveCams, alertCounts, liveStatus, devices]);
+  }, [filteredActiveCams, alertCounts, devices]);
 
-  const currentGridOption = GRID_OPTIONS.find(o => o.id === layout) || GRID_OPTIONS[3]; // Default to 3x3
+  const currentGridOption = GRID_OPTIONS.find(o => o.id === layout) || GRID_OPTIONS[3];
   const rows = currentGridOption.rows;
   const cols = currentGridOption.cols;
   const gridSize = rows * cols;
 
   const totalPages = Math.max(1, Math.ceil(sortedActiveCams.length / gridSize));
   
-  // Bound currentPage
   useEffect(() => {
     if (currentPage > totalPages) {
       setCurrentPage(totalPages);
@@ -1132,7 +1106,6 @@ export default function LiveViewPage() {
 
   const pageCams = sortedActiveCams.slice((currentPage - 1) * gridSize, currentPage * gridSize);
 
-  // Heartbeat & layout sync with backend
   useEffect(() => {
     const sendHeartbeat = async () => {
       try {
@@ -1157,7 +1130,6 @@ export default function LiveViewPage() {
           if (data.success && data.pushed_layout) {
             const pushed = data.pushed_layout;
 
-            // Rearrange devices to match the pushed layout
             setDevices(prevDevices => {
               const newOrder = pushed.device_order;
               const matched = [];
@@ -1194,7 +1166,6 @@ export default function LiveViewPage() {
     return () => clearInterval(interval);
   }, [stationDetails.sid, stationName, layout, devices, appliedTimestamp, pageCams.length]);
 
-  // Sequencing/Tour auto-cycle pages hook
   useEffect(() => {
     if (!isTourActive || totalPages <= 1) return;
 
@@ -1259,7 +1230,6 @@ export default function LiveViewPage() {
   return (
     <div className="lv-page">
 
-      {/* ── Toolbar ── */}
       <div className="lv-toolbar">
         <div className="lv-toolbar__left">
           <h1 className="lv-page-title">Live View</h1>
@@ -1309,7 +1279,59 @@ export default function LiveViewPage() {
           </div>
         </div>
         <div className="lv-toolbar__right" style={{ gap: "10px" }}>
-          {/* Custom Grid Dropdown Selector */}
+          
+          <div className="lv-grid-dropdown-container">
+            <button
+              className={`lv-grid-dropdown-trigger ${modeDropdownOpen ? "active" : ""}`}
+              onClick={() => setModeDropdownOpen(!modeDropdownOpen)}
+              type="button"
+            >
+              <svg className="lv-grid-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
+                <path d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14v-4z" />
+                <rect x="3" y="6" width="12" height="12" rx="2" ry="2" />
+              </svg>
+              <span>{streamMode === "hls" ? "Buffered (HLS)" : "Real-Time (WebRTC)"}</span>
+              <svg className={`lv-chevron-icon ${modeDropdownOpen ? "open" : ""}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="10" height="10">
+                <path d="M6 9l6 6 6-6" />
+              </svg>
+            </button>
+
+            {modeDropdownOpen && (
+              <div className="lv-grid-dropdown-menu">
+                <button
+                  className={`lv-grid-dropdown-item ${streamMode === "hls" ? "selected" : ""}`}
+                  onClick={() => {
+                    setStreamMode("hls");
+                    setModeDropdownOpen(false);
+                  }}
+                  type="button"
+                >
+                  <span className="lv-grid-dropdown-item-label">Buffered (HLS) - Recommended</span>
+                  {streamMode === "hls" && (
+                    <svg className="lv-check-icon" viewBox="0 0 24 24" fill="none" stroke="var(--teal)" strokeWidth="3" width="12" height="12">
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                  )}
+                </button>
+                <button
+                  className={`lv-grid-dropdown-item ${streamMode === "webrtc" ? "selected" : ""}`}
+                  onClick={() => {
+                    setStreamMode("webrtc");
+                    setModeDropdownOpen(false);
+                  }}
+                  type="button"
+                >
+                  <span className="lv-grid-dropdown-item-label">Real-Time (WebRTC)</span>
+                  {streamMode === "webrtc" && (
+                    <svg className="lv-check-icon" viewBox="0 0 24 24" fill="none" stroke="var(--teal)" strokeWidth="3" width="12" height="12">
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                  )}
+                </button>
+              </div>
+            )}
+          </div>
+
           <div className="lv-grid-dropdown-container" ref={dropdownRef}>
             <button
               className={`lv-grid-dropdown-trigger ${gridDropdownOpen ? "active" : ""}`}
@@ -1352,7 +1374,6 @@ export default function LiveViewPage() {
             )}
           </div>
 
-          {/* Camera Tour Controls */}
           <div className="lv-tour-controls" style={{ display: "flex", alignItems: "center", gap: "10px", background: "rgba(15, 23, 42, 0.45)", padding: "4px 12px", borderRadius: "8px", border: "1px solid rgba(255, 255, 255, 0.08)", height: "38px" }}>
             <SequenceDropdown
               value={activeSequenceId}
@@ -1432,7 +1453,6 @@ export default function LiveViewPage() {
             </button>
           </div>
 
-          {/* Fullscreen Toggle Button */}
           <button
             className={`lv-fullscreen-toggle-btn ${gridFullscreen ? "active" : ""}`}
             onClick={toggleGridFullscreen}
@@ -1451,7 +1471,6 @@ export default function LiveViewPage() {
             <span>Fullscreen</span>
           </button>
 
-          {/* Alerts Toggle Bell Button */}
           <button
             className={`lv-alerts-toggle-btn ${alertsPanelOpen ? "active" : ""}`}
             onClick={() => setAlertsPanelOpen(!alertsPanelOpen)}
@@ -1470,10 +1489,8 @@ export default function LiveViewPage() {
         </div>
       </div>
 
-      {/* ── Main area ── */}
       <div className="lv-main-area">
 
-        {/* ── Fullscreen overlay ── */}
         {fsDevice && (
           <div ref={fsRef} className="lv-fullscreen-overlay" tabIndex={-1}>
             <div className="lv-fullscreen-overlay__bar">
@@ -1484,6 +1501,7 @@ export default function LiveViewPage() {
                   <span className="lv-rec-dot" />
                 )}
                 <span className="lv-fullscreen-overlay__ip">{fsDevice.ip}</span>
+ 
               </div>
               <button
                 className="lv-fullscreen-overlay__exit"
@@ -1498,25 +1516,25 @@ export default function LiveViewPage() {
               </button>
             </div>
             <div className="lv-fullscreen-overlay__player" style={{ position: "relative" }}>
-              {fsDevice.ws_url ? (
-                <>
-                  <WebRTCPlayer key={`fs-${fsDevice.ws_url}`} serverUrl={fsDevice.ws_url} cameraId={fsDevice.id} onConnectChange={setFsLive} />
-                  <MaskOverlay ip={fsDevice.ip} />
-                </>
+              {streamMode === "webrtc" ? (
+                <WebRTCPlayer_MediaMTX
+                  key={`fs-${fsDevice.stream_key}`}
+                  streamKey={fsDevice.stream_key}
+                  cameraId={fsDevice.id}
+                  onConnectChange={setFsLive}
+                />
               ) : (
-                <div className="lv-no-stream">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" width="48" height="48">
-                    <path d="M23 7l-7 5 7 5V7z"/>
-                    <rect x="1" y="5" width="15" height="14" rx="2"/>
-                  </svg>
-                  <span>No stream available</span>
-                </div>
+                <HlsPlayer
+                  key={`fs-hls-${fsDevice.stream_key}`}
+                  streamKey={fsDevice.stream_key}
+                  onConnectChange={setFsLive}
+                />
               )}
+              <MaskOverlay ip={fsDevice.ip} />
             </div>
           </div>
         )}
 
-        {/* ── Camera grid ── */}
         <div className="lv-grid-area" ref={gridAreaRef}>
           {devices.length === 0 ? (
             <div className="lv-empty">
@@ -1556,7 +1574,6 @@ export default function LiveViewPage() {
               >
                 {Array.from({ length: gridSize }).map((_, i) => {
                   const cam = pageCams[i];
-                  const absIndex = (currentPage - 1) * gridSize + i;
                   const hasAlert = cam ? (alertCounts[cam.ip] > 0) : false;
                   const isSelected = cam ? (selectedCamId === cam.id) : (selectedCamId === `empty-${i}`);
                   return (
@@ -1580,6 +1597,7 @@ export default function LiveViewPage() {
                       {cam
                         ? <CameraCell
                             device={cam}
+                            streamMode={streamMode}
                             onFullscreen={(e) => openFullscreen(cam, e)}
                             alertCount={alertCounts[cam?.ip] || 0}
                             onBadgeClick={() => {
@@ -1588,7 +1606,7 @@ export default function LiveViewPage() {
                               window.dispatchEvent(new Event("collapse-sidebar"));
                             }}
                             isRecording={cam && (activeRecorders.includes(cam.stream_key) || activeRecorders.includes(cam.ome_stream))}
-                            onLiveChange={(isLive) => handleLiveChange(cam.ip, isLive)}
+                            onLiveChange={handleLiveChange}
                           />
                         : <EmptyCell index={i} />
                       }

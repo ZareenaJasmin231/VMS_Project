@@ -24,7 +24,7 @@ MONGO_URI = os.environ.get("MONGO_URI", "mongodb://mongo:27017/")
 
 try:
     _mongo = mongo_client
-    _db = _mongo["mirador-vms"] if _mongo else None
+    _db = _mongo["vms_db"] if _mongo else None
     mqtt_logs_col = _db["mqtt_logs"]
 except Exception as e:
     print(f"[CAMERA_ANALYTICS] ❌ MongoDB connection failed: {e}")

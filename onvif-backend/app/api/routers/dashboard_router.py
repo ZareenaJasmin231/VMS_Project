@@ -6,8 +6,8 @@ from bson import ObjectId
 import math
 import os
 from datetime import datetime, timedelta
-from app.services.storage import rtsp_recorder as recorder
-from app.services.storage import encrypt_service
+from recorder import rtsp_recorder as recorder
+from recorder import encrypt_service
 
 router = APIRouter(prefix="/api", tags=["dashboard"])
 
@@ -85,7 +85,8 @@ async def get_dashboard_events(limit: int = 20):
     )
     for d in docs:
         if "received_at" in d:
-            d["received_at"] = d["received_at"].isoformat()
+            if hasattr(d["received_at"], "isoformat"):
+                d["received_at"] = d["received_at"].isoformat()
     return docs
 
 @router.get("/alerts", dependencies=[Depends(verify_token)])

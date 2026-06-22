@@ -6,7 +6,7 @@ import ReactFlow, {
 import 'reactflow/dist/style.css';
 import './Topology.css';
 
-const API_BASE = `http://${window.location.hostname}:80/api/infrastructure`;
+const API_BASE = (import.meta.env.VITE_API_URL || "") + "/api/infrastructure";
 
 const BW_SPIKE_THRESHOLD_MBPS = 80;
 

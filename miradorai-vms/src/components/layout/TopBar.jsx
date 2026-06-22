@@ -6,8 +6,7 @@ import logoImg from "../../assets/logo.jpg";
 import "./TopBar.css";
 import "./SupervisorModal.css";
 
-const API_BASE = (typeof import.meta !== "undefined" && import.meta.env?.VITE_API_URL)
-  || "http://localhost:80";
+const API_BASE = (typeof import.meta !== "undefined" && import.meta.env?.VITE_API_URL) || "";
 
 function loadDevices() {
   try { return JSON.parse(localStorage.getItem("miradorai_devices") || "[]"); }
@@ -267,6 +266,19 @@ export default function TopBar({
               Access advanced AI-driven insights, behavioral metrics, and data visualizations.
             </div>
           </div>
+
+          {/* Datasheet Button */}
+          <button 
+            className="topbar__datasheet-btn" 
+            onClick={() => navigate('/manual')}
+            title="Open User Manual"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16">
+              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+              <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+            </svg>
+            Datasheet
+          </button>
         </div>
       </div>
 

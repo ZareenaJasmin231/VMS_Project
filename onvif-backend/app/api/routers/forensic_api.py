@@ -29,7 +29,7 @@ from pydantic import BaseModel
 from app.core.security import verify_token
 from app.services.ai.forensic_indexer import get_indexer_status, HAS_ML, trigger_reindex_for_camera
 from app.services.ai import forensic_tracker
-from app.services.storage import encrypt_service
+from recorder import encrypt_service
 
 from app.core.database import db as _db
 

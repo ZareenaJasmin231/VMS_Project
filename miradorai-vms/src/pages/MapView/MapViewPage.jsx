@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from "react"
 import { useAuth } from "../../context/AuthContext";
 import "./MapViewPage.css";
 import SearchBar from "../../components/shared/SearchBar";
-import WebRTCPlayer   from "../../components/shared/WebRTCPlayer";
 import MapCanvas      from "./MapCanvas";
 import ConfigPanel    from "./ConfigPanel";
 import HeatmapLayer   from "./HeatmapLayer";
@@ -10,6 +9,7 @@ import CameraItem     from "./CameraItem";
 import VirtualMapView from "./VirtualMapView";
 import { drawHeatmapToContext, drawHeatmapLegendToCanvas } from "./HeatmapLogic";
 import { drawCamera, getCamTypeFromName, renderMapViewSnapshot } from "./MapDrawingUtils";
+import WebRTCPlayer_MediaMTX from "../../components/shared/WebRTCPlayer_MediaMTX";
 
 const API = import.meta.env.VITE_API_URL;
 const MAP_ID = "default";
@@ -84,8 +84,9 @@ function normalizeCams(data) {
     name:   d.device_name || d.name || `Camera @ ${d.ip}`,
     ip:     d.ip,
     ws_url: d.ws_url,
-    status: d.stream_status === "streaming" ? "online" : "offline",
+    status: (d.stream_status === "offline" || d.status === "offline") ? "offline" : "online",
     group_id: d.group_id || "default",
+    stream_key: d.stream_key || d.ome_stream,
   }));
 }
 
@@ -222,7 +223,11 @@ const StreamModal = React.memo(function StreamModal({ cam, onClose }) {
         {tab === "stream" ? (
           <div className="mv-stream-body">
             {ref.current.status === "online" ? (
-              <WebRTCPlayer key={ref.current.id} serverUrl={ref.current.ws_url} cameraId={ref.current.id} />
+              <WebRTCPlayer_MediaMTX
+                key={ref.current.id}
+                streamKey={ref.current.id}
+                cameraId={ref.current.id}
+              />
             ) : (
               <div className="mv-stream-offline">
                 <div style={{ fontSize: 52 }}>📷</div>

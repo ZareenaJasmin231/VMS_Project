@@ -11,38 +11,18 @@ from monitoring.scheduler import scheduler as infrastructure_scheduler
 from app.managers.stream_manager import devices, get_devices_by_ip, stream_watchdog, supervise_worker_pool, stop_worker_pool
 from app.managers.health_manager import system_health_collector, camera_health_collector, analytics_poll_loop
 from app.core.database import db as _db, cameras_col, analytics_subs_col
-from utils.terminal_logger import log_terminal
-from app.services.camera.ome_service import register_stream
-from app.services.storage import encrypt_service
-from app.services.storage import rtsp_recorder as recorder
-from app.background.stream_health import start_health_monitoring
+from app.utils.terminal_logger import log_terminal
+from app.services.camera.mediamtx_service import register_stream
+from recorder import encrypt_service
+from recorder import rtsp_recorder as recorder
+from schedulers.stream_health_worker import start_health_monitoring
 from app.managers.stream_manager import load_devices
 
-OME_API       = os.environ.get("OME_URL", "http://ome:8081/v1/vhosts/default/apps/app/streams")
-OME_AUTH      = "Basic bXl2bXNhY2Nlc3N0b2tlbg=="
-OME_WS_PORT   = os.environ.get("OME_WS_PORT", "3333")
 
 _analytics_tasks: dict[str, asyncio.Task] = {}
 _health_monitor_task = None
 
-async def _wait_for_ome(max_retries: int = 30, delay: int = 5):
-    import socket
-    for attempt in range(1, max_retries + 1):
-        try:
-            r = http_requests.get(OME_API, headers={"Authorization": OME_AUTH}, timeout=3)
-            if r.status_code in (200, 201, 404):
-                try:
-                    sock = socket.create_connection(("ome", int(OME_WS_PORT)), timeout=2)
-                    sock.close()
-                except Exception:
-                    raise Exception(f"WS port {OME_WS_PORT} not yet open")
-                print(f"[STARTUP] ✅ OME REST + WS ready (attempt {attempt})")
-                await asyncio.sleep(2)
-                return
-        except Exception as e:
-            print(f"[STARTUP] ⏳ Waiting for OME... attempt {attempt}/{max_retries}: {e}")
-        await asyncio.sleep(delay)
-    print("[STARTUP] ⚠ OME not ready after max retries — proceeding anyway")
+   
 
 async def _startup_phase_1():
     infrastructure_scheduler.start()
@@ -53,15 +33,15 @@ async def _startup_phase_1():
     from monitoring.stream_health import run_stream_health_loop
     await task_manager.start_task('stream_health', run_stream_health_loop())
     
-    try:
-        from app.background.forensic_indexer_worker import start_background_indexer
-        start_background_indexer()
-        print("[STARTUP] ✅ Forensic YOLOv8 background indexer started.")
-    except Exception as e:
-        print(f"[STARTUP] ⚠ Forensic indexer failed to start: {e}")
+    # try:
+    #     from schedulers.forensic_indexer_worker import start_background_indexer
+    #     start_background_indexer()
+    #     print("[STARTUP] ✅ Forensic YOLOv8 background indexer started.")
+    # except Exception as e:
+    #     print(f"[STARTUP] ⚠ Forensic indexer failed to start: {e}")
 
     try:
-        from app.background.email_report_worker import email_report_worker
+        from schedulers.email_report_worker import email_report_worker
         await task_manager.start_task('email_report_scheduler', email_report_worker())
         print("[STARTUP] ✅ Automated Email Report Scheduler background task started.")
     except Exception as e:
@@ -226,7 +206,6 @@ async def _startup_phase_2():
     import app.managers.stream_manager as sm
     my_devices = sm.devices
     print(f"[STARTUP] Starting with {len(my_devices)} saved devices")
-    await _wait_for_ome()
 
     for device in my_devices:
         stream_name = device.get("ome_stream")
@@ -237,8 +216,6 @@ async def _startup_phase_2():
         if stream_name and rtsp_url:
             print(f"[STARTUP] Registering stream: {stream_name}")
             register_stream(stream_name, rtsp_url)
-
-    await task_manager.start_task('stream_watchdog', stream_watchdog())
 
     if analytics_subs_col is not None:
         for device in my_devices:
@@ -283,7 +260,7 @@ async def _startup_phase_2():
                 print(f"[ANALYTICS] ♻ Restored for {sub_ip}")
 
     _health_monitor_task = await task_manager.start_task('health_monitor', start_health_monitoring(my_devices, cameras_col))
-    await task_manager.start_task('worker_pool_supervisor', supervise_worker_pool())
+    # Worker pool is now managed separately by stream_manager.py standalone
     try:
         from app.services.ai import motion_detector
         motion_detector.manager.start()
@@ -324,11 +301,11 @@ async def lifespan(app: FastAPI):
     # Shut down all central tasks with max 5s timeout
     await task_manager.shutdown_all_tasks(timeout=5.0)
     # Stop background indexer
-    try:
-        from app.background.forensic_indexer_worker import stop_background_indexer
-        stop_background_indexer()
-    except Exception as e:
-        print(f"[SHUTDOWN] Failed to stop indexer: {e}")
+    # try:
+    #     from schedulers.forensic_indexer_worker import stop_background_indexer
+    #     stop_background_indexer()
+    # except Exception as e:
+    #     print(f"[SHUTDOWN] Failed to stop indexer: {e}")
     # Stop infrastructure scheduler
     infrastructure_scheduler.stop()
     # Find and kill orphan ffmpeg processes

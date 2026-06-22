@@ -4,7 +4,7 @@ import { useImageConfig, buildCSSFilter } from "../../hooks/useImageConfig";
 import { useDigitalZoom } from "../../hooks/useDigitalZoom";
 import "./MediaPlayerPage.css";
 
-const STREAM_API = "http://localhost:80";
+const STREAM_API = import.meta.env.VITE_API_URL || "";
 
 function getToken() {
   return (

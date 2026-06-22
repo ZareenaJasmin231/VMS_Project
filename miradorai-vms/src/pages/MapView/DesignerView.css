@@ -1263,7 +1263,7 @@
 .dv-automate-coverage-row select { flex:1; font-size:15px; padding:5px 8px; border-radius:6px; border:0.5px solid #2e3d55; background:#0d1117; color:#c9d1d9; }
 .dv-automate-footer { display:flex; gap:8px; justify-content:flex-end; padding:12px 18px; border-top:0.5px solid #1e2d3e; }
 .dv-automate-cancel { padding:7px 16px; border-radius:6px; border:0.5px solid #2e3d55; background:none; color:#7a8499; font-size:16px; cursor:pointer; }
-.dv-automate-run { padding:7px 18px; border-radius:6px; border:none; background:#7c3aed; color:#fff; font-size:16px; font-weight:600; cursor:pointer; }*/
+.dv-automate-run { padding:7px 18px; border-radius:6px; border:none; background:#7c3aed; color:#fff; font-size:16px; font-weight:600; cursor:pointer; }
 .dv-automate-run:hover { background:#6d28d9; } */ 
 
 /* ── Floating DORI Legend Overlay ── */
@@ -1755,7 +1755,7 @@
 }
 
 .dv-inspector--expanded {
-  width: 250px;
+  width: 280px;
 }
 
 .dv-inspector:not(.dv-inspector--expanded) ~ .dv-canvas-wrap .dv-zoom-hud {
@@ -1820,7 +1820,7 @@
   display: flex;
   flex-direction: column;
   height: 100%;
-  width: 250px;
+  width: 280px;
   overflow: hidden;
 }
 
@@ -2057,7 +2057,7 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.12em;
-  color: rgba(255, 255, 255, 0.35);
+  color: #ffffff;
   padding: 0 4px 10px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
   margin-bottom: 8px;
@@ -2304,35 +2304,35 @@
 }
 
 .dv-export-modal {
-  width: 400px;
+  width: 280px;
   background: #10151f;
   border: 1px solid #2e3d55;
-  border-radius: 12px;
+  border-radius: 8px;
   overflow: hidden;
 }
 
 .dv-export-modal-header {
-  padding: 18px;
-  font-size: 18px;
-  font-weight: 700;
+  padding: 14px 16px;
+  font-size: 16px;
+  font-weight: 600;
   color: white;
   border-bottom: 1px solid #1e2d3e;
 }
 
 .dv-export-modal-body {
-  padding: 20px;
+  padding: 14px 16px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
 }
 
 .dv-export-option {
   background: #161c28;
   border: 1px solid #2e3d55;
-  border-radius: 8px;
-  padding: 14px;
+  border-radius: 6px;
+  padding: 10px 14px;
   color: white;
-  font-size: 16px;
+  font-size: 15px;
   cursor: pointer;
   text-align: left;
 }
@@ -2343,17 +2343,111 @@
 }
 
 .dv-export-modal-footer {
-  padding: 15px;
+  padding: 10px 16px;
   border-top: 1px solid #1e2d3e;
   display: flex;
   justify-content: flex-end;
 }
 
 .dv-export-cancel {
-  padding: 8px 16px;
-  border-radius: 6px;
+  padding: 6px 14px;
+  font-size: 14px;
+  border-radius: 4px;
   border: 1px solid #2e3d55;
   background: #202938;
   color: white;
   cursor: pointer;
+}
+
+/* ── Annotation Toolbox ── */
+.dv-toolbox {
+  position: absolute;
+  top: 50%;
+  left: 20px;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  background: rgba(13, 17, 23, 0.7);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  z-index: 100;
+  pointer-events: auto;
+}
+
+.dv-toolbox__btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: #94a3b8;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  outline: none;
+}
+
+.dv-toolbox__btn:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: #f8fafc;
+}
+
+.dv-toolbox__btn--active {
+  background: rgba(59, 130, 246, 0.2);
+  border-color: rgba(59, 130, 246, 0.5);
+  color: #3b82f6;
+}
+
+.dv-toolbox__divider {
+  width: 100%;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.1);
+  margin: 4px 0;
+}
+
+.dv-toolbox__color-picker {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  cursor: pointer;
+  padding: 0;
+  margin: 4px auto;
+  transition: transform 0.2s ease;
+}
+
+.dv-toolbox__color-picker:hover {
+  transform: scale(1.1);
+}
+
+.dv-toolbox-tools {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* ── Inline Text Edit Overlay ── */
+.dv-text-edit-overlay {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  pointer-events: none;
+  z-index: 200;
+}
+
+.dv-text-input {
+  position: absolute;
+  background: transparent;
+  border: 1px dashed #3b82f6;
+  color: #ffffff;
+  outline: none;
+  font-family: Inter, sans-serif;
+  pointer-events: auto;
+  padding: 2px 4px;
+  transform-origin: top left;
 }

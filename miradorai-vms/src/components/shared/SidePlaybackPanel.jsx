@@ -3,7 +3,7 @@ import Hls from "hls.js";
 import { useDigitalZoom } from "../../hooks/useDigitalZoom";
 import "./SidePlaybackPanel.css";
 
-const API = import.meta.env.VITE_API_URL || "http://localhost:80";
+const API = import.meta.env.VITE_API_URL || "";
 
 function getToken() {
   return (
@@ -102,19 +102,19 @@ export default function SidePlaybackPanel({ camera, onClose }) {
     if (!cameraIp) return;
     setLoadingAlerts(true);
     try {
-      const res = await fetch(`${API}/api/alerts?limit=100`, {
+      const res = await fetch(`${API}/api/alerts?limit=500`, {
         headers: getAuthHeaders()
       });
       if (res.ok) {
         const data = await res.json();
         const filtered = (data.alerts || [])
-          .filter(a => a.status === "Active")
           .filter(a => (a.ip || "").replace(/_/g, ".") === cameraIp)
           .filter((a) => {
              const t = (a.type || "").toLowerCase();
              const s = (a.scenario || "").toLowerCase();
-             return !t.includes("motion") && !s.includes("motion");
-          });
+             return !t.includes("motion") && !s.includes("motion") && t !== "unknown" && t !== "" && !t.includes("tns1:");
+          })
+          .slice(0, 30);
         setAlerts(filtered);
       }
     } catch (e) {

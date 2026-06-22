@@ -91,4 +91,6 @@ class VideoEncoderSettingRequest(BaseModel):
     encoding:          Optional[str] = None
     fps:               Optional[int] = None
     bitrate:           Optional[int] = None
+    bitrate_type:      Optional[str] = None
+    iframe_interval:   Optional[int] = None
 

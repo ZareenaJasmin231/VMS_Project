@@ -100,7 +100,9 @@ export function drawCamera(ctx, p, ppm, options = {}) {
     ctx.save();
     ctx.setLineDash([4, 3]);
     ctx.beginPath(); ctx.arc(x, y, radius, 0, Math.PI * 2);
-    ctx.strokeStyle = col + "22"; ctx.lineWidth = 0.8; ctx.stroke();
+    ctx.strokeStyle = camera.type === "ptz" ? col + "AA" : col + "22";
+    ctx.lineWidth = camera.type === "ptz" ? 1.5 : 0.8;
+    ctx.stroke();
     ctx.setLineDash([]); ctx.restore();
   }
 

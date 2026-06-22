@@ -3,7 +3,7 @@ import Toggle from "../../components/shared/Toggle";
 import Button from "../../components/shared/Button";
 import SearchBar from "../../components/shared/SearchBar";
 import DataTable from "../../components/shared/DataTable";
-import WebRTCPlayer from "../../components/shared/WebRTCPlayer";
+import WebRTCPlayer from "../../components/shared/WebRTCPlayer_MediaMTX";
 import "./ImageConfigPage.css";
 
 const SLIDERS = [

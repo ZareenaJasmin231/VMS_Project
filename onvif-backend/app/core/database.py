@@ -2,6 +2,7 @@ import os
 from pymongo import MongoClient
 
 MONGO_URI = os.environ.get("MONGO_URI", "mongodb://mongo:27017/")
+MONGO_DB_NAME = os.environ.get("MONGO_DB_NAME", "vms_database")
 
 try:
     mongo_client = MongoClient(
@@ -10,7 +11,7 @@ try:
         maxPoolSize=100,
         minPoolSize=10
     )
-    db = mongo_client["mirador-vms"]
+    db = mongo_client[MONGO_DB_NAME]
 
     # Collections
     cameras_col = db["cameras"]

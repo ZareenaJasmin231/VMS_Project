@@ -1,0 +1,36 @@
+HTTP/1.1 200 OK
+CONNECTION: close
+Date: Mon, 15 Jun 2026 16:39:52 GMT
+Last-Modified: Sun, 28 Jun 2020 03:31:17 GMT
+Etag: "1593315077:8255"
+CONTENT-LENGTH: 33365
+CACHE-CONTROL: max-age=0
+X-Frame-Options: SAMEORIGIN
+Strict-Transport-Security: max-age=604800; includeSubDomains
+X-XSS-Protection: 1;mode=block
+Content-Security-Policy: script-src 'self' 'unsafe-inline' 'unsafe-eval'
+X-Content-Type-Options: nosniff
+CONTENT-TYPE: text/html
+
+<!DOCTYPE html> <html> <head> <title></title> <meta charset="UTF-8"> <meta http-equiv="X-UA-Compatible" content="IE=edge"> <meta name="format-detection" content="telephone=no"> <script src="jsBase/lib/jquery.js?version=@WebVersion@"></script> <script src="jsBase/widget/js/jquery.ui.core.js?version=@WebVersion@"></script> <script src="jsBase/widget/js/jquery.ui.widget.js?version=@WebVersion@"></script> <script src="jsBase/widget/js/dui.password.js?version=@WebVersion@"></script> <script src="jsBase/lib/jquery.base64.js?version=@WebVersion@"></script> <script>jQuery.noConflict();</script> <script src="jsBase/lib/jquery.pubsub.js?version=@WebVersion@"></script> <script src="jsBase/common/extend.js?version=@WebVersion@"></script> <script type="text/javascript">// forced to add parameters，ensure the FF image loading do not fail
+    var cssList = ['css/reset.css', 'css/ui.css', 'css/custom.css', 'css/skin.css', 'css/pictures.css','css/main.css', 'css/alarm.css', 'css/set.css', 'css/resize.css', 'css/playback.css', 'jsBase/widget/css/ui.css', 'jsBase/widget/css/skin.css', 'css/fn.css', 'css/thermal.css', 'jsBase/widget/css/colorpicker.css'];
+
+    for (var i = 0; i < cssList.length; i++) {
+        var lt = "?WebVersion=@WebVersion@";
+
+        //To solve the problem of css loading in ie7 8
+        if (!(jQuery.browser.ie7 || jQuery.browser.ie8)) {
+            if (location.href.split('?')[1]) {
+                lt += "&" + location.href.split('?')[1];
+            }
+        }
+        var cssNode = document.createElement("link");
+        cssNode.rel = 'stylesheet';
+        cssNode.type = "text/css";
+        cssNode.media = 'screen';
+        cssNode.href = cssList[i] + lt;
+        var head = document.getElementsByTagName("head")[0] || document.documentElement;
+        head.appendChild(cssNode);
+    }
+    cssList = null;
+    lt = null;</script> </head> <body>  <div id="login" class="login"> <div class="login-container"> <div class="login-content"> <div id="login_logo"></div> <div class="login-inputbox fn-clear"> <form autocomplete="off"> <div class="login-input-item"> <label t="sys.UserName+:" class="login-input-title">  </label> <input type="text" id="login_user" class="fn-width163 fn-mart3"> </div> <div class="login-input-item"> <label class="login-input-title" t="sys.Password+:">  </label> <input id="login_psw" onpaste="return false" type="text" maxlength="64" class="fn-width163 fn-mart3"> <a btn-for="onFindPwd" class="login-input-item-FindPwd fn-ib fn-verticalbottom fn-lineh20 ellipsisNode fn-width110" t="sys.ForgetPassword" style="cursor: pointer; display:none" href="javascript:;">  </a> </div>  <div class="login-input-item fn-hide" id="GM_deviceName"> <label t="DeviceName+:" class="login-input-title">  </label> <select class="ui-select fn-width169" id="login_pin_deviceName"> <option value="C95E11D0B39363FCAF717BB8C2F" t="GB35114.PleaseCheckUShieldFirst"></option> </select> </div> <div class="login-input-item fn-hide" id="GM_PIN"> <label t="com.Ping+:" class="login-input-title">  </label> <input type="password" id="login_pin" class="fn-width163 fn-mart3 u-input"> <span class="login-input-item-FindPwd fn-ib fn-verticalbottom fn-lineh20 ellipsisNode fn-width110" id="login_pin_tip" t="com.LoginPinTip"></span> </div>   <div class="login-input-item fn-hide" id="login_secrityCheck"> <label class="ui-label fn-padl70"></label> <div class="fn-left fn-width165"> <ul class="ui-pwd-strength"> <li class="weak" t="com.Weak">  </li> <li class="middle" t="com.Middle">  </li> <li class="strong" t="com.Strong">  </li> </ul> </div> </div> <div class="login-input-item" id="login_type"> 

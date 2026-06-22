@@ -1,0 +1,4 @@
+RTSP/1.0 401 Unauthorized
+CSeq: 1
+WWW-Authenticate: Digest realm="Please log in with a valid username",nonce="6d8d68f20faa14fe655e104a54f05338",opaque="",stale=FALSE,algorithm=MD5
+

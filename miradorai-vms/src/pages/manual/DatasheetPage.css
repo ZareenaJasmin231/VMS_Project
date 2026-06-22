@@ -1,0 +1,434 @@
+/* Base Page Layout */
+.dsp-page {
+  display: flex;
+  height: 100vh;
+  width: 100vw;
+  background: #0f172a;
+  color: #f1f5f9;
+  font-family: var(--font-ui, 'Inter', sans-serif);
+  position: absolute;
+  top: 0; left: 0; z-index: 100000;
+  overflow: hidden;
+}
+
+/* Sidebar Navigation */
+.dsp-sidebar {
+  width: 280px;
+  background: #1e293b;
+  border-right: 1px solid #334155;
+  display: flex;
+  flex-direction: column;
+}
+
+.dsp-sidebar-header {
+  padding: 30px 24px;
+  border-bottom: 1px solid #334155;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.dsp-sidebar-header h2 {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 800;
+  color: #f1f5f9;
+  letter-spacing: 0.5px;
+}
+
+.dsp-back-btn {
+  margin: 0 16px 16px;
+  padding: 10px 16px;
+  background: #334155;
+  color: #f1f5f9;
+  border: none;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: all 0.2s ease;
+}
+
+.dsp-back-btn:hover {
+  background: #475569;
+}
+
+.dsp-nav {
+  padding: 8px 16px 24px;
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.dsp-nav-item {
+  padding: 16px 20px;
+  border-radius: 12px;
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  font-size: 16px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.dsp-nav-item:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: #f1f5f9;
+}
+
+.dsp-nav-item.active {
+  background: rgba(20, 184, 166, 0.15);
+  color: #14b8a6;
+  box-shadow: inset 4px 0 0 #14b8a6;
+}
+
+.dsp-nav-icon {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Main Content Area */
+.dsp-main-content {
+  flex: 1;
+  overflow-y: auto;
+  background: radial-gradient(circle at top right, #1e293b 0%, #0f172a 100%);
+  display: flex;
+  flex-direction: column;
+}
+
+.dsp-header-banner {
+  padding: 40px 60px;
+  background: linear-gradient(90deg, rgba(20, 184, 166, 0.1) 0%, transparent 100%);
+  border-bottom: 1px solid #334155;
+}
+
+.dsp-header-banner h1 {
+  margin: 0 0 10px 0;
+  font-size: 36px;
+  font-weight: 800;
+  color: #fff;
+}
+
+.dsp-header-banner p {
+  margin: 0;
+  font-size: 18px;
+  color: #94a3b8;
+}
+
+.dsp-body {
+  padding: 40px 60px;
+  max-width: 1200px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.dsp-section h2 {
+  font-size: 28px;
+  color: #14b8a6;
+  margin-top: 40px;
+  margin-bottom: 16px;
+}
+
+.dsp-section p {
+  font-size: 16px;
+  line-height: 1.6;
+  color: #cbd5e1;
+  margin-bottom: 30px;
+}
+
+/* Exhaustive Steps Styling */
+.dsp-step-list {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.dsp-step {
+  display: flex;
+  gap: 20px;
+  background: rgba(30, 41, 59, 0.5);
+  border: 1px solid #334155;
+  padding: 24px;
+  border-radius: 12px;
+  transition: transform 0.2s;
+}
+
+.dsp-step:hover {
+  transform: translateX(5px);
+  border-color: #475569;
+}
+
+.dsp-step-num {
+  width: 40px;
+  height: 40px;
+  background: #14b8a6;
+  color: #000;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 18px;
+  flex-shrink: 0;
+  box-shadow: 0 4px 15px rgba(20, 184, 166, 0.4);
+}
+
+.dsp-step strong {
+  display: block;
+  font-size: 18px;
+  color: #fff;
+  margin-bottom: 8px;
+}
+
+.dsp-step p {
+  margin: 0 !important;
+  font-size: 15px !important;
+  color: #94a3b8 !important;
+}
+
+/* ========================================================================= */
+/* EXACT UI ANIMATIONS (EXHAUSTIVE REPLICATION)                              */
+/* ========================================================================= */
+
+.dsp-animation-wrap {
+  width: 100%;
+  height: 450px;
+  background: #0f172a;
+  border: 2px solid #334155;
+  border-radius: 16px;
+  margin-bottom: 40px;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+}
+
+.dsp-cursor {
+  width: 24px;
+  height: 24px;
+  background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><path d="M3 3l7.07 16.97 2.51-7.39 7.39-2.51L3 3z"/></svg>') no-repeat;
+  background-size: contain;
+  position: absolute;
+  z-index: 9999;
+  filter: drop-shadow(0 4px 6px rgba(0,0,0,0.6));
+}
+
+/* 1. Dashboard Animation */
+.dsp-anim-dashboard { width: 100%; height: 100%; position: absolute; }
+.dsp-db-card {
+  position: absolute;
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+  height: 80px;
+  transition: all 0.3s;
+}
+.dsp-db-chart-bar {
+  position: absolute;
+  bottom: 20px;
+  width: 20px;
+  background: #14b8a6;
+  border-radius: 4px 4px 0 0;
+}
+.dsp-db-donut {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  width: 120px; height: 120px;
+  border-radius: 50%;
+  border: 15px solid #334155;
+  border-top-color: #14b8a6;
+  border-right-color: #14b8a6;
+  animation: spin 8s linear infinite;
+}
+@keyframes spin { 100% { transform: translate(-50%, -50%) rotate(360deg); } }
+
+.dsp-cursor-dash { animation: dashCur 8s infinite; }
+@keyframes dashCur {
+  0% { top: 400px; left: 400px; }
+  10% { top: 50px; left: 100px; transform: scale(1); }
+  12% { top: 50px; left: 100px; transform: scale(0.8); }
+  14% { top: 50px; left: 100px; transform: scale(1); }
+  30% { top: 200px; left: 300px; transform: scale(1); }
+  35% { top: 200px; left: 300px; transform: scale(0.8); }
+  40% { top: 200px; left: 300px; transform: scale(1); }
+  60% { top: 200px; left: 550px; }
+  100% { top: 400px; left: 400px; }
+}
+
+/* 2. Live View Animation */
+.dsp-anim-live { width: 100%; height: 100%; position: absolute; background: #000; }
+.dsp-lv-topbar {
+  position: absolute; top: 0; left: 0; width: 100%; height: 40px; background: #1e293b; border-bottom: 1px solid #334155; display: flex; justify-content: flex-end; padding-right: 20px; align-items: center;
+}
+.dsp-lv-grid-btn { width: 30px; height: 30px; background: #334155; border-radius: 4px; }
+.dsp-lv-dropdown { position: absolute; top: 45px; right: 20px; width: 100px; background: #1e293b; border: 1px solid #334155; border-radius: 4px; opacity: 0; }
+.dsp-lv-dd-item { height: 30px; border-bottom: 1px solid #334155; }
+.dsp-lv-grid { position: absolute; top: 40px; left: 0; right: 0; bottom: 0; display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 4px; padding: 4px; }
+.dsp-lv-cam { background: #1e293b; border: 1px solid #334155; transition: all 0.4s; position: relative; }
+.dsp-lv-alert-panel { position: absolute; top: 40px; right: -300px; width: 250px; bottom: 0; background: #0f172a; border-left: 1px solid #334155; padding: 10px; display: flex; flex-direction: column; gap: 10px; transition: right 0.5s; z-index: 10; }
+.dsp-lv-alert-card { height: 80px; background: rgba(239, 68, 68, 0.1); border: 1px solid #ef4444; border-radius: 8px; animation: pulseRed 2s infinite; }
+
+.dsp-cursor-live { animation: liveCur 10s infinite; }
+@keyframes liveCur {
+  0% { top: 200px; left: 200px; }
+  10% { top: 20px; left: 95%; transform: scale(1); } /* Click Grid */
+  12% { top: 20px; left: 95%; transform: scale(0.8); }
+  14% { top: 20px; left: 95%; transform: scale(1); }
+  25% { top: 150px; left: 25%; transform: scale(1); } /* Double click cam */
+  26% { top: 150px; left: 25%; transform: scale(0.8); }
+  27% { top: 150px; left: 25%; transform: scale(1); }
+  28% { top: 150px; left: 25%; transform: scale(0.8); }
+  29% { top: 150px; left: 25%; transform: scale(1); }
+  50% { top: 150px; left: 90%; transform: scale(1); } /* Open alert panel */
+  55% { top: 150px; left: 90%; transform: scale(0.8); }
+  80% { top: 150px; left: 90%; transform: scale(1); }
+  100% { top: 200px; left: 200px; }
+}
+/* Trigger panel slide based on cursor time */
+@keyframes slidePanel {
+  0%, 40% { right: -300px; }
+  45%, 85% { right: 0; }
+  90%, 100% { right: -300px; }
+}
+.dsp-lv-alert-panel { animation: slidePanel 10s infinite; }
+@keyframes pulseRed { 0%, 100% { box-shadow: 0 0 0 rgba(239, 68, 68, 0); } 50% { box-shadow: 0 0 15px rgba(239, 68, 68, 0.5); } }
+/* Trigger grid dropdown */
+@keyframes showDropdown { 0%, 11% { opacity: 0; } 12%, 20% { opacity: 1; } 21%, 100% { opacity: 0; } }
+.dsp-lv-dropdown { animation: showDropdown 10s infinite; }
+/* Trigger Fullscreen */
+@keyframes camFullscreen { 0%, 25% { transform: scale(1); z-index: 1; } 28%, 45% { transform: scale(2) translate(25%, 25%); z-index: 50; } 48%, 100% { transform: scale(1); z-index: 1; } }
+.dsp-lv-cam:nth-child(1) { animation: camFullscreen 10s infinite; }
+
+/* 3. Map View Animation */
+.dsp-anim-map { width: 100%; height: 100%; position: absolute; }
+.dsp-map-bg { width: 100%; height: 100%; background: repeating-linear-gradient(45deg, #1e293b, #1e293b 20px, #334155 20px, #334155 40px); opacity: 0.5; }
+.dsp-map-pin { position: absolute; width: 24px; height: 24px; background: #ef4444; border: 3px solid #fff; border-radius: 50%; transform: translate(-50%, -50%); box-shadow: 0 4px 10px rgba(0,0,0,0.5); }
+.dsp-map-popup { position: absolute; top: 10%; left: 35%; width: 200px; height: 150px; background: #1e293b; border: 2px solid #334155; border-radius: 8px; padding: 10px; opacity: 0; z-index: 20; box-shadow: 0 10px 30px rgba(0,0,0,0.8); }
+.dsp-map-popup-video { width: 100%; height: 100%; background: #000; border-radius: 4px; }
+
+.dsp-cursor-map { animation: mapCur 8s infinite; }
+@keyframes mapCur {
+  0% { top: 300px; left: 300px; }
+  20% { top: 30%; left: 40%; transform: scale(1); } /* Click Pin 1 */
+  25% { top: 30%; left: 40%; transform: scale(0.8); }
+  30% { top: 30%; left: 40%; transform: scale(1); }
+  60% { top: 60%; left: 70%; transform: scale(1); } /* Drag Pin 2 */
+  65% { top: 60%; left: 70%; transform: scale(0.8); }
+  75% { top: 80%; left: 80%; transform: scale(0.8); } /* Dragging */
+  80% { top: 80%; left: 80%; transform: scale(1); } /* Release */
+  100% { top: 300px; left: 300px; }
+}
+@keyframes pinDrag { 0%, 65% { top: 60%; left: 70%; } 75%, 100% { top: 80%; left: 80%; } }
+.dsp-map-pin:nth-child(3) { animation: pinDrag 8s infinite; }
+@keyframes popMap { 0%, 25% { opacity: 0; } 30%, 55% { opacity: 1; } 60%, 100% { opacity: 0; } }
+.dsp-map-popup { animation: popMap 8s infinite; }
+
+/* 4. Playback Animation */
+.dsp-anim-playback { width: 100%; height: 100%; position: absolute; display: flex; flex-direction: column; }
+.dsp-pb-player { flex: 1; background: #000; border-bottom: 1px solid #334155; margin-left: 250px; }
+.dsp-pb-sidebar { position: absolute; top: 0; left: 0; bottom: 0; width: 250px; background: #1e293b; border-right: 1px solid #334155; padding: 20px; }
+.dsp-pb-cal { width: 100%; height: 200px; background: #334155; border-radius: 8px; margin-bottom: 20px; }
+.dsp-pb-cam-list { width: 100%; height: 150px; background: #334155; border-radius: 8px; }
+.dsp-pb-timeline-area { position: absolute; bottom: 0; left: 250px; right: 0; height: 100px; background: #0f172a; border-top: 1px solid #334155; display: flex; align-items: center; padding: 0 40px; }
+.dsp-pb-timeline-bar { width: 100%; height: 16px; background: #334155; border-radius: 8px; position: relative; }
+.dsp-pb-marker { position: absolute; top: 0; width: 4px; height: 100%; }
+.dsp-pb-marker.red { background: #ef4444; box-shadow: 0 0 8px #ef4444; }
+.dsp-pb-marker.teal { background: #14b8a6; box-shadow: 0 0 8px #14b8a6; }
+.dsp-pb-scrubber { position: absolute; top: -10px; left: 0; width: 16px; height: 36px; background: #fff; border-radius: 4px; box-shadow: 0 2px 8px rgba(0,0,0,0.5); animation: scrubAnim 10s infinite; }
+
+.dsp-cursor-playback { animation: playCur 10s infinite; }
+@keyframes playCur {
+  0% { top: 50px; left: 100px; }
+  10% { top: 100px; left: 100px; transform: scale(1); } /* Click cal */
+  12% { top: 100px; left: 100px; transform: scale(0.8); }
+  15% { top: 100px; left: 100px; transform: scale(1); }
+  30% { top: 380px; left: 300px; transform: scale(1); } /* Scrub start */
+  35% { top: 380px; left: 300px; transform: scale(0.8); }
+  55% { top: 380px; left: 700px; transform: scale(0.8); } /* Scrub dragging */
+  60% { top: 380px; left: 700px; transform: scale(1); } /* Release */
+  100% { top: 50px; left: 100px; }
+}
+@keyframes scrubAnim { 0%, 30% { left: 5%; } 55%, 100% { left: 60%; } }
+
+/* 5. Designer Animation */
+.dsp-anim-designer { width: 100%; height: 100%; position: absolute; }
+.dsp-des-sidebar { position: absolute; top: 0; left: 0; bottom: 0; width: 200px; background: #1e293b; border-right: 1px solid #334155; padding: 20px; }
+.dsp-des-item { position: absolute; width: 160px; height: 30px; background: #334155; border-radius: 4px; display: flex; align-items: center; padding-left: 10px; font-weight: bold; }
+.dsp-des-drag { z-index: 100; animation: dragDes 8s infinite; }
+.dsp-des-grid { position: absolute; top: 40px; left: 240px; right: 40px; bottom: 40px; position: relative; }
+.dsp-des-cell { position: absolute; width: 150px; height: 100px; border: 2px dashed #475569; border-radius: 8px; transition: all 0.3s; }
+.dsp-des-cell-active { animation: cellActive 8s infinite; }
+
+.dsp-cursor-designer { animation: desCur 8s infinite; }
+@keyframes desCur {
+  0% { top: 200px; left: 100px; }
+  20% { top: 65px; left: 80px; transform: scale(1); } /* Grab Cam B */
+  25% { top: 65px; left: 80px; transform: scale(0.8); }
+  45% { top: 65px; left: 450px; transform: scale(0.8); } /* Drag to cell */
+  50% { top: 65px; left: 450px; transform: scale(1); } /* Drop */
+  100% { top: 200px; left: 100px; }
+}
+@keyframes dragDes { 0%, 20% { top: 50px; left: 20px; } 45%, 100% { top: 50px; left: 400px; } }
+@keyframes cellActive { 0%, 35% { border-color: #475569; background: transparent; } 40%, 50% { border-color: #10b981; background: rgba(16, 185, 129, 0.2); } 55%, 100% { border-color: #334155; background: #1e293b; } }
+
+/* 6. Infrastructure Animation */
+.dsp-anim-infra { width: 100%; height: 100%; position: absolute; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 40px; }
+.dsp-inf-server { width: 300px; height: 60px; background: #1e293b; border: 2px solid #334155; border-radius: 8px; display: flex; align-items: center; padding: 0 20px; gap: 15px; font-weight: bold; position: relative; z-index: 10; box-shadow: 0 10px 20px rgba(0,0,0,0.5); }
+.dsp-inf-status { width: 12px; height: 12px; border-radius: 50%; }
+.pulse-green { background: #10b981; box-shadow: 0 0 10px #10b981; animation: pulseG 2s infinite; }
+.pulse-red { background: #ef4444; box-shadow: 0 0 10px #ef4444; animation: pulseR 1s infinite; }
+@keyframes pulseG { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+@keyframes pulseR { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.5; transform: scale(1.2); } }
+.dsp-inf-line { position: absolute; width: 2px; background: #334155; z-index: 1; }
+.line-1 { height: 40px; top: 160px; left: 50%; }
+.line-2 { height: 40px; top: 260px; left: 50%; }
+
+.dsp-cursor-infra { animation: infCur 6s infinite; }
+@keyframes infCur {
+  0% { top: 300px; left: 100px; }
+  30% { top: 100px; left: 550px; transform: scale(1); }
+  35% { top: 100px; left: 550px; transform: scale(0.8); }
+  40% { top: 100px; left: 550px; transform: scale(1); }
+  100% { top: 300px; left: 100px; }
+}
+
+/* 7. Settings Animation */
+.dsp-anim-settings { width: 100%; height: 100%; position: absolute; display: flex; }
+.dsp-set-sidebar { width: 200px; background: #1e293b; border-right: 1px solid #334155; padding: 20px; display: flex; flex-direction: column; gap: 10px; }
+.dsp-set-tab { padding: 10px; border-radius: 6px; color: #94a3b8; font-weight: bold; }
+.dsp-set-tab.active { background: rgba(20, 184, 166, 0.2); color: #14b8a6; }
+.dsp-set-content { flex: 1; padding: 40px; display: flex; flex-direction: column; gap: 20px; }
+.dsp-set-field { width: 100%; max-width: 400px; height: 40px; background: #1e293b; border: 1px solid #334155; border-radius: 6px; }
+.dsp-set-toggle { width: 60px; height: 32px; background: #475569; border-radius: 16px; position: relative; transition: all 0.3s; animation: setToggleBg 6s infinite; }
+.dsp-set-toggle-knob { width: 24px; height: 24px; background: #fff; border-radius: 50%; position: absolute; top: 4px; left: 4px; transition: all 0.3s; animation: setToggleKnob 6s infinite; }
+.dsp-set-btn { width: 150px; height: 40px; background: #14b8a6; color: #fff; display: flex; align-items: center; justify-content: center; border-radius: 6px; font-weight: bold; margin-top: 20px; animation: setBtnPress 6s infinite; }
+
+.dsp-cursor-settings { animation: setCur 6s infinite; }
+@keyframes setCur {
+  0% { top: 300px; left: 100px; }
+  30% { top: 160px; left: 260px; transform: scale(1); } /* Click toggle */
+  35% { top: 160px; left: 260px; transform: scale(0.8); }
+  40% { top: 160px; left: 260px; transform: scale(1); }
+  60% { top: 250px; left: 300px; transform: scale(1); } /* Click Save */
+  65% { top: 250px; left: 300px; transform: scale(0.8); }
+  70% { top: 250px; left: 300px; transform: scale(1); }
+  100% { top: 300px; left: 100px; }
+}
+@keyframes setToggleBg { 0%, 30% { background: #475569; } 35%, 100% { background: #14b8a6; } }
+@keyframes setToggleKnob { 0%, 30% { left: 4px; } 35%, 100% { left: 32px; } }
+@keyframes setBtnPress { 0%, 60% { transform: scale(1); background: #14b8a6; } 65% { transform: scale(0.95); background: #0d9488; } 70%, 100% { transform: scale(1); background: #14b8a6; } }
+
+/* End of File */

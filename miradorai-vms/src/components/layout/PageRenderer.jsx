@@ -34,7 +34,7 @@ import ViewingStationsPage from "../../pages/client/ViewingStationsPage";
 import EmailSchedulesPage from "../../pages/client/EmailSchedulesPage";
 
 import FirmwareUpgradePage from "../../pages/connectedservices/Firmwareupgradepage";
-import SmartSearchSettingsPage from "../../pages/smartsearcxh/Smartsearchsettingspage";
+import SmartSearchSettingsPage from "../../pages/smartsearch/Smartsearchsettingspage";
 
 import LiveViewPage from "../../pages/liveview/LiveViewPage";
 
@@ -51,7 +51,7 @@ import DesignerView from "../../pages/Mapview/DesignerView";
 import MaskingPage from "../../pages/devices/MaskingPage";
 import ForensicSearchPage from "../../pages/forensic/ForensicSearchPage";
 import AiAnalyticsPage from "../../pages/analytics/AiAnalyticsPage";
-
+import DatasheetPage from "../../pages/manual/DatasheetPage";
 
 
 // ================= PAGE MAP =================
@@ -59,6 +59,7 @@ const MAP = {
   // ✅ DASHBOARD (DEFAULT PAGE)
   "dashboard": DashboardPage,
   "ai-analytics": AiAnalyticsPage,
+  "manual": DatasheetPage,
 
   // ================= DEVICES =================
   "add-devices": AddDevicesPage,

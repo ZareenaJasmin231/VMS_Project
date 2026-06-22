@@ -50,7 +50,7 @@ const ADMIN_ONLY_NAV = [
     page: "media-player",
     icon: ICONS.playback,
   },
-  // ✅ FORENSIC SEARCH
+ // ✅ FORENSIC SEARCH
   // {
   //   section: "Forensic Search",
   //   page: "forensic-search",
@@ -104,9 +104,13 @@ const SETTINGS_NAV = {
   ],
 };
 
-// OPERATOR nav — Live View only (Add Device and About moved to TopBar/Settings dropdown)
+// OPERATOR nav — Designer View only (Add Device and About moved to TopBar/Settings dropdown)
 const OPERATOR_NAV = [
-  { section: "Live View",  page: "live-view",   icon: ICONS.liveView },
+  {
+    section: "Designer View",
+    page: "designer-view",
+    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M8 8h8v8H8z"/><path d="M3 12h5M16 12h5"/></svg>`,
+  },
 ];
 
 // ================= GET NAVIGATION CONFIG =================
@@ -174,6 +178,7 @@ export const PAGE_TITLES = {
   "client-settings": "Client Settings",
   "user-settings": "User Settings",
   "user-management": "User Management",
+  "email-schedules": "Email Schedules",
   profile: "Profile",
   about: "About",
 

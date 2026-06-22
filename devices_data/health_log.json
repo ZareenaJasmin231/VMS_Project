@@ -1,2502 +1,2502 @@
 [
   {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:21:15.079568",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:21:16.168274",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:21:20.080544",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:21:21.260236",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:21:24.721422",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:21:25.766235",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:21:30.790691",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:21:31.838408",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:21:35.380510",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:21:36.432752",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:21:39.826297",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:21:40.881192",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:21:45.019376",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:21:46.066871",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:21:49.604959",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:21:50.656296",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:21:54.571087",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:21:55.654584",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:21:59.579451",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:22:00.652837",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:22:03.969452",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:22:05.026535",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:22:08.734460",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:22:09.916024",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:22:13.269528",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:22:14.339585",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:22:18.103989",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:22:19.181564",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:22:22.510658",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:22:23.559541",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:22:26.741034",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:22:27.803395",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:22:31.572172",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:22:32.696319",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:22:35.888943",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:22:36.951454",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:22:40.268940",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:22:41.360229",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:22:44.847955",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:22:45.961115",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:22:49.386104",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:22:50.442440",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:22:53.857809",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:22:54.933749",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:22:58.572942",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:22:59.626802",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:23:02.910718",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:23:03.956381",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:23:07.278673",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:23:08.380529",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:23:14.286724",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:23:15.337860",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:23:18.658642",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:23:19.862726",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:23:23.395113",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:23:24.461203",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:23:27.767416",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:23:28.847714",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:23:32.025711",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:23:33.078453",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:23:36.321906",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:23:37.386198",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:23:40.686048",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:23:41.739706",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:23:45.195165",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:23:46.253817",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:23:49.963768",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:23:51.018134",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:23:55.053413",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:23:56.121457",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:23:59.776611",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:24:00.919414",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:24:04.303566",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:24:05.353502",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:24:09.000564",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:24:10.079610",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:24:14.460860",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:24:15.556466",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:24:18.834097",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:24:19.884331",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:24:23.946630",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:24:25.022399",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:24:31.022429",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:24:32.149977",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:24:35.589914",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:24:36.655774",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:24:42.502485",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:24:44.499310",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:24:50.739985",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:24:51.788763",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:24:57.769837",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:24:58.853602",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:25:03.174074",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:25:04.245171",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:25:07.398929",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:25:08.464459",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:25:11.703946",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:25:12.866637",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:25:16.834809",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:25:17.907440",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:25:22.365848",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:25:23.487737",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:25:26.892186",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:25:27.953046",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:25:31.304841",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:25:32.360257",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:25:35.594682",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:25:36.661049",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:25:40.171955",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:25:41.272818",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:25:44.957116",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:25:46.034256",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:25:52.809824",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:25:53.922769",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:25:57.309773",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:25:58.538358",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:26:02.712134",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:26:03.839634",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:26:08.877749",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:26:09.999619",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:26:16.534450",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:26:23.263649",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:26:28.147751",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:26:29.243834",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:26:33.213858",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:26:34.288015",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:26:42.380495",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:26:43.501665",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:26:47.771918",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:26:48.827973",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:26:53.089088",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:26:54.164634",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:26:58.034768",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:26:59.081977",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:27:02.452820",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:27:03.538274",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:27:06.879817",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:27:07.936755",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:27:11.164621",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:27:12.234777",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:27:15.425878",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:27:16.501866",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:27:20.166437",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:27:21.217653",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:27:24.453222",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:27:25.510168",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:27:28.766026",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:27:29.829947",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:27:33.147529",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:27:34.231326",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:27:35.669562",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:27:36.719959",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:27:39.987382",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:27:41.044937",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:27:44.466717",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:27:45.523156",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:27:48.881196",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:27:49.948477",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:27:52.932703",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:27:53.983912",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:27:57.273000",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:27:58.327300",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:28:03.798418",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:28:04.971244",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:28:08.232492",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:28:09.388495",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:28:12.757199",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:28:13.826403",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:28:17.157140",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:28:18.233597",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:28:20.454839",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:28:21.517320",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:28:24.970823",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:28:26.040144",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:28:29.354230",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:28:30.403833",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:28:33.835606",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:28:34.900967",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:28:38.212866",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:28:39.315138",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:28:42.738260",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:28:43.865422",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:28:46.567281",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:28:47.622521",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:28:50.929154",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:28:51.989454",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:28:55.198003",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:28:56.267677",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:29:00.273058",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:29:01.464600",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:29:04.767587",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:29:05.830761",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:29:09.840421",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:29:10.893952",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:29:14.471125",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:29:15.536158",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:29:18.809094",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:29:19.861136",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:29:23.310344",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:29:24.353758",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:29:28.088146",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:29:29.157207",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:29:31.584444",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:29:32.627122",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:29:36.040715",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:29:37.115745",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:29:40.317650",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:29:41.359638",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:29:43.470276",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:29:44.519668",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:29:47.751963",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:29:48.795685",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:29:56.226024",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:29:57.289962",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:30:01.746555",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:30:02.796659",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:30:06.946021",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:30:08.018192",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:30:11.905809",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:30:12.980038",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:30:14.626354",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:30:15.720489",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:30:19.470628",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:30:20.542483",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:30:22.588597",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:30:23.666751",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:30:26.878428",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:30:27.962734",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:30:31.275523",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:30:32.331285",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:30:35.500139",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:30:36.569465",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:30:39.869769",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:30:40.905478",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:30:45.155992",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:30:46.193758",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:30:49.774461",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:30:50.834730",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:30:54.958419",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:30:56.039169",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:30:59.397969",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:31:00.444515",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:31:04.207145",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:31:05.268961",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:31:08.986513",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:31:10.066632",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:31:12.938245",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:31:13.983798",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:31:19.664435",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:31:20.706786",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:31:24.572740",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:31:25.623697",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:31:27.517647",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:31:28.564744",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:31:31.727260",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:31:32.818597",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:31:35.949526",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:31:37.029741",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:31:39.640559",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:31:40.676208",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:31:44.053870",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:31:45.135853",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:31:48.775014",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:31:49.857210",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:31:51.964078",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:31:53.043999",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:31:56.336904",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:31:57.401276",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:32:01.294245",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:32:02.344041",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:32:04.251287",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:32:05.298616",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:32:08.375241",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:32:09.526074",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:32:13.166990",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:32:14.218927",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:32:18.750271",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:32:19.804427",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:32:23.241601",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:32:24.279486",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:32:27.597620",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:32:28.737720",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:32:31.926615",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:32:33.025029",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:32:36.258465",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:32:37.331819",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:32:40.456340",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:32:41.548168",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:32:45.283879",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:32:46.333262",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:32:49.619077",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:32:50.657750",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:32:54.199466",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:32:55.301312",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:32:58.897193",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:32:59.943520",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:33:03.491812",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:33:04.554835",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:33:07.798267",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:33:08.972006",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:33:12.478219",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:33:13.530187",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:33:16.942284",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:33:17.982543",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:33:21.253709",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:33:22.316306",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:33:25.861165",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:33:26.899953",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:33:30.189351",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:33:31.231719",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:33:34.572448",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:33:35.632435",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:33:38.792142",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:33:39.841057",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:33:43.318628",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:33:44.369584",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:33:47.634332",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:33:48.719560",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:33:52.405622",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:33:53.467222",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:33:56.731699",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:33:57.784580",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:34:01.854382",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:34:02.926285",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:34:06.195041",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:34:07.255103",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:34:10.527700",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:34:11.570254",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:34:14.805039",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:34:15.888690",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:34:19.969925",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:34:21.025717",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:34:24.399139",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:34:25.529588",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:34:29.117076",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:34:30.159994",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:34:33.444215",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:34:34.486713",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:34:37.904491",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:34:38.962905",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:34:42.113609",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:34:43.239890",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:34:46.876715",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:34:47.924827",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:34:51.627757",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:34:52.674291",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:34:56.112632",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:34:57.168841",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:35:00.478488",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:35:01.623165",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:35:04.869593",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:35:05.927934",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:35:09.157592",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:35:10.209852",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:35:13.662026",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:35:14.740385",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:35:17.922146",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:35:18.997646",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:35:22.456238",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:35:23.565932",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:35:26.871267",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:35:27.927444",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:35:31.245298",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:35:32.297497",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:35:36.034626",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:35:37.092414",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:35:40.595004",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:35:41.650982",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:35:44.946711",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:35:46.012524",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:35:49.333980",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:35:50.387165",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:35:53.770315",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:35:54.861497",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:36:00.702584",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:36:01.739671",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:36:05.087151",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:36:06.135110",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:36:09.436133",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:36:10.490909",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:36:14.275438",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:36:15.317580",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:36:18.594750",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:36:19.657852",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:36:23.065361",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:36:24.117292",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:36:27.397321",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:36:28.476211",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:36:32.229910",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:36:33.316626",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:36:35.761317",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:36:37.931134",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:36:40.109170",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:36:42.249440",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:36:44.356735",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:36:46.473241",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:36:48.628674",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:36:50.885210",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:37:22.369705",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:39:52.384299",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:40:49.358347",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:40:51.878252",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:40:54.005436",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:40:56.140461",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:40:58.230415",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:41:00.357115",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:41:02.482219",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:41:04.619647",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:41:06.717017",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:41:08.840205",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:42:51.650257",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:46:12.730522",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:46:50.307891",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:48:52.717762",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:49:59.756782",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:53:17.484933",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:53:19.573578",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:53:21.690458",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:53:23.766658",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:53:25.896061",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:53:27.998403",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T19:53:38.379235",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_237",
-    "timestamp": "2026-04-21T19:53:59.387515",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_237",
-    "timestamp": "2026-04-21T19:56:37.858228",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_239",
-    "timestamp": "2026-04-21T20:08:39.684200",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_239",
-    "timestamp": "2026-04-21T20:09:09.006174",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_239",
-    "timestamp": "2026-04-21T20:12:24.326986",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_239",
-    "timestamp": "2026-04-21T20:13:29.380770",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_239",
-    "timestamp": "2026-04-21T20:15:11.779602",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_239",
-    "timestamp": "2026-04-21T20:17:58.457707",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_239",
-    "timestamp": "2026-04-21T20:18:35.808316",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_239",
-    "timestamp": "2026-04-21T20:20:30.185470",
-    "status": "Healthy"
-  },
-  {
     "camera": "192_168_126_240",
-    "timestamp": "2026-04-21T20:21:07.746890",
+    "timestamp": "2026-06-11T12:19:13.482796",
     "status": "Healthy"
   },
   {
-    "camera": "192_168_126_240",
-    "timestamp": "2026-04-21T20:21:38.800918",
+    "camera": "192_168_126_231",
+    "timestamp": "2026-06-11T12:19:18.643480",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_231",
+    "timestamp": "2026-06-11T12:19:19.923143",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_232",
+    "timestamp": "2026-06-11T12:19:28.310893",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_232",
+    "timestamp": "2026-06-11T12:19:29.708286",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_232",
+    "timestamp": "2026-06-11T12:19:30.736303",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_233",
+    "timestamp": "2026-06-11T12:19:32.045017",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_233",
+    "timestamp": "2026-06-11T12:19:33.888288",
     "status": "Healthy"
   },
   {
     "camera": "192_168_126_234",
-    "timestamp": "2026-04-21T20:27:10.372568",
+    "timestamp": "2026-06-11T12:19:35.334994",
     "status": "Healthy"
   },
   {
     "camera": "192_168_126_234",
-    "timestamp": "2026-04-21T20:27:47.254070",
+    "timestamp": "2026-06-11T12:19:36.488363",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_235",
+    "timestamp": "2026-06-11T12:19:37.632690",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_235",
+    "timestamp": "2026-06-11T12:19:38.667765",
     "status": "Healthy"
   },
   {
     "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T20:28:11.707207",
+    "timestamp": "2026-06-11T12:19:40.242876",
     "status": "Healthy"
   },
   {
     "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T20:28:50.587942",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T20:28:53.650871",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T20:28:54.700983",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T20:28:57.747256",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T20:28:58.769582",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T20:29:01.944144",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T20:29:02.992701",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T20:29:06.736570",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T20:29:07.800209",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T20:29:10.766155",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T20:29:11.809895",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T20:29:14.791373",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T20:29:15.832283",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T20:29:19.000080",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T20:29:20.057028",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T20:29:23.008023",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T20:29:24.079434",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T20:29:27.084877",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T20:29:28.141124",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T20:29:31.082818",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T20:30:31.633233",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_240",
-    "timestamp": "2026-04-21T21:40:13.548523",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_240",
-    "timestamp": "2026-04-21T21:40:14.597828",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_240",
-    "timestamp": "2026-04-21T21:40:16.374595",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_240",
-    "timestamp": "2026-04-21T21:40:17.415281",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_240",
-    "timestamp": "2026-04-21T21:40:19.683051",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_240",
-    "timestamp": "2026-04-21T21:40:20.724468",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_240",
-    "timestamp": "2026-04-21T21:40:23.980840",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_240",
-    "timestamp": "2026-04-21T21:40:26.118976",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_240",
-    "timestamp": "2026-04-21T21:40:28.208295",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_240",
-    "timestamp": "2026-04-21T21:40:30.295228",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_240",
-    "timestamp": "2026-04-21T21:40:32.375939",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_240",
-    "timestamp": "2026-04-21T21:40:34.492991",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_240",
-    "timestamp": "2026-04-21T21:40:36.562620",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T21:54:14.853018",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T21:54:51.762998",
-    "status": "Healthy"
-  },
-  {
-    "camera": "192_168_126_236",
-    "timestamp": "2026-04-21T21:58:04.252383",
+    "timestamp": "2026-06-11T12:19:41.337110",
     "status": "Healthy"
   },
   {
     "camera": "192_168_126_237",
-    "timestamp": "2026-04-21T23:14:00.133781",
+    "timestamp": "2026-06-11T12:19:42.583377",
     "status": "Healthy"
   },
   {
     "camera": "192_168_126_237",
-    "timestamp": "2026-04-21T23:18:18.112079",
+    "timestamp": "2026-06-11T12:19:43.615620",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_238",
+    "timestamp": "2026-06-11T12:19:44.700512",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_238",
+    "timestamp": "2026-06-11T12:19:45.722466",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_239",
+    "timestamp": "2026-06-11T12:19:47.304542",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_239",
+    "timestamp": "2026-06-11T12:19:48.332675",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_235",
+    "timestamp": "2026-06-11T12:20:23.719167",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_239",
+    "timestamp": "2026-06-11T12:20:34.590258",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_239",
+    "timestamp": "2026-06-11T12:20:40.255876",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_231",
+    "timestamp": "2026-06-11T12:22:47.588042",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_231",
+    "timestamp": "2026-06-11T12:22:48.622234",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_233",
+    "timestamp": "2026-06-11T12:22:49.763194",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_233",
+    "timestamp": "2026-06-11T12:22:50.790165",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_240",
+    "timestamp": "2026-06-11T12:22:56.237599",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_240",
+    "timestamp": "2026-06-11T12:22:57.490720",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_239",
+    "timestamp": "2026-06-11T12:23:02.937231",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_239",
+    "timestamp": "2026-06-11T12:23:03.962205",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_235",
+    "timestamp": "2026-06-11T12:23:31.364577",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_235",
+    "timestamp": "2026-06-11T12:23:32.389883",
+    "status": "Healthy"
+  },
+  {
+    "camera": "183_83_45_226_cbe84f",
+    "timestamp": "2026-06-11T12:23:42.238497",
+    "status": "Healthy"
+  },
+  {
+    "camera": "183_83_45_226_cbe84f",
+    "timestamp": "2026-06-11T12:23:43.388375",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_234",
+    "timestamp": "2026-06-11T12:23:45.006461",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_234",
+    "timestamp": "2026-06-11T12:23:46.036962",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_236",
+    "timestamp": "2026-06-11T12:23:47.218923",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_236",
+    "timestamp": "2026-06-11T12:23:48.277652",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_232",
+    "timestamp": "2026-06-11T12:24:10.704058",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_232",
+    "timestamp": "2026-06-11T12:24:11.792925",
     "status": "Healthy"
   },
   {
     "camera": "192_168_126_237",
-    "timestamp": "2026-04-21T23:18:24.598318",
+    "timestamp": "2026-06-11T12:24:13.094496",
     "status": "Healthy"
   },
   {
     "camera": "192_168_126_237",
-    "timestamp": "2026-04-21T23:18:36.110932",
+    "timestamp": "2026-06-11T12:24:14.119920",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_238",
+    "timestamp": "2026-06-11T12:24:15.207716",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_238",
+    "timestamp": "2026-06-11T12:24:16.232845",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_239",
+    "timestamp": "2026-06-11T12:24:49.371432",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_239",
+    "timestamp": "2026-06-11T12:24:50.706703",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_231",
+    "timestamp": "2026-06-11T12:27:49.921639",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_231",
+    "timestamp": "2026-06-11T12:27:50.946206",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_233",
+    "timestamp": "2026-06-11T12:27:52.032914",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_233",
+    "timestamp": "2026-06-11T12:27:53.071608",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_240",
+    "timestamp": "2026-06-11T12:27:54.504182",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_240",
+    "timestamp": "2026-06-11T12:27:55.527503",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_239",
+    "timestamp": "2026-06-11T12:28:15.136801",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_239",
+    "timestamp": "2026-06-11T12:28:16.168773",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_235",
+    "timestamp": "2026-06-11T12:28:31.088773",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_235",
+    "timestamp": "2026-06-11T12:28:32.137821",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_234",
+    "timestamp": "2026-06-11T12:28:42.110661",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_234",
+    "timestamp": "2026-06-11T12:28:43.137653",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_236",
+    "timestamp": "2026-06-11T12:28:44.470887",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_236",
+    "timestamp": "2026-06-11T12:28:45.558664",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_232",
+    "timestamp": "2026-06-11T12:29:08.949578",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_232",
+    "timestamp": "2026-06-11T12:29:09.980357",
     "status": "Healthy"
   },
   {
     "camera": "192_168_126_237",
-    "timestamp": "2026-04-21T23:18:39.054482",
+    "timestamp": "2026-06-11T12:29:11.284614",
     "status": "Healthy"
   },
   {
     "camera": "192_168_126_237",
-    "timestamp": "2026-04-21T23:18:43.906562",
+    "timestamp": "2026-06-11T12:29:12.389317",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_238",
+    "timestamp": "2026-06-11T12:29:13.534543",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_238",
+    "timestamp": "2026-06-11T12:29:14.590625",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_235",
+    "timestamp": "2026-06-11T12:30:26.204999",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_235",
+    "timestamp": "2026-06-11T12:30:27.233190",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_235",
+    "timestamp": "2026-06-11T12:30:28.279669",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_235",
+    "timestamp": "2026-06-11T12:30:29.299052",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_239",
+    "timestamp": "2026-06-11T12:30:32.487862",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_239",
+    "timestamp": "2026-06-11T12:30:33.778975",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_240",
+    "timestamp": "2026-06-11T12:30:35.001998",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_240",
+    "timestamp": "2026-06-11T12:30:36.036148",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_240",
+    "timestamp": "2026-06-11T12:30:37.127329",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_240",
+    "timestamp": "2026-06-11T12:30:43.224470",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_235",
+    "timestamp": "2026-06-11T12:32:13.666115",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T12:32:23.660570",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T12:32:24.701516",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T12:32:26.003292",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T12:32:27.115020",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T12:32:28.321600",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T12:32:29.364767",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_235",
+    "timestamp": "2026-06-11T12:32:33.972036",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T12:32:35.575646",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T12:32:36.610339",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T12:32:37.661471",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T12:32:38.694529",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T12:32:39.749579",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T12:32:41.096456",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T12:32:42.142751",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T12:32:43.364103",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T12:32:48.684441",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T12:32:49.721818",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T12:32:50.771702",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T12:32:51.804635",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T12:32:52.854588",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T12:32:53.899500",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T12:32:55.267372",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T12:32:56.295900",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T12:32:57.324635",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T12:32:58.358969",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T12:32:59.412530",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T12:33:00.445788",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_231",
+    "timestamp": "2026-06-11T12:33:05.138530",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_231",
+    "timestamp": "2026-06-11T12:33:06.165203",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_233",
+    "timestamp": "2026-06-11T12:33:07.440540",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_233",
+    "timestamp": "2026-06-11T12:33:08.464504",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_239",
+    "timestamp": "2026-06-11T12:33:13.796128",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_239",
+    "timestamp": "2026-06-11T12:33:14.821999",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_236",
+    "timestamp": "2026-06-11T12:33:41.673328",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_236",
+    "timestamp": "2026-06-11T12:33:42.712248",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_232",
+    "timestamp": "2026-06-11T12:33:50.007908",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_232",
+    "timestamp": "2026-06-11T12:33:51.032620",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_234",
+    "timestamp": "2026-06-11T12:33:52.164790",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_234",
+    "timestamp": "2026-06-11T12:33:53.185342",
     "status": "Healthy"
   },
   {
     "camera": "192_168_126_237",
-    "timestamp": "2026-04-21T23:18:49.018986",
+    "timestamp": "2026-06-11T12:34:02.591852",
     "status": "Healthy"
   },
   {
     "camera": "192_168_126_237",
-    "timestamp": "2026-04-21T23:18:54.408904",
+    "timestamp": "2026-06-11T12:34:03.618754",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_238",
+    "timestamp": "2026-06-11T12:34:13.868640",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_238",
+    "timestamp": "2026-06-11T12:34:15.168362",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_235",
+    "timestamp": "2026-06-11T12:35:16.918798",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_235",
+    "timestamp": "2026-06-11T12:35:17.997408",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_239",
+    "timestamp": "2026-06-11T12:35:19.621016",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_239",
+    "timestamp": "2026-06-11T12:35:20.698003",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_240",
+    "timestamp": "2026-06-11T12:35:25.805381",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_240",
+    "timestamp": "2026-06-11T12:35:26.828387",
+    "status": "Healthy"
+  },
+  {
+    "camera": "183_83_45_226_cbe84f",
+    "timestamp": "2026-06-11T12:36:06.332948",
+    "status": "Healthy"
+  },
+  {
+    "camera": "183_83_45_226_cbe84f",
+    "timestamp": "2026-06-11T12:36:07.351979",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_231",
+    "timestamp": "2026-06-11T12:37:47.875197",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_231",
+    "timestamp": "2026-06-11T12:37:48.896906",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_233",
+    "timestamp": "2026-06-11T12:37:50.168663",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_233",
+    "timestamp": "2026-06-11T12:37:51.191499",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_239",
+    "timestamp": "2026-06-11T12:38:19.792345",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_239",
+    "timestamp": "2026-06-11T12:38:20.947328",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_236",
+    "timestamp": "2026-06-11T12:38:44.340616",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_236",
+    "timestamp": "2026-06-11T12:38:45.640790",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_232",
+    "timestamp": "2026-06-11T12:38:51.541815",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_232",
+    "timestamp": "2026-06-11T12:38:52.869985",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_234",
+    "timestamp": "2026-06-11T12:38:54.182256",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_234",
+    "timestamp": "2026-06-11T12:38:55.568948",
     "status": "Healthy"
   },
   {
     "camera": "192_168_126_237",
-    "timestamp": "2026-04-21T23:19:03.565974",
+    "timestamp": "2026-06-11T12:38:57.035505",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_237",
+    "timestamp": "2026-06-11T12:38:58.208639",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_238",
+    "timestamp": "2026-06-11T12:39:20.575234",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_238",
+    "timestamp": "2026-06-11T12:39:22.521457",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_235",
+    "timestamp": "2026-06-11T12:40:20.101145",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_235",
+    "timestamp": "2026-06-11T12:40:21.335109",
     "status": "Healthy"
   },
   {
     "camera": "192_168_126_239",
-    "timestamp": "2026-04-21T23:27:48.005193",
+    "timestamp": "2026-06-11T12:40:22.633175",
     "status": "Healthy"
   },
   {
     "camera": "192_168_126_239",
-    "timestamp": "2026-04-21T23:27:50.155723",
+    "timestamp": "2026-06-11T12:40:23.672273",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_240",
+    "timestamp": "2026-06-11T12:40:33.250965",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_240",
+    "timestamp": "2026-06-11T12:40:34.389685",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_231",
+    "timestamp": "2026-06-11T12:42:48.336435",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_231",
+    "timestamp": "2026-06-11T12:42:49.846970",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_233",
+    "timestamp": "2026-06-11T12:42:56.217937",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_233",
+    "timestamp": "2026-06-11T12:43:00.479817",
     "status": "Healthy"
   },
   {
     "camera": "192_168_126_239",
-    "timestamp": "2026-04-21T23:27:52.357621",
+    "timestamp": "2026-06-11T12:43:10.835694",
     "status": "Healthy"
   },
   {
     "camera": "192_168_126_239",
-    "timestamp": "2026-04-21T23:27:54.634284",
+    "timestamp": "2026-06-11T12:43:12.242833",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_232",
+    "timestamp": "2026-06-11T12:43:50.873021",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_232",
+    "timestamp": "2026-06-11T12:43:52.135978",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_234",
+    "timestamp": "2026-06-11T12:43:53.279496",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_234",
+    "timestamp": "2026-06-11T12:43:54.299035",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_236",
+    "timestamp": "2026-06-11T12:43:55.451891",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_236",
+    "timestamp": "2026-06-11T12:43:56.477956",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_237",
+    "timestamp": "2026-06-11T12:44:05.760604",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_237",
+    "timestamp": "2026-06-11T12:44:06.795009",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_238",
+    "timestamp": "2026-06-11T12:44:16.695584",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_238",
+    "timestamp": "2026-06-11T12:44:17.741544",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_235",
+    "timestamp": "2026-06-11T12:45:33.541253",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_235",
+    "timestamp": "2026-06-11T12:45:34.606496",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_238",
+    "timestamp": "2026-06-11T12:45:35.774736",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_238",
+    "timestamp": "2026-06-11T12:45:36.797987",
     "status": "Healthy"
   },
   {
     "camera": "192_168_126_239",
-    "timestamp": "2026-04-21T23:27:56.766741",
+    "timestamp": "2026-06-11T12:45:38.139756",
     "status": "Healthy"
   },
   {
     "camera": "192_168_126_239",
-    "timestamp": "2026-04-21T23:27:58.907623",
+    "timestamp": "2026-06-11T12:45:39.454084",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_240",
+    "timestamp": "2026-06-11T12:45:40.853516",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_240",
+    "timestamp": "2026-06-11T12:45:41.893922",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_231",
+    "timestamp": "2026-06-11T12:47:47.619897",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_231",
+    "timestamp": "2026-06-11T12:47:48.961615",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_233",
+    "timestamp": "2026-06-11T12:47:54.597869",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_233",
+    "timestamp": "2026-06-11T12:47:55.624355",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_238",
+    "timestamp": "2026-06-11T12:47:56.799423",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_238",
+    "timestamp": "2026-06-11T12:47:57.895130",
     "status": "Healthy"
   },
   {
     "camera": "192_168_126_239",
-    "timestamp": "2026-04-21T23:29:41.925105",
+    "timestamp": "2026-06-11T12:48:13.895267",
     "status": "Healthy"
   },
   {
     "camera": "192_168_126_239",
-    "timestamp": "2026-04-21T23:29:46.543121",
+    "timestamp": "2026-06-11T12:48:14.983529",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_232",
+    "timestamp": "2026-06-11T12:48:59.474085",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_232",
+    "timestamp": "2026-06-11T12:49:00.828757",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_234",
+    "timestamp": "2026-06-11T12:49:01.966222",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_234",
+    "timestamp": "2026-06-11T12:49:02.999726",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_236",
+    "timestamp": "2026-06-11T12:49:04.247736",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_236",
+    "timestamp": "2026-06-11T12:49:05.281838",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_237",
+    "timestamp": "2026-06-11T12:49:06.422760",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_237",
+    "timestamp": "2026-06-11T12:49:07.454489",
     "status": "Healthy"
   },
   {
     "camera": "192_168_126_239",
-    "timestamp": "2026-04-21T23:29:56.873296",
+    "timestamp": "2026-06-11T12:50:21.232256",
     "status": "Healthy"
   },
   {
     "camera": "192_168_126_239",
-    "timestamp": "2026-04-21T23:30:06.694443",
+    "timestamp": "2026-06-11T12:50:22.305593",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_235",
+    "timestamp": "2026-06-11T12:50:27.813909",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_235",
+    "timestamp": "2026-06-11T12:50:29.189791",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_240",
+    "timestamp": "2026-06-11T12:50:30.461898",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_240",
+    "timestamp": "2026-06-11T12:50:31.503459",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_231",
+    "timestamp": "2026-06-11T12:52:49.132368",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_231",
+    "timestamp": "2026-06-11T12:52:50.165352",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_233",
+    "timestamp": "2026-06-11T12:52:59.717471",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_233",
+    "timestamp": "2026-06-11T12:53:00.743440",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_238",
+    "timestamp": "2026-06-11T12:53:01.899802",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_238",
+    "timestamp": "2026-06-11T12:53:02.925139",
     "status": "Healthy"
   },
   {
     "camera": "192_168_126_239",
-    "timestamp": "2026-04-21T23:30:09.654063",
+    "timestamp": "2026-06-11T12:53:12.310186",
     "status": "Healthy"
   },
   {
     "camera": "192_168_126_239",
-    "timestamp": "2026-04-21T23:30:17.320433",
+    "timestamp": "2026-06-11T12:53:13.342244",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_232",
+    "timestamp": "2026-06-11T12:53:50.911848",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_232",
+    "timestamp": "2026-06-11T12:53:51.983793",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_234",
+    "timestamp": "2026-06-11T12:53:53.177291",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_234",
+    "timestamp": "2026-06-11T12:53:54.202401",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_236",
+    "timestamp": "2026-06-11T12:53:55.469535",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_236",
+    "timestamp": "2026-06-11T12:53:56.496106",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_237",
+    "timestamp": "2026-06-11T12:54:06.592698",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_237",
+    "timestamp": "2026-06-11T12:54:07.631916",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_235",
+    "timestamp": "2026-06-11T12:55:25.170840",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_235",
+    "timestamp": "2026-06-11T12:55:26.233708",
     "status": "Healthy"
   },
   {
     "camera": "192_168_126_239",
-    "timestamp": "2026-04-21T23:30:19.962846",
+    "timestamp": "2026-06-11T12:55:27.623149",
     "status": "Healthy"
   },
   {
     "camera": "192_168_126_239",
-    "timestamp": "2026-04-21T23:30:22.647900",
+    "timestamp": "2026-06-11T12:55:28.655940",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_240",
+    "timestamp": "2026-06-11T12:55:29.972835",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_240",
+    "timestamp": "2026-06-11T12:55:31.012767",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_231",
+    "timestamp": "2026-06-11T12:57:54.959220",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_231",
+    "timestamp": "2026-06-11T12:57:56.251207",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_233",
+    "timestamp": "2026-06-11T12:57:57.440726",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_233",
+    "timestamp": "2026-06-11T12:57:58.539117",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_238",
+    "timestamp": "2026-06-11T12:58:04.131487",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_238",
+    "timestamp": "2026-06-11T12:58:05.262301",
     "status": "Healthy"
   },
   {
     "camera": "192_168_126_239",
-    "timestamp": "2026-04-21T23:30:25.030611",
+    "timestamp": "2026-06-11T12:58:20.400796",
     "status": "Healthy"
   },
   {
     "camera": "192_168_126_239",
-    "timestamp": "2026-04-21T23:30:27.172569",
+    "timestamp": "2026-06-11T12:58:21.828808",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_232",
+    "timestamp": "2026-06-11T12:58:54.017701",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_232",
+    "timestamp": "2026-06-11T12:58:55.051840",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_234",
+    "timestamp": "2026-06-11T12:58:56.188442",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_234",
+    "timestamp": "2026-06-11T12:58:57.568943",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_236",
+    "timestamp": "2026-06-11T12:58:58.804383",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_236",
+    "timestamp": "2026-06-11T12:58:59.828783",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_237",
+    "timestamp": "2026-06-11T12:59:10.706835",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_237",
+    "timestamp": "2026-06-11T12:59:11.957972",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_235",
+    "timestamp": "2026-06-11T13:00:34.852996",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_235",
+    "timestamp": "2026-06-11T13:00:36.055820",
     "status": "Healthy"
   },
   {
     "camera": "192_168_126_239",
-    "timestamp": "2026-04-21T23:30:29.478735",
+    "timestamp": "2026-06-11T13:00:37.436718",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_239",
+    "timestamp": "2026-06-11T13:00:38.532896",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_240",
+    "timestamp": "2026-06-11T13:00:40.080320",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_240",
+    "timestamp": "2026-06-11T13:00:41.106595",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_231",
+    "timestamp": "2026-06-11T13:02:51.109001",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_231",
+    "timestamp": "2026-06-11T13:02:52.139518",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_233",
+    "timestamp": "2026-06-11T13:02:57.926440",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_233",
+    "timestamp": "2026-06-11T13:02:59.104105",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_238",
+    "timestamp": "2026-06-11T13:03:00.292627",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_238",
+    "timestamp": "2026-06-11T13:03:01.321739",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_239",
+    "timestamp": "2026-06-11T13:03:15.716970",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_239",
+    "timestamp": "2026-06-11T13:03:16.759206",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_232",
+    "timestamp": "2026-06-11T13:03:54.078310",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_232",
+    "timestamp": "2026-06-11T13:03:55.102342",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_234",
+    "timestamp": "2026-06-11T13:03:56.275085",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_234",
+    "timestamp": "2026-06-11T13:03:57.341150",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_236",
+    "timestamp": "2026-06-11T13:03:58.652934",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_236",
+    "timestamp": "2026-06-11T13:03:59.677747",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_237",
+    "timestamp": "2026-06-11T13:04:14.689749",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_237",
+    "timestamp": "2026-06-11T13:04:15.715703",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_239",
+    "timestamp": "2026-06-11T13:05:18.829423",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_239",
+    "timestamp": "2026-06-11T13:05:19.853318",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_235",
+    "timestamp": "2026-06-11T13:05:38.496566",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_235",
+    "timestamp": "2026-06-11T13:05:39.685737",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_240",
+    "timestamp": "2026-06-11T13:05:41.088905",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_240",
+    "timestamp": "2026-06-11T13:05:42.181925",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_231",
+    "timestamp": "2026-06-11T13:07:51.286069",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_231",
+    "timestamp": "2026-06-11T13:07:52.311103",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_233",
+    "timestamp": "2026-06-11T13:08:01.317321",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_233",
+    "timestamp": "2026-06-11T13:08:02.348553",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_238",
+    "timestamp": "2026-06-11T13:08:03.499432",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_238",
+    "timestamp": "2026-06-11T13:08:04.523894",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_239",
+    "timestamp": "2026-06-11T13:08:22.380897",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_239",
+    "timestamp": "2026-06-11T13:08:24.251087",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_236",
+    "timestamp": "2026-06-11T13:08:48.935694",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_236",
+    "timestamp": "2026-06-11T13:08:49.958808",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_232",
+    "timestamp": "2026-06-11T13:09:08.460960",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_232",
+    "timestamp": "2026-06-11T13:09:09.487740",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_234",
+    "timestamp": "2026-06-11T13:09:10.930288",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_234",
+    "timestamp": "2026-06-11T13:09:11.960076",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_237",
+    "timestamp": "2026-06-11T13:09:13.072441",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_237",
+    "timestamp": "2026-06-11T13:09:30.225635",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_235",
+    "timestamp": "2026-06-11T13:10:26.882059",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_235",
+    "timestamp": "2026-06-11T13:10:27.936594",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_239",
+    "timestamp": "2026-06-11T13:10:29.166931",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_239",
+    "timestamp": "2026-06-11T13:10:30.187324",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_240",
+    "timestamp": "2026-06-11T13:10:42.261558",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_240",
+    "timestamp": "2026-06-11T13:10:43.350025",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_238",
+    "timestamp": "2026-06-11T13:11:24.164465",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_235",
+    "timestamp": "2026-06-11T13:11:39.761673",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T13:11:45.994915",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T13:11:47.038083",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T13:11:48.246734",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T13:11:49.281593",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T13:11:50.370206",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T13:11:51.645164",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T13:11:57.677360",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T13:11:58.740461",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T13:11:59.797788",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T13:12:00.841216",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T13:12:02.050013",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T13:12:03.092062",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T13:12:04.147147",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T13:12:05.192884",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_231",
+    "timestamp": "2026-06-11T13:12:56.293570",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_231",
+    "timestamp": "2026-06-11T13:12:57.350016",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_233",
+    "timestamp": "2026-06-11T13:12:58.460249",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_233",
+    "timestamp": "2026-06-11T13:13:00.473173",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_238",
+    "timestamp": "2026-06-11T13:13:22.588083",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_238",
+    "timestamp": "2026-06-11T13:13:28.992901",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_232",
+    "timestamp": "2026-06-11T13:14:06.208227",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_232",
+    "timestamp": "2026-06-11T13:14:07.268725",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_234",
+    "timestamp": "2026-06-11T13:14:08.468352",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_234",
+    "timestamp": "2026-06-11T13:14:09.491553",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_236",
+    "timestamp": "2026-06-11T13:14:10.710434",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_236",
+    "timestamp": "2026-06-11T13:14:11.870391",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_237",
+    "timestamp": "2026-06-11T13:14:13.022400",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_237",
+    "timestamp": "2026-06-11T13:14:14.362199",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_239",
+    "timestamp": "2026-06-11T13:14:15.898427",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_239",
+    "timestamp": "2026-06-11T13:14:16.937861",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_236",
+    "timestamp": "2026-06-11T13:14:18.306951",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_236",
+    "timestamp": "2026-06-11T13:14:23.775050",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T13:14:34.204776",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T13:14:35.246436",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T13:14:36.298046",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T13:14:37.339321",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T13:14:38.573260",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T13:14:39.613343",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T13:14:40.678001",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T13:14:41.740157",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T13:14:47.582282",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T13:14:48.626942",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T13:14:49.671682",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T13:14:50.712999",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T13:14:51.782370",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T13:14:54.143324",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T13:14:55.310429",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T13:14:56.407454",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T13:14:57.455757",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T13:14:58.497022",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T13:14:59.593495",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T13:15:00.831751",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_235",
+    "timestamp": "2026-06-11T13:15:39.501194",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_235",
+    "timestamp": "2026-06-11T13:15:40.617672",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_239",
+    "timestamp": "2026-06-11T13:15:42.011417",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_239",
+    "timestamp": "2026-06-11T13:15:43.041220",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_240",
+    "timestamp": "2026-06-11T13:15:44.233835",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_240",
+    "timestamp": "2026-06-11T13:15:45.258241",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_231",
+    "timestamp": "2026-06-11T13:17:53.103371",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_231",
+    "timestamp": "2026-06-11T13:17:54.418711",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_233",
+    "timestamp": "2026-06-11T13:17:55.548596",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_233",
+    "timestamp": "2026-06-11T13:17:56.573868",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_238",
+    "timestamp": "2026-06-11T13:18:06.051108",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_238",
+    "timestamp": "2026-06-11T13:18:07.076089",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_239",
+    "timestamp": "2026-06-11T13:18:22.395739",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_239",
+    "timestamp": "2026-06-11T13:18:23.427784",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_232",
+    "timestamp": "2026-06-11T13:19:00.166919",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_232",
+    "timestamp": "2026-06-11T13:19:01.476939",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_234",
+    "timestamp": "2026-06-11T13:19:02.613785",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_234",
+    "timestamp": "2026-06-11T13:19:03.641720",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_236",
+    "timestamp": "2026-06-11T13:19:04.822497",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_236",
+    "timestamp": "2026-06-11T13:19:05.855301",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_237",
+    "timestamp": "2026-06-11T13:19:15.701371",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_237",
+    "timestamp": "2026-06-11T13:19:16.740616",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_239",
+    "timestamp": "2026-06-11T13:20:20.304102",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_239",
+    "timestamp": "2026-06-11T13:20:21.341520",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_235",
+    "timestamp": "2026-06-11T13:20:30.903261",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_235",
+    "timestamp": "2026-06-11T13:20:32.280476",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_240",
+    "timestamp": "2026-06-11T13:20:38.600679",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_240",
+    "timestamp": "2026-06-11T13:20:39.635821",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_235",
+    "timestamp": "2026-06-11T13:21:54.543660",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_235",
+    "timestamp": "2026-06-11T13:21:57.550369",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_240",
+    "timestamp": "2026-06-11T13:21:58.819447",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_231",
+    "timestamp": "2026-06-11T13:22:16.742586",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_231",
+    "timestamp": "2026-06-11T13:22:30.436823",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_233",
+    "timestamp": "2026-06-11T13:22:31.651985",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_233",
+    "timestamp": "2026-06-11T13:22:32.921997",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_240",
+    "timestamp": "2026-06-11T13:22:34.152328",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_232",
+    "timestamp": "2026-06-11T13:22:48.205769",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_232",
+    "timestamp": "2026-06-11T13:22:49.233431",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_234",
+    "timestamp": "2026-06-11T13:22:50.344607",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_234",
+    "timestamp": "2026-06-11T13:22:51.459752",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_239",
+    "timestamp": "2026-06-11T13:22:59.304264",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_239",
+    "timestamp": "2026-06-11T13:23:00.367947",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_238",
+    "timestamp": "2026-06-11T13:23:08.302305",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_238",
+    "timestamp": "2026-06-11T13:23:09.347491",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_239",
+    "timestamp": "2026-06-11T13:23:22.995717",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_239",
+    "timestamp": "2026-06-11T13:23:24.033933",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_236",
+    "timestamp": "2026-06-11T13:24:02.685619",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_236",
+    "timestamp": "2026-06-11T13:24:03.713238",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_237",
+    "timestamp": "2026-06-11T13:24:07.575428",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_237",
+    "timestamp": "2026-06-11T13:24:08.695291",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_235",
+    "timestamp": "2026-06-11T13:24:10.386105",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T13:24:17.546800",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T13:24:18.588974",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T13:24:19.638985",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T13:24:20.684589",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T13:24:21.872513",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T13:24:22.915277",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T13:24:28.665479",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T13:24:29.739220",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T13:24:30.881127",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T13:24:32.040695",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T13:24:33.103211",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T13:24:34.435727",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T13:24:35.511954",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T13:24:36.556252",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_235",
+    "timestamp": "2026-06-11T13:25:34.251196",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T13:25:43.572793",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T13:25:44.632567",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T13:25:45.704962",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T13:25:46.754849",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T13:25:52.151952",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T13:25:53.543629",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T13:25:54.810180",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T13:25:55.975373",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T13:25:57.051129",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T13:25:58.095784",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T13:25:59.149284",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T13:26:00.237071",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_239",
+    "timestamp": "2026-06-11T13:26:30.075978",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T13:26:36.913521",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T13:26:38.315359",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T13:26:39.525411",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T13:26:40.649638",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T13:26:41.807318",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T13:26:44.777348",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T13:26:45.868497",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T13:26:47.966256",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_239",
+    "timestamp": "2026-06-11T13:26:53.273922",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T13:26:56.034531",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T13:26:57.075669",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T13:26:58.248372",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T13:26:59.363214",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T13:27:00.464136",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T13:27:01.511473",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T13:27:02.570103",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T13:27:03.616676",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_235",
+    "timestamp": "2026-06-11T13:27:07.988001",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_235",
+    "timestamp": "2026-06-11T13:27:09.025398",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_240",
+    "timestamp": "2026-06-11T13:27:10.242712",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_240",
+    "timestamp": "2026-06-11T13:27:11.274978",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_236",
+    "timestamp": "2026-06-11T13:27:12.525672",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T13:27:14.644662",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T13:27:15.691751",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T13:27:17.588841",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T13:27:18.879180",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T13:27:20.084756",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T13:27:21.773033",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T13:27:23.214727",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T13:27:24.310270",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T13:27:25.841204",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T13:27:26.889789",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T13:27:28.010017",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T13:27:29.232076",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T13:27:30.380184",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T13:27:31.487222",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T13:27:32.580700",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T13:27:33.682513",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T13:27:34.723749",
+    "status": "Healthy"
+  },
+  {
+    "camera": "2026-06-11",
+    "timestamp": "2026-06-11T13:27:36.106306",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_231",
+    "timestamp": "2026-06-11T13:27:40.617769",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_231",
+    "timestamp": "2026-06-11T13:27:41.779066",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_232",
+    "timestamp": "2026-06-11T13:27:43.303271",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_232",
+    "timestamp": "2026-06-11T13:27:44.394884",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_233",
+    "timestamp": "2026-06-11T13:27:45.762126",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_233",
+    "timestamp": "2026-06-11T13:27:46.870478",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_234",
+    "timestamp": "2026-06-11T13:29:02.653530",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_234",
+    "timestamp": "2026-06-11T13:29:03.739834",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_236",
+    "timestamp": "2026-06-11T13:29:10.865026",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_236",
+    "timestamp": "2026-06-11T13:29:11.918191",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_237",
+    "timestamp": "2026-06-11T13:29:13.345796",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_237",
+    "timestamp": "2026-06-11T13:29:15.009588",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_238",
+    "timestamp": "2026-06-11T13:29:16.682682",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_238",
+    "timestamp": "2026-06-11T13:29:17.843322",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_239",
+    "timestamp": "2026-06-11T13:29:19.342524",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_239",
+    "timestamp": "2026-06-11T13:29:20.509828",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_239",
+    "timestamp": "2026-06-11T13:29:21.797822",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_239",
+    "timestamp": "2026-06-11T13:29:22.927047",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_235",
+    "timestamp": "2026-06-11T13:31:44.868149",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_235",
+    "timestamp": "2026-06-11T13:31:45.901381",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_240",
+    "timestamp": "2026-06-11T13:31:56.599130",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_240",
+    "timestamp": "2026-06-11T13:31:57.625417",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_231",
+    "timestamp": "2026-06-11T13:32:04.619778",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_231",
+    "timestamp": "2026-06-11T13:32:05.646403",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_233",
+    "timestamp": "2026-06-11T13:32:15.849476",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_233",
+    "timestamp": "2026-06-11T13:32:16.879224",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_232",
+    "timestamp": "2026-06-11T13:32:54.330175",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_232",
+    "timestamp": "2026-06-11T13:32:55.488515",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_234",
+    "timestamp": "2026-06-11T13:32:56.740290",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_234",
+    "timestamp": "2026-06-11T13:32:57.794134",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_239",
+    "timestamp": "2026-06-11T13:32:59.183113",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_235",
+    "timestamp": "2026-06-13T15:16:53.187138",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_235",
+    "timestamp": "2026-06-13T15:22:06.957622",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_235",
+    "timestamp": "2026-06-13T15:34:18.224130",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_235",
+    "timestamp": "2026-06-13T15:40:55.165944",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_235",
+    "timestamp": "2026-06-13T15:40:56.196574",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_235",
+    "timestamp": "2026-06-13T15:40:57.821481",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_235",
+    "timestamp": "2026-06-13T15:40:58.846964",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_236",
+    "timestamp": "2026-06-13T15:41:02.129412",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_236",
+    "timestamp": "2026-06-13T15:41:03.243150",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_236",
+    "timestamp": "2026-06-13T15:41:04.608907",
+    "status": "Healthy"
+  },
+  {
+    "camera": "192_168_126_236",
+    "timestamp": "2026-06-13T15:41:05.637235",
     "status": "Healthy"
   }
 ]

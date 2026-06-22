@@ -10,11 +10,11 @@ from app.managers.stream_manager import (
     normalize_stream_name,
     save_camera_to_db,
     save_devices,
-    stream_exists_in_ome,
+    stream_exists_in_mediamtx,
     devices
 )
-from app.services.camera.ome_service import register_stream
-from app.services.storage import rtsp_recorder as recorder
+from app.services.camera.mediamtx_service import register_stream
+from recorder import rtsp_recorder as recorder
 import uuid
 
 import os
@@ -22,8 +22,6 @@ import os
 STARTUP_ID = str(uuid.uuid4())
 
 MONGO_URI = os.environ.get("MONGO_URI", "mongodb://mongo:27017/")
-OME_HOST_IP = os.environ.get("OME_HOST_IP", "192.168.126.200")
-OME_WS_PORT = os.environ.get("OME_WS_PORT", "3333")
 
 CACHED_DISCOVERED_DEVICES = []
 _discovery_in_progress = False
@@ -78,17 +76,17 @@ async def run_discovery_pipeline():
                 continue
             stream_name = normalize_stream_name(ip)
 
-            if stream_exists_in_ome(stream_name):
-                print(f"[BACKGROUND-DISCOVERY] ✅ {ip} already in OME")
+            if stream_exists_in_mediamtx(stream_name):
+                print(f"[BACKGROUND-DISCOVERY] ✅ {ip} already in MediaMTX")
                 status_code = 200
             else:
-                ome_result  = register_stream(stream_name, rtsp_url)
-                status_code = ome_result.get("statusCode", 0) \
-                              if isinstance(ome_result, dict) else 0
-                print(f"[BACKGROUND-DISCOVERY] OME register {ip}: HTTP {status_code}")
+                register_result = register_stream(stream_name, rtsp_url)
+                status = register_result.get("status") if isinstance(register_result, dict) else "error"
+                print(f"[BACKGROUND-DISCOVERY] MediaMTX register {ip}: {status}")
+                status_code = 200 if status == "ok" else 0
  
             if status_code in (200, 201, 409):
-                device["ws_url"]        = f"ws://{OME_HOST_IP}:{OME_WS_PORT}/app/{stream_name}"
+                device["ws_url"]        = f"http://host.docker.internal:8889/{stream_name}"
                 device["stream_key"]    = stream_name
                 device["stream_status"] = "streaming"
  

@@ -1,7 +1,7 @@
 import pymongo
 
 client = pymongo.MongoClient('mongodb://mongo:27017')
-db = client['mirador-vms']
+db = client['vms_db']  # Replace with your database name
 pipeline = [
     {'$group': {'_id': '$camera_id', 'total_bytes': {'$sum': '$file_size'}}},
     {'$sort': {'total_bytes': -1}}

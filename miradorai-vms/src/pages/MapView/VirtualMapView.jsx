@@ -1,8 +1,8 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import "./VirtualMapView.css";
-import WebRTCPlayer from "../../components/shared/WebRTCPlayer";
+import WebRTCPlayer_MediaMTX from "../../components/shared/WebRTCPlayer_MediaMTX";
 
-const API = import.meta.env.VITE_API_URL || "http://192.168.126.8:80";
+const API = import.meta.env.VITE_API_URL || "";
 
 function getAuthHeaders() {
   const token = localStorage.getItem("miradorai_token") || localStorage.getItem("token") || "";
@@ -214,12 +214,10 @@ function CamThumbnail({ cam, marker, index, sx, sy, isExpanded, isOnline, isReco
       {/* Live feed or offline placeholder */}
       {isOnline ? (
         <div className="vt-thumb__feed">
-          <WebRTCPlayer
-            key={cam.id}
-            serverUrl={cam.ws_url}
+          <WebRTCPlayer_MediaMTX
+            key={cam.stream_key || cam.id}
+            streamKey={cam.stream_key || cam.id}
             cameraId={cam.id}
-            muted
-            autoPlay
             onConnectChange={setThumbLive}
           />
         </div>
@@ -311,11 +309,10 @@ function ExpandedFeed({ cam, marker, onClose }) {
           {tab === "stream" && (
             <>
               {cam.status === "online" ? (
-                <WebRTCPlayer
-                  key={cam.id + "_expanded"}
-                  serverUrl={cam.ws_url}
+                <WebRTCPlayer_MediaMTX
+                  key={(cam.stream_key || cam.id) + "_expanded"}
+                  streamKey={cam.stream_key || cam.id}
                   cameraId={cam.id}
-                  autoPlay
                 />
               ) : (
                 <div className="vt-expanded-offline">

@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import Button from "../../components/shared/Button";
 import SearchBar from "../../components/shared/SearchBar";
-import WebRTCPlayer from "../../components/shared/WebRTCPlayer";
+import WebRTCPlayer from "../../components/shared/WebRTCPlayer_MediaMTX";
 import "./PTZPresetsPage.css";
 
 function loadDevices() {
@@ -11,7 +11,7 @@ function loadDevices() {
   } catch { return []; }
 }
 
-const PTZ_API = "http://localhost:80";
+const PTZ_API = import.meta.env.VITE_API_URL || "";
 
 async function sendPTZMove(device, pan, tilt, zoom) {
   if (!device?.ip) return;

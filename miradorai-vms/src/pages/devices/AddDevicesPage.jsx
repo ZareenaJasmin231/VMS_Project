@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import CameraThumb from "../../components/shared/CameraThumb";
 import SearchBar from "../../components/shared/SearchBar";
 import StatusBadge from "../../components/shared/StatusBadge";
-import WebRTCPlayer from "../../components/shared/WebRTCPlayer";
+import WebRTCPlayer_MediaMTX from "../../components/shared/WebRTCPlayer_MediaMTX";
 import ManualSearchModal from "./ManualSearchModal";
 import StreamURLModal from "./StreamURLModal";
 import DiscoveryModal from "../../components/shared/DiscoveryModal";
@@ -1172,7 +1172,7 @@ export default function AddDevicesPage({ onNavigate }) {
             <div className="modal-body" style={{ padding: "20px", background: "#090b0e" }}>
               {previewDevice.ws_url ? (
                 <div style={{ position: "relative", width: "100%", aspectRatio: "16/9", borderRadius: "8px", overflow: "hidden", border: "1px solid var(--border-light)" }}>
-                  <WebRTCPlayer serverUrl={previewDevice.ws_url} cameraId={previewDevice.id} />
+                  <WebRTCPlayer_MediaMTX streamKey={previewDevice.stream_key || previewDevice.ome_stream || (previewDevice.ip ? previewDevice.ip.replace(/\./g, "_") : "")} cameraId={previewDevice.id} />
                 </div>
               ) : (
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "12px", minHeight: "260px", color: "var(--text-secondary)" }}>

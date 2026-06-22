@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import Button from "../../components/shared/Button";
 import "./UserManagementPage.css";
 
-const API = import.meta.env.VITE_API_URL || "http://localhost:80";
+const API = import.meta.env.VITE_API_URL || "";
 
 function getAuthHeaders() {
   const token = localStorage.getItem("miradorai_token");

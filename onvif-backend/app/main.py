@@ -11,7 +11,7 @@ if sys.platform == "win32":
     except Exception:
         pass
 
-from utils.terminal_logger import log_terminal
+from app.utils.terminal_logger import log_terminal
 
 # Import lifecycle
 from app.core.lifecycle import lifespan
@@ -20,7 +20,6 @@ from app.core.lifecycle import lifespan
 from app.api.routers.auth_router import router as auth_router
 from app.api.routers.playback_router import router as playback_router
 from app.api.routers.camera_router import router as camera_router, features_router
-from app.api.routers.whip_router import router as whip_router
 from app.api.routers.dashboard_router import router as dashboard_router
 from app.api.routers.system_router import router as system_router
 from app.api.routers.storage_router_ext import router as storage_router_ext
@@ -29,14 +28,14 @@ from app.api.routers.dashboard_diagnostics_router import router as dashboard_dia
 # Existing routers from other files that were already separate
 from app.api.routers.recording_api import recording_router, storage_router
 from app.api.routers.masks_router import router as masks_router
-from app.services.storage.backup_service import backup_router
+from recorder.backup_service import backup_router
 from app.api.routers.logs_router import router as logs_router
 from app.api.routers.brand_control import brand_router
 from monitoring.router import router as infrastructure_router
 from app.api.routers.camera_analytics_router import camera_analytics_router
 from app.api.routers.maps_router import router as maps_router
 from app.api.routers.designer_router import router as designer_router
-from app.api.routers.forensic_api import forensic_router
+# from app.api.routers.forensic_api import forensic_router
 from app.api.routers.viewing_stations_router import router as viewing_stations_router
 
 class LoggerWrapper:
@@ -70,7 +69,6 @@ app.include_router(auth_router)
 app.include_router(playback_router)
 app.include_router(camera_router)
 app.include_router(features_router)
-app.include_router(whip_router)
 app.include_router(dashboard_router)
 app.include_router(system_router)
 app.include_router(storage_router_ext)
@@ -86,5 +84,5 @@ app.include_router(camera_analytics_router)
 app.include_router(maps_router)
 app.include_router(designer_router)
 app.include_router(infrastructure_router)
-app.include_router(forensic_router)
+# app.include_router(forensic_router)
 app.include_router(viewing_stations_router)

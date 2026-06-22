@@ -14,7 +14,7 @@ MONGO_URI = os.environ.get("MONGO_URI", "mongodb://mongo:27017/")
 
 # Shared MongoDB client — reused across all motion detector threads
 _shared_mongo = mongo_client
-_shared_db = _shared_mongo["mirador-vms"]
+_shared_db = _shared_mongo["vms_db"]
 
 class CameraMotionDetector(threading.Thread):
     def __init__(self, stream_name: str, rtsp_url: str, camera_data: dict):

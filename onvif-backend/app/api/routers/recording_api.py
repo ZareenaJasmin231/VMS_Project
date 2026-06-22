@@ -39,8 +39,9 @@ from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.primitives import padding
 from cryptography.hazmat.backends import default_backend
 
-from app.services.storage import rtsp_recorder as recorder
-from app.services.storage import signature_service
+from recorder import rtsp_recorder as recorder
+from recorder import signature_service
+from app.managers.stream_manager import stop_worker_pool
 
 # ------------------------------------------------------------------
 # Config
@@ -73,7 +74,8 @@ _CONTAINER_RECORDINGS_ROOT = os.environ.get("RECORDINGS_DIR", "/recordings")
 # MongoDB
 # ------------------------------------------------------------------
 _client     = mongo_client
-_db = _client["mirador-vms"] if _client else None
+MONGO_DB_NAME = os.environ.get("MONGO_DB_NAME", "vms_db")
+_db = _client[MONGO_DB_NAME] if _client else None
 _collection = _db["recordings"] if _db is not None else None
 storage_collection = _db["storage_settings"] if _db is not None else None
 locations_collection = _db["storage_locations"] if _db is not None else None
@@ -85,48 +87,10 @@ schedules_collection = _db["schedules"] if _db is not None else None
 
 def _sanitize_path(raw: str) -> str:
     """
-    Convert any path the user types into a valid Linux container path.
-
-    Handles all these cases:
-      D:\\REC              → /recordings
-      D:/REC               → /recordings
-      D:\\REC\\subfolder   → /recordings/subfolder
-      D:/REC/subfolder     → /recordings/subfolder
-      /recordings          → /recordings          (already correct)
-      /recordings/subfolder→ /recordings/subfolder (already correct)
-      D:\\recordings       → /recordings
-      D:/recordings        → /recordings
-
-    The rule: any Windows drive-letter path whose first folder is REC or
-    recordings gets mapped to _CONTAINER_RECORDINGS_ROOT.  Everything after
-    that first folder becomes a subfolder of the container root.
+    Normalize backslashes to forward slashes.
+    Python natively handles forward slashes on Windows.
     """
-    path = raw.strip()
-
-    # Detect Windows path:  X:\...  or  X:/...
-    win_match = re.match(r'^[A-Za-z]:[/\\](.*)$', path)
-    if win_match:
-        # Everything after the drive letter + separator
-        rest = win_match.group(1).replace("\\", "/")
-
-        # Strip the first component if it's the known mount folder
-        # (REC, recordings, recording — whatever the host folder is called)
-        parts = rest.split("/")
-        first = parts[0].lower() if parts else ""
-        if first in ("rec", "recordings", "recording"):
-            subfolder = "/".join(parts[1:])
-        else:
-            # Unknown Windows path — use the whole thing as a subfolder
-            subfolder = rest
-
-        path = _CONTAINER_RECORDINGS_ROOT.rstrip("/")
-        if subfolder:
-            path = f"{path}/{subfolder}"
-        return path
-
-    # Already a Linux path — just normalise backslashes (shouldn't happen,
-    # but be safe) and return as-is.
-    return path.replace("\\", "/")
+    return raw.strip().replace("\\", "/")
 
 
 # ------------------------------------------------------------------
@@ -311,13 +275,8 @@ def _decrypt(file_path: str) -> io.BytesIO:
     """Decrypt a .enc file on disk or MinIO and return BytesIO of the MP4 payload."""
     is_minio = file_path.startswith("minio:")
     if is_minio:
-        # Check local fallback
-        object_key = file_path.replace("minio:", "")
-        local_path = get_local_fallback_path(recorder.get_recordings_dir(), object_key)
-        if local_path:
-            file_path = local_path
-            is_minio = False
-            print(f"[DECRYPT] 🚀 Local copy found at {local_path} — using local fast read")
+        # Check local fallback removed. We strictly stream from MinIO.
+        pass
 
     if is_minio:
         try:
@@ -612,15 +571,9 @@ def remove_storage_location(container_path: str = Query(...)):
 
 def _container_to_display_path(container_path: str) -> str:
     """
-    Convert /recordings/subfolder back to D:\\REC\\subfolder for display in the UI.
-    This is purely cosmetic — the backend always stores/uses the container path.
+    Convert forward slashes to backslashes for native Windows UI display.
     """
-    root = _CONTAINER_RECORDINGS_ROOT.rstrip("/")
-    if container_path.startswith(root):
-        suffix = container_path[len(root):]
-        win_suffix = suffix.replace("/", "\\")
-        return f"D:\\REC{win_suffix}"
-    return container_path
+    return container_path.replace("/", "\\")
 
 
 @storage_router.post("/apply")
@@ -664,6 +617,13 @@ def apply_storage_settings(req: StorageApplyRequest):
         }},
         upsert=True
     )
+
+    # ✅ Restart worker pool so new shard paths apply dynamically
+    try:
+        stop_worker_pool()
+        print("[API] ♻️ Triggered worker pool restart for new storage path")
+    except Exception as e:
+        print(f"[API] ⚠️ Failed to restart worker pool: {e}")
 
     return {
         "message": "Recording path updated successfully",
@@ -851,11 +811,23 @@ def list_recordings_cameras():
 
 @recording_router.get("/status")
 def recorder_status():
-    active = [
-        name
-        for name, thread in recorder._recorders.items()
-        if thread.is_alive() and name in getattr(recorder, '_actively_recording_streams', set())
-    ]
+    import time
+    active = []
+    try:
+        if _db is not None:
+            status_doc = _db["system_status"].find_one({"type": "recorder_status"})
+            if status_doc and (time.time() - status_doc.get("timestamp", 0) < 15):
+                active = status_doc.get("active_recorders", [])
+    except Exception:
+        pass
+
+    if not active:
+        active = [
+            name
+            for name, thread in recorder._recorders.items()
+            if thread.is_alive() and name in getattr(recorder, '_actively_recording_streams', set())
+        ]
+        
     rec_dir = recorder.get_recordings_dir()
     return {
         "active_recorders": active,
@@ -903,15 +875,8 @@ def play_recording(
     is_minio = enc_path.startswith("minio:")
     object_key = enc_path.replace("minio:", "") if is_minio else None
 
-    # Check local fallback
-    if is_minio:
-        local_fallback = get_local_fallback_path(recorder.get_recordings_dir(), object_key)
-        if local_fallback:
-            enc_path = local_fallback
-            is_minio = False
-            object_key = None
-            print(f"[PLAY] 🚀 Local copy found at {enc_path} — using local fast playback")
-
+    # Check local fallback removed. We strictly stream from MinIO.
+    
     if not is_minio and not os.path.exists(enc_path):
         raise HTTPException(status_code=404, detail=f"Encrypted file missing: {enc_path}")
 

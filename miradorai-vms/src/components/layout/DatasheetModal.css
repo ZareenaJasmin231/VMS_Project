@@ -1,0 +1,456 @@
+.datasheet-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200000;
+  animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.datasheet-modal {
+  width: 900px;
+  height: 600px;
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 12px;
+  box-shadow: 0 25px 80px rgba(0,0,0,0.8);
+  display: flex;
+  overflow: hidden;
+  animation: slideUpModal 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  color: #f1f5f9;
+}
+
+@keyframes slideUpModal {
+  from { transform: translateY(20px) scale(0.98); opacity: 0; }
+  to   { transform: translateY(0) scale(1); opacity: 1; }
+}
+
+/* Sidebar */
+.datasheet-sidebar {
+  width: 240px;
+  background: #1e293b;
+  border-right: 1px solid #334155;
+  display: flex;
+  flex-direction: column;
+}
+
+.datasheet-sidebar-header {
+  padding: 24px 20px;
+  border-bottom: 1px solid #334155;
+}
+
+.datasheet-sidebar-header h2 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  color: #14b8a6;
+  letter-spacing: 0.5px;
+}
+
+.datasheet-nav {
+  padding: 16px 12px;
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.datasheet-nav-item {
+  padding: 12px 16px;
+  border-radius: 8px;
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  font-size: 14px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.datasheet-nav-item:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: #f1f5f9;
+}
+
+.datasheet-nav-item.active {
+  background: rgba(20, 184, 166, 0.15);
+  color: #14b8a6;
+}
+
+.ds-nav-icon {
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Content Area */
+.datasheet-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background: #0f172a;
+}
+
+.datasheet-header {
+  padding: 24px 32px;
+  border-bottom: 1px solid #334155;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.datasheet-header h1 {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 700;
+  color: #fff;
+}
+
+.datasheet-close-btn {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid #334155;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  color: #94a3b8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.datasheet-close-btn:hover {
+  background: #ef4444;
+  color: #fff;
+  border-color: #ef4444;
+}
+
+.datasheet-body {
+  flex: 1;
+  padding: 32px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Animations Container */
+.ds-anim-container {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.ds-simple-desc {
+  font-size: 16px;
+  color: #cbd5e1;
+  margin: 0 0 32px 0;
+  text-align: center;
+  max-width: 80%;
+}
+
+.ds-scene {
+  width: 400px;
+  height: 250px;
+  background: #1e293b;
+  border: 2px solid #334155;
+  border-radius: 12px;
+  position: relative;
+  overflow: hidden;
+}
+
+.ds-box {
+  background: #334155;
+  border-radius: 6px;
+  position: absolute;
+}
+
+/* Cursor */
+.ds-cursor {
+  width: 16px;
+  height: 16px;
+  background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><path d="M3 3l7.07 16.97 2.51-7.39 7.39-2.51L3 3z"/></svg>') no-repeat;
+  background-size: contain;
+  position: absolute;
+  z-index: 100;
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));
+}
+
+/* Dashboard Anim */
+.ds-anim-dashboard {
+  animation: animDashboard 4s infinite;
+}
+@keyframes animDashboard {
+  0% { top: 200px; left: 200px; }
+  20% { top: 30px; left: 100px; transform: scale(1); }
+  25% { top: 30px; left: 100px; transform: scale(0.8); }
+  30% { top: 30px; left: 100px; transform: scale(1); }
+  60% { top: 150px; left: 300px; transform: scale(1); }
+  65% { top: 150px; left: 300px; transform: scale(0.8); }
+  70% { top: 150px; left: 300px; transform: scale(1); }
+  100% { top: 200px; left: 200px; }
+}
+
+/* Live Anim */
+.ds-live-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 8px;
+  width: 100%;
+  height: 100%;
+  padding: 12px;
+  box-sizing: border-box;
+}
+.ds-cam {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transition: all 0.3s ease;
+}
+.ds-anim-live {
+  animation: animLive 5s infinite;
+}
+@keyframes animLive {
+  0% { top: 200px; left: 200px; }
+  20% { top: 50px; left: 80px; transform: scale(1); }
+  25% { top: 50px; left: 80px; transform: scale(0.8); }
+  30% { top: 50px; left: 80px; transform: scale(0.8); }
+  35% { top: 50px; left: 80px; transform: scale(1); }
+  100% { top: 200px; left: 200px; }
+}
+
+/* Map Anim */
+.ds-map-bg {
+  width: 100%;
+  height: 100%;
+  background: repeating-linear-gradient(45deg, #1e293b, #1e293b 10px, #334155 10px, #334155 20px);
+  opacity: 0.3;
+}
+.ds-pin {
+  width: 16px;
+  height: 16px;
+  background: #ef4444;
+  border-radius: 50%;
+  position: absolute;
+  transform: translate(-50%, -50%);
+  border: 2px solid #fff;
+}
+.ds-map-popup {
+  width: 80px;
+  height: 60px;
+  background: #cbd5e1;
+  position: absolute;
+  top: 15%;
+  left: 35%;
+  border-radius: 4px;
+  opacity: 0;
+  animation: popupAnim 5s infinite;
+}
+.ds-anim-map {
+  animation: animMap 5s infinite;
+}
+@keyframes animMap {
+  0% { top: 200px; left: 200px; }
+  30% { top: 30%; left: 40%; transform: scale(1); }
+  35% { top: 30%; left: 40%; transform: scale(0.8); }
+  40% { top: 30%; left: 40%; transform: scale(1); }
+  70% { top: 60%; left: 70%; transform: scale(1); }
+  100% { top: 200px; left: 200px; }
+}
+@keyframes popupAnim {
+  0%, 35% { opacity: 0; }
+  40%, 65% { opacity: 1; }
+  70%, 100% { opacity: 0; }
+}
+
+/* Playback Anim */
+.ds-timeline-wrap {
+  position: absolute;
+  bottom: 20px;
+  left: 5%;
+  width: 90%;
+  height: 40px;
+  background: #0f172a;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+}
+.ds-timeline-bar {
+  width: 100%;
+  height: 6px;
+  background: #334155;
+  border-radius: 3px;
+  position: relative;
+}
+.ds-timeline-head {
+  width: 12px;
+  height: 16px;
+  background: #14b8a6;
+  position: absolute;
+  top: -5px;
+  border-radius: 2px;
+  animation: timelineHead 6s infinite;
+}
+.ds-anim-playback {
+  animation: animPlayback 6s infinite;
+}
+@keyframes timelineHead {
+  0% { left: 0%; }
+  30% { left: 40%; }
+  50% { left: 40%; }
+  80% { left: 80%; }
+  100% { left: 0%; }
+}
+@keyframes animPlayback {
+  0% { top: 150px; left: 50px; }
+  25% { top: 190px; left: 160px; transform: scale(1); }
+  30% { top: 190px; left: 160px; transform: scale(0.8); }
+  50% { top: 190px; left: 160px; transform: scale(1); }
+  75% { top: 190px; left: 300px; transform: scale(1); }
+  80% { top: 190px; left: 300px; transform: scale(0.8); }
+  100% { top: 150px; left: 50px; transform: scale(1); }
+}
+
+/* Designer Anim */
+.ds-sidebar-list {
+  position: absolute;
+  top: 0; left: 0; bottom: 0;
+  width: 80px;
+  background: #0f172a;
+  border-right: 1px solid #334155;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.ds-list-item {
+  height: 30px;
+  background: #334155;
+  border-radius: 4px;
+}
+.ds-designer-grid {
+  position: absolute;
+  top: 20px; left: 100px; right: 20px; bottom: 20px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.ds-grid-cell {
+  border: 2px dashed #475569;
+  border-radius: 8px;
+}
+.ds-drag-item {
+  animation: dragAnim 4s infinite;
+  z-index: 50;
+  position: relative;
+}
+.ds-anim-designer {
+  animation: animDesigner 4s infinite;
+}
+@keyframes dragAnim {
+  0%, 20% { transform: translate(0, 0); opacity: 1; }
+  50% { transform: translate(120px, 20px); opacity: 0.8; }
+  60%, 100% { transform: translate(120px, 20px); opacity: 0; }
+}
+@keyframes animDesigner {
+  0% { top: 150px; left: 150px; }
+  20% { top: 65px; left: 30px; transform: scale(1); }
+  25% { top: 65px; left: 30px; transform: scale(0.8); }
+  50% { top: 85px; left: 150px; transform: scale(0.8); }
+  55% { top: 85px; left: 150px; transform: scale(1); }
+  100% { top: 150px; left: 150px; }
+}
+
+/* Infra Anim */
+.ds-server {
+  width: 80%;
+  height: 40px;
+  background: #334155;
+  border-radius: 6px;
+  position: absolute;
+  left: 10%;
+  display: flex;
+  align-items: center;
+  padding-left: 10px;
+}
+.ds-server::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  background: #10b981;
+  border-radius: 50%;
+  box-shadow: 0 0 8px #10b981;
+  animation: pulseLight 2s infinite;
+}
+@keyframes pulseLight {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+.ds-anim-infra {
+  animation: animInfra 5s infinite;
+}
+@keyframes animInfra {
+  0% { top: 200px; left: 300px; }
+  25% { top: 35px; left: 100px; transform: scale(1); }
+  30% { top: 35px; left: 100px; transform: scale(0.8); }
+  35% { top: 35px; left: 100px; transform: scale(1); }
+  60% { top: 155px; left: 200px; transform: scale(1); }
+  65% { top: 155px; left: 200px; transform: scale(0.8); }
+  100% { top: 200px; left: 300px; }
+}
+
+/* Settings Anim */
+.ds-toggle-switch {
+  width: 36px;
+  height: 20px;
+  background: #475569;
+  border-radius: 10px;
+  position: absolute;
+  top: 20px; left: 20px;
+}
+.ds-toggle-switch::after {
+  content: '';
+  width: 14px;
+  height: 14px;
+  background: #fff;
+  border-radius: 50%;
+  position: absolute;
+  top: 3px; left: 3px;
+  transition: all 0.3s;
+  animation: toggleAnim 4s infinite;
+}
+@keyframes toggleAnim {
+  0%, 40% { left: 3px; background: #fff; }
+  50%, 90% { left: 19px; background: #14b8a6; }
+  100% { left: 3px; background: #fff; }
+}
+.ds-anim-settings {
+  animation: animSettings 4s infinite;
+}
+@keyframes animSettings {
+  0% { top: 150px; left: 200px; }
+  40% { top: 38px; left: 140px; transform: scale(1); }
+  45% { top: 38px; left: 140px; transform: scale(0.8); }
+  50% { top: 38px; left: 140px; transform: scale(1); }
+  100% { top: 150px; left: 200px; }
+}

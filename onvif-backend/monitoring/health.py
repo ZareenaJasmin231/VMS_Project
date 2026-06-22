@@ -8,8 +8,9 @@ from .email_alerts import alert_device_offline, alert_unexpected_reboot
 from .uptime_tracker import record_uptime_snapshot, get_uptime_report
 
 MONGO_URI = os.environ.get("MONGO_URI", "mongodb://localhost:27017/")
+MONGO_DB_NAME = os.environ.get("MONGO_DB_NAME", "vms_db")
 client = mongo_client
-db = client["mirador-vms"] if client else None if client else None
+db = client[MONGO_DB_NAME] if client else None
 
 if db is not None:
     nodes_col = db["infrastructure_nodes"]

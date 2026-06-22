@@ -1,14 +1,25 @@
 {
   "network": {
     "protocol": "SMB",
-    "ip": "10.22.101.30",
+    "ip": "192.168.126.18",
     "port": 445,
     "username": "",
     "password": "",
-    "path": "\\\\10.22.101.30\\vmsrecording"
+    "path": "\\\\192.168.126.18\\vmsrecording"
   },
   "auto": {
-    "enabled": true
+    "enabled": false
   },
-  "retention_days": 7
+  "retention_days": 5,
+  "camera_configs": [
+    {
+      "ip": "192.168.126.235",
+      "days": 5
+    },
+    {
+      "ip": "192.168.126.238",
+      "days": 15
+    }
+  ],
+  "retention_enabled": true
 }

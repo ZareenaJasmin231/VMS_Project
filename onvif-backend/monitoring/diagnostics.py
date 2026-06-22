@@ -8,8 +8,9 @@ from datetime import datetime
 from app.core.database import mongo_client
 
 MONGO_URI       = os.environ.get("MONGO_URI", "mongodb://localhost:27017/")
+MONGO_DB_NAME   = os.environ.get("MONGO_DB_NAME", "vms_db")
 client          = mongo_client
-db              = client["mirador-vms"]
+db              = client[MONGO_DB_NAME]
 diagnostics_col = db["network_diagnostics"]
 nodes_col       = db["infrastructure_nodes"]   # FIX: write live fields back here
 

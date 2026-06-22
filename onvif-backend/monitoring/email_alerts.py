@@ -21,7 +21,7 @@ from datetime import datetime
 
 # ── Config ────────────────────────────────────────────────────────────────
 
-ALERT_FROM    = os.environ.get("ALERT_EMAIL_FROM", "alerts@mirador-vms.local")
+ALERT_FROM    = os.environ.get("ALERT_EMAIL_FROM", "alerts@vms_db.local")
 ALERT_TO_RAW  = os.environ.get("ALERT_EMAIL_TO", "")
 ALERT_TO      = [e.strip() for e in ALERT_TO_RAW.split(",") if e.strip()]
 SMTP_HOST     = os.environ.get("SMTP_HOST", "smtp.gmail.com")

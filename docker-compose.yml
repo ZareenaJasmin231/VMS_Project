@@ -1,25 +1,4 @@
 services:
-  ome:
-    image: airensoft/ovenmediaengine:latest
-    container_name: ome
-    restart: unless-stopped
-    mem_limit: 512m
-    cpus: "1.5"
-    ports:
-      - "${OME_RTMP_PORT}:${OME_RTMP_PORT}"
-      - "${OME_SRT_PORT}:${OME_SRT_PORT}/udp"
-      - "${OME_WEBRTC_PORT}:${OME_WEBRTC_PORT}"
-      - "${OME_WEBRTC_TLS_PORT}:${OME_WEBRTC_TLS_PORT}"
-      - "${OME_LLHLS_PORT}:${OME_LLHLS_PORT}"
-      - "${OME_API_PORT}:${OME_API_PORT}"
-      - "${OME_RTSP_PORT}:${OME_RTSP_PORT}"
-      - "${OME_ICE_RANGE}:${OME_ICE_RANGE}/udp"
-    volumes:
-      - ./origin_conf:/opt/ovenmediaengine/bin/origin_conf
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    networks:
-      - vmsnet
 
   mongo:
     image: mongo:7
@@ -106,14 +85,11 @@ services:
     cpus: "4"
     ports:
       - "${BACKEND_PORT}:${BACKEND_PORT}"
+      - "19999:19999"
     environment:
-      - OME_URL=http://ome:${OME_API_PORT}/v1/vhosts/default/apps/app/streams
-      - OME_HOST=ome
-      - OME_PORT=${OME_WEBRTC_PORT}
-      - OME_HOST_IP=${HOST_IP}
-      - HOST_SUBNET=192.168.126
+      - MEDIAMTX_API_URL=http://host.docker.internal:9997
+      - HOST_SUBNET=${HOST_SUBNET:-192.168.126}
       - DISCOVERY_TIMEOUT_MS=800
-      - OME_WS_PORT=${OME_WEBRTC_PORT}
       - MONGO_URI=mongodb://mongo:${MONGO_PORT}/
       - MQTT_BROKER=mosquitto
       - MQTT_PORT=${MQTT_PORT}
@@ -129,6 +105,12 @@ services:
       - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
       - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
       - MINIO_BUCKET=${MINIO_BUCKET}
+      - ALERT_EMAIL_FROM=${ALERT_EMAIL_FROM}
+      - ALERT_EMAIL_TO=${ALERT_EMAIL_TO}
+      - SMTP_HOST=${SMTP_HOST}
+      - SMTP_PORT=${SMTP_PORT}
+      - SMTP_USER=${SMTP_USER}
+      - SMTP_PASSWORD=${SMTP_PASSWORD}
     volumes:
       - ./devices_data:/app/data
       - E:/REC:/recordings
@@ -137,7 +119,6 @@ services:
       - C:/:/mnt/dest_c
       - /etc/localtime:/etc/localtime:ro
     depends_on:
-      - ome
       - mongo
       - mosquitto
       - minio

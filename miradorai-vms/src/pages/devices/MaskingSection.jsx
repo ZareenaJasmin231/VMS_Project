@@ -432,7 +432,7 @@ export const MASKING_CSS = `
 }
 `;
 import { useState, useEffect, useRef, useCallback } from "react";
-import WebRTCPlayer from "../../components/shared/WebRTCPlayer";
+import WebRTCPlayer from "../../components/shared/WebRTCPlayer_MediaMTX";
 
 const API = import.meta.env.VITE_API_URL;
 const CANVAS_W = 640;
@@ -835,8 +835,8 @@ export default function MaskingSection({ device, showToast, onMasksChange }) {
         <div className="mp-viewport">
           {/* LIVE STREAM */}
           <div className="mp-video-layer">
-            {wsUrl ? (
-              <WebRTCPlayer serverUrl={wsUrl} cameraId={device.id} />
+            {device?.stream_key || wsUrl ? (
+              <WebRTCPlayer streamKey={device.stream_key} cameraId={device.id} />
             ) : (
               <div className="mp-video-placeholder">
                 <div className="mp-placeholder-icon"></div>

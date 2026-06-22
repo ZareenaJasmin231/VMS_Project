@@ -202,7 +202,7 @@ export function drawHeatmapToContext(
 /** Draws a heatmap legend */
 export function drawHeatmapLegendToCanvas(
   ctx, canvasW, canvasH,
-  { foundLevels, compact = false } = {}
+  { foundLevels, compact = false, scaleFactor = 1 } = {}
 ) {
   const entries = [];
   if (!foundLevels || foundLevels.has(0)) entries.push({ color: "rgba(30,41,59,0.88)",  label: "Blind Spot (No Coverage)" });
@@ -213,9 +213,9 @@ export function drawHeatmapLegendToCanvas(
   */
   if (!entries.length) return;
 
-  const fontSize = compact ? 9 : 13,  swatchW = compact ? 16 : 30, swatchH = compact ? 8 : 14;
-  const rowGap   = compact ? 14 : 26, padX = compact ? 10 : 16,    padY = compact ? 8 : 14;
-  const radius   = compact ? 5 : 10,  margin = compact ? 10 : 22;
+  const fontSize = (compact ? 9 : 13) * scaleFactor,  swatchW = (compact ? 16 : 30) * scaleFactor, swatchH = (compact ? 8 : 14) * scaleFactor;
+  const rowGap   = (compact ? 14 : 26) * scaleFactor, padX = (compact ? 10 : 16) * scaleFactor,    padY = (compact ? 8 : 14) * scaleFactor;
+  const radius   = (compact ? 5 : 10) * scaleFactor,  margin = (compact ? 10 : 22) * scaleFactor;
 
   ctx.save();
   ctx.font = `600 ${fontSize}px Inter, system-ui, sans-serif`;
@@ -252,7 +252,7 @@ export function drawHeatmapLegendToCanvas(
 /** Draws a design legend (camera types and counts) */
 export function drawDesignLegendToCanvas(
   ctx, canvasW, canvasH,
-  { placedCameras = [], compact = false } = {}
+  { placedCameras = [], compact = false, scaleFactor = 1 } = {}
 ) {
   const typeCounts = {};
   placedCameras.forEach(p => {
@@ -273,9 +273,9 @@ export function drawDesignLegendToCanvas(
 
   if (!entries.length) return;
 
-  const fontSize = compact ? 9 : 11, iconSize = compact ? 14 : 18;
-  const rowGap = compact ? 18 : 24, padX = compact ? 8 : 12, padY = compact ? 6 : 10;
-  const radius = compact ? 4 : 6, margin = compact ? 8 : 16;
+  const fontSize = (compact ? 9 : 11) * scaleFactor, iconSize = (compact ? 14 : 18) * scaleFactor;
+  const rowGap = (compact ? 18 : 24) * scaleFactor, padX = (compact ? 8 : 12) * scaleFactor, padY = (compact ? 6 : 10) * scaleFactor;
+  const radius = (compact ? 4 : 6) * scaleFactor, margin = (compact ? 8 : 16) * scaleFactor;
 
   ctx.save();
   ctx.font = `600 ${fontSize}px Inter, system-ui, sans-serif`;

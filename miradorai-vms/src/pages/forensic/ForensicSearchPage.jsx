@@ -3,7 +3,7 @@ import { useDigitalZoom } from "../../hooks/useDigitalZoom";
 import { useAuth } from "../../context/AuthContext";
 import "./ForensicSearchPage.css";
 
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:80";
+const API_BASE = import.meta.env.VITE_API_URL || "";
 
 const COLORS = [
   { name: "white",  hex: "#f8fafc", textDark: true  },

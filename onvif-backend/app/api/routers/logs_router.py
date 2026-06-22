@@ -10,7 +10,7 @@ import os
 MONGO_URI = os.environ.get("MONGO_URI", "mongodb://mongo:27017/")
 try:
     mongo_client = mongo_client
-    db = mongo_client["mirador-vms"]
+    db = mongo_client["vms_db"]
     ui_logs_col = db["ui_logs"]
     terminal_logs_col = db["terminal_logs"]
     print(f"[MONGO] Logs router connected to DB")

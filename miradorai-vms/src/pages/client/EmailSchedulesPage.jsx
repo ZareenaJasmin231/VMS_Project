@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Mail, Trash2, Clock } from "lucide-react";
 import "./EmailSchedulesPage.css";
 
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:80";
+const API_BASE = import.meta.env.VITE_API_URL || "";
 
 const getAuthHeaders = () => {
   const token = localStorage.getItem("miradorai_token");

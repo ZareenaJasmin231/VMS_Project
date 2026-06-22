@@ -120,17 +120,16 @@ def stream_to_ffmpeg_sync(cmd: list[str], stream_generator: Iterator[bytes], tim
     Streams chunks from a generator into FFmpeg stdin synchronously.
     Handles BrokenPipeError gracefully and applies sync timeouts.
     """
-    # The semaphore is applied manually around this call in the endpoints if needed,
-    # but the user requested: "semaphore limits must apply ONLY to transient ffmpeg jobs: playback, thumbnails..."
-    # If playback uses this sync function, we should use a global threading semaphore or asyncio run_in_executor?
-    # Wait, the user said "Use stream_to_ffmpeg_sync for playback/decryption streaming paths"
-    # To apply the async semaphore to a sync function, the caller will acquire the semaphore first.
+    import tempfile
+    
+    # Use a temp file for stderr to avoid pipe deadlocks
+    stderr_file = tempfile.TemporaryFile()
     
     proc = subprocess.Popen(
         cmd,
         stdin=subprocess.PIPE,
         stdout=subprocess.DEVNULL,
-        stderr=subprocess.PIPE,
+        stderr=stderr_file,
     )
     register_process(proc)
     
@@ -147,29 +146,27 @@ def stream_to_ffmpeg_sync(cmd: list[str], stream_generator: Iterator[bytes], tim
         proc.wait(timeout=10)
         raise e
     finally:
-        try:
-            proc.wait(timeout=timeout)
-        except subprocess.TimeoutExpired:
-            proc.kill()
-            proc.wait(timeout=10)
-            
+        # IMPORTANT: Close stdin BEFORE wait() so ffmpeg receives EOF and can finish writing!
         if proc.stdin and not proc.stdin.closed:
             try:
                 proc.stdin.close()
             except Exception:
                 pass
 
+        try:
+            proc.wait(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.wait(timeout=10)
+            
         unregister_process(proc)
             
     try:
-        stderr_data = proc.stderr.read() if proc.stderr else b""
+        stderr_file.seek(0)
+        stderr_data = stderr_file.read()
     except Exception:
         stderr_data = b""
+    finally:
+        stderr_file.close()
 
-    if proc.stderr and not proc.stderr.closed:
-        try:
-            proc.stderr.close()
-        except Exception:
-            pass
-        
     return proc.returncode == 0, stderr_data

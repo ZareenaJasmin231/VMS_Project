@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import SearchBar from "../../components/shared/SearchBar";
 import "./StorageManagementPage.css";
 
-const BACKEND = "http://localhost:80";
+const BACKEND = import.meta.env.VITE_API_URL || "";
 
 // ── Path helpers ────────────────────────────────────────────────────────────
 // The backend always works with Linux container paths (/recordings/...).
@@ -11,37 +11,12 @@ const BACKEND = "http://localhost:80";
 
 function toDisplayPath(containerPath) {
   if (!containerPath) return "";
-  // /recordings        → D:\REC
-  // /recordings/site-A → D:\REC\site-A
-  if (containerPath.startsWith("/recordings")) {
-    const suffix = containerPath.slice("/recordings".length).replace(/\//g, "\\");
-    return `D:\\REC${suffix}`;
-  }
-  return containerPath;
+  return containerPath.replace(/\//g, "\\");
 }
 
 function toContainerPath(displayPath) {
   if (!displayPath) return "";
-  const p = displayPath.trim();
-
-  // Already a container path
-  if (p.startsWith("/")) return p;
-
-  // Windows path: D:\REC\subfolder  or  D:/REC/subfolder
-  const winMatch = p.match(/^[A-Za-z]:[/\\](.*)$/);
-  if (winMatch) {
-    const rest   = winMatch[1].replace(/\\/g, "/");
-    const parts  = rest.split("/").filter(Boolean);
-    const first  = (parts[0] || "").toLowerCase();
-    // Strip the leading REC / recordings / recording folder
-    const sub    = ["rec", "recordings", "recording"].includes(first)
-                     ? parts.slice(1).join("/")
-                     : parts.join("/");
-    return sub ? `/recordings/${sub}` : "/recordings";
-  }
-
-  // Fallback — treat as-is
-  return p;
+  return displayPath.trim().replace(/\\/g, "/");
 }
 
 // ── Component ────────────────────────────────────────────────────────────────

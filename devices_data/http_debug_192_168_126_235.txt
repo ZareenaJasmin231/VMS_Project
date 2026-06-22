@@ -1,0 +1,13 @@
+HTTP/1.1 200 OK
+Server: VCS-VideoJet-Webserver
+Connection: keep-alive
+Content-Type: text/html
+Accept-Ranges: bytes
+Content-Length: 1358
+X-Content-Type-Options: nosniff
+Content-Security-Policy: default-src 'self'; img-src 'self' blob: data:; media-src 'self' blob:; script-src 'self' https://downloadstore.boschsecurity.com 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src 'self' wss://192.168.126.235:443 ws://192.168.126.235:80; frame-src 'self' boschvideosecurity:; child-src 'self' boschvideosecurity:
+X-Content-Security-Policy: default-src 'self'; img-src 'self' blob: data:; media-src 'self' blob:; script-src 'self' https://downloadstore.boschsecurity.com 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src 'self' wss://192.168.126.235:443 ws://192.168.126.235:80; frame-src 'self' boschvideosecurity:; child-src 'self' boschvideosecurity:
+X-XSS-Protection: 1; mode=block
+Expires: 0
+Set-Cookie: HcsoB=376426146de50622; path=/; HttpOnly;
+

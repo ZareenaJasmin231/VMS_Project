@@ -1,0 +1,17 @@
+{
+  "ws-ycve3x": {
+    "station_id": "ws-ycve3x",
+    "name": "Terminal YCVE3X",
+    "pushed_layout": null,
+    "last_seen": 1781911531.590427,
+    "active_layout": {
+      "grid": "2x2",
+      "device_order": [
+        "device-192.168.126.240-cam0-1781867556175",
+        "device-192.168.126.235-1781863291765",
+        "device-192.168.126.238-1781863291765"
+      ]
+    },
+    "active_feeds_count": 3
+  }
+}

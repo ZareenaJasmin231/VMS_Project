@@ -9,9 +9,9 @@ import logoImg from "../../assets/logo.jpg";
 import sentinelLogoImg from "../../assets/sentinel logo.jpg";
 import * as pdfjsLib from "pdfjs-dist";
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url).toString();
-
+import jsPDF from "jspdf";
 // ── Constants ─────────────────────────────────────────────────────────────────
-const API = import.meta.env.VITE_API_URL || "http://192.168.126.38:80";
+const API = import.meta.env.VITE_API_URL || "";
 const MAP_ID = "default";
 const FLOOR_ID = "floor_1";
 const PIXELS_PER_METRE = 22;
@@ -32,7 +32,7 @@ async function apiSaveLayout({ placed, zones, ppm, floorPlan = null }) {
       body: JSON.stringify({
         map_id: MAP_ID,
         floor_id: FLOOR_ID,
-        placed: placed.map(p => ({ id: p.id, x: p.x, y: p.y, direction: p.direction, camera: p.camera })),
+        placed: placed.map(p => ({ id: p.id, x: p.x, y: p.y, direction: p.direction, camera: p.camera, ...(p.labelOffset ? { labelOffset: p.labelOffset } : {}) })),
         zones: zones.map(z => ({ id: z.id, name: z.name, color: z.color, polygon: z.polygon })),
         ppm,
         floor_plan: floorPlan,
@@ -185,7 +185,19 @@ function getPolygonArea(polygon, ppm) {
   areaPx = Math.abs(areaPx) / 2;
   return areaPx / (ppm * ppm);
 }
-
+// ── Loads an image and returns it as a base64 PNG data URL (for embedding in PDFs) ──
+function loadImageAsDataUrl(src, cb) {
+  const img = new Image();
+  img.onload = () => {
+    const c = document.createElement("canvas");
+    c.width = img.width; c.height = img.height;
+    c.getContext("2d").drawImage(img, 0, 0);
+    try { cb(c.toDataURL("image/png"), img.width, img.height); }
+    catch (e) { cb(null, 0, 0); }
+  };
+  img.onerror = () => cb(null, 0, 0);
+  img.src = src;
+}
 // ── Premium Popup Component ─────────────────────────────────────────────
 function PremiumPopup({ show, type, title, message, onConfirm, onCancel }) {
   if (!show) return null;
@@ -224,13 +236,38 @@ function PremiumPopup({ show, type, title, message, onConfirm, onCancel }) {
     </div>
   );
 }
-
+// ── Export Format Selection Modal ─────────────────────────────────────
+function ExportFormatModal({ exportMode, isGenerating, onSelect, onCancel }) {
+  return (
+    <div className="dv-export-modal-overlay" onClick={onCancel}>
+      <div className="dv-export-modal" onClick={e => e.stopPropagation()}>
+        <div className="dv-export-modal-header">Choose Export Format</div>
+        <div className="dv-export-modal-body">
+          <button className="dv-export-option" disabled={isGenerating} onClick={() => onSelect("jpg")}>
+            <div style={{ fontWeight: 600, fontSize: 15 }}>JPG Image</div>
+          </button>
+          <button className="dv-export-option" disabled={isGenerating} onClick={() => onSelect("pdf")}>
+            <div style={{ fontWeight: 600, fontSize: 15 }}>PDF Report</div>
+          </button>
+          {isGenerating && (
+            <div style={{ textAlign: "center", fontSize: 13, color: "#3b82f6", marginTop: 4 }}>
+              Generating export…
+            </div>
+          )}
+        </div>
+        <div className="dv-export-modal-footer">
+          <button className="dv-export-cancel" disabled={isGenerating} onClick={onCancel}>Cancel</button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // ── Automation Modal Component ──────────────────────────────────────────
 // ── Automation Modal Component ──────────────────────────────────────────
 function AutomationModal({ zone, ppm, cameraDB, getCameraForType, onConfirm, onCancel }) {
   const [selectedTypes, setSelectedTypes] = useState(["dome"]);
-  
+ 
   // Dynamic parsing of number from zone name, or fallback to Shoelace
   const [areaSqFtVal, setAreaSqFtVal] = useState(() => {
     const match = zone.name.match(/\d+[,.\d]*/);
@@ -245,7 +282,7 @@ function AutomationModal({ zone, ppm, cameraDB, getCameraForType, onConfirm, onC
 
   // Extract actual unique types present in cameraDB
   const uniqueTypesInDB = [...new Set(cameraDB.map(c => c.type))].filter(Boolean);
-  
+ 
   const typeLabels = {
     dome: "Dome Camera",
     bullet: "Bullet Camera",
@@ -630,14 +667,16 @@ function FovVisualizer({ camera }) {
 // ── Camera drawing ────────────────────────────────────────────────────────────
 // FIX 1: clipZone now auto-detects the camera's own zone when no active zone is set.
 // This ensures FOV is always clipped to its zone even after refresh.
-function drawPlacedCamera(ctx, p, ppm, hovering, selected, zonesRef, activeZoneIdRef, highlightedId, showLabel = true, showPpm = false, hideBeam = false) {
+function drawPlacedCamera(ctx, p, ppm, hovering, selected, zonesRef, activeZoneIdRef, highlightedId, showLabel = true, showPpm = false, hideBeam = false, iconScale = 1.20) {
   const { x, y, direction, camera } = p;
   const col = TYPE_COLORS[camera.type] || "#3b82f6";
   const isHighlit = p.id === highlightedId;
-  const { angle, halfRad } = fovDrawParams(camera, direction);
+  const origAngle = fovDrawParams(camera, direction).angle;
+  const halfRad = fovDrawParams(camera, direction).halfRad;
+  const angle = origAngle;
   const radius = camera.rangeDay * ppm;
 
-  const S = 1.20;
+  const S = iconScale;
 
   // ★ FIX: origin matches MapCanvas (x + cos*1.5*S, forward) instead of old backward formula
   const originX = x + Math.cos(angle) * (1.5 * S);
@@ -760,157 +799,350 @@ function drawPlacedCamera(ctx, p, ppm, hovering, selected, zonesRef, activeZoneI
     ctx.save();
     ctx.setLineDash([4, 3]);
     ctx.beginPath(); ctx.arc(x, y, radius, 0, Math.PI * 2);
-    ctx.strokeStyle = col + "33"; ctx.lineWidth = 0.8; ctx.stroke();
+    ctx.strokeStyle = col + "AA"; ctx.lineWidth = 1.5; ctx.stroke();
     ctx.setLineDash([]); ctx.restore();
   }
 
   // ── Camera body (Type-specific shapes, S=0.62) ──────────────────
   ctx.save();
   ctx.translate(x, y);
-  ctx.rotate(angle);
-  if (selected || hovering || isHighlit) { ctx.shadowColor = col; ctx.shadowBlur = 14; }
-
   const type = camera.type || "dome";
 
-  if (type === "dome" || type === "turret") {
-    // ── DOME (Reference: Classic dome with base) ──
-    // Base ring
-    ctx.beginPath(); ctx.arc(0, 0, 11 * S, 0, Math.PI * 2);
-    ctx.fillStyle = isHighlit ? "#daeeff" : "#cecece"; ctx.fill();
-    ctx.strokeStyle = isHighlit ? "#5aabf0" : "#888"; ctx.lineWidth = 0.8; ctx.stroke();
-
-    // Main housing (darker grey)
-    ctx.beginPath(); ctx.arc(0, 0, 9 * S, 0, Math.PI * 2);
-    ctx.fillStyle = isHighlit ? "#b8d8f0" : "#e0e0e0"; ctx.fill();
-    ctx.stroke();
-
-    // Lens "eye" (the dark window)
-    ctx.beginPath(); ctx.arc(4 * S, 0, 5.5 * S, 0, Math.PI * 2);
-    ctx.fillStyle = "#1a1a1a"; ctx.fill();
-
-    // Glass highlight/glint
-    ctx.beginPath(); ctx.arc(5.5 * S, -1.5 * S, 1.5 * S, 0, Math.PI * 2);
-    ctx.fillStyle = "rgba(255,255,255,0.4)"; ctx.fill();
-  }
-  else if (type === "fisheye") {
-    // ── FISHEYE (Reference: Flat UFO-style ceiling mount) ──
-    // Outer base
-    ctx.beginPath(); ctx.arc(0, 0, 12 * S, 0, Math.PI * 2);
-    ctx.fillStyle = isHighlit ? "#daeeff" : "#efefef"; ctx.fill();
-    ctx.strokeStyle = isHighlit ? "#5aabf0" : "#aaa"; ctx.lineWidth = 0.8; ctx.stroke();
-
-    // Concentric detail ring
-    ctx.beginPath(); ctx.arc(0, 0, 8 * S, 0, Math.PI * 2);
-    ctx.strokeStyle = "rgba(0,0,0,0.1)"; ctx.stroke();
-
-    // Center lens
-    ctx.beginPath(); ctx.arc(0, 0, 3.5 * S, 0, Math.PI * 2);
-    ctx.fillStyle = "#0e0e0e"; ctx.fill();
-
-    // Lens detail (inner ring)
-    ctx.beginPath(); ctx.arc(0, 0, 1.5 * S, 0, Math.PI * 2);
-    ctx.strokeStyle = "rgba(255,255,255,0.2)"; ctx.stroke();
-  }
-  else if (type === "ptz") {
-    // ── PTZ (Reference: Wall-mount bracket with hanging ball) ──
-    // Wall mount plate
-    ctx.beginPath(); ctx.rect(-18 * S, -6 * S, 4 * S, 12 * S);
-    ctx.fillStyle = "#cecece"; ctx.fill(); ctx.stroke();
-
-    // Bracket arm (curved style)
+  if (type === "bullet") {
+    const bS = S * 0.9;
+   
+    // --- FIXED MOUNT & ARM (Does not rotate with camera) ---
+    ctx.save();
+    if (p.flip) ctx.scale(-1, 1);
+   
+    // Wall Plate
     ctx.beginPath();
-    ctx.moveTo(-14 * S, -4 * S);
-    ctx.quadraticCurveTo(-8 * S, -4 * S, -2 * S, 0);
-    ctx.lineTo(-2 * S, 3 * S);
-    ctx.quadraticCurveTo(-8 * S, -1 * S, -14 * S, -1 * S);
+    ctx.moveTo(5*bS, 10*bS);
+    ctx.lineTo(10*bS, 8*bS);
+    ctx.lineTo(10*bS, 18*bS);
+    ctx.lineTo(5*bS, 20*bS);
     ctx.closePath();
-    ctx.fillStyle = "#dfdfdf"; ctx.fill(); ctx.stroke();
-
-    // Main ball housing
-    ctx.beginPath(); ctx.arc(0, 0, 10 * S, 0, Math.PI * 2);
-    ctx.fillStyle = isHighlit ? "#daeeff" : "#efefef"; ctx.fill();
-    ctx.strokeStyle = isHighlit ? "#5aabf0" : "#aaa"; ctx.stroke();
-
-    // Lower lens section (black)
-    ctx.beginPath(); ctx.arc(0, 0, 10 * S, -0.2, Math.PI + 0.2);
-    ctx.fillStyle = "#222"; ctx.fill();
-
-    // Actual lens Bezel
-    ctx.beginPath(); ctx.arc(6 * S, 0, 4.5 * S, 0, Math.PI * 2);
-    ctx.fillStyle = isHighlit ? "#b8d8f0" : "#dfdfdf"; ctx.fill(); ctx.stroke();
-
-    // Lens
-    ctx.beginPath(); ctx.arc(6 * S, 0, 2.5 * S, 0, Math.PI * 2);
-    ctx.fillStyle = "#000"; ctx.fill();
-  }
-  else {
-    // ── BULLET / BOX / OTHER (Rectangular) ──
-    const shift = 14 * S;
-    ctx.translate(-shift, 0); // Offset for bullet style
-
-    // Mount
-    ctx.beginPath(); ctx.arc(-14 * S, 0, 5 * S, 0, Math.PI * 2);
-    ctx.fillStyle = isHighlit ? "#a8ccee" : "#cecece"; ctx.fill();
-    ctx.strokeStyle = isHighlit ? "#5aabf0" : "#888"; ctx.lineWidth = 0.8; ctx.stroke();
-
-    // Neck
+    ctx.fillStyle = "#ffffff"; ctx.fill();
+    ctx.strokeStyle = "#000000"; ctx.lineWidth = 1; ctx.stroke();
+   
+    // Wall plate side
     ctx.beginPath();
-    if (ctx.roundRect) ctx.roundRect(-14 * S, -2.5 * S, 7 * S, 5 * S, 1.5);
-    else ctx.rect(-14 * S, -2.5 * S, 7 * S, 5 * S);
-    ctx.fillStyle = isHighlit ? "#9bbdd8" : "#c4c4c4"; ctx.fill(); ctx.stroke();
+    ctx.moveTo(5*bS, 10*bS);
+    ctx.lineTo(2*bS, 11*bS);
+    ctx.lineTo(2*bS, 21*bS);
+    ctx.lineTo(5*bS, 20*bS);
+    ctx.closePath();
+    ctx.fillStyle = "#f5f5f5"; ctx.fill();
+    ctx.strokeStyle = "#000000"; ctx.stroke();
 
-    // Main barrel body
+    // Horizontal Arm
     ctx.beginPath();
-    if (ctx.roundRect) ctx.roundRect(-7 * S, -5.5 * S, 17 * S, 11 * S, 5 * S);
-    else ctx.rect(-7 * S, -5.5 * S, 17 * S, 11 * S);
-    ctx.fillStyle = isHighlit ? "#daeeff" : "#efefef"; ctx.fill();
-    ctx.strokeStyle = isHighlit ? "#5aabf0" : "#aaa"; ctx.lineWidth = 0.8; ctx.stroke();
+    ctx.moveTo(-2*bS, 14*bS);
+    ctx.lineTo(5*bS, 12*bS);
+    ctx.lineTo(5*bS, 15*bS);
+    ctx.lineTo(-2*bS, 17*bS);
+    ctx.closePath();
+    ctx.fillStyle = "#ffffff"; ctx.fill();
+    ctx.strokeStyle = "#000000"; ctx.stroke();
+   
+    // Vertical Arm
+    ctx.beginPath();
+    ctx.moveTo(-4*bS, 0);
+    ctx.lineTo(0*bS, -1*bS);
+    ctx.lineTo(0*bS, 14*bS);
+    ctx.lineTo(-4*bS, 15*bS);
+    ctx.closePath();
+    ctx.fillStyle = "#ffffff"; ctx.fill();
+    ctx.strokeStyle = "#000000"; ctx.stroke();
 
-    // Front bezel ring
-    ctx.beginPath(); ctx.arc(10 * S, 0, 5.5 * S, 0, Math.PI * 2);
-    ctx.fillStyle = isHighlit ? "#b8d8f0" : "#dfdfdf"; ctx.fill(); ctx.stroke();
+    ctx.restore();
 
+    // --- ROTATING CAMERA BODY ---
+    ctx.rotate(angle);
+    if (Math.cos(angle) < 0) ctx.scale(1, -1);
+   
+    // Body Cylinder
+    ctx.beginPath();
+    ctx.moveTo(-12*bS, -7*bS);
+    ctx.lineTo(8*bS, -7*bS);
+    ctx.bezierCurveTo(12*bS, -7*bS, 12*bS, 7*bS, 8*bS, 7*bS);
+    ctx.lineTo(-12*bS, 7*bS);
+    ctx.bezierCurveTo(-8*bS, 7*bS, -8*bS, -7*bS, -12*bS, -7*bS);
+    ctx.closePath();
+    ctx.fillStyle = "#ffffff"; ctx.fill();
+    ctx.strokeStyle = "#000000"; ctx.lineWidth = 1; ctx.stroke();
+
+    // Sunshield
+    ctx.beginPath();
+    ctx.moveTo(-14*bS, -8*bS);
+    ctx.lineTo(10*bS, -8*bS);
+    ctx.bezierCurveTo(16*bS, -8*bS, 16*bS, -1*bS, 10*bS, -1*bS);
+    ctx.lineTo(-14*bS, -1*bS);
+    ctx.closePath();
+    ctx.fillStyle = "#ffffff"; ctx.fill();
+    ctx.strokeStyle = "#000000"; ctx.stroke();
+
+    // Front Face (Dark oval)
+    ctx.beginPath();
+    ctx.ellipse(8*bS, 0, 2.5*bS, 6.5*bS, 0, 0, Math.PI*2);
+    ctx.fillStyle = "#1b3039"; ctx.fill();
+    ctx.strokeStyle = "#000000"; ctx.stroke();
+
+    // Lens Outer White Ring
+    ctx.beginPath();
+    ctx.ellipse(8*bS, 0, 1.2*bS, 3.5*bS, 0, 0, Math.PI*2);
+    ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 1; ctx.stroke();
+   
+    // Lens Inner Dark Center
+    ctx.beginPath();
+    ctx.ellipse(8*bS, 0, 0.5*bS, 1.5*bS, 0, 0, Math.PI*2);
+    ctx.fillStyle = "#000000"; ctx.fill();
+
+  } else if (type === "ptz") {
+    const pS = S * 0.9;
+   
+    // --- FIXED MOUNT & ARM (Does not rotate with camera) ---
+    ctx.save();
+    if (p.flip) ctx.scale(-1, 1);
+   
+    // Wall Plate (Left side)
+    ctx.beginPath();
+    ctx.moveTo(-10*pS, -6*pS);
+    ctx.lineTo(-10*pS, 10*pS);
+    ctx.lineTo(-14*pS, 12*pS);
+    ctx.lineTo(-14*pS, -8*pS);
+    ctx.closePath();
+    ctx.fillStyle = "#ffffff"; ctx.fill();
+    ctx.strokeStyle = "#000000"; ctx.lineWidth = 1; ctx.stroke();
+
+    // Arm
+    ctx.beginPath();
+    ctx.moveTo(-10*pS, 0);
+    ctx.lineTo(-4*pS, -2*pS);
+    ctx.lineTo(-4*pS, 2*pS);
+    ctx.lineTo(-10*pS, 4*pS);
+    ctx.closePath();
+    ctx.fillStyle = "#ffffff"; ctx.fill();
+    ctx.strokeStyle = "#000000"; ctx.stroke();
+   
+    ctx.restore();
+
+    // --- ROTATING CAMERA BODY ---
+    ctx.rotate(angle);
+   
+    // Top cap (small rectangle connecting to arm)
+    ctx.beginPath();
+    ctx.moveTo(-4*pS, -3*pS);
+    ctx.lineTo(-4*pS, 3*pS);
+    ctx.lineTo(-2*pS, 3*pS);
+    ctx.lineTo(-2*pS, -3*pS);
+    ctx.fillStyle = "#ffffff"; ctx.fill();
+    ctx.strokeStyle = "#000000"; ctx.lineWidth = 1; ctx.stroke();
+
+    // Main Bell Housing
+    ctx.beginPath();
+    ctx.moveTo(-2*pS, -3*pS);
+    ctx.lineTo(-2*pS, 3*pS);  
+    ctx.bezierCurveTo(4*pS, 8*pS, 6*pS, 9*pS, 8*pS, 9*pS);
+    ctx.lineTo(8*pS, -9*pS);
+    ctx.bezierCurveTo(6*pS, -9*pS, 4*pS, -8*pS, -2*pS, -3*pS);
+    ctx.closePath();
+    ctx.fillStyle = "#ffffff"; ctx.fill();
+    ctx.strokeStyle = "#000000"; ctx.stroke();
+
+    // Lower Dome (Dark glass)
+    ctx.beginPath();
+    ctx.moveTo(8*pS, -8*pS);
+    ctx.lineTo(8*pS, 8*pS);
+    ctx.bezierCurveTo(14*pS, 8*pS, 16*pS, 4*pS, 16*pS, 0);
+    ctx.bezierCurveTo(16*pS, -4*pS, 14*pS, -8*pS, 8*pS, -8*pS);
+    ctx.closePath();
+    ctx.fillStyle = "#1a1a1a"; ctx.fill();
+    ctx.strokeStyle = "#000000"; ctx.stroke();
+
+    // Lens housing
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(8*pS, -3*pS, 4*pS, 6*pS, 1);
+    else ctx.rect(8*pS, -3*pS, 4*pS, 6*pS);
+    ctx.fillStyle = "#262626"; ctx.fill();
+   
     // Lens
-    ctx.beginPath(); ctx.arc(10 * S, 0, 3.2 * S, 0, Math.PI * 2);
-    ctx.fillStyle = "#0e0e0e"; ctx.fill();
+    ctx.beginPath();
+    ctx.arc(10*pS, 0, 1.8*pS, 0, Math.PI*2);
+    ctx.fillStyle = "#000000"; ctx.fill();
 
-    // Lens reflection
-    ctx.beginPath(); ctx.arc(10.8 * S, -1.1 * S, 1.1 * S, 0, Math.PI * 2);
-    ctx.fillStyle = "rgba(255,255,255,0.60)"; ctx.fill();
+  } else {
+    // For all other types, we rotate first
+    ctx.rotate(angle);
+
+    if (type === "dome" || type === "turret") {
+      // ── NEW DOME (Reference: Image provided by user) ──
+      // Top white cover (hemisphere)
+      ctx.beginPath();
+      ctx.arc(0, 0, 11 * S, Math.PI/2 + 0.3, Math.PI/2 - 0.3 + Math.PI*2);
+      // the above makes a pacman shape or we can just draw a circle and then a black circle offset
+      ctx.closePath();
+     
+      // Let's do it simpler: A large white circle for the main body
+      ctx.beginPath();
+      ctx.arc(0, 0, 11 * S, 0, Math.PI * 2);
+      ctx.fillStyle = "#ffffff"; ctx.fill();
+      ctx.strokeStyle = "#000000"; ctx.lineWidth = 1; ctx.stroke();
+     
+      // Cutout for the black dome (shifted forward)
+      ctx.beginPath();
+      ctx.arc(3 * S, 0, 8.5 * S, 0, Math.PI * 2);
+      ctx.fillStyle = "#222222"; ctx.fill();
+      ctx.strokeStyle = "#000000"; ctx.lineWidth = 1; ctx.stroke();
+     
+      // White rim around the black dome
+      ctx.beginPath();
+      ctx.arc(3 * S, 0, 8.5 * S, 0, Math.PI * 2);
+      ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 1.5; ctx.stroke();
+     
+      // Inner lens housing (darker)
+      ctx.beginPath();
+      ctx.arc(4 * S, 0, 5 * S, 0, Math.PI * 2);
+      ctx.fillStyle = "#111111"; ctx.fill();
+      ctx.strokeStyle = "#000000"; ctx.lineWidth = 1; ctx.stroke();
+
+      // IR LED ring
+      for (let i=0; i<12; i++) {
+        const a = (i / 12) * Math.PI * 2;
+        const lx = 4 * S + Math.cos(a) * 3.8 * S;
+        const ly = Math.sin(a) * 3.8 * S;
+        ctx.beginPath();
+        ctx.arc(lx, ly, 0.6 * S, 0, Math.PI * 2);
+        ctx.fillStyle = "#dddddd"; ctx.fill();
+      }
+
+      // Center Lens
+      ctx.beginPath();
+      ctx.arc(4 * S, 0, 2 * S, 0, Math.PI * 2);
+      ctx.fillStyle = "#000000"; ctx.fill();
+     
+      // Lens glint
+      ctx.beginPath();
+      ctx.arc(4.5 * S, -0.5 * S, 0.5 * S, 0, Math.PI * 2);
+      ctx.fillStyle = "rgba(255,255,255,0.6)"; ctx.fill();
+    }
+    else if (type === "fisheye") {
+      // ── FISHEYE (Reference: Flat UFO-style ceiling mount) ──
+      // Outer base
+      ctx.beginPath(); ctx.arc(0, 0, 12 * S, 0, Math.PI * 2);
+      ctx.fillStyle = "#ffffff"; ctx.fill();
+      ctx.strokeStyle = "#000000"; ctx.lineWidth = 1; ctx.stroke();
+ 
+      // Concentric detail ring
+      ctx.beginPath(); ctx.arc(0, 0, 8 * S, 0, Math.PI * 2);
+      ctx.strokeStyle = "#000000"; ctx.lineWidth = 1; ctx.stroke();
+ 
+      // Center lens
+      ctx.beginPath(); ctx.arc(0, 0, 3.5 * S, 0, Math.PI * 2);
+      ctx.fillStyle = "#0e0e0e"; ctx.fill();
+      ctx.strokeStyle = "#000000"; ctx.stroke();
+ 
+      // Lens detail (inner ring)
+      ctx.beginPath(); ctx.arc(0, 0, 1.5 * S, 0, Math.PI * 2);
+      ctx.strokeStyle = "rgba(255,255,255,0.2)"; ctx.stroke();
+    }
+    else {
+      // ── BOX / THERMAL / OTHER (Rectangular) ──
+      const shift = 14 * S;
+      ctx.translate(-shift, 0); // Offset
+ 
+      // Mount
+      ctx.beginPath(); ctx.arc(-14 * S, 0, 5 * S, 0, Math.PI * 2);
+      ctx.fillStyle = "#ffffff"; ctx.fill();
+      ctx.strokeStyle = "#000000"; ctx.lineWidth = 1; ctx.stroke();
+ 
+      // Neck
+      ctx.beginPath();
+      if (ctx.roundRect) ctx.roundRect(-14 * S, -2.5 * S, 7 * S, 5 * S, 1.5);
+      else ctx.rect(-14 * S, -2.5 * S, 7 * S, 5 * S);
+      ctx.fillStyle = "#ffffff"; ctx.fill();
+      ctx.strokeStyle = "#000000"; ctx.lineWidth = 1; ctx.stroke();
+ 
+      // Main barrel body
+      ctx.beginPath();
+      if (ctx.roundRect) ctx.roundRect(-7 * S, -5.5 * S, 17 * S, 11 * S, 5 * S);
+      else ctx.rect(-7 * S, -5.5 * S, 17 * S, 11 * S);
+      ctx.fillStyle = "#ffffff"; ctx.fill();
+      ctx.strokeStyle = "#000000"; ctx.lineWidth = 1; ctx.stroke();
+ 
+      // Front bezel ring
+      ctx.beginPath(); ctx.arc(10 * S, 0, 5.5 * S, 0, Math.PI * 2);
+      ctx.fillStyle = "#ffffff"; ctx.fill();
+      ctx.strokeStyle = "#000000"; ctx.lineWidth = 1; ctx.stroke();
+ 
+      // Lens
+      ctx.beginPath(); ctx.arc(10 * S, 0, 3.2 * S, 0, Math.PI * 2);
+      ctx.fillStyle = "#0e0e0e"; ctx.fill();
+ 
+      // Lens reflection
+      ctx.beginPath(); ctx.arc(10.8 * S, -1.1 * S, 1.1 * S, 0, Math.PI * 2);
+      ctx.fillStyle = "rgba(255,255,255,0.60)"; ctx.fill();
+    }
   }
 
   ctx.shadowBlur = 0; ctx.restore();
 
-  // ── Label ─────────────────────────────────────────────────────────
+  // ── Permanent Label with optional dotted leader line ────────────────────
   const displayLabel = p.customName || camera.model;
-  if (showLabel) {
+  const lbl = displayLabel;
+  ctx.font = "10.5px Inter, sans-serif";
+  const tw = ctx.measureText(lbl).width;
+
+  // Apply label offset if present
+  const lo = p.labelOffset || { dx: 0, dy: 0 };
+  const labelCenterX = x + lo.dx;
+  const labelTopY = y - 24 + lo.dy;
+  const bx = labelCenterX - tw / 2 - 7;
+  const by = labelTopY;
+  const labelW = tw + 14;
+  const labelH = 18;
+
+  // Draw dotted leader line if label has been moved
+  if (lo.dx !== 0 || lo.dy !== 0) {
     ctx.save();
-    ctx.translate(x, y);
-    ctx.fillStyle = (selected || isHighlit) ? col : "#e8edf5";
-    ctx.font = "bold 9px monospace";
-    ctx.textAlign = "center"; ctx.textBaseline = "top";
-    ctx.fillText(displayLabel, 0, 14 * S + 6);
+    ctx.setLineDash([4, 3]);
+    ctx.strokeStyle = col + "88";
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(labelCenterX, by + labelH / 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
     ctx.restore();
   }
 
-  // ── Hover tooltip ─────────────────────────────────────────────────
-  if (hovering) {
-    const lbl = displayLabel;
-    ctx.font = "10.5px Inter, sans-serif";
-    const tw = ctx.measureText(lbl).width;
-    const bx = x - tw / 2 - 7;
-    const by = y - 24;
-    ctx.save();
-    ctx.fillStyle = "#0d1117f2";
-    ctx.beginPath();
-    if (ctx.roundRect) ctx.roundRect(bx, by, tw + 14, 18, 4);
-    else ctx.rect(bx, by, tw + 14, 18);
-    ctx.fill();
-    ctx.fillStyle = "#e8edf5";
-    ctx.textAlign = "center"; ctx.textBaseline = "middle";
-    ctx.fillText(lbl, x, by + 9);
-    ctx.restore();
+  ctx.save();
+  ctx.fillStyle = "#0d1117f2";
+  ctx.beginPath();
+  if (ctx.roundRect) ctx.roundRect(bx, by, labelW, labelH, 4);
+  else ctx.rect(bx, by, labelW, labelH);
+  ctx.fill();
+
+  // Highlight border if selected or highlighted
+  if (selected || isHighlit) {
+    ctx.strokeStyle = col;
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
   }
+
+  // Subtle dashed border when label is offset (visual cue it's draggable)
+  if (lo.dx !== 0 || lo.dy !== 0) {
+    ctx.strokeStyle = col + "44";
+    ctx.lineWidth = 0.5;
+    ctx.setLineDash([2, 2]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  ctx.fillStyle = "#e8edf5";
+  ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  ctx.fillText(lbl, labelCenterX, by + 9);
+  ctx.restore();
 }
 
 
@@ -1120,6 +1352,8 @@ export default function DesignerView({ onBack }) {
   const draggingCamZoneRef = useRef(null);
   const draggingDraftZoneIdRef = useRef(null);
   const draggingDraftVertexIdxRef = useRef(null);
+  const draggingLabelIdxRef = useRef(null);
+  const labelDragStartRef = useRef(null);
 
   const [ppm, setPpm] = useState(PIXELS_PER_METRE);
   const ppmRef = useRef(ppm);
@@ -1130,6 +1364,28 @@ export default function DesignerView({ onBack }) {
   useEffect(() => { placedRef.current = placed; }, [placed]);
 
   const [saveStatus, setSaveStatus] = useState("saved"); // "saving" | "saved" | "failed"
+
+  const [iconScale, setIconScale] = useState(1.20);
+  const iconScaleRef = useRef(1.20);
+  useEffect(() => { iconScaleRef.current = iconScale; }, [iconScale]);
+
+  const [textNodes, setTextNodes] = useState([]);
+  const [editingTextNode, setEditingTextNode] = useState(null);
+  const editingTextNodeRef = useRef(null);
+  useEffect(() => { editingTextNodeRef.current = editingTextNode; }, [editingTextNode]);
+  const [selectedTextNode, setSelectedTextNode] = useState(null);
+  const selectedTextNodeRef = useRef(null);
+  useEffect(() => { selectedTextNodeRef.current = selectedTextNode; }, [selectedTextNode]);
+  const textNodesRef = useRef([]);
+  useEffect(() => { textNodesRef.current = textNodes; }, [textNodes]);
+
+  const [toolboxOpen, setToolboxOpen] = useState(false);
+  const [tbFontColor, setTbFontColor] = useState("#e8edf5");
+  const [tbFontSize, setTbFontSize] = useState(36);
+  const [tbFontStyle, setTbFontStyle] = useState("Arial");
+
+  const draggingTextNodeIdRef = useRef(null);
+  const draggingTextStartRef = useRef(null);
 
   // Stateful interactive pricing in Indian Rupees (INR)
   const [cameraPrices, setCameraPrices] = useState({});
@@ -1323,6 +1579,9 @@ export default function DesignerView({ onBack }) {
   const modeRef = useRef("place");
   useEffect(() => { modeRef.current = mode; }, [mode]);
   const [showExportMenu, setShowExportMenu] = useState(false);
+  const [showFormatModal, setShowFormatModal] = useState(false);
+  const [pendingExportMode, setPendingExportMode] = useState(null); // "design" | "heatmap"
+  const [isGeneratingExport, setIsGeneratingExport] = useState(false);
   const [showStats, setShowStats] = useState(false);
   const [showPpm, setShowPpm] = useState(false);
   const [showConfigDrawer, setShowConfigDrawer] = useState(false);
@@ -1351,6 +1610,11 @@ export default function DesignerView({ onBack }) {
   const mouseMapPosRef = useRef(null);
   useEffect(() => { mouseMapPosRef.current = mouseMapPos; }, [mouseMapPos]);
 
+  // ── Crop Layout states ──
+  const cropStartRef = useRef(null);
+  const cropEndRef = useRef(null);
+  const [hasCropSelection, setHasCropSelection] = useState(false);
+
   const [showCalibrateModal, setShowCalibrateModal] = useState(false);
   const [calibrateDistPx, setCalibrateDistPx] = useState(0);
   const [calibrateRealWidth, setCalibrateRealWidth] = useState("5.0");
@@ -1366,7 +1630,7 @@ export default function DesignerView({ onBack }) {
         body: JSON.stringify({
           map_id: MAP_ID,
           floor_id: FLOOR_ID,
-          placed: placed.map(p => ({ id: p.id, x: p.x, y: p.y, direction: p.direction, camera: p.camera })),
+          placed: placed.map(p => ({ id: p.id, x: p.x, y: p.y, direction: p.direction, camera: p.camera, ...(p.labelOffset ? { labelOffset: p.labelOffset } : {}) })),
           zones: zones.map(z => ({ id: z.id, name: z.name, color: z.color, polygon: z.polygon })),
           ppm,
           floor_plan: floorPlan,
@@ -1434,7 +1698,7 @@ export default function DesignerView({ onBack }) {
     if (modeRef.current === "calibrate") {
       const pts = calPtsRef.current;
       const mousePos = mouseMapPosRef.current;
-      
+     
       ctx.save();
       // Draw first point
       if (pts.length > 0) {
@@ -1540,6 +1804,32 @@ export default function DesignerView({ onBack }) {
       ctx.restore();
     }
 
+    // ── Crop Box ─────────────────────────────────────────────────────────────
+    if (modeRef.current === "crop" && cropStartRef.current && cropEndRef.current) {
+      const cx = Math.min(cropStartRef.current.x, cropEndRef.current.x);
+      const cy = Math.min(cropStartRef.current.y, cropEndRef.current.y);
+      const cw = Math.abs(cropStartRef.current.x - cropEndRef.current.x);
+      const ch = Math.abs(cropStartRef.current.y - cropEndRef.current.y);
+     
+      if (cw > 10 && ch > 10) {
+        ctx.save();
+        ctx.fillStyle = "rgba(0, 0, 0, 0.6)";
+        const imgW = floorImgRef.current?.width || 2000;
+        const imgH = floorImgRef.current?.height || 2000;
+       
+        ctx.fillRect(0, 0, imgW, cy);
+        ctx.fillRect(0, cy, cx, ch);
+        ctx.fillRect(cx + cw, cy, imgW - (cx + cw), ch);
+        ctx.fillRect(0, cy + ch, imgW, imgH - (cy + ch));
+
+        ctx.strokeStyle = "#3b82f6";
+        ctx.lineWidth = 2 / sc;
+        ctx.setLineDash([6 / sc, 4 / sc]);
+        ctx.strokeRect(cx, cy, cw, ch);
+        ctx.restore();
+      }
+    }
+
     // ── Zones ────────────────────────────────────────────────────────────────
     zonesRef.current.forEach(zone => {
       if (zone.polygon.length < 2) return;
@@ -1575,7 +1865,7 @@ export default function DesignerView({ onBack }) {
       ctx.beginPath();
       zone.polygon.forEach((p, i) => { if (i === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y); });
       ctx.closePath();
-      
+     
       // Subtle constant background fill
       ctx.fillStyle = zone.color + "14";
       ctx.fill();
@@ -1585,7 +1875,7 @@ export default function DesignerView({ onBack }) {
       ctx.lineWidth = 2.0;
       ctx.setLineDash([6, 4]);
       ctx.stroke(); ctx.setLineDash([]);
-      
+     
       zone.polygon.forEach(p => {
         ctx.beginPath(); ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
         ctx.fillStyle = zone.color;
@@ -1638,7 +1928,9 @@ export default function DesignerView({ onBack }) {
         activeZoneIdRef,
         highlightedCamIdRef.current,
         false,
-        showPpm
+        showPpm,
+        false,
+        iconScaleRef.current
       );
     });
 
@@ -1682,6 +1974,60 @@ export default function DesignerView({ onBack }) {
         ctx.restore();
       }
     }
+
+    // ── Text Annotations ─────────────────────────────────────────────────────
+    textNodesRef.current.forEach(node => {
+      const isEditing = node.id === editingTextNodeRef.current;
+      const isSelected = node.id === selectedTextNodeRef.current;
+
+      ctx.save();
+      ctx.font = `bold ${node.size}px "${node.font}", sans-serif`;
+      ctx.fillStyle = node.color;
+      ctx.textAlign = "left";
+      ctx.textBaseline = "top";
+     
+      if (!isEditing) {
+        ctx.fillText(node.text, node.x, node.y);
+      }
+     
+      const metrics = ctx.measureText(node.text);
+      const w = metrics.width;
+      const h = node.size;
+
+      if (isSelected || isEditing) {
+        ctx.strokeStyle = "#3b82f6";
+        ctx.lineWidth = 2 / sc;
+        ctx.setLineDash([4 / sc, 4 / sc]);
+        ctx.strokeRect(node.x - 4/sc, node.y - 4/sc, w + 8/sc, h + 8/sc);
+        ctx.setLineDash([]);
+      }
+     
+      const cx = node.x + w + 10 / sc;
+      const cy = node.y - 4 / sc;
+      const r = 8 / sc;
+     
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.fillStyle = "#ef4444";
+      ctx.fill();
+     
+      ctx.strokeStyle = "#ffffff";
+      ctx.lineWidth = 1.5 / sc;
+      ctx.beginPath();
+      ctx.moveTo(cx - 3/sc, cy - 3/sc);
+      ctx.lineTo(cx + 3/sc, cy + 3/sc);
+      ctx.moveTo(cx + 3/sc, cy - 3/sc);
+      ctx.lineTo(cx - 3/sc, cy + 3/sc);
+      ctx.stroke();
+
+      if (draggingTextNodeIdRef.current === node.id) {
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.5)";
+        ctx.lineWidth = 2 / sc;
+        ctx.setLineDash([4 / sc, 4 / sc]);
+        ctx.strokeRect(node.x - 2/sc, node.y - 2/sc, w + 4/sc, h + 4/sc);
+      }
+      ctx.restore();
+    });
 
     ctx.restore();
   }, [ppm, hoveredIdx, selectedIdx, showPpm]);
@@ -1747,9 +2093,9 @@ export default function DesignerView({ onBack }) {
     reader.onload = (event) => {
       try {
         const data = JSON.parse(event.target.result);
-        
+       
         recordState();
-        
+       
         if (data.ppm) {
           setPpm(data.ppm);
           ppmRef.current = data.ppm;
@@ -1763,15 +2109,15 @@ export default function DesignerView({ onBack }) {
           setZones(data.zones);
           apiSaveZones(data.zones);
         }
-        
+       
         draw();
-        
+       
         apiSaveLayout({
           placed: data.placed || [],
           zones: data.zones || [],
           ppm: data.ppm || ppmRef.current
         });
-        
+       
         alert("Layout imported successfully!");
       } catch (err) {
         console.error("JSON parsing error: ", err);
@@ -1951,7 +2297,7 @@ export default function DesignerView({ onBack }) {
     setSlides(prevSlides => {
       const idx = prevSlides.findIndex(s => s.id === activeSlideId);
       if (idx === -1) return prevSlides;
-      
+     
       const currentSlide = prevSlides[idx];
       const hasFloorImg = floorImgRef.current ? floorImgRef.current.src : null;
       if (
@@ -1963,7 +2309,7 @@ export default function DesignerView({ onBack }) {
       ) {
         return prevSlides;
       }
-      
+     
       const updated = [...prevSlides];
       updated[idx] = {
         ...currentSlide,
@@ -2019,14 +2365,14 @@ export default function DesignerView({ onBack }) {
     const W = wrap.clientWidth, H = wrap.clientHeight;
     const targetScale = Math.max(scaleRef.current, 2);
     scaleRef.current = targetScale;
-    
+   
     // Shift camera focus point UP above the bottom settings bar (~150px)
     const bottomBarHeight = 150;
     const visibleH = H - bottomBarHeight;
-    
-    offsetRef.current = { 
-      x: W / 2 - cam.x * targetScale, 
-      y: visibleH / 2 - cam.y * targetScale 
+   
+    offsetRef.current = {
+      x: W / 2 - cam.x * targetScale,
+      y: visibleH / 2 - cam.y * targetScale
     };
     setZoomPct(Math.round(targetScale * 100));
   }, []);
@@ -2062,15 +2408,15 @@ export default function DesignerView({ onBack }) {
     const wrap = wrapRef.current; const img = floorImgRef.current;
     if (!wrap || !img) return;
     const W = wrap.clientWidth, H = wrap.clientHeight;
-    
+   
     const leftMargin = 65;
     const rightPanelWidth = inspectorExpanded ? 265 : 0;
     const visibleW = W - rightPanelWidth - leftMargin;
-    
+   
     // Account for the bottom settings bar height if a camera is selected
     const bottomBarHeight = selectedIdx !== null ? 150 : 0;
     const visibleH = H - 40 - bottomBarHeight;
-    
+   
     const s = Math.min(visibleW / img.width, visibleH / img.height) * 0.96;
     scaleRef.current = s;
     offsetRef.current = {
@@ -2204,7 +2550,7 @@ export default function DesignerView({ onBack }) {
 
     const newSlideId = "slide_" + Date.now();
     const newSlideName = floorPlanName || `Floor Draft ${slidesRef.current.length + 1}`;
-    
+   
     const newSlide = {
       id: newSlideId,
       name: newSlideName,
@@ -2304,6 +2650,28 @@ export default function DesignerView({ onBack }) {
     const hx = p.x + Math.cos(angle) * 36;
     const hy = p.y + Math.sin(angle) * 36;
     return Math.hypot(ix - hx, iy - hy) < 12 / scaleRef.current;
+  }
+
+  // ── Label hit-test: returns index of placed camera whose label contains (ix, iy) ──
+  function nearestLabel(ix, iy) {
+    const ctx = canvasRef.current?.getContext('2d');
+    if (!ctx) return -1;
+    ctx.font = "10.5px Inter, sans-serif";
+    let best = -1;
+    placedRef.current.forEach((p, i) => {
+      const lbl = p.customName || p.camera.model;
+      const tw = ctx.measureText(lbl).width;
+      const lo = p.labelOffset || { dx: 0, dy: 0 };
+      const labelCenterX = p.x + lo.dx;
+      const labelTopY = p.y - 24 + lo.dy;
+      const bx = labelCenterX - tw / 2 - 7;
+      const labelW = tw + 14;
+      const labelH = 18;
+      if (ix >= bx && ix <= bx + labelW && iy >= labelTopY && iy <= labelTopY + labelH) {
+        best = i;
+      }
+    });
+    return best;
   }
 
   const finishZoneDrawing = useCallback((points) => {
@@ -2694,6 +3062,53 @@ export default function DesignerView({ onBack }) {
     mouseDownPosRef.current = { x: e.clientX, y: e.clientY };
     const p = toImg(e.clientX, e.clientY);
 
+    // Check if clicked on a text node
+    const cvs = canvasRef.current;
+    if (cvs) {
+      const ctx = cvs.getContext('2d');
+      for (let i = textNodesRef.current.length - 1; i >= 0; i--) {
+        const node = textNodesRef.current[i];
+        ctx.save();
+        ctx.font = `bold ${node.size}px "${node.font}", sans-serif`;
+        const metrics = ctx.measureText(node.text);
+        ctx.restore();
+        const w = metrics.width;
+        const h = node.size;
+
+        const sc = scaleRef.current;
+        const cx = node.x + w + 10 / sc;
+        const cy = node.y - 4 / sc;
+        const r = 10 / sc; // slight padding for click target
+
+        if (Math.hypot(p.x - cx, p.y - cy) <= r) {
+          // Clicked close button
+          const updated = textNodesRef.current.filter(n => n.id !== node.id);
+          textNodesRef.current = updated;
+          setTextNodes(updated);
+          draw();
+          return;
+        }
+
+        // Text is drawn with textBaseline="top"
+        if (p.x >= node.x && p.x <= node.x + w && p.y >= node.y && p.y <= node.y + h) {
+          draggingTextNodeIdRef.current = node.id;
+          draggingTextStartRef.current = { offsetX: p.x - node.x, offsetY: p.y - node.y };
+          setSelectedTextNode(node.id);
+          draw();
+          return;
+        }
+      }
+    }
+
+    setSelectedTextNode(null);
+
+    if (modeRef.current === "crop") {
+      cropStartRef.current = p;
+      cropEndRef.current = null;
+      setHasCropSelection(false);
+      return;
+    }
+
     if (modeRef.current === "calibrate") {
       const pts = calPtsRef.current;
       if (pts.length === 0) {
@@ -2706,16 +3121,16 @@ export default function DesignerView({ onBack }) {
         setCalPts([ptA, p]);
         calPtsRef.current = [ptA, p];
         setCalibrateDistPx(distPx);
-        
+       
         // Calculate horizontal and vertical components in pixels
         const dx = Math.abs(p.x - ptA.x);
         const dy = Math.abs(p.y - ptA.y);
         const currentPpm = ppmRef.current || PIXELS_PER_METRE;
-        
+       
         // Populate modal meters inputs based on current PPM
         setCalibrateRealWidth((dx / currentPpm).toFixed(2));
         setCalibrateRealLength((dy / currentPpm).toFixed(2));
-        
+       
         setShowCalibrateModal(true);
         draw();
       }
@@ -2760,6 +3175,18 @@ export default function DesignerView({ onBack }) {
         draggingDraftVertexIdxRef.current = foundVertexIdx;
         return;
       }
+    }
+
+    // Check if clicking on a camera label → start label drag
+    const labelIdx = nearestLabel(p.x, p.y);
+    if (labelIdx >= 0) {
+      recordState();
+      draggingLabelIdxRef.current = labelIdx;
+      const cam = placedRef.current[labelIdx];
+      const lo = cam.labelOffset || { dx: 0, dy: 0 };
+      labelDragStartRef.current = { mx: p.x, my: p.y, initialDx: lo.dx, initialDy: lo.dy };
+      setSelectedIdx(labelIdx);
+      return;
     }
 
     const idx = nearestPlaced(p.x, p.y);
@@ -2817,6 +3244,28 @@ export default function DesignerView({ onBack }) {
     setMouseMapPos(p);
     mouseMapPosRef.current = p;
 
+    if (modeRef.current === "crop" && cropStartRef.current && mouseDownPosRef.current) {
+      cropEndRef.current = p;
+      draw();
+      return;
+    }
+
+    if (draggingTextNodeIdRef.current !== null && draggingTextStartRef.current !== null) {
+      const idx = textNodesRef.current.findIndex(n => n.id === draggingTextNodeIdRef.current);
+      if (idx !== -1) {
+        const updated = [...textNodesRef.current];
+        updated[idx] = {
+          ...updated[idx],
+          x: p.x - draggingTextStartRef.current.offsetX,
+          y: p.y - draggingTextStartRef.current.offsetY
+        };
+        textNodesRef.current = updated;
+        setTextNodes(updated);
+        draw();
+      }
+      return;
+    }
+
     if (draggingDraftZoneIdRef.current !== null && draggingDraftVertexIdxRef.current !== null) {
       const zoneId = draggingDraftZoneIdRef.current;
       const vertexIdx = draggingDraftVertexIdxRef.current;
@@ -2853,6 +3302,17 @@ export default function DesignerView({ onBack }) {
       placedRef.current = updated; setPlaced([...updated]); draw(); return;
     }
 
+    // ── Label dragging ────────────────────────────────────────────────────────
+    if (draggingLabelIdxRef.current !== null && labelDragStartRef.current) {
+      const idx = draggingLabelIdxRef.current;
+      const start = labelDragStartRef.current;
+      const newDx = start.initialDx + (p.x - start.mx);
+      const newDy = start.initialDy + (p.y - start.my);
+      const updated = [...placedRef.current];
+      updated[idx] = { ...updated[idx], labelOffset: { dx: newDx, dy: newDy } };
+      placedRef.current = updated; setPlaced([...updated]); draw(); return;
+    }
+
     if (draggingIdxRef.current !== null) {
       const activeZone = activeZoneIdRef.current
         ? zonesRef.current.find(z => z.id === activeZoneIdRef.current)
@@ -2875,7 +3335,10 @@ export default function DesignerView({ onBack }) {
     // Update cursor style
     if (modeRef.current !== "pan") {
       let cursor = "crosshair";
-      if (draftZonesRef.current.length > 0) {
+      // Check if hovering over a camera label
+      if (nearestLabel(p.x, p.y) >= 0) {
+        cursor = "grab";
+      } else if (draftZonesRef.current.length > 0) {
         const grabRadius = 12 / scaleRef.current;
         let nearVertex = false;
         for (const zone of draftZonesRef.current) {
@@ -2892,6 +3355,9 @@ export default function DesignerView({ onBack }) {
           cursor = "move";
         }
       }
+      if (draggingLabelIdxRef.current !== null) {
+        cursor = "grabbing";
+      }
       if (e.target) {
         e.target.style.cursor = cursor;
       }
@@ -2899,19 +3365,68 @@ export default function DesignerView({ onBack }) {
   }, [draw, hoveredIdx]); // eslint-disable-line
 
   const onMouseUp = useCallback(() => {
+    if (modeRef.current === "crop" && cropStartRef.current && cropEndRef.current) {
+      setHasCropSelection(true);
+      mouseDownPosRef.current = null;
+      return;
+    }
+
     const wasDragging = draggingIdxRef.current !== null;
     const wasRotating = rotatingIdxRef.current !== null;
+    const wasDraggingLabel = draggingLabelIdxRef.current !== null;
     draggingIdxRef.current = null;
     rotatingIdxRef.current = null;
+    draggingLabelIdxRef.current = null;
+    labelDragStartRef.current = null;
     panStartRef.current = null;
     mouseDownPosRef.current = null;
     draggingCamZoneRef.current = null;
     draggingDraftZoneIdRef.current = null;
     draggingDraftVertexIdxRef.current = null;
-    if (wasDragging || wasRotating) {
+    draggingTextNodeIdRef.current = null;
+    draggingTextStartRef.current = null;
+    if (wasDragging || wasRotating || wasDraggingLabel) {
       scheduleSave(placedRef.current, zonesRef.current, ppmRef.current);
     }
   }, [scheduleSave]);
+
+  // ── Double-click on label to reset position ────────────────────────────────
+  const onDoubleClick = useCallback(e => {
+    const p = toImg(e.clientX, e.clientY);
+
+    // Check if double-clicked on a text node
+    const cvs = canvasRef.current;
+    if (cvs) {
+      const ctx = cvs.getContext('2d');
+      for (let i = textNodesRef.current.length - 1; i >= 0; i--) {
+        const node = textNodesRef.current[i];
+        ctx.save();
+        ctx.font = `bold ${node.size}px "${node.font}", sans-serif`;
+        const metrics = ctx.measureText(node.text);
+        ctx.restore();
+        const w = metrics.width;
+        const h = node.size;
+        if (p.x >= node.x && p.x <= node.x + w && p.y >= node.y && p.y <= node.y + h) {
+          setEditingTextNode(node.id);
+          setSelectedTextNode(node.id);
+          return;
+        }
+      }
+    }
+
+    const labelIdx = nearestLabel(p.x, p.y);
+    if (labelIdx >= 0) {
+      const cam = placedRef.current[labelIdx];
+      if (cam.labelOffset && (cam.labelOffset.dx !== 0 || cam.labelOffset.dy !== 0)) {
+        const updated = [...placedRef.current];
+        updated[labelIdx] = { ...updated[labelIdx], labelOffset: { dx: 0, dy: 0 } };
+        placedRef.current = updated;
+        setPlaced([...updated]);
+        draw();
+        scheduleSave(placedRef.current, zonesRef.current, ppmRef.current);
+      }
+    }
+  }, [draw, scheduleSave]); // eslint-disable-line
 
   // ── Drag-and-drop onto canvas ─────────────────────────────────────────────
   const onDrop = useCallback(e => {
@@ -2956,7 +3471,7 @@ export default function DesignerView({ onBack }) {
   function handleFileChange(e) {
     const file = e.target.files[0]; if (!file) return;
     const name = file.name.replace(/\.[^/.]+$/, "");
-    
+   
     if (file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")) {
       const fileReader = new FileReader();
       fileReader.onload = async function() {
@@ -2965,15 +3480,15 @@ export default function DesignerView({ onBack }) {
           const pdf = await pdfjsLib.getDocument({ data: typedarray }).promise;
           const page = await pdf.getPage(1);
           const viewport = page.getViewport({ scale: 6.0 });
-          
+         
           const canvas = document.createElement("canvas");
           const context = canvas.getContext("2d");
           canvas.height = viewport.height;
           canvas.width = viewport.width;
-          
+         
           context.fillStyle = "#ffffff";
           context.fillRect(0, 0, canvas.width, canvas.height);
-          
+         
           await page.render({ canvasContext: context, viewport: viewport }).promise;
           const dataUrl = canvas.toDataURL("image/png");
           addNewSlide(dataUrl, name);
@@ -2992,6 +3507,56 @@ export default function DesignerView({ onBack }) {
     }
     e.target.value = "";
   }
+
+  const applyCrop = useCallback(() => {
+    if (!cropStartRef.current || !cropEndRef.current || !floorImgRef.current) return;
+    const cx = Math.min(cropStartRef.current.x, cropEndRef.current.x);
+    const cy = Math.min(cropStartRef.current.y, cropEndRef.current.y);
+    const cw = Math.abs(cropStartRef.current.x - cropEndRef.current.x);
+    const ch = Math.abs(cropStartRef.current.y - cropEndRef.current.y);
+
+    if (cw < 10 || ch < 10) return;
+
+    recordState();
+
+    const cCanvas = document.createElement("canvas");
+    cCanvas.width = cw;
+    cCanvas.height = ch;
+    const cCtx = cCanvas.getContext("2d");
+    cCtx.drawImage(floorImgRef.current, cx, cy, cw, ch, 0, 0, cw, ch);
+    const croppedDataUrl = cCanvas.toDataURL("image/png");
+
+    const updatedPlaced = placedRef.current.map(p => ({ ...p, x: p.x - cx, y: p.y - cy }));
+    const updatedZones = zonesRef.current.map(z => ({ ...z, polygon: z.polygon.map(pt => ({ x: pt.x - cx, y: pt.y - cy })) }));
+
+    placedRef.current = updatedPlaced;
+    setPlaced(updatedPlaced);
+    zonesRef.current = updatedZones;
+    setZones(updatedZones);
+   
+    const cImg = new Image();
+    cImg.onload = () => {
+      floorImgRef.current = cImg;
+      const activeSlideIdx = slidesRef.current.findIndex(s => s.id === activeSlideIdRef.current);
+      if (activeSlideIdx >= 0 && activeSlideIdx < slidesRef.current.length) {
+        const slides = [...slidesRef.current];
+        slides[activeSlideIdx] = { ...slides[activeSlideIdx], floorPlan: croppedDataUrl };
+        slidesRef.current = slides;
+        setSlides(slides);
+      }
+     
+      cropStartRef.current = null;
+      cropEndRef.current = null;
+      setHasCropSelection(false);
+      setMode("place");
+      draw();
+     
+      apiSaveFloorPlan(croppedDataUrl);
+      apiSaveZones(updatedZones);
+      apiSaveLayout({ placed: updatedPlaced, zones: updatedZones, ppm: ppmRef.current });
+    };
+    cImg.src = croppedDataUrl;
+  }, [draw, recordState, apiSaveLayout]);
 
   // ── FIX 2: Remove floor plan — clears image and deletes from backend ──────
   function removeFloorPlan() {
@@ -3018,6 +3583,18 @@ export default function DesignerView({ onBack }) {
         apiSaveLayout({ placed: [], zones: zonesRef.current, ppm: ppmRef.current });
       }
     );
+  }
+
+  function flipSelected() {
+    if (selectedIdx === null) return;
+    recordState();
+    const updated = placedRef.current.map((cam, i) =>
+      i === selectedIdx ? { ...cam, flip: !cam.flip, direction: (cam.direction + 180) % 360 } : cam
+    );
+    placedRef.current = updated;
+    setPlaced(updated);
+    draw();
+    apiSaveLayout({ placed: updated, zones: zonesRef.current, ppm: ppmRef.current });
   }
 
   function removeSelected() {
@@ -3076,7 +3653,7 @@ export default function DesignerView({ onBack }) {
       const idx = placedRef.current.findIndex(p => p.id === newId);
       if (idx !== -1) {
         setSelectedIdx(idx);
-        setSelectedModel(placedRef.current[idx].camera);
+        setSelectedModel(null);
       }
     } else {
       setSelectedIdx(null);
@@ -3107,161 +3684,295 @@ export default function DesignerView({ onBack }) {
   }));
   const heatmapCameras = placed.map(p => ({ id: p.id, status: "online" }));
 
-  function executeExportPng(exportMode = "design", company = "mirador") {
-    const img = floorImgRef.current; if (!img) return;
-    const oc = document.createElement("canvas");
-    
-    // Use the current zoom scale to guarantee the exported image is as crisp as the screen
-    const exportScale = Math.max(1, scaleRef.current || 1);
-    
-    oc.width = img.width * exportScale;
-    oc.height = img.height * exportScale;
-    const ctx = oc.getContext("2d");
-    
-    ctx.fillStyle = "#10151f";
-    ctx.fillRect(0, 0, oc.width, oc.height);
-    
-    ctx.scale(exportScale, exportScale);
-    ctx.drawImage(img, 0, 0);
-    if (exportMode === "design") {
-      // Draw zones — border only, no fill (matches live canvas)
-      zonesRef.current.forEach(zone => {
-        if (zone.polygon.length < 2) return;
-        ctx.save(); ctx.beginPath();
-        zone.polygon.forEach((pt, i) => { if (i === 0) ctx.moveTo(pt.x, pt.y); else ctx.lineTo(pt.x, pt.y); });
-        ctx.closePath();
-        ctx.strokeStyle = zone.color + "ff";
-        ctx.lineWidth = 2;
-        ctx.setLineDash([6, 4]);
-        ctx.stroke();
-        ctx.setLineDash([]);
-        // Draw vertex dots
-        zone.polygon.forEach(pt => {
-          ctx.beginPath(); ctx.arc(pt.x, pt.y, 3, 0, Math.PI * 2);
-          ctx.fillStyle = zone.color; ctx.globalAlpha = 0.7; ctx.fill();
-          ctx.strokeStyle = "#fff"; ctx.lineWidth = 1; ctx.globalAlpha = 0.5; ctx.stroke(); ctx.globalAlpha = 1;
-        });
-        ctx.restore();
+function drawCameraStatsToCanvas(ctx, canvasW, canvasH, placedCameras) {
+  const typeCounts = {};
+  placedCameras.forEach(p => {
+    const t = p.camera.type || "dome";
+    typeCounts[t] = (typeCounts[t] || 0) + 1;
+  });
+  const entries = Object.keys(typeCounts).sort().map(type => ({
+    label: `${type.charAt(0).toUpperCase() + type.slice(1)}: ${typeCounts[type]}`,
+  }));
+  if (!entries.length) return;
+
+  const refDim   = Math.min(canvasW, canvasH);
+  const baseUnit = Math.max(10, Math.min(refDim * 0.028, 32));
+  const fontSize  = baseUnit;
+  const titleSize = baseUnit * 1.3;
+  const rowGap    = baseUnit * 1.7;
+  const padX      = baseUnit * 1.6;
+  const padY      = baseUnit * 1.4;
+  const margin    = baseUnit * 1.4;
+  const cornerR   = baseUnit * 0.5;
+  const accentW   = Math.max(3, baseUnit * 0.22);
+
+  ctx.save();
+
+  ctx.font = `bold ${titleSize}px Inter, system-ui, sans-serif`;
+  const titleWidth = ctx.measureText("Camera Statistics").width;
+  ctx.font = `600 ${fontSize}px Inter, system-ui, sans-serif`;
+  const totalLabel = `Total Cameras: ${placedCameras.length}`;
+  const totalWidth = ctx.measureText(totalLabel).width;
+  const maxLW = Math.max(...entries.map(e => ctx.measureText(e.label).width));
+  const maxTextW = Math.max(titleWidth, totalWidth, maxLW);
+
+  const boxW = padX * 2 + maxTextW;
+  const boxH = padY * 2 + (entries.length + 1.5) * rowGap;
+  const bx = canvasW - boxW - margin;
+  const by = canvasH - boxH - margin;
+
+  ctx.shadowColor = "rgba(0,0,0,0.18)";
+  ctx.shadowBlur = baseUnit * 1.2;
+  ctx.shadowOffsetX = 0;
+  ctx.shadowOffsetY = baseUnit * 0.3;
+
+  ctx.fillStyle = "rgba(255, 255, 255, 0.88)";
+  ctx.beginPath();
+  if (ctx.roundRect) ctx.roundRect(bx, by, boxW, boxH, cornerR);
+  else ctx.rect(bx, by, boxW, boxH);
+  ctx.fill();
+
+  ctx.shadowColor = "transparent";
+  ctx.shadowBlur = 0;
+  ctx.shadowOffsetX = 0;
+  ctx.shadowOffsetY = 0;
+
+  ctx.strokeStyle = "rgba(0,0,0,0.08)";
+  ctx.lineWidth = Math.max(1, baseUnit * 0.06);
+  ctx.stroke();
+
+  ctx.fillStyle = "#1e3a5f";
+  ctx.beginPath();
+  if (ctx.roundRect) ctx.roundRect(bx, by, accentW, boxH, [cornerR, 0, 0, cornerR]);
+  else ctx.rect(bx, by, accentW, boxH);
+  ctx.fill();
+
+  let currentY = by + padY + titleSize * 0.5;
+  ctx.textAlign = "left";
+  ctx.textBaseline = "middle";
+
+  ctx.font = `bold ${titleSize}px Inter, system-ui, sans-serif`;
+  ctx.fillStyle = "#0f172a";
+  ctx.fillText("Camera Statistics", bx + padX, currentY);
+  currentY += rowGap;
+
+  ctx.font = `600 ${fontSize}px Inter, system-ui, sans-serif`;
+  ctx.fillStyle = "#1d4ed8";
+  ctx.fillText(totalLabel, bx + padX, currentY);
+  currentY += rowGap;
+
+  ctx.fillStyle = "#374151";
+  entries.forEach(e => {
+    ctx.fillText(e.label, bx + padX, currentY);
+    currentY += rowGap;
+  });
+
+  ctx.restore();
+}
+
+function buildExportCanvas(exportMode = "design", company = "mirador", onReady) {
+  const img = floorImgRef.current;
+  if (!img) { onReady(null); return; }
+
+  const exportScale = Math.max(1, Math.min(3, 3000 / Math.max(img.width, img.height)));
+
+  const oc = document.createElement("canvas");
+  oc.width  = Math.round(img.width  * exportScale);
+  oc.height = Math.round(img.height * exportScale);
+  const ctx = oc.getContext("2d");
+
+  ctx.fillStyle = "#10151f";
+  ctx.fillRect(0, 0, oc.width, oc.height);
+  ctx.scale(exportScale, exportScale);
+  ctx.drawImage(img, 0, 0);
+
+  if (exportMode === "design") {
+    zonesRef.current.forEach(zone => {
+      if (zone.polygon.length < 2) return;
+      ctx.save(); ctx.beginPath();
+      zone.polygon.forEach((pt, i) => {
+        if (i === 0) ctx.moveTo(pt.x, pt.y); else ctx.lineTo(pt.x, pt.y);
       });
-      placedRef.current.forEach(p => drawPlacedCamera(ctx, p, ppm, false, false, zonesRef, activeZoneIdRef, null, false, showPpm));
-      drawDesignLegendToCanvas(ctx, oc.width, oc.height, { placedCameras: placedRef.current, compact: true });
-    } else if (exportMode === "mapview_only_cams") {
-      // Draw zones — border only, no fill (matches live canvas)
-      zonesRef.current.forEach(zone => {
-        if (zone.polygon.length < 2) return;
-        ctx.save(); ctx.beginPath();
-        zone.polygon.forEach((pt, i) => { if (i === 0) ctx.moveTo(pt.x, pt.y); else ctx.lineTo(pt.x, pt.y); });
-        ctx.closePath();
-        ctx.strokeStyle = zone.color + "aa";
-        ctx.lineWidth = 1.5;
-        ctx.setLineDash([6, 4]);
-        ctx.stroke();
-        ctx.setLineDash([]);
-        ctx.restore();
+      ctx.closePath();
+      ctx.strokeStyle = zone.color + "ff"; ctx.lineWidth = 2;
+      ctx.setLineDash([6, 4]); ctx.stroke(); ctx.setLineDash([]);
+      zone.polygon.forEach(pt => {
+        ctx.beginPath(); ctx.arc(pt.x, pt.y, 3, 0, Math.PI * 2);
+        ctx.fillStyle = zone.color; ctx.globalAlpha = 0.7; ctx.fill();
+        ctx.strokeStyle = "#fff"; ctx.lineWidth = 1; ctx.globalAlpha = 0.5; ctx.stroke();
+        ctx.globalAlpha = 1;
       });
-      placedRef.current.forEach(p => drawPlacedCamera(ctx, p, ppm, false, false, zonesRef, activeZoneIdRef, null, false, false, true));
-      // No legend drawn!
-    } else if (exportMode === "heatmap") {
-      const hcvs = document.createElement("canvas");
-      hcvs.width = oc.width; hcvs.height = oc.height;
-      const hctx = hcvs.getContext("2d");
-      const foundLevels = drawHeatmapToContext(hctx, hcvs.width, hcvs.height, {
-        markers: heatmapMarkers, cameras: heatmapCameras, scale: exportScale,
-        offset: { x: 0, y: 0 }, activeZone: zones.find(z => z.id === activeZoneId) || null,
-        allZones: zones,
-        floorImg: img, step: Math.max(1, Math.round(2 * exportScale)), clear: true,
-      });
-      
-      ctx.save();
-      ctx.setTransform(1, 0, 0, 1, 0, 0);
-      ctx.globalAlpha = 0.85; ctx.drawImage(hcvs, 0, 0); ctx.globalAlpha = 1.0;
       ctx.restore();
-      
-      zonesRef.current.forEach(zone => {
-        if (zone.polygon.length < 2) return;
-        ctx.save(); ctx.beginPath();
-        zone.polygon.forEach((pt, i) => { if (i === 0) ctx.moveTo(pt.x, pt.y); else ctx.lineTo(pt.x, pt.y); });
-        ctx.closePath();
-        ctx.strokeStyle = zone.color; ctx.lineWidth = 1.5; ctx.setLineDash([5, 5]); ctx.stroke(); ctx.restore();
+    });
+    placedRef.current.forEach(p =>
+      drawPlacedCamera(ctx, p, ppm, false, false, zonesRef, activeZoneIdRef, null, false, showPpm, false, iconScaleRef.current)
+    );
+    // ── Stats box: reset transform so coords are true canvas pixels ──
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    drawCameraStatsToCanvas(ctx, oc.width, oc.height, placedRef.current);
+    ctx.restore();
+
+  } else if (exportMode === "heatmap") {
+    const hcvs = document.createElement("canvas");
+    hcvs.width = oc.width; hcvs.height = oc.height;
+    const hctx = hcvs.getContext("2d");
+    drawHeatmapToContext(hctx, hcvs.width, hcvs.height, {
+      markers: heatmapMarkers, cameras: heatmapCameras, scale: exportScale,
+      offset: { x: 0, y: 0 }, activeZone: zones.find(z => z.id === activeZoneId) || null,
+      allZones: zones, floorImg: img, step: Math.max(1, Math.round(2 * exportScale)), clear: true,
+    });
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.globalAlpha = 0.85; ctx.drawImage(hcvs, 0, 0); ctx.globalAlpha = 1;
+    ctx.restore();
+    zonesRef.current.forEach(zone => {
+      if (zone.polygon.length < 2) return;
+      ctx.save(); ctx.beginPath();
+      zone.polygon.forEach((pt, i) => {
+        if (i === 0) ctx.moveTo(pt.x, pt.y); else ctx.lineTo(pt.x, pt.y);
       });
-      placedRef.current.forEach(p => drawPlacedCamera(ctx, p, ppm, false, false, zonesRef, activeZoneIdRef, null, false, showPpm));
-      drawHeatmapLegendToCanvas(ctx, oc.width, oc.height, { foundLevels, compact: true });
-    }
-    const finalizeAndDownload = () => {
-      const a = document.createElement("a");
-      a.download = exportMode === "heatmap" ? "coverage_heatmap.png" : exportMode === "mapview_only_cams" ? "map_view.png" : "designer_layout.png";
-      a.href = oc.toDataURL("image/png");
-      a.click();
-      setShowExportMenu(false);
+      ctx.closePath();
+      ctx.strokeStyle = zone.color; ctx.lineWidth = 1.5; ctx.setLineDash([5, 5]); ctx.stroke();
+      ctx.restore();
+    });
+    placedRef.current.forEach(p =>
+      drawPlacedCamera(ctx, p, ppm, false, false, zonesRef, activeZoneIdRef, null, false, showPpm, false, iconScaleRef.current)
+    );
+    // ── Stats box: reset transform so coords are true canvas pixels ──
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    drawCameraStatsToCanvas(ctx, oc.width, oc.height, placedRef.current);
+    ctx.restore();
+  }
+
+  // ── Watermark badge ──
+  const logoSrc     = company === "sentinel" ? sentinelLogoImg : logoImg;
+  const companyName = company === "sentinel"
+    ? "SENTINEL TECHNOLOGIES PRIVATE LIMITED"
+    : "Mirador AI Technologies";
+
+  const watermark = new Image();
+  watermark.onload = () => {
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.globalAlpha = 1;
+
+    const refW    = oc.width;
+    const logoH   = Math.max(44, Math.min(refW * 0.055, 110));
+    const logoW   = (watermark.width / watermark.height) * logoH;
+    const tSize   = Math.max(14, Math.min(refW * 0.022, 38));
+
+    ctx.font = `bold ${tSize}px Inter, Arial, sans-serif`;
+    const textW   = ctx.measureText(companyName).width;
+    const gap     = Math.max(10, refW * 0.010);
+    const padX    = Math.max(16, refW * 0.016);
+    const padY    = Math.max(12, refW * 0.012);
+    const margin  = Math.max(18, refW * 0.018);
+    const cornerR = Math.max(8,  refW * 0.008);
+
+    const badgeW = padX * 2 + logoW + gap + textW;
+    const badgeH = Math.max(logoH, tSize) + padY * 2;
+    const bx = oc.width  - badgeW - margin;
+    const by = margin;
+
+    ctx.shadowColor = "rgba(0,0,0,0.18)";
+    ctx.shadowBlur = 14;
+    ctx.shadowOffsetY = 3;
+
+    ctx.fillStyle = "rgba(255, 255, 255, 0.96)";
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(bx, by, badgeW, badgeH, cornerR);
+    else ctx.rect(bx, by, badgeW, badgeH);
+    ctx.fill();
+
+    ctx.shadowColor = "transparent";
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetY = 0;
+
+    ctx.strokeStyle = "rgba(0,0,0,0.07)";
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    const midY = by + badgeH / 2;
+
+    ctx.drawImage(watermark, bx + padX, midY - logoH / 2, logoW, logoH);
+
+    ctx.fillStyle = "#0f172a";
+    ctx.font = `bold ${tSize}px Inter, Arial, sans-serif`;
+    ctx.textAlign = "left";
+    ctx.textBaseline = "middle";
+    ctx.fillText(companyName, bx + padX + logoW + gap, midY);
+
+    ctx.restore();
+    onReady(oc);
+  };
+  watermark.onerror = () => onReady(oc);
+  watermark.src = logoSrc;
+}
+
+  function downloadCanvasAsJpg(canvas, exportMode) {
+    if (!canvas) return;
+    const a = document.createElement("a");
+    a.download = exportMode === "heatmap" ? "coverage_heatmap.jpg" : "designer_layout.jpg";
+    a.href = canvas.toDataURL("image/jpeg", 0.95);
+    a.click();
+  }
+
+  function generatePdfReport(canvas, exportMode) {
+    if (!canvas) return;
+
+    const placedList = placedRef.current;
+    const zonesList = zonesRef.current;
+    const typeCounts = {};
+    placedList.forEach(p => {
+      const t = p.camera.type || "dome";
+      typeCounts[t] = (typeCounts[t] || 0) + 1;
+    });
+    const totalAreaM2 = zonesList.reduce((sum, z) => sum + getPolygonArea(z.polygon, ppmRef.current), 0);
+    const camsPerZone = zonesList.length > 0 ? (placedList.length / zonesList.length).toFixed(1) : "0";
+
+    const doc = new jsPDF({ orientation: "portrait", unit: "pt", format: "a4" });
+    const pageW = doc.internal.pageSize.getWidth();
+    const margin = 40;
+
+    const buildDoc = () => {
+      const imgData = canvas.toDataURL("image/jpeg", 0.85);
+      const imgRatio = canvas.height / canvas.width;
+      const imgW = pageW - margin * 2;
+     
+      const pageH = doc.internal.pageSize.getHeight();
+      const maxImgH = pageH - margin * 2;
+     
+      let finalImgH = imgW * imgRatio;
+      let finalImgW = imgW;
+     
+      if (finalImgH > maxImgH) {
+        finalImgH = maxImgH;
+        finalImgW = finalImgH / imgRatio;
+      }
+     
+      const imgX = margin + (imgW - finalImgW) / 2;
+      const imgY = margin + (maxImgH - finalImgH) / 2;
+
+      doc.addImage(imgData, "JPEG", imgX, imgY, finalImgW, finalImgH);
+
+      doc.save(exportMode === "heatmap" ? "coverage_heatmap_report.pdf" : "designer_layout_report.pdf");
     };
 
-    const watermark = new Image();
-    watermark.onload = () => {
-      ctx.save();
-      // Reset transform so we draw the watermark in absolute physical pixels
-      ctx.setTransform(1, 0, 0, 1, 0, 0);
-      ctx.globalAlpha = 0.9;
-      
-      // Determine watermark size based on canvas width, ensuring visibility on high-resolution images
-      // A typical logo should be around 7% - 8% of the canvas width, with absolute bounds to prevent it from being too tiny or huge.
-      const logoWidth = Math.max(160, Math.min(oc.width * 0.08, 550));
-      const logoHeight = (watermark.height / watermark.width) * logoWidth;
-      const padding = Math.max(25, Math.min(oc.width * 0.018, 90));
-      
-      const companyName = company === "mirador" ? "Mirador AI Technologies" : "SENTINEL TECHNOLOGIES PRIVATE LIMITED";
-      
-      // Calculate font size according to the logo width
-      // We want the text to sit centered beneath the logo, and its width to closely match the logo's width.
-      let trialFontSize = 14;
-      ctx.font = `bold ${trialFontSize}px Inter, sans-serif`;
-      let textWidth = ctx.measureText(companyName).width;
-      
-      // Scale font size proportionally to make text width match logo width, and add 5px as requested by the user
-      let fontSize = Math.floor(trialFontSize * (logoWidth / textWidth)) + 5;
-      
-      // Enforce bounds relative to logoWidth to keep text legible and balanced
-      const minFontSize = Math.max(17, Math.round(logoWidth * 0.075) + 5);
-      const maxFontSize = Math.max(25, Math.round(logoWidth * 0.15) + 5);
-      if (fontSize < minFontSize) fontSize = minFontSize;
-      if (fontSize > maxFontSize) fontSize = maxFontSize;
-      
-      ctx.font = `bold ${fontSize}px Inter, sans-serif`;
-      textWidth = ctx.measureText(companyName).width;
-      
-      const spaceBetween = Math.max(8, Math.round(logoWidth * 0.06));
-      
-      // Badge dimensions (padding around logo and text)
-      const badgePaddingX = Math.max(15, Math.round(logoWidth * 0.12));
-      const badgePaddingY = Math.max(12, Math.round(logoWidth * 0.09));
-      const badgeWidth = Math.max(logoWidth, textWidth) + badgePaddingX * 2;
-      const badgeHeight = logoHeight + spaceBetween + fontSize + badgePaddingY * 2;
-      
-      // Position the badge relative to the right edge of the physical canvas to prevent clipping
-      const badgeX = oc.width - padding - badgeWidth;
-      const badgeY = padding;
-      const centerX = badgeX + badgeWidth / 2;
-      const badgeCornerRadius = Math.max(6, Math.round(logoWidth * 0.05));
-      
-      // Background badge for watermark visibility
-      ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
-      ctx.beginPath();
-      ctx.roundRect(badgeX, badgeY, badgeWidth, badgeHeight, badgeCornerRadius);
-      ctx.fill();
-      
-      // Draw logo centered
-      ctx.drawImage(watermark, centerX - logoWidth / 2, badgeY + badgePaddingY, logoWidth, logoHeight);
-      
-      // Draw company text centered directly beneath the logo
-      ctx.fillStyle = "#0f172a";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "top";
-      ctx.fillText(companyName, centerX, badgeY + badgePaddingY + logoHeight + spaceBetween);
-      
-      ctx.restore();
-      finalizeAndDownload();
-    };
-    watermark.onerror = finalizeAndDownload;
-    watermark.src = company === "mirador" ? logoImg : sentinelLogoImg;
+    buildDoc();
+  }
+
+  function handleExportFormatSelect(format) {
+    if (!pendingExportMode) return;
+    setIsGeneratingExport(true);
+    buildExportCanvas(pendingExportMode, selectedCompany, (canvas) => {
+      if (format === "jpg") downloadCanvasAsJpg(canvas, pendingExportMode);
+      else if (format === "pdf") generatePdfReport(canvas, pendingExportMode);
+      setIsGeneratingExport(false);
+      setShowFormatModal(false);
+      setPendingExportMode(null);
+    });
   }
 
   useEffect(() => {
@@ -3286,7 +3997,7 @@ export default function DesignerView({ onBack }) {
         if (copiedCameraRef.current) {
           recordState();
           const p = copiedCameraRef.current;
-          
+         
           const pasteX = mouseMapPosRef.current ? mouseMapPosRef.current.x : p.x + 20;
           const pasteY = mouseMapPosRef.current ? mouseMapPosRef.current.y : p.y + 20;
 
@@ -3296,7 +4007,7 @@ export default function DesignerView({ onBack }) {
             x: pasteX,
             y: pasteY
           };
-          
+         
           const updated = [...placedRef.current, newEntry];
           placedRef.current = updated;
           setPlaced(updated);
@@ -3384,7 +4095,7 @@ export default function DesignerView({ onBack }) {
         {/* Left: Page Title */}
         <div className="dv-topbar__title-section" style={{ display: "flex", alignItems: "center", paddingRight: "20px", gap: "12px" }}>
           <h1 className="page-title" style={{ fontSize: "28px", margin: 0 }}>Designer View</h1>
-          
+         
           {/* Cloud Save Status Indicator */}
           <div style={{
             display: "flex",
@@ -3438,9 +4149,9 @@ export default function DesignerView({ onBack }) {
         </div>
 
         <div className="dv-topbar__actions" style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          
+         
           <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
-            
+           
             {/* ── File / Actions Dropdown ── */}
             <div className="dv-icon-drop-wrap" ref={fileDropRef}>
               <button
@@ -3465,7 +4176,7 @@ export default function DesignerView({ onBack }) {
               {fileDropdownOpen && (
                 <div className="dv-dropdown-panel dv-dropdown-panel--file" style={{ minWidth: "260px" }}>
                   <div className="dv-dropdown-panel__title">Project File Actions</div>
-                  
+                 
                   {/* Import Floor Plan */}
                   <button
                     className="dv-dropdown-item-btn"
@@ -3524,8 +4235,7 @@ export default function DesignerView({ onBack }) {
                     className="dv-dropdown-card"
                     disabled={placed.length === 0}
                     style={{ opacity: placed.length === 0 ? 0.4 : 1, cursor: placed.length === 0 ? "not-allowed" : "pointer" }}
-                    onClick={() => { if (placed.length > 0) { setFileDropdownOpen(false); executeExportPng("design", selectedCompany); } }}
-                  >
+onClick={() => { if (placed.length > 0) { setFileDropdownOpen(false); setPendingExportMode("design"); setShowFormatModal(true); } }}                  >
                     <div className="dv-dropdown-card__icon">
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="22" height="22">
                         <rect x="3" y="3" width="18" height="18" rx="2" /><path d="M3 9h18M9 21V9" />
@@ -3533,7 +4243,7 @@ export default function DesignerView({ onBack }) {
                     </div>
                     <div className="dv-dropdown-card__body">
                       <span className="dv-dropdown-card__label">Export Designer View</span>
-                      <span className="dv-dropdown-card__desc">Exact snapshot of current layout</span>
+                      {/* <span className="dv-dropdown-card__desc">Exact snapshot of current layout</span> */}
                     </div>
                   </button>
 
@@ -3560,8 +4270,8 @@ export default function DesignerView({ onBack }) {
                     className="dv-dropdown-card"
                     disabled={placed.length === 0}
                     style={{ opacity: placed.length === 0 ? 0.4 : 1, cursor: placed.length === 0 ? "not-allowed" : "pointer" }}
-                    onClick={() => { if (placed.length > 0) { setFileDropdownOpen(false); executeExportPng("heatmap", selectedCompany); } }}
-                  >
+                    onClick={() => { if (placed.length > 0) { setFileDropdownOpen(false); setPendingExportMode("heatmap"); setShowFormatModal(true); } }}
+                    >
                     <div className="dv-dropdown-card__icon dv-dropdown-card__icon--heatmap">
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="22" height="22">
                         <circle cx="12" cy="12" r="3" />
@@ -3570,7 +4280,7 @@ export default function DesignerView({ onBack }) {
                     </div>
                     <div className="dv-dropdown-card__body">
                       <span className="dv-dropdown-card__label">Export Heatmap</span>
-                      <span className="dv-dropdown-card__desc">Coverage blind-spot intensity</span>
+                      {/* <span className="dv-dropdown-card__desc">Coverage blind-spot intensity</span> */}
                     </div>
                   </button>
 
@@ -3595,7 +4305,7 @@ export default function DesignerView({ onBack }) {
                 </div>
               )}
             </div>
-            
+           
             <input ref={fileInputRef} type="file" accept="image/*,.pdf" style={{ display: "none" }} onChange={handleFileChange} />
             <input ref={jsonFileInputRef} type="file" accept=".json" style={{ display: "none" }} onChange={handleJsonImport} />
 
@@ -3657,7 +4367,7 @@ export default function DesignerView({ onBack }) {
                     <path d="M4 19h16M4 5h16M12 5v14M8 12h8" />
                   </svg>
                 )}
-                
+               
                 <span className="dv-icon-btn__label">Modes</span>
                 {mode !== "place" && <span className="dv-icon-btn__dot" />}
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="10" height="10" className={`dv-icon-btn__chevron ${modesDropdownOpen ? "open" : ""}`}>
@@ -3683,7 +4393,7 @@ export default function DesignerView({ onBack }) {
                       </div>
                       <div className="dv-dropdown-card__body">
                         <span className="dv-dropdown-card__label">Place Cam</span>
-                        <span className="dv-dropdown-card__desc">Drag/click models to layout</span>
+                        {/* <span className="dv-dropdown-card__desc">Drag/click models to layout</span> */}
                       </div>
                       {mode === "place" && <span className="dv-dropdown-card__check">✓</span>}
                     </button>
@@ -3700,7 +4410,7 @@ export default function DesignerView({ onBack }) {
                       </div>
                       <div className="dv-dropdown-card__body">
                         <span className="dv-dropdown-card__label">Pan Map</span>
-                        <span className="dv-dropdown-card__desc">Drag to navigate the floor layout</span>
+                        {/* <span className="dv-dropdown-card__desc">Drag to navigate the floor layout</span> */}
                       </div>
                       {mode === "pan" && <span className="dv-dropdown-card__check">✓</span>}
                     </button>
@@ -3717,7 +4427,7 @@ export default function DesignerView({ onBack }) {
                       </div>
                       <div className="dv-dropdown-card__body">
                         <span className="dv-dropdown-card__label">Draw Zone</span>
-                        <span className="dv-dropdown-card__desc">Click points to draw area boundaries</span>
+                        {/* <span className="dv-dropdown-card__desc">Click points to draw area boundaries</span> */}
                       </div>
                       {mode === "zone" && <span className="dv-dropdown-card__check">✓</span>}
                     </button>
@@ -3734,9 +4444,27 @@ export default function DesignerView({ onBack }) {
                       </div>
                       <div className="dv-dropdown-card__body">
                         <span className="dv-dropdown-card__label">Calibrate</span>
-                        <span className="dv-dropdown-card__desc">Visually measure scale with tape line</span>
+                        {/* <span className="dv-dropdown-card__desc">Visually measure scale with tape line</span> */}
                       </div>
                       {mode === "calibrate" && <span className="dv-dropdown-card__check">✓</span>}
+                    </button>
+
+                    {/* Crop Layout */}
+                    <button
+                      className={`dv-dropdown-card ${mode === "crop" ? "dv-dropdown-card--active" : ""}`}
+                      onClick={() => { setMode("crop"); setCalPts([]); setMouseMapPos(null); setSelectedIdx(null); setSelectedModel(null); setModesDropdownOpen(false); draw(); }}
+                    >
+                      <div className="dv-dropdown-card__icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="24" height="24">
+                          <path d="M6.13 1L6 16a2 2 0 002 2h15" />
+                          <path d="M1 6.13L16 6a2 2 0 012 2v15" />
+                        </svg>
+                      </div>
+                      <div className="dv-dropdown-card__body">
+                        <span className="dv-dropdown-card__label">Crop Layout</span>
+                        {/* <span className="dv-dropdown-card__desc">Draw a box to crop the floor plan</span> */}
+                      </div>
+                      {mode === "crop" && <span className="dv-dropdown-card__check">✓</span>}
                     </button>
 
                     {/* Auto-Detect Zones */}
@@ -3785,7 +4513,7 @@ export default function DesignerView({ onBack }) {
                         <span className="dv-dropdown-card__label">
                           {isDetectingZones ? "Detecting…" : "Auto-Detect"}
                         </span>
-                        <span className="dv-dropdown-card__desc">AI detects boundaries from image</span>
+                        {/* <span className="dv-dropdown-card__desc">AI detects boundaries from image</span> */}
                       </div>
                       {draftZones.length > 0 && !isDetectingZones && (
                         <span className="dv-dropdown-card__badge">{draftZones.length}</span>
@@ -3842,7 +4570,7 @@ export default function DesignerView({ onBack }) {
                       </div>
                       <div className="dv-dropdown-card__body">
                         <span className="dv-dropdown-card__label">Heatmap</span>
-                        <span className="dv-dropdown-card__desc">Coverage blind-spot intensity overlay</span>
+                        {/* <span className="dv-dropdown-card__desc">Coverage blind-spot intensity overlay</span> */}
                       </div>
                       <div className={`dv-dropdown-card__toggle ${showHeatmap ? "dv-dropdown-card__toggle--on" : ""}`} />
                     </button>
@@ -3859,7 +4587,7 @@ export default function DesignerView({ onBack }) {
                       </div>
                       <div className="dv-dropdown-card__body">
                         <span className="dv-dropdown-card__label">Clarity Zones</span>
-                        <span className="dv-dropdown-card__desc">PPM / DORI visual coverage categories</span>
+                        {/* <span className="dv-dropdown-card__desc">PPM / DORI visual coverage categories</span> */}
                       </div>
                       <div className={`dv-dropdown-card__toggle ${showPpm ? "dv-dropdown-card__toggle--on" : ""}`} />
                     </button>
@@ -3956,6 +4684,7 @@ export default function DesignerView({ onBack }) {
               <span style={{ fontSize: 12, color: "rgba(255,255,255,0.4)" }}>px/m</span>
             </div>
 
+
             {selectedPlaced && (
               <button className="dv-tbtn dv-tbtn--danger" onClick={removeSelected} style={{ padding: "4px 8px" }}>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="12" height="12" style={{ marginRight: 2 }}>
@@ -3988,7 +4717,133 @@ export default function DesignerView({ onBack }) {
               </svg>
               Clear Layout
             </button>
+            {/* ── Toolbox Dropdown ── */}
+            <div style={{ position: "relative" }}>
+              <button
+                className={`dv-tbtn ${toolboxOpen ? "dv-tbtn--active" : ""}`}
+                onClick={() => setToolboxOpen(!toolboxOpen)}
+                title="Open Toolbox"
+                style={{ padding: "4px 8px" }}
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="13" height="13" style={{ marginRight: 4 }}>
+                  <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
+                </svg>
+                Toolbox
+              </button>
+             
+              {toolboxOpen && (
+                <div style={{
+                  position: 'absolute',
+                  top: "calc(100% + 4px)",
+                  right: 0,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 12,
+                  background: '#161b22',
+                  border: '1px solid #30363d',
+                  borderRadius: 8,
+                  padding: '12px',
+                  boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+                  zIndex: 50,
+                  width: 200,
+                  pointerEvents: 'auto'
+                }}>
+                  {/* Camera Icon Size */}
+                  <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,0.6)", textTransform: "uppercase" }}>Camera Icon Size</div>
+                    <div style={{ display: "flex", background: "rgba(255,255,255,0.05)", borderRadius: 4, overflow: "hidden", alignItems: "center", height: 28, border: '1px solid rgba(255,255,255,0.1)', justifyContent: "space-between" }}>
+                      <button className="dv-tbtn" onClick={() => { setIconScale(s => Math.max(0.4, s - 0.2)); setTimeout(draw, 0); }} style={{ padding: "4px 8px", background: "transparent", border: "none", height: "100%" }} title="Decrease Icon Size">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="12" height="12"><line x1="5" y1="12" x2="19" y2="12" /></svg>
+                      </button>
+                      <span style={{ fontSize: 12, color: "rgba(255,255,255,0.8)" }}>{Math.round(iconScale * 100)}%</span>
+                      <button className="dv-tbtn" onClick={() => { setIconScale(s => Math.min(2.0, s + 0.2)); setTimeout(draw, 0); }} style={{ padding: "4px 8px", background: "transparent", border: "none", height: "100%" }} title="Increase Icon Size">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="12" height="12"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+                      </button>
+                    </div>
+                  </div>
 
+                  {/* Flip Cam */}
+                  {selectedPlaced && (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                      <button className="dv-tbtn" onClick={flipSelected} style={{ padding: "6px 8px", width: "100%", justifyContent: "center", background: "rgba(255,255,255,0.05)", border: '1px solid rgba(255,255,255,0.1)', borderRadius: 4 }} title="Flip Camera Mount">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="12" height="12" style={{ marginRight: 6 }}><path d="M21 9V3h-6M3 15v6h6M21 3l-7.5 7.5M3 21l7.5-7.5" /></svg>
+                        Flip Cam
+                      </button>
+                    </div>
+                  )}
+
+                  <hr style={{ border: 0, borderTop: "1px solid rgba(255,255,255,0.1)", margin: "4px 0" }} />
+
+                  {/* Text Annotation Settings */}
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,0.6)", textTransform: "uppercase" }}>Text Box Options</div>
+                   
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <input type="color" value={tbFontColor} onChange={e => {
+                        const val = e.target.value;
+                        setTbFontColor(val);
+                        const activeId = editingTextNodeRef.current || selectedTextNodeRef.current;
+                        if (activeId) {
+                          const updated = textNodesRef.current.map(n => n.id === activeId ? { ...n, color: val } : n);
+                          textNodesRef.current = updated;
+                          setTextNodes(updated);
+                          draw();
+                        }
+                      }} style={{ width: 24, height: 24, padding: 0, border: "none", borderRadius: 4, cursor: "pointer", background: "transparent" }} title="Font Color" />
+                     
+                      <div style={{ display: "flex", alignItems: "center", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 4, padding: "0 4px" }}>
+                        <input type="number" min="8" max="120" value={tbFontSize} onChange={e => {
+                          const val = Number(e.target.value);
+                          setTbFontSize(val);
+                          const activeId = editingTextNodeRef.current || selectedTextNodeRef.current;
+                          if (activeId) {
+                            const updated = textNodesRef.current.map(n => n.id === activeId ? { ...n, size: val } : n);
+                            textNodesRef.current = updated;
+                            setTextNodes(updated);
+                            draw();
+                          }
+                        }} style={{ width: 36, background: "transparent", border: "none", color: "white", fontSize: 12, outline: "none", textAlign: "center" }} title="Font Size" />
+                        <span style={{ fontSize: 10, color: "rgba(255,255,255,0.4)" }}>px</span>
+                      </div>
+                    </div>
+
+                    <select value={tbFontStyle} onChange={e => {
+                      const val = e.target.value;
+                      setTbFontStyle(val);
+                      const activeId = editingTextNodeRef.current || selectedTextNodeRef.current;
+                      if (activeId) {
+                        const updated = textNodesRef.current.map(n => n.id === activeId ? { ...n, font: val } : n);
+                        textNodesRef.current = updated;
+                        setTextNodes(updated);
+                        draw();
+                      }
+                    }} style={{ width: "100%", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 4, padding: "4px 8px", color: "white", fontSize: 12, outline: "none", cursor: "pointer" }}>
+                      {["Arial", "Verdana", "Courier New", "Times New Roman", "Georgia", "Impact", "Tahoma", "Trebuchet MS", "Comic Sans MS", "Lucida Console"].map(font => (
+                        <option key={font} value={font} style={{ color: "#000" }}>{font}</option>
+                      ))}
+                    </select>
+
+                    <button
+                      className="dv-tbtn"
+                      onClick={() => {
+                        const canvasWidth = canvasRef.current?.width || 800;
+                        const canvasHeight = canvasRef.current?.height || 600;
+                        const cx = ((canvasWidth / 2) - offsetRef.current.x) / scaleRef.current;
+                        const cy = ((canvasHeight / 2) - offsetRef.current.y) / scaleRef.current;
+                        const newNodes = [...textNodesRef.current, { id: "text_" + Date.now(), text: "Double-click to edit", x: cx, y: cy, color: tbFontColor, size: tbFontSize, font: tbFontStyle }];
+                        setTextNodes(newNodes);
+                        textNodesRef.current = newNodes;
+                        draw();
+                      }}
+                      style={{ padding: "6px 8px", width: "100%", justifyContent: "center", background: "#3b82f622", border: '1px solid #3b82f6', color: "#60a5fa", borderRadius: 4, marginTop: 4 }}
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="12" height="12" style={{ marginRight: 6 }}><path d="M12 5v14M5 12h14" /></svg>
+                      Add Text
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
 
         </div>
@@ -3998,7 +4853,7 @@ export default function DesignerView({ onBack }) {
       <div className="dv-body">
 
         {/* ── Left Sidebar (Layout Slides like PowerPoint/Docs) ── */}
-        <div 
+        <div
           className="dv-slides-sidebar"
           style={{
             width: isSidebarCollapsed ? "40px" : "220px",
@@ -4036,8 +4891,8 @@ export default function DesignerView({ onBack }) {
               )}
             </svg>
           </button>
-          
-          <div 
+         
+          <div
             style={{
               padding: "12px 14px",
               borderBottom: "0.5px solid #1e2d3e",
@@ -4079,7 +4934,7 @@ export default function DesignerView({ onBack }) {
             </button>
           </div>
 
-          <div 
+          <div
             style={{
               flex: 1,
               overflowY: "auto",
@@ -4112,7 +4967,7 @@ export default function DesignerView({ onBack }) {
                   }}
                 >
                   {/* Slide index number */}
-                  <div 
+                  <div
                     style={{
                       fontSize: "11px",
                       fontWeight: "700",
@@ -4127,7 +4982,7 @@ export default function DesignerView({ onBack }) {
                   </div>
 
                   {/* Thumbnail Card Frame */}
-                  <div 
+                  <div
                     className={`dv-slide-card ${isActive ? "active" : ""}`}
                     style={{
                       flex: 1,
@@ -4152,7 +5007,7 @@ export default function DesignerView({ onBack }) {
                     }}
                   >
                     {/* Thumbnail Image area */}
-                    <div 
+                    <div
                       style={{
                         height: "80px",
                         background: "#070a0f",
@@ -4165,9 +5020,9 @@ export default function DesignerView({ onBack }) {
                       }}
                     >
                       {slide.floorPlan ? (
-                        <img 
-                          src={slide.floorPlan} 
-                          alt={slide.name} 
+                        <img
+                          src={slide.floorPlan}
+                          alt={slide.name}
                           style={{
                             width: "100%",
                             height: "100%",
@@ -4176,7 +5031,7 @@ export default function DesignerView({ onBack }) {
                           }}
                         />
                       ) : (
-                        <div 
+                        <div
                           style={{
                             display: "flex",
                             flexDirection: "column",
@@ -4264,7 +5119,7 @@ export default function DesignerView({ onBack }) {
                           }}
                         />
                       ) : (
-                        <div 
+                        <div
                           onDoubleClick={(e) => {
                             e.stopPropagation();
                             setEditingSlideId(slide.id);
@@ -4284,8 +5139,8 @@ export default function DesignerView({ onBack }) {
                           title="Double click to rename"
                         >
                           <span>{slide.name}</span>
-                          <svg 
-                            viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="10" height="10" 
+                          <svg
+                            viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="10" height="10"
                             style={{ opacity: 0.3, cursor: "pointer" }}
                             onClick={(e) => {
                               e.stopPropagation();
@@ -4371,7 +5226,7 @@ export default function DesignerView({ onBack }) {
                 >
                   Zones ({zones.length})
                 </button>
-                
+               
                 {/* Close Cross Button */}
                 <button
                   className="dv-inspector-close-btn"
@@ -4418,8 +5273,8 @@ export default function DesignerView({ onBack }) {
                             <div key={p.id} style={{ display: "flex", flexDirection: "column", background: isHighlit ? col + "11" : "transparent", borderLeft: isHighlit ? `2.5px solid ${col}` : "2.5px solid transparent", marginBottom: 2, padding: "8px 10px", cursor: "pointer", transition: "all 0.15s" }} onClick={() => handleHighlightCam(p.id)}>
                                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                                   <CameraIcon type={p.camera.type} size={18} color={col} />
-                                  <input 
-                                    type="text" 
+                                  <input
+                                    type="text"
                                     value={p.customName !== undefined ? p.customName : p.camera.model}
                                     onClick={e => e.stopPropagation()}
                                     onChange={e => {
@@ -4451,7 +5306,7 @@ export default function DesignerView({ onBack }) {
                 ) : inspectorTab === "cameras" ? (
                   <div className="dv-inspector-flow">
                     <div className="dv-inspector-section-title">Available Devices</div>
-                    
+                   
                     {/* Brand and Type Custom Dropdowns */}
                     <div className="dv-library__filters" style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "14px" }}>
                       <input className="dv-search" placeholder="Search models…"
@@ -4580,7 +5435,7 @@ export default function DesignerView({ onBack }) {
                 ) : (
                   <div className="dv-inspector-flow">
                     <div className="dv-inspector-section-title">Floor Zones</div>
-                    
+                   
                     <div className="dv-zone-scroller">
                       {zones.length === 0 ? (
                         <div style={{ padding: "10px 8px", fontSize: 14, color: "rgba(255, 255, 255, 0.5)", textAlign: "center" }}>
@@ -4619,6 +5474,7 @@ export default function DesignerView({ onBack }) {
         <div className="dv-canvas-wrap" ref={wrapRef}
           onDragOver={e => e.preventDefault()}
           onDrop={onDrop}
+          style={{ position: "relative" }}
         >
           <canvas ref={canvasRef} className="dv-canvas"
             style={{ cursor: mode === "pan" ? "grab" : undefined }}
@@ -4626,11 +5482,87 @@ export default function DesignerView({ onBack }) {
             onMouseMove={onMouseMove}
             onMouseUp={onMouseUp}
             onMouseLeave={onMouseUp}
+            onDoubleClick={onDoubleClick}
             onContextMenu={onContextMenu}
           />
 
+          {editingTextNode && (() => {
+            const node = textNodes.find(n => n.id === editingTextNode);
+            if (!node) return null;
+            const sc = scaleRef.current;
+            const ox = offsetRef.current.x;
+            const oy = offsetRef.current.y;
+            const top = node.y * sc + oy;
+            const left = node.x * sc + ox;
+            return (
+              <input
+                autoFocus
+                type="text"
+                defaultValue={node.text === "Double-click to edit" ? "" : node.text}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') {
+                    const val = e.target.value;
+                    if (val.trim() === "") {
+                      const updated = textNodesRef.current.filter(n => n.id !== editingTextNode);
+                      textNodesRef.current = updated;
+                      setTextNodes(updated);
+                    } else {
+                      const updated = [...textNodesRef.current];
+                      const idx = updated.findIndex(n => n.id === editingTextNode);
+                      if (idx >= 0) updated[idx] = { ...updated[idx], text: val };
+                      textNodesRef.current = updated;
+                      setTextNodes(updated);
+                    }
+                    setEditingTextNode(null);
+                    draw();
+                  } else if (e.key === 'Escape') {
+                    setEditingTextNode(null);
+                  }
+                }}
+                onBlur={(e) => {
+                  const val = e.target.value;
+                  if (val.trim() === "") {
+                    const updated = textNodesRef.current.filter(n => n.id !== editingTextNode);
+                    textNodesRef.current = updated;
+                    setTextNodes(updated);
+                  } else {
+                    const updated = [...textNodesRef.current];
+                    const idx = updated.findIndex(n => n.id === editingTextNode);
+                    if (idx >= 0) updated[idx] = { ...updated[idx], text: val };
+                    textNodesRef.current = updated;
+                    setTextNodes(updated);
+                  }
+                  setEditingTextNode(null);
+                  draw();
+                }}
+                onClick={e => e.stopPropagation()}
+                onMouseDown={e => e.stopPropagation()}
+                onDoubleClick={e => e.stopPropagation()}
+                style={{
+                  position: 'absolute',
+                  top: top,
+                  left: left,
+                  background: 'transparent',
+                  border: '1px dashed #3b82f6',
+                  color: node.color || '#ffffff',
+                  fontSize: `${node.size * sc}px`,
+                  fontFamily: node.font ? `"${node.font}", sans-serif` : 'sans-serif',
+                  fontWeight: 'bold',
+                  outline: 'none',
+                  minWidth: '150px',
+                  padding: 0,
+                  margin: 0,
+                  zIndex: 20
+                }}
+                placeholder="Type text..."
+              />
+            );
+          })()}
+
+
+
           <HeatmapLayer
-            // isDesignerView={true} 
+            // isDesignerView={true}
             markers={heatmapMarkers}
             cameras={heatmapCameras}
             scaleRef={scaleRef}
@@ -4641,6 +5573,25 @@ export default function DesignerView({ onBack }) {
             activeZone={activeZone}
             zones={zones}
           />
+
+          {hasCropSelection && mode === "crop" && (
+            <div style={{ position: "absolute", bottom: "30px", left: "50%", transform: "translateX(-50%)", display: "flex", gap: "10px", zIndex: 10 }}>
+              <button
+                className="dv-btn dv-btn--primary"
+                onClick={applyCrop}
+                style={{ padding: "10px 20px", fontWeight: "bold", fontSize: "16px", boxShadow: "0 4px 12px rgba(0,0,0,0.5)" }}
+              >
+                Apply Crop
+              </button>
+              <button
+                className="dv-btn dv-btn--secondary"
+                onClick={() => { cropStartRef.current = null; cropEndRef.current = null; setHasCropSelection(false); draw(); }}
+                style={{ padding: "10px 20px", fontWeight: "bold", fontSize: "16px", background: "#334155", color: "white", border: "1px solid #475569", boxShadow: "0 4px 12px rgba(0,0,0,0.5)" }}
+              >
+                Cancel
+              </button>
+            </div>
+          )}
 
           {/* Floating Zoom HUD */}
           <div className="dv-zoom-hud">
@@ -4728,20 +5679,6 @@ export default function DesignerView({ onBack }) {
                 </button>
               ) : (
               <>
-                <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", marginBottom: 4 }}>
-                  <button
-                    onClick={() => setIsSettingsMinimized(true)}
-                    style={{ background: 'none', border: 'none', color: 'rgba(255, 255, 255, 0.5)', cursor: 'pointer', outline: 'none', display: 'flex', alignItems: 'center' }}
-                    onMouseEnter={e => e.currentTarget.style.color = '#ef4444'}
-                    onMouseLeave={e => e.currentTarget.style.color = 'rgba(255, 255, 255, 0.5)'}
-                    title="Minimize Settings"
-                  >
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14">
-                      <line x1="18" y1="6" x2="6" y2="18" />
-                      <line x1="6" y1="6" x2="18" y2="18" />
-                    </svg>
-                  </button>
-                </div>
               {/* Column 1: Camera Basic Info */}
               <div style={{ display: "flex", flexDirection: "column", width: 250, gap: 12, flexShrink: 0 }}>
                 <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", width: "100%" }}>
@@ -4753,25 +5690,39 @@ export default function DesignerView({ onBack }) {
                       {selectedPlaced.customName || selectedPlaced.camera.model} <span style={{ fontSize: 12, opacity: 0.6 }}>({selectedPlaced.camera.brand})</span>
                     </strong>
                   </div>
-                  <button
-                    onClick={() => setShowConfigDrawer(!showConfigDrawer)}
-                    style={{
-                      background: "none", border: "none", color: "rgba(255, 255, 255, 0.5)",
-                      fontSize: showConfigDrawer ? 16 : 14, cursor: "pointer", padding: "4px",
-                      display: "flex", alignItems: "center", justifyContent: "center", transition: "color 0.15s ease",
-                      flexShrink: 0,
-                    }}
-                    onMouseEnter={e => e.currentTarget.style.color = "#ffffff"}
-                    onMouseLeave={e => e.currentTarget.style.color = "rgba(255, 255, 255, 0.5)"}
-                    title={showConfigDrawer ? "Hide Configuration" : "Configure Camera"}
-                  >
-                    {showConfigDrawer ? "✕" : (
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" width="16" height="16">
-                        <circle cx="12" cy="12" r="3" />
-                        <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z" />
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <button
+                      onClick={() => setShowConfigDrawer(!showConfigDrawer)}
+                      style={{
+                        background: "none", border: "none", color: "rgba(255, 255, 255, 0.5)",
+                        fontSize: showConfigDrawer ? 16 : 14, cursor: "pointer", padding: "4px",
+                        display: "flex", alignItems: "center", justifyContent: "center", transition: "color 0.15s ease",
+                        flexShrink: 0,
+                      }}
+                      onMouseEnter={e => e.currentTarget.style.color = "#ffffff"}
+                      onMouseLeave={e => e.currentTarget.style.color = "rgba(255, 255, 255, 0.5)"}
+                      title={showConfigDrawer ? "Hide Configuration" : "Configure Camera"}
+                    >
+                      {showConfigDrawer ? "✕" : (
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" width="16" height="16">
+                          <circle cx="12" cy="12" r="3" />
+                          <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z" />
+                        </svg>
+                      )}
+                    </button>
+                    <button
+                      onClick={() => setIsSettingsMinimized(true)}
+                      style={{ background: 'none', border: 'none', color: 'rgba(255, 255, 255, 0.5)', cursor: 'pointer', outline: 'none', display: 'flex', alignItems: 'center', padding: "4px" }}
+                      onMouseEnter={e => e.currentTarget.style.color = '#ef4444'}
+                      onMouseLeave={e => e.currentTarget.style.color = 'rgba(255, 255, 255, 0.5)'}
+                      title="Minimize Settings"
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14">
+                        <line x1="18" y1="6" x2="6" y2="18" />
+                        <line x1="6" y1="6" x2="18" y2="18" />
                       </svg>
-                    )}
-                  </button>
+                    </button>
+                  </div>
                 </div>
 
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px 12px", background: "rgba(255,255,255,0.03)", padding: 12, borderRadius: 8, border: "1px solid rgba(255,255,255,0.05)" }}>
@@ -4829,7 +5780,7 @@ export default function DesignerView({ onBack }) {
                   {/* Column 1: Scenarios */}
                   <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                     <div style={{ fontSize: 15, fontWeight: 800, color: "#3b82f6", letterSpacing: "0.05em", textTransform: "uppercase" }}>Recording Scenarios</div>
-                    
+                   
                     {/* Recording Mode */}
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6 }}>
                       <span style={{ fontSize: 16, color: "rgba(255, 255, 255, 0.5)", fontWeight: "500" }}>Schedule:</span>
@@ -4875,7 +5826,7 @@ export default function DesignerView({ onBack }) {
                   {/* Column 2: Accessories */}
                   <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                     <div style={{ fontSize: 15, fontWeight: 800, color: "#a855f7", letterSpacing: "0.05em", textTransform: "uppercase" }}>Mounting & Power</div>
-                    
+                   
                     {/* Mounting Arm */}
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6 }}>
                       <span style={{ fontSize: 16, color: "rgba(255, 255, 255, 0.5)", fontWeight: "500" }}>Mounting:</span>
@@ -4993,6 +5944,8 @@ export default function DesignerView({ onBack }) {
       )}
 
 
+      {/* ── Text Edit Modal Removed ── */}
+
       {showCalibrateModal && (
         <div className="dv-automate-overlay">
           <div className="dv-stats-panel" style={{ width: 380, padding: 20 }}>
@@ -5108,10 +6061,10 @@ export default function DesignerView({ onBack }) {
                   onClick={() => {
                     const wMeters = parseFloat(calibrateRealWidth);
                     const lMeters = parseFloat(calibrateRealLength);
-                    
+                   
                     const dx = Math.abs(calPts[1].x - calPts[0].x);
                     const dy = Math.abs(calPts[1].y - calPts[0].y);
-                    
+                   
                     let ppmVals = [];
                     if (wMeters > 0 && dx > 0.1) {
                       ppmVals.push(dx / wMeters);
@@ -5119,14 +6072,14 @@ export default function DesignerView({ onBack }) {
                     if (lMeters > 0 && dy > 0.1) {
                       ppmVals.push(dy / lMeters);
                     }
-                    
+                   
                     if (ppmVals.length > 0) {
                       const newPpm = ppmVals.reduce((a, b) => a + b, 0) / ppmVals.length;
                       setPpm(newPpm);
                       ppmRef.current = newPpm;
                       scheduleSave(placedRef.current, zonesRef.current, newPpm);
                     }
-                    
+                   
                     setCalPts([]);
                     calPtsRef.current = [];
                     setShowCalibrateModal(false);
@@ -5151,7 +6104,14 @@ export default function DesignerView({ onBack }) {
           </div>
         </div>
       )}
-
+{showFormatModal && (
+        <ExportFormatModal
+          exportMode={pendingExportMode}
+          isGenerating={isGeneratingExport}
+          onSelect={handleExportFormatSelect}
+          onCancel={() => { if (!isGeneratingExport) { setShowFormatModal(false); setPendingExportMode(null); } }}
+        />
+      )}
       <PremiumPopup {...popupState} />
     </div>
   );
@@ -5246,13 +6206,13 @@ function ProjectStatsPanel({
     const csvRows = [
       ["Item Type", "Model/Part", "Qty", "Recording Scenario", "Mounting Bracket", "Accessories Included", "Unit Price (INR)", "Accessories Price (INR)", "Total Line Cost (INR)"]
     ];
-    
+   
     // 1. Add individual camera configurations
     placed.forEach((p) => {
       const accessories = [];
       if (p.includeBackbox) accessories.push("Weatherproof Backbox");
       if (p.includePoe) accessories.push("PoE Injector");
-      
+     
       const cPrice = getCameraBaseVal(p);
       const aPrice = getCameraAccVal(p);
 
@@ -5268,7 +6228,7 @@ function ProjectStatsPanel({
         `Rs. ${cPrice + aPrice}`
       ]);
     });
-    
+   
     if (cameraCount > 0) {
       // 2. Add Network Video Recorder
       csvRows.push([
@@ -5282,7 +6242,7 @@ function ProjectStatsPanel({
         "Rs. 0",
         `Rs. ${nvrPrice}`
       ]);
-      
+     
       // 3. Add PoE Switches
       csvRows.push([
         "INFRASTRUCTURE",
@@ -5296,22 +6256,22 @@ function ProjectStatsPanel({
         `Rs. ${switchUnitPrice * hardware.switchesCount}`
       ]);
     }
-    
+   
     // Combined calculations
     const totalCamBaseINR = placed.reduce((sum, p) => sum + getCameraBaseVal(p), 0);
     const totalCamAccINR = placed.reduce((sum, p) => sum + getCameraAccVal(p), 0);
     const totalInfraINR = cameraCount > 0 ? (nvrPrice + switchUnitPrice * hardware.switchesCount) : 0;
     const grandTotalINR = totalCamBaseINR + totalCamAccINR + totalInfraINR;
-    
+   
     csvRows.push([]);
     csvRows.push(["", "", "", "", "", "Cameras Base Subtotal", "", "", `Rs. ${totalCamBaseINR}`]);
     csvRows.push(["", "", "", "", "", "Accessories Subtotal", "", "", `Rs. ${totalCamAccINR}`]);
     csvRows.push(["", "", "", "", "", "Infrastructure Subtotal", "", "", `Rs. ${totalInfraINR}`]);
     csvRows.push(["", "", "", "", "", "GRAND SURVEILLANCE TOTAL", "", "", `Rs. ${grandTotalINR}`]);
 
-    const csvContent = "data:text/csv;charset=utf-8," 
+    const csvContent = "data:text/csv;charset=utf-8,"
       + csvRows.map(e => e.map(val => `"${String(val).replace(/"/g, '""')}"`).join(",")).join("\n");
-      
+     
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
@@ -5388,7 +6348,7 @@ function ProjectStatsPanel({
           >
             Storage & Performance
           </button>
-          {/* 
+          {/*
           <button
             onClick={() => setActiveTab("bom")}
             style={{
@@ -5415,7 +6375,7 @@ function ProjectStatsPanel({
                 <span style={{ fontSize: 17, fontWeight: 700, color: "#e8edf5" }}>Surveillance Proposal & Sales Quotation</span>
                 <span style={{ fontSize: 15, color: "rgba(255, 255, 255, 0.5)" }}>Tax and installation calculated separately</span>
               </div>
-              
+             
               <div className="dv-bom-table-wrapper" style={{ overflowX: "auto", borderRadius: 6, border: "1px solid #1e2d3e" }}>
                 <table className="dv-bom-table" style={{ width: "100%", borderCollapse: "collapse", fontSize: 15, color: "#cbd5e1" }}>
                   <thead>
@@ -5554,7 +6514,7 @@ function ProjectStatsPanel({
                         );
                       });
                     })()}
-                    
+                   
                     {placed.length > 0 && (
                       <>
                         {/* Infrastructure rows */}

@@ -1,0 +1,4 @@
+RTSP/1.0 401 Unauthorized
+CSeq: 1
+WWW-Authenticate: Digest realm="Login to 26588918c13985a3d665dcd7db2a767c", nonce="5f88b402af5fe8f495aef371ce300e7e"
+

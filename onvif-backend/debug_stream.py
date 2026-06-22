@@ -24,7 +24,7 @@ try:
     from app.core.database import mongo_client
     client = mongo_client
     client.server_info()
-    db = client["mirador-vms"]
+    db = client["vms_db"]
     
     cameras = list(db["infrastructure_nodes"].find({"type": "camera"}, {"_id": 0, "id": 1, "ip": 1, "username": 1, "password": 1, "stream_status": 1, "stream_fps": 1}))
     print(f"    ✅ Connected. Found {len(cameras)} camera node(s) in infrastructure_nodes:")

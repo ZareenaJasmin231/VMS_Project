@@ -272,7 +272,10 @@ function ConfigureEncoderModal({ camera, profile, onClose, onSaved }) {
   const [codec, setCodec] = useState("");
   const [resolution, setResolution] = useState("");
   const [fps, setFps] = useState(15);
+  const [bitrateType, setBitrateType] = useState("CBR");
+  const [bitrateMode, setBitrateMode] = useState("Customized");
   const [bitrate, setBitrate] = useState(2048);
+  const [iframeInterval, setIframeInterval] = useState(25);
 
   useEffect(() => {
     if (!profile) return;
@@ -315,6 +318,8 @@ function ConfigureEncoderModal({ camera, profile, onClose, onSaved }) {
     setLoading(true);
     setError(null);
 
+    const finalBitrate = bitrateMode === "Customized" ? parseInt(bitrate) : parseInt(bitrateMode);
+
     try {
       const res = await fetch(`${API}/api/camera/encoder/set`, {
         method: "POST",
@@ -328,7 +333,9 @@ function ConfigureEncoderModal({ camera, profile, onClose, onSaved }) {
           resolution,
           encoding: codec,
           fps: parseInt(fps),
-          bitrate: parseInt(bitrate)
+          bitrate: finalBitrate,
+          bitrate_type: bitrateType,
+          iframe_interval: parseInt(iframeInterval)
         })
       });
 
@@ -344,6 +351,10 @@ function ConfigureEncoderModal({ camera, profile, onClose, onSaved }) {
       setLoading(false);
     }
   };
+
+  const minFps = options?.fps_range?.min || 1;
+  const maxFps = options?.fps_range?.max || 30;
+  const fpsOptions = Array.from({ length: maxFps - minFps + 1 }, (_, i) => minFps + i);
 
   return (
     <div className="cem-modal-overlay">
@@ -362,18 +373,22 @@ function ConfigureEncoderModal({ camera, profile, onClose, onSaved }) {
           </div>
 
           <div className="cem-form-group">
-            <label>Video Codec</label>
+            <label>Encode Mode</label>
             <select value={codec} onChange={e => setCodec(e.target.value)}>
-              {options?.supported_encodings ? (
-                options.supported_encodings.map(enc => (
-                  <option key={enc} value={enc}>{enc}</option>
-                ))
+              {options?.supported_encodings?.length > 0 ? (
+                options.supported_encodings.map(enc => {
+                  let label = enc;
+                  if (enc === "JPEG") label = "MJPEG";
+                  else if (enc.startsWith("H264") || enc.startsWith("H265")) label = enc.replace("H", "H.");
+                  return <option key={enc} value={enc}>{label}</option>;
+                })
               ) : (
                 <>
-                  <option value="H264">H264</option>
-                  <option value="H265">H265</option>
-                  <option value="MPEG4">MPEG4</option>
-                  <option value="JPEG">MJPEG (JPEG)</option>
+                  <option value="H264B">H.264B</option>
+                  <option value="H264">H.264</option>
+                  <option value="H264H">H.264H</option>
+                  <option value="H265">H.265</option>
+                  <option value="JPEG">MJPEG</option>
                 </>
               )}
             </select>
@@ -388,39 +403,67 @@ function ConfigureEncoderModal({ camera, profile, onClose, onSaved }) {
                 ))
               ) : (
                 <>
-                  <option value="352x288">352x288 (CIF)</option>
-                  <option value="640x480">640x480 (VGA)</option>
-                  <option value="1280x720">1280x720 (720p)</option>
-                  <option value="1920x1080">1920x1080 (1080p Full HD)</option>
-                  <option value="3840x2160">3840x2160 (4K Ultra HD)</option>
+                  <option value="2688x1520">2688*1520</option>
+                  <option value="2560x1440">2560*1440</option>
+                  <option value="1920x1080">1920*1080 (1080P)</option>
+                  <option value="1280x720">1280*720 (720P)</option>
+                  <option value="704x576">704*576(D1)</option>
+                  <option value="352x288">352*288(CIF)</option>
                 </>
               )}
             </select>
           </div>
 
           <div className="cem-form-group">
-            <label>Frame Rate: {fps} FPS</label>
-            <input
-              type="range"
-              min={options?.fps_range?.min || 5}
-              max={options?.fps_range?.max || 30}
-              value={fps}
-              onChange={e => setFps(e.target.value)}
-            />
-            <div className="cem-range-labels">
-              <span>{options?.fps_range?.min || 5} FPS</span>
-              <span>{options?.fps_range?.max || 30} FPS</span>
-            </div>
+            <label>Frame Rate(FPS)</label>
+            <select value={fps} onChange={e => setFps(e.target.value)}>
+              {fpsOptions.map(val => (
+                <option key={val} value={val}>{val}</option>
+              ))}
+            </select>
           </div>
 
           <div className="cem-form-group">
-            <label>Bitrate Limit (kbps)</label>
+            <label>Bit Rate Type</label>
+            <select value={bitrateType} onChange={e => setBitrateType(e.target.value)}>
+              <option value="CBR">CBR</option>
+              <option value="VBR">VBR</option>
+            </select>
+          </div>
+
+          <div className="cem-form-group">
+            <label>Bit Rate (Kb/S)</label>
+            <select value={bitrateMode} onChange={e => setBitrateMode(e.target.value)}>
+              <option value="Customized">Customized</option>
+              <option value="256">256</option>
+              <option value="512">512</option>
+              <option value="1024">1024</option>
+              <option value="2048">2048</option>
+              <option value="4096">4096</option>
+              <option value="6144">6144</option>
+              <option value="8192">8192</option>
+            </select>
+            {bitrateMode === "Customized" && (
+              <input
+                type="number"
+                style={{ marginTop: '8px' }}
+                value={bitrate}
+                min={128}
+                max={16384}
+                onChange={e => setBitrate(e.target.value)}
+                placeholder="Enter custom bitrate"
+              />
+            )}
+          </div>
+
+          <div className="cem-form-group">
+            <label>I Frame Interval</label>
             <input
               type="number"
-              value={bitrate}
-              min={128}
-              max={10000}
-              onChange={e => setBitrate(e.target.value)}
+              value={iframeInterval}
+              min={2}
+              max={150}
+              onChange={e => setIframeInterval(e.target.value)}
             />
           </div>
 
@@ -700,4 +743,4 @@ export default function StreamProfilesPage() {
       </div>
     </div>
   );
-}
+}

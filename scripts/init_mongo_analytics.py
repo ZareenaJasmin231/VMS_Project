@@ -13,8 +13,8 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../onvi
 from app.core.database import mongo_client
 
 # Configuration
-MONGODB_URL = "mongodb://localhost:27017/"
-DATABASE_NAME = "mirador_vms"
+MONGODB_URL = os.environ.get("MONGO_URI", "mongodb://localhost:27017/")
+DATABASE_NAME = os.environ.get("MONGO_DB_NAME", "vms_database")
 
 def init_analytics_collections():
     """Initialize all analytics collections and indexes"""

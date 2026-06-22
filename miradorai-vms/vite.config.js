@@ -6,7 +6,13 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': {
-        target: 'http://localhost:80',
+        target: 'http://192.168.126.200:80',
+        changeOrigin: true,
+        secure: false,
+      },
+      '/ws': {
+        target: 'ws://192.168.126.200:80',
+        ws: true,
         changeOrigin: true,
       }
     }
