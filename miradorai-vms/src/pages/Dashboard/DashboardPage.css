@@ -606,7 +606,7 @@
 
 .report-input {
   width: 100%;
-  padding: 8px 10px 8px 32px;
+  padding: 8px 12px;
   border-radius: 8px;
   border: 1px solid var(--border);
   background: var(--bg-elevated);
@@ -614,6 +614,11 @@
   font-size: var(--font-size-content);
   font-family: var(--font-ui);
   transition: all var(--transition);
+}
+
+.report-input::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+  cursor: pointer;
 }
 
 .report-input:focus {

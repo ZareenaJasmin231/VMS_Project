@@ -1043,7 +1043,7 @@ export default function MediaPlayerPage() {
                 Export
               </button>
 
-              <button
+              {/* <button
                 className="mp-action-btn mp-verify-btn-side"
                 onClick={() => { setShowVerifyModal(true); setVerifyResult(null); setVerifyVideoFile(null); setVerifySigFile(null); }}
                 title="Verify digital signature of an exported video"
@@ -1053,7 +1053,7 @@ export default function MediaPlayerPage() {
                   <polyline points="9 12 11 14 15 10" />
                 </svg>
                 Verify
-              </button>
+              </button> */}
             </div>
 
             <div className="mp-file-list">

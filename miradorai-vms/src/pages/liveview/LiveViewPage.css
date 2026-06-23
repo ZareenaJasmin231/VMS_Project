@@ -1435,3 +1435,66 @@
   padding: 0;
   border-bottom: 1px dashed var(--teal, #14b8a6);
 }
+
+/* ── Sequence Manager Modal Styles ── */
+.seq-modal-add-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  background: linear-gradient(135deg, var(--teal, #14b8a6) 0%, #0d9488 100%);
+  border: 1px solid rgba(20, 184, 166, 0.2);
+  border-radius: 6px;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 4px 10px rgba(20, 184, 166, 0.15);
+  transition: all 0.2s ease;
+}
+
+.seq-modal-add-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 14px rgba(20, 184, 166, 0.3);
+  filter: brightness(1.05);
+}
+
+.seq-modal-add-btn:active {
+  transform: translateY(1px);
+}
+
+.seq-btn-edit {
+  padding: 6px 12px;
+  font-size: 12.5px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  color: #e2e8f0;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.seq-btn-edit:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.25);
+  color: #fff;
+}
+
+.seq-btn-delete {
+  padding: 6px 12px;
+  font-size: 12.5px;
+  background: rgba(239, 68, 68, 0.07);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  border-radius: 6px;
+  color: #f87171;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.seq-btn-delete:hover {
+  background: rgba(239, 68, 68, 0.15);
+  border-color: rgba(239, 68, 68, 0.35);
+  color: #ff8585;
+}

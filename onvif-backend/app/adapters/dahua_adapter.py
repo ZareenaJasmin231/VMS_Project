@@ -39,6 +39,8 @@ DAHUA_TOPIC_MAP: dict[str, tuple[str, str]] = {
     "Intrusion":            ("Intrusion",        "Intrusion Detection"),
     "EnterArea":            ("Intrusion",        "Enter Area"),
     "LeaveArea":            ("Intrusion",        "Leave Area"),
+    "CrossRegionDetection": ("Intrusion",        "Intrusion Detection"),
+    "CrossRegion":          ("Intrusion",        "Intrusion Detection"),
 
     # Line Crossing
     "Crossed":              ("LineCrossing",     "Line Crossing"),
@@ -216,6 +218,11 @@ def _create_subscription(ip: str, port: int, username: str, password: str) -> di
     print(f"[DAHUA] 🔗 Creating PullPoint subscription for {ip}")
     cam           = ONVIFCamera(ip, port, username, password)
     event_service = cam.create_events_service()
+    try:
+        props = event_service.GetEventProperties()
+        print(f"[DAHUA TEST] {ip} EventProperties SUCCESS")
+    except Exception as e:
+        print(f"[DAHUA TEST] {ip} EventProperties FAILED: {e}")
 
     try:
         sub = event_service.CreatePullPointSubscription(
@@ -368,7 +375,9 @@ def pull_dahua_events(
         ).lower().strip()
 
         # ── Skip OFF states ───────────────────────────────────────────
-        if state in ("false", "0", "inactive", "no", "off", ""):
+        # Dahua IVS events might not have a State field, so an empty state 
+        # should not be treated as 'OFF' unless we specifically know it's not an alert.
+        if state in ("false", "0", "inactive", "no", "off"):
             # But allow count events (People Counting sends Count not State)
             count = items.get("Count", items.get("ObjectCount", items.get("EnteredSubtotal", None)))
             if count is None:
@@ -378,18 +387,37 @@ def pull_dahua_events(
         if topic:
             event_type, scenario_name = _map_dahua_event(topic)
         else:
-            # Fallback: guess from items
-            if "Count" in items or "ObjectCount" in items:
-                event_type, scenario_name = "OccupancyCount", "People Counting"
+            if "IsInside" in items:
+                event_type = "Intrusion"
+                scenario_name = "Intrusion Detection"
+
+            elif "Count" in items or "ObjectCount" in items:
+                event_type = "OccupancyCount"
+                scenario_name = "People Counting"
+
             elif "IsMotion" in items:
-                event_type, scenario_name = "Motion", "Motion Detection"
+                event_type = "Motion"
+                scenario_name = "Motion Detection"
+
             else:
-                event_type, scenario_name = "Motion", "Motion Detection"
+                event_type = "Unknown"
+                scenario_name = "Unknown"
+                
+        # Skip unknown events
+        if event_type == "Unknown":
+            continue
 
         # ── Extract count for people counting ────────────────────────
         count_val = items.get("Count", items.get("ObjectCount", items.get("EnteredSubtotal", None)))
 
         raw = {"topic": topic or "unknown", **items}
+
+        print(
+            f"[DAHUA ALERT] "
+            f"type={event_type} "
+            f"scenario={scenario_name} "
+            f"items={items}"
+        )
 
         events.append({
             "event_type":    event_type,

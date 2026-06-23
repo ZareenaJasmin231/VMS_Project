@@ -625,11 +625,25 @@ export default function MapViewPage() {
   const [showExportMenu, setShowExportMenu] = useState(false);
   const exportMenuRef = useRef(null);
 
+  // Toolbox / Scale / Selection States
+  const [iconScale, setIconScale] = useState(() => {
+    const s = localStorage.getItem("miradorai_iconScale");
+    return s ? Number(s) : 1.20;
+  });
+  useEffect(() => {
+    localStorage.setItem("miradorai_iconScale", String(iconScale));
+  }, [iconScale]);
+  const [selectedIdx, setSelectedIdx] = useState(null);
+  const selectedIdxRef = useRef(null);
+  useEffect(() => { selectedIdxRef.current = selectedIdx; }, [selectedIdx]);
+  const [toolboxOpen, setToolboxOpen] = useState(false);
+
   // ── Modes / Layers dropdown state ────────────────────────────────
   const [modesDropdownOpen,  setModesDropdownOpen]  = useState(false);
   const [layersDropdownOpen, setLayersDropdownOpen] = useState(false);
   const modesDropRef  = useRef(null);
   const layersDropRef = useRef(null);
+  const toolboxDropRef = useRef(null);
 
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -641,6 +655,9 @@ export default function MapViewPage() {
       }
       if (layersDropRef.current && !layersDropRef.current.contains(e.target)) {
         setLayersDropdownOpen(false);
+      }
+      if (toolboxDropRef.current && !toolboxDropRef.current.contains(e.target)) {
+        setToolboxOpen(false);
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
@@ -1192,6 +1209,7 @@ export default function MapViewPage() {
       return;
     }
     if (idx >= 0) {
+      setSelectedIdx(idx);
       draggingRef.current = idx;
       const cam = markersRef.current[idx];
       draggingCamZoneRef.current = zonesRef.current.find(
@@ -1199,6 +1217,7 @@ export default function MapViewPage() {
       ) || null;
       return;
     }
+    setSelectedIdx(null);
     if (selectedCamRef.current && modeRef.current === "place") {
       if (!isInsideActiveZone(p.x, p.y)) {
         setZoneAlert("⚠ Camera cannot be placed outside the selected zone.");
@@ -1560,9 +1579,22 @@ export default function MapViewPage() {
     setPendingCam(null);
   }
 
+  function flipSelected() {
+    const idx = selectedIdxRef.current;
+    if (idx === null) return;
+    const updated = markersRef.current.map((m, i) =>
+      i === idx ? { ...m, flip: !m.flip, direction: (m.direction + 180) % 360 } : m
+    );
+    markersRef.current = updated;
+    setMarkers(updated);
+    updateMarkers(updated);
+    canvasApiRef.current?.drawAll();
+  }
+
   function removeMarker(idx) {
     updateMarkers(markersRef.current.filter((_, i) => i !== idx));
     setCtxMenu(c => ({ ...c, visible: false }));
+    setSelectedIdx(null);
     setStatus("Marker removed");
   }
 
@@ -1579,6 +1611,7 @@ export default function MapViewPage() {
   async function clearFloor() {
     showConfirm("Clear Floor", `Remove all cameras from ${floors[activeFloor]?.name}?`, () => {
       updateMarkers([]);
+      setSelectedIdx(null);
       setStatus("Floor cleared");
     });
   }
@@ -1614,7 +1647,8 @@ export default function MapViewPage() {
         cameras,
         zones: zonesRef.current,
         activeFloor,
-        highlightedCamId: null
+        highlightedCamId: null,
+        iconScale: iconScale
       });
 
       // If intensity heatmap is toggled ON in the UI, include it in the snapshot
@@ -2141,6 +2175,64 @@ export default function MapViewPage() {
               </svg>
               Clear
             </button>
+
+            {/* ── Toolbox Dropdown ── */}
+            <div style={{ position: "relative" }} ref={toolboxDropRef}>
+              <button
+                className={`mv-tbtn-new secondary ${toolboxOpen ? "active" : ""}`}
+                onClick={() => setToolboxOpen(!toolboxOpen)}
+                title="Open Toolbox"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="13" height="13" style={{ marginRight: 4 }}>
+                  <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
+                </svg>
+                Toolbox
+              </button>
+             
+              {toolboxOpen && (
+                <div className="mv-export-menu" style={{
+                  position: 'absolute',
+                  top: "calc(100% + 4px)",
+                  right: 0,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 12,
+                  background: '#161b22',
+                  border: '1px solid #30363d',
+                  borderRadius: 8,
+                  padding: '12px',
+                  boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+                  zIndex: 100,
+                  width: 200,
+                  pointerEvents: 'auto',
+                  textAlign: 'left'
+                }}>
+                  {/* Camera Icon Size */}
+                  <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,0.6)", textTransform: "uppercase" }}>Camera Icon Size</div>
+                    <div style={{ display: "flex", background: "rgba(255,255,255,0.05)", borderRadius: 4, overflow: "hidden", alignItems: "center", height: 28, border: '1px solid rgba(255,255,255,0.1)', justifyContent: "space-between" }}>
+                      <button className="mv-export-item" onClick={() => { setIconScale(s => Math.max(0.4, s - 0.2)); setTimeout(() => canvasApiRef.current?.drawAll(), 0); }} style={{ padding: "4px 8px", background: "transparent", border: "none", height: "100%", width: "auto" }} title="Decrease Icon Size">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="12" height="12"><line x1="5" y1="12" x2="19" y2="12" /></svg>
+                      </button>
+                      <span style={{ fontSize: 12, color: "rgba(255,255,255,0.8)" }}>{Math.round(iconScale * 100)}%</span>
+                      <button className="mv-export-item" onClick={() => { setIconScale(s => Math.min(2.0, s + 0.2)); setTimeout(() => canvasApiRef.current?.drawAll(), 0); }} style={{ padding: "4px 8px", background: "transparent", border: "none", height: "100%", width: "auto" }} title="Increase Icon Size">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="12" height="12"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Flip Cam */}
+                  {selectedIdx !== null && (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 4 }}>
+                      <button className="mv-tbtn-new secondary" onClick={flipSelected} style={{ padding: "6px 8px", width: "100%", justifyContent: "center", background: "rgba(255,255,255,0.05)", border: '1px solid rgba(255,255,255,0.1)', borderRadius: 4 }} title="Flip Camera Mount">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="12" height="12" style={{ marginRight: 6 }}><path d="M21 9V3h-6M3 15v6h6M21 3l-7.5 7.5M3 21l7.5-7.5" /></svg>
+                        Flip Cam
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -2181,6 +2273,8 @@ export default function MapViewPage() {
                 canvasApiRef.current?.drawAll();
               }}
               onContextMenu={onContextMenu}
+              iconScale={iconScale}
+              selectedIdx={selectedIdx}
             />
           )}
 
@@ -2228,6 +2322,22 @@ export default function MapViewPage() {
               style={{ left: ctxMenu.x, top: ctxMenu.y }}
               onClick={e => e.stopPropagation()}
             >
+              <button
+                className="mv-ctx-item"
+                onClick={() => {
+                  setSelectedIdx(ctxMenu.idx);
+                  // Execute flip in next tick after setting selected index
+                  setTimeout(() => {
+                    flipSelected();
+                    setCtxMenu(c => ({ ...c, visible: false }));
+                  }, 0);
+                }}
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="12" height="12" style={{ marginRight: 6 }}>
+                  <path d="M21 9V3h-6M3 15v6h6M21 3l-7.5 7.5M3 21l7.5-7.5" />
+                </svg>
+                Flip Cam
+              </button>
               <button
                 className="mv-ctx-item mv-ctx-item--danger"
                 onClick={() => removeMarker(ctxMenu.idx)}

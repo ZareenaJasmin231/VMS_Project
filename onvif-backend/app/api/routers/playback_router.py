@@ -110,6 +110,28 @@ def event_playback(ip: str, time: str, request: Request = None, stream: int = 0)
 
         print(f"Alert local : {alert_local_date} {alert_local_hms}  ({alert_local_secs}s)")
 
+        # ── 1.5 Early Return if Already Saved (stream=0) ────────────────
+        if stream == 0:
+            ip_folder = ip.strip().replace(".", "_")
+            clip_date = alert_local_date
+            clip_ts = alert_dt.strftime("%H-%M-%S")
+            clip_enc_path = os.path.join(recorder.get_recordings_dir(), "event_clips", ip_folder, clip_date, f"{ip_folder}_{clip_ts}.enc")
+            
+            import urllib.parse, json
+            if os.path.exists(clip_enc_path):
+                print(f"[PLAYBACK] Clip already exists and stream=0, skipping extraction: {clip_enc_path}")
+                if request:
+                    base_url = str(request.base_url).rstrip("/")
+                else:
+                    base_url = "http://192.168.126.200"
+                encoded_time = urllib.parse.quote(time)
+                clipUrl = f"{base_url}/api/event-playback/hls/{ip}/{encoded_time}/index.m3u8"
+                return Response(
+                    content=json.dumps({"clipUrl": clipUrl}).encode(),
+                    media_type="application/json",
+                    headers={"Access-Control-Allow-Origin": "*"}
+                )
+
         # ── 2. Build candidate camera_id list ────────────────────────
         ip_prefix = ip.strip().replace(".", "_")
         recordings_col = _db["recordings"]
@@ -424,6 +446,236 @@ def event_playback(ip: str, time: str, request: Request = None, stream: int = 0)
         )
 
 
+
+@router.get("/api/event-playback/snapshot")
+def event_snapshot(ip: str, time: str):
+    """
+    Returns a single JPEG snapshot at the exact event time.
+    """
+    import re, tempfile, os
+    from datetime import datetime, timezone, timedelta
+
+    CHUNK_SECONDS = 300
+
+    try:
+        print("\n========== ALERT SNAPSHOT ==========")
+        print("IP   :", ip)
+        print("TIME :", time)
+
+        # ── 1. Parse timestamp ────────────────────────────────────────
+        t = time.strip()
+        if " " in t:
+            t = t.replace(" ", "+")
+        t = re.sub(r"([+-])(\d{2})(\d{2})$", r"\1\2:\3", t)
+
+        try:
+            alert_dt = datetime.fromisoformat(t)
+        except ValueError:
+            t_clean  = re.sub(r"[+-]\d{2}:\d{2}$", "", t).rstrip("Z").strip()
+            alert_dt = datetime.fromisoformat(t_clean)
+
+        alert_local_hms  = alert_dt.strftime("%H-%M-%S")
+        alert_local_date = alert_dt.strftime("%Y-%m-%d")
+        alert_local_secs = (
+            alert_dt.hour * 3600 + alert_dt.minute * 60 + alert_dt.second
+        )
+
+        if alert_dt.tzinfo is not None:
+            alert_utc = alert_dt.astimezone(timezone.utc).replace(tzinfo=None)
+        else:
+            alert_utc = alert_dt
+
+        # ── 2. Build candidate camera_id list ────────────────────────
+        ip_prefix = ip.strip().replace(".", "_")
+        recordings_col = _db["recordings"]
+
+        all_cam_ids = recordings_col.distinct(
+            "camera_id",
+            {"camera_id": {"$regex": f"^{re.escape(ip_prefix)}"}}
+        )
+        if not all_cam_ids:
+            all_cam_ids = [ip_prefix, ip.strip()]
+
+        # ── 3. Find the best chunk in DB ──────────────────────────────
+        def find_best_chunk_db(date_str, hms_str):
+            best = None
+            for cam_id in all_cam_ids:
+                candidate = recordings_col.find_one(
+                    {
+                        "camera_id":  cam_id,
+                        "date":       date_str,
+                        "start_time": {"$lte": hms_str},
+                    },
+                    sort=[("start_time", -1)],
+                )
+                if candidate:
+                    if best is None or candidate["start_time"] > best["start_time"]:
+                        best = candidate
+            return best
+
+        doc = find_best_chunk_db(alert_local_date, alert_local_hms)
+
+        if not doc:
+            prev = (alert_dt - timedelta(days=1)).strftime("%Y-%m-%d")
+            doc  = find_best_chunk_db(prev, "23-59-59")
+
+        if not doc:
+            doc = find_best_chunk_db(
+                alert_utc.strftime("%Y-%m-%d"),
+                alert_utc.strftime("%H-%M-%S"),
+            )
+
+        # ── 4. Validate chunk ─────────────────────────────────────────
+        enc_path = None
+
+        if doc:
+            try:
+                parts = re.split(r"[-:]", doc["start_time"])
+                ch, cm, cs = int(parts[0]), int(parts[1]), int(parts[2])
+                chunk_secs  = ch * 3600 + cm * 60 + cs
+                elapsed     = alert_local_secs - chunk_secs
+                actual_duration = float(doc.get("duration_seconds", CHUNK_SECONDS))
+
+                if elapsed <= actual_duration + 2:
+                    enc_path = doc.get("file_path", "").replace("\\", "/")
+                else:
+                    doc = None
+            except Exception as e:
+                print(f"Elapsed calc error: {e}")
+
+        # ── 5. Filesystem fallback ────────────────────────────────────
+        if not enc_path:
+            rec_dir   = recorder.get_recordings_dir()
+            best_file = None
+            best_diff = None
+
+            best_file = _find_local_fallback_file(rec_dir, ip_prefix, alert_local_date, alert_local_secs, CHUNK_SECONDS)
+            
+            if not best_file:
+                from app.utils import minio_client
+                prefix = f"{ip_prefix}/{alert_local_date}/"
+                try:
+                    objects = minio_client.list_objects(prefix)
+                    for obj in objects:
+                        if not obj.endswith(".enc"):
+                            continue
+                        fname = os.path.basename(obj)
+                        stem = fname.replace(".enc", "")
+                        try:
+                            fparts = re.split(r"[-:]", stem)
+                            fh, fm, fs = int(fparts[0]), int(fparts[1]), int(fparts[2])
+                            file_secs  = fh * 3600 + fm * 60 + fs
+                        except Exception:
+                            continue
+                        diff = alert_local_secs - file_secs
+                        if 0 <= diff <= CHUNK_SECONDS + 30:
+                            if best_diff is None or diff < best_diff:
+                                best_diff = diff
+                                best_file = f"minio:{obj}"
+                except Exception as e:
+                    print(f"MinIO fallback error: {e}")
+
+            if best_file:
+                enc_path = best_file
+                stem     = os.path.basename(best_file).replace(".enc", "")
+                fparts   = re.split(r"[-:]", stem)
+                fh, fm, fs = int(fparts[0]), int(fparts[1]), int(fparts[2])
+                elapsed  = alert_local_secs - (fh * 3600 + fm * 60 + fs)
+            else:
+                msg = f"No recording found for alert snapshot."
+                return Response(
+                    content=f'{{"error":"{msg}"}}'.encode(),
+                    status_code=404,
+                    media_type="application/json",
+                    headers={"Access-Control-Allow-Origin": "*"},
+                )
+
+        if not enc_path.startswith("minio:") and not os.path.exists(enc_path):
+            return Response(
+                content=f'{{"error":"File not found: {enc_path}"}}'.encode(),
+                status_code=404,
+                media_type="application/json",
+                headers={"Access-Control-Allow-Origin": "*"},
+            )
+
+        # ── 6. Seek offset ────────────────────────────────────────────
+        offset = max(0.0, elapsed)
+        print(f"Snapshot Seek: offset={offset:.1f}s")
+
+        # ── 7. Decrypt & Extract frame with ffmpeg ────────────────────
+        output_path = tempfile.mktemp(suffix=".jpg")
+        ffmpeg_cmd = [
+            "ffmpeg", "-y",
+            "-i",      "pipe:0",
+            "-ss",     str(offset),
+            "-vframes", "1",
+            "-f",      "image2",
+            output_path,
+        ]
+
+        try:
+            from app.utils.ffmpeg_utils import stream_to_ffmpeg_sync
+            success, stderr_data = stream_to_ffmpeg_sync(ffmpeg_cmd, encrypt_service.decrypt_file_stream(enc_path))
+        except Exception as dec_err:
+            print(f"[SNAPSHOT] Decryption/extraction failed: {dec_err}")
+            return Response(
+                content=f'{{"error":"Extraction failed: {str(dec_err)}"}}'.encode(),
+                status_code=500,
+                media_type="application/json",
+                headers={"Access-Control-Allow-Origin": "*"},
+            )
+
+        if not success or not os.path.exists(output_path) or os.path.getsize(output_path) < 100:
+            print("[SNAPSHOT] Retrying ffmpeg at beginning (offset=0)")
+            ffmpeg_cmd2 = [
+                "ffmpeg", "-y",
+                "-i",      "pipe:0",
+                "-vframes", "1",
+                "-f",      "image2",
+                output_path,
+            ]
+            try:
+                stream_to_ffmpeg_sync(ffmpeg_cmd2, encrypt_service.decrypt_file_stream(enc_path))
+            except Exception:
+                pass
+
+        if not os.path.exists(output_path) or os.path.getsize(output_path) < 100:
+            return Response(
+                content=b'{"error":"Failed to extract snapshot frame"}',
+                status_code=500,
+                media_type="application/json",
+                headers={"Access-Control-Allow-Origin": "*"},
+            )
+
+        with open(output_path, "rb") as f:
+            img_data = f.read()
+
+        try:
+            os.remove(output_path)
+        except Exception:
+            pass
+
+        return Response(
+            content=img_data,
+            media_type="image/jpeg",
+            headers={
+                "Cache-Control": "max-age=86400",
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "GET, OPTIONS",
+                "Access-Control-Allow-Headers": "*",
+            },
+        )
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return Response(
+            content=f'{{"error":"{str(e)}"}}'.encode(),
+            status_code=500,
+            media_type="application/json",
+            headers={"Access-Control-Allow-Origin": "*"},
+        )
+
+
 @router.get("/api/event-playback/hls/{ip}/{time_str}/{filename}")
 def event_playback_hls(ip: str, time_str: str, filename: str):
     """
@@ -473,7 +725,7 @@ def event_playback_hls(ip: str, time_str: str, filename: str):
         hls_file_path = os.path.join(hls_dir, filename)
 
         # ── 2. Dynamic generation if index.m3u8 or requested file is missing ──
-        if not os.path.exists(hls_file_path) or filename == "index.m3u8":
+        if not os.path.exists(hls_file_path):
             CHUNK_SECONDS = 300
             
             # Find candidate camera IDs

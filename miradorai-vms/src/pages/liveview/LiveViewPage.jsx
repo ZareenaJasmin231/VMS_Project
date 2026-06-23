@@ -435,7 +435,7 @@ function AlertsPanel({ onAlertCountUpdate, onTotalAlertCountChange, isOpen }) {
 
   const fetchAlerts = useCallback(async () => {
     try {
-      const res  = await fetch(`${API}/api/alerts?limit=100`, {
+      const res  = await fetch(`${API}/api/alerts?limit=500`, {
         headers: getAuthHeaders()
       });
       const data = await res.json();
@@ -463,7 +463,7 @@ function AlertsPanel({ onAlertCountUpdate, onTotalAlertCountChange, isOpen }) {
       setAlerts(finalAlerts);
 
       const counts = {};
-      finalAlerts.forEach((alert) => {
+      filtered.forEach((alert) => {
         const ip = normalizeIp(alert.ip);
         if (ip) {
           counts[ip] = (counts[ip] || 0) + 1;
@@ -568,6 +568,24 @@ function AlertsPanel({ onAlertCountUpdate, onTotalAlertCountChange, isOpen }) {
                       </span>
                     </div>
                   </div>
+
+                  {/* <div
+                    className="lv-alert-card__thumbnail-container"
+                    onClick={() => setZoomedImage({
+                      url: `${API}/api/event-playback/snapshot?ip=${encodeURIComponent(alert.ip)}&time=${encodeURIComponent(alert.time || alert.received_at)}`,
+                      cameraName: cameraName,
+                      ip: displayId,
+                      type: alert.type || "—",
+                      time: timeOnly || alert.received_at
+                    })}
+                  >
+                    <img
+                      src={`${API}/api/event-playback/snapshot?ip=${encodeURIComponent(alert.ip)}&time=${encodeURIComponent(alert.time || alert.received_at)}`}
+                      alt="Event snapshot"
+                      className="lv-alert-card__thumbnail"
+                      loading="lazy"
+                    />
+                  </div> */}
                 </div>
               </div>
             );
@@ -614,7 +632,7 @@ function CameraCell({ device, streamMode, onFullscreen, alertCount, onBadgeClick
           }}
           title={`${alertCount} alert${alertCount !== 1 ? "s" : ""} — click to view`}
         >
-          {alertCount > 99 ? "99+" : alertCount}
+          {alertCount > 50 ? "50+" : alertCount}
         </div>
       )}
 
@@ -1290,7 +1308,7 @@ export default function LiveViewPage() {
                 <path d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14v-4z" />
                 <rect x="3" y="6" width="12" height="12" rx="2" ry="2" />
               </svg>
-              <span>{streamMode === "hls" ? "Buffered (HLS)" : "Real-Time (WebRTC)"}</span>
+              <span>{streamMode === "hls" ? "Standard Latency" : "Ultra-Low Latency"}</span>
               <svg className={`lv-chevron-icon ${modeDropdownOpen ? "open" : ""}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="10" height="10">
                 <path d="M6 9l6 6 6-6" />
               </svg>
@@ -1306,7 +1324,7 @@ export default function LiveViewPage() {
                   }}
                   type="button"
                 >
-                  <span className="lv-grid-dropdown-item-label">Buffered (HLS) - Recommended</span>
+                  <span className="lv-grid-dropdown-item-label">Standard Latency (Recommended)</span>
                   {streamMode === "hls" && (
                     <svg className="lv-check-icon" viewBox="0 0 24 24" fill="none" stroke="var(--teal)" strokeWidth="3" width="12" height="12">
                       <polyline points="20 6 9 17 4 12" />
@@ -1321,7 +1339,7 @@ export default function LiveViewPage() {
                   }}
                   type="button"
                 >
-                  <span className="lv-grid-dropdown-item-label">Real-Time (WebRTC)</span>
+                  <span className="lv-grid-dropdown-item-label">Ultra-Low Latency</span>
                   {streamMode === "webrtc" && (
                     <svg className="lv-check-icon" viewBox="0 0 24 24" fill="none" stroke="var(--teal)" strokeWidth="3" width="12" height="12">
                       <polyline points="20 6 9 17 4 12" />
@@ -1425,7 +1443,7 @@ export default function LiveViewPage() {
                 cursor: activeSequenceId !== "all" ? "not-allowed" : "text"
               }}
             />
-            <span style={{ fontSize: "16px", color: "#fff", fontWeight: "500" }}>s</span>
+
 
             <button
               onClick={() => {
@@ -1826,9 +1844,8 @@ function SequenceManagerModal({ sequences, setSequences, activeCams, onClose }) 
             <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "12px" }}>
               <button
                 type="button"
-                className="um-add-btn"
+                className="seq-modal-add-btn"
                 onClick={handleStartCreate}
-                style={{ padding: "6px 12px", fontSize: "12.5px" }}
               >
                 + Create Sequence
               </button>
@@ -1854,23 +1871,21 @@ function SequenceManagerModal({ sequences, setSequences, activeCams, onClose }) 
                   <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
                     <span style={{ color: "#fff", fontSize: "14px", fontWeight: "600" }}>{seq.name}</span>
                     <span style={{ color: "var(--text-muted)", fontSize: "11.5px" }}>
-                      ⏱️ {seq.dwellTime}s dwell | 📹 {seq.cameraIds.length} camera{seq.cameraIds.length !== 1 ? "s" : ""}
+                      {seq.dwellTime}s dwell | {seq.cameraIds.length} camera{seq.cameraIds.length !== 1 ? "s" : ""}
                     </span>
                   </div>
                   <div style={{ display: "flex", gap: "6px" }}>
                     <button
                       type="button"
-                      className="action-edit"
+                      className="seq-btn-edit"
                       onClick={() => handleStartEdit(seq)}
-                      style={{ padding: "4px 8px", fontSize: "11.5px", background: "rgba(255, 255, 255, 0.05)", border: "1px solid rgba(255, 255, 255, 0.1)", borderRadius: "4px", color: "#e2e8f0", cursor: "pointer" }}
                     >
                       Edit
                     </button>
                     <button
                       type="button"
-                      className="action-delete"
+                      className="seq-btn-delete"
                       onClick={() => handleDelete(seq.id)}
-                      style={{ padding: "4px 8px", fontSize: "11.5px", background: "rgba(239, 68, 68, 0.1)", border: "1px solid rgba(239, 68, 68, 0.2)", borderRadius: "4px", color: "#f87171", cursor: "pointer" }}
                     >
                       Delete
                     </button>

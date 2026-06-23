@@ -20,11 +20,17 @@ function HlsPlayer({ streamKey, streamUrl, muted = true, autoplay = true, classN
   // Use env var if provided, otherwise fallback to standard MediaMTX port 8888 on the same hostname
   const HLS_BASE_URL = import.meta.env.VITE_HLS_BASE_URL || `${window.location.protocol}//${window.location.hostname}:8888`;
 
+  const [activeStreamKey, setActiveStreamKey] = useState(streamKey);
+
+  useEffect(() => {
+    setActiveStreamKey(streamKey);
+  }, [streamKey]);
+
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
 
-    const url = streamUrl || `${HLS_BASE_URL}/${streamKey}/index.m3u8`;
+    const url = streamUrl || `${HLS_BASE_URL}/${activeStreamKey}/index.m3u8`;
 
     setStatus("connecting");
     onConnectChange?.(false);
@@ -54,6 +60,11 @@ function HlsPlayer({ streamKey, streamUrl, muted = true, autoplay = true, classN
         if (data.fatal) {
           switch (data.type) {
             case Hls.ErrorTypes.NETWORK_ERROR:
+              if (activeStreamKey.endsWith("_sub")) {
+                console.warn(`[HLS] Sub stream failed (Network Error), falling back to main stream`);
+                setActiveStreamKey(activeStreamKey.replace("_sub", ""));
+                return;
+              }
               setStatus("reconnecting");
               hls.startLoad();
               break;
@@ -78,6 +89,11 @@ function HlsPlayer({ streamKey, streamUrl, muted = true, autoplay = true, classN
         if (autoplay) video.play().catch(() => {});
       });
       video.addEventListener("error", () => {
+        if (activeStreamKey.endsWith("_sub")) {
+          console.warn(`[HLS] Sub stream failed (Native Error), falling back to main stream`);
+          setActiveStreamKey(activeStreamKey.replace("_sub", ""));
+          return;
+        }
         setStatus("failed");
         setErrorMsg("Stream failed");
         onConnectChange?.(false);
@@ -95,7 +111,7 @@ function HlsPlayer({ streamKey, streamUrl, muted = true, autoplay = true, classN
       }
       onConnectChange?.(false);
     };
-  }, [streamKey, streamUrl, autoplay, HLS_BASE_URL, onConnectChange]);
+  }, [activeStreamKey, streamUrl, autoplay, HLS_BASE_URL, onConnectChange]);
 
   const wrapStyle = {
     position: "relative",

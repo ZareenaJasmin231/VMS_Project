@@ -22,35 +22,13 @@
   margin-bottom: 8px;
 }
 
-/* ── Tabbed Navigation ── */
-.backup-tabs {
-  display: flex;
-  gap: 8px;
-  border-bottom: 1px solid var(--border);
-  margin-bottom: 24px;
+/* ── Grid Layout ── */
+.backup-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(480px, 1fr));
+  gap: 24px;
+  align-items: start;
 }
-
-.backup-tab-btn {
-  padding: 12px 20px;
-  background: transparent;
-  border: none;
-  border-bottom: 2px solid transparent;
-  color: var(--text-secondary);
-  font-size: 16px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: var(--transition);
-}
-
-.backup-tab-btn:hover {
-  color: var(--text-primary);
-}
-
-.backup-tab-btn.active {
-  color: var(--teal);
-  border-bottom-color: var(--teal);
-}
-
 
 .backup-page-title {
   font-size: 30px;

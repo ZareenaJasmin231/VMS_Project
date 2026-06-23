@@ -32,6 +32,12 @@ def publish_heartbeat(mongo_uri: str, worker_id: str, active_cameras: list, stat
         cpu_percent = psutil.cpu_percent()
         mem_info = psutil.virtual_memory()
         
+        # Determine actively recording streams on this worker
+        active_recorders = [
+            name for name, rec in recorder._recorders.items()
+            if rec.is_alive() and name in getattr(recorder, '_actively_recording_streams', set())
+        ]
+        
         heartbeats_col.update_one(
             {"worker_id": worker_id},
             {
@@ -40,6 +46,7 @@ def publish_heartbeat(mongo_uri: str, worker_id: str, active_cameras: list, stat
                     "status": status,
                     "last_seen": datetime.utcnow(),
                     "cameras": active_cameras,
+                    "active_recorders": active_recorders,
                     "system_stats": {
                         "cpu_percent": cpu_percent,
                         "memory_percent": mem_info.percent

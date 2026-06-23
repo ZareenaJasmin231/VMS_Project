@@ -114,7 +114,7 @@ export default function SidePlaybackPanel({ camera, onClose }) {
              const s = (a.scenario || "").toLowerCase();
              return !t.includes("motion") && !s.includes("motion") && t !== "unknown" && t !== "" && !t.includes("tns1:");
           })
-          .slice(0, 30);
+          .slice(0, 99);
         setAlerts(filtered);
       }
     } catch (e) {
@@ -585,7 +585,7 @@ export default function SidePlaybackPanel({ camera, onClose }) {
       <div className="side-playback-video-container">
         {playingFile && (
           <div className="side-playback-hud-top">
-            <span className="side-playback-hud-badge">Archive Playback</span>
+            <span className="side-playback-hud-badge">Playback</span>
             <span className="side-playback-hud-time">{getAbsoluteTime(currentTime) || fmt(currentTime)}</span>
           </div>
         )}
@@ -784,7 +784,7 @@ export default function SidePlaybackPanel({ camera, onClose }) {
           className={`side-playback-tab-btn ${activeTab === "archive" ? "active" : ""}`}
           onClick={() => { setActiveTab("archive"); }}
         >
-          Archive Playback
+           Playback
         </button>
       </div>
 

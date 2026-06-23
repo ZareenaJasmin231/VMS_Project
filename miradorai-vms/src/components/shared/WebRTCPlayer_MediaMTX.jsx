@@ -7,6 +7,12 @@ function WebRTCPlayer_MediaMTX({ streamKey, cameraId, onConnectChange }) {
   const videoRef = useRef(null);
   const containerRef = useRef(null);
 
+  const [activeStreamKey, setActiveStreamKey] = useState(streamKey);
+
+  useEffect(() => {
+    setActiveStreamKey(streamKey);
+  }, [streamKey]);
+
   const [status, setStatus] = useState("connecting"); // "connecting", "connected", "reconnecting", "failed"
   const [errorMsg, setErrorMsg] = useState("");
   const [isMuted, setIsMuted] = useState(true);
@@ -32,7 +38,7 @@ function WebRTCPlayer_MediaMTX({ streamKey, cameraId, onConnectChange }) {
     // Cleanup WHEP session
     if (whepLocationRef.current) {
       try {
-        const whepUrl = new URL(whepLocationRef.current, `http://127.0.0.1:8889/${streamKey}/whep`);
+        const whepUrl = new URL(whepLocationRef.current, `http://127.0.0.1:8889/${activeStreamKey}/whep`);
         fetch(whepUrl.toString(), { method: "DELETE", keepalive: true }).catch((err) =>
           console.error("WHEP delete failed", err)
         );
@@ -102,7 +108,7 @@ function WebRTCPlayer_MediaMTX({ streamKey, cameraId, onConnectChange }) {
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
 
-      const response = await fetch(`http://127.0.0.1:8889/${streamKey}/whep`, {
+      const response = await fetch(`http://127.0.0.1:8889/${activeStreamKey}/whep`, {
         method: "POST",
         headers: {
           "Content-Type": "application/sdp",
@@ -111,6 +117,11 @@ function WebRTCPlayer_MediaMTX({ streamKey, cameraId, onConnectChange }) {
       });
 
       if (!response.ok) {
+        if ((response.status === 400 || response.status === 404) && activeStreamKey.endsWith("_sub")) {
+          console.warn(`[WebRTC] Sub stream failed (${response.status}), falling back to main stream`);
+          setActiveStreamKey(activeStreamKey.replace("_sub", ""));
+          return;
+        }
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
@@ -151,7 +162,7 @@ function WebRTCPlayer_MediaMTX({ streamKey, cameraId, onConnectChange }) {
       onConnectChange?.(false);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [streamKey]);
+  }, [activeStreamKey]);
 
   const toggleMute = (e) => {
     e.stopPropagation();

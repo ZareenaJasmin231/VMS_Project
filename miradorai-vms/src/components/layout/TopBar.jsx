@@ -267,8 +267,8 @@ export default function TopBar({
             </div>
           </div>
 
-          {/* Datasheet Button */}
-          <button 
+          {/* Datasheet Button — temporarily hidden */}
+          {/* <button 
             className="topbar__datasheet-btn" 
             onClick={() => navigate('/manual')}
             title="Open User Manual"
@@ -278,7 +278,7 @@ export default function TopBar({
               <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
             </svg>
             Datasheet
-          </button>
+          </button> */}
         </div>
       </div>
 

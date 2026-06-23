@@ -627,7 +627,7 @@ const DashboardPage = () => {
         if (Array.isArray(alertsData)) {
           const filtered = alertsData.filter(a => {
             const ts = new Date(a.timestamp).getTime();
-            return ts >= fromTime && ts <= toTime;
+            return ts >= fromTime && ts <= toTime && a.type && a.type.toLowerCase() === "camera";
           });
           
           const formatted = filtered.map(a => ({
@@ -1233,33 +1233,6 @@ const DashboardPage = () => {
             </div>
           </div>
 
-          {/* Widget 3: Camera Status */}
-          <div className="enhanced-card clickable-widget" onClick={handleCameraStatusClick} title="Click to view Camera Health Report">
-            <div className="enhanced-card-header">
-              <span className="header-icon"><Activity size={18} /></span>
-              <h4>Camera Status</h4>
-            </div>
-            <div className="widget-content-list" style={{ justifyContent: "center" }}>
-              <div style={{ display: "flex", justifyContent: "space-around", textAlign: "center" }}>
-                <div>
-                  <div style={{ fontSize: "28px", fontWeight: "800", color: "#22c55e" }}>
-                    {summary.active_streams}
-                  </div>
-                  <div style={{ fontSize: "11px", color: "var(--text-secondary)", fontWeight: "600", textTransform: "uppercase" }}>Online</div>
-                </div>
-                <div style={{ width: "1px", background: "var(--border-light)" }} />
-                <div>
-                  <div style={{ fontSize: "28px", fontWeight: "800", color: "#ef4444" }}>
-                    {summary.total_cameras - summary.active_streams}
-                  </div>
-                  <div style={{ fontSize: "11px", color: "var(--text-secondary)", fontWeight: "600", textTransform: "uppercase" }}>Offline</div>
-                </div>
-              </div>
-              <div style={{ textAlign: "center", fontSize: "12px", color: "var(--teal)", marginTop: "16px", fontWeight: "600" }}>
-                Click card to view Health Report
-              </div>
-            </div>
-          </div>
 
           {/* Widget 4: Recording Health */}
           <div className="enhanced-card">
@@ -1336,7 +1309,7 @@ const DashboardPage = () => {
           </div>
 
           {/* Widget 6: Bitrate Trend */}
-          <div className="enhanced-card chart-card">
+          <div className="enhanced-card">
             <div className="enhanced-card-header">
               <span className="header-icon"><Activity size={18} /></span>
               <h4>Bitrate Trend</h4>
@@ -1374,7 +1347,7 @@ const DashboardPage = () => {
           </div>
 
           {/* Widget 7: Storage Usage Trend */}
-          <div className="enhanced-card chart-card">
+          <div className="enhanced-card">
             <div className="enhanced-card-header">
               <span className="header-icon"><HardDrive size={18} /></span>
               <h4>Storage Growth Trend</h4>
@@ -1542,7 +1515,6 @@ const DashboardPage = () => {
           <div className="report-filter-group">
             <label>From Date & Time</label>
             <div className="report-input-wrapper">
-              <Calendar size={14} className="input-icon" style={{ color: "#ffffff" }} />
               <input
                 type="datetime-local"
                 className="report-input"
@@ -1555,7 +1527,6 @@ const DashboardPage = () => {
           <div className="report-filter-group">
             <label>To Date & Time</label>
             <div className="report-input-wrapper">
-              <Calendar size={14} className="input-icon" style={{ color: "#ffffff" }} />
               <input
                 type="datetime-local"
                 className="report-input"

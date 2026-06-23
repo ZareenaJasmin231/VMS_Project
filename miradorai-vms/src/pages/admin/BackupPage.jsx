@@ -492,17 +492,10 @@ export default function BackupPage() {
 
 
 
-      <div className="backup-tabs">
-        <button className={`backup-tab-btn ${activeTab === 'storage' ? 'active' : ''}`} onClick={() => setActiveTab('storage')}>Storage & Mirroring</button>
-        <button className={`backup-tab-btn ${activeTab === 'retention' ? 'active' : ''}`} onClick={() => setActiveTab('retention')}>Retention Policies</button>
-        <button className={`backup-tab-btn ${activeTab === 'export' ? 'active' : ''}`} onClick={() => setActiveTab('export')}>Data Export</button>
-      </div>
-
-      <div className="backup-tab-content" style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-        {activeTab === 'storage' && (
-          <>
-            {/* 1. Network Settings */}
-            <SectionCard icon={<FaServer />} title="Network Storage" badge={networkSaved ? 'Linked' : null}>
+      <div className="backup-grid">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+          {/* 1. Network Settings */}
+          <SectionCard icon={<FaServer />} title="Network Storage" badge={networkSaved ? 'Linked' : null}>
             <div className="form-grid">
               <div className="input-group">
                 <label>Protocol</label>
@@ -536,12 +529,13 @@ export default function BackupPage() {
 
           {/* 3. Automatic Backup */}
           <SectionCard icon={<FaDatabase />} title="Automated Mirroring" enabled={autoEnabled} onToggle={handleAutoToggle} badge={status.auto_active ? 'Streaming' : null}>
+            <div style={{ color: 'var(--text-secondary)', fontSize: '15px' }}>
+              Enabling this will automatically stream and mirror recordings to the network storage destination.
+            </div>
           </SectionCard>
-        </>
-        )}
+        </div>
 
-        {activeTab === 'export' && (
-          <>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
           {/* 2. Manual Backup */}
           <SectionCard icon={<FaHistory />} title="Data Export">
               <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -582,11 +576,7 @@ export default function BackupPage() {
                 </button>
               </div>
           </SectionCard>
-          </>
-        )}
 
-        {activeTab === 'retention' && (
-          <>
           {/* 4. Retention */}
           <SectionCard icon={<FaHistory />} title="Retention Policy">
             <div className="input-group">
@@ -696,47 +686,11 @@ export default function BackupPage() {
               </div>
             )}
 
-            {/* Commented out as requested: Preview Purge & Enforce Now are no longer needed
-            <div style={{ display: 'flex', gap: 12, marginTop: 20 }}>
-              <button className="btn-secondary" onClick={handleRetentionPreview} disabled={loading.retPrev}>Preview Purge</button>
-              <button className="btn-primary" onClick={handleRetentionEnforce} disabled={loading.retain}>Enforce Now</button>
-            </div>
-            */}
             <div style={{ display: 'flex', gap: 12, marginTop: 20, justifyContent: 'flex-end' }}>
               <button className="btn-primary" style={{ padding: '6px 14px', fontSize: '15px', width: 'max-content' }} onClick={handleApplyRetention} disabled={loading.saveRetain}>Apply Retention Rules</button>
             </div>
           </SectionCard>
-
-          {/* 5. Restore
-          <SectionCard icon={<FaDownload />} title="Data Recovery">
-            <div className="input-group">
-              <label>Restore From Cameras</label>
-              <div className="camera-selector">
-                {cameras.map(c => (
-                  <div key={c.id} className="cam-item">
-                    <Toggle checked={restore.cameras.includes(c.ip)} onChange={() => toggleCamera(setRestore, c.ip)} />
-                    <span>{c.name || c.ip}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div className="form-grid">
-              <div className="input-group">
-                <label>From Date</label>
-                <input type="date" className="backup-input" value={restore.start_date} onChange={e => setRestore(r => ({ ...r, start_date: e.target.value }))} />
-              </div>
-              <div className="input-group">
-                <label>To Date</label>
-                <input type="date" className="backup-input" value={restore.end_date} onChange={e => setRestore(r => ({ ...r, end_date: e.target.value }))} />
-              </div>
-            </div>
-            <button className="btn-primary" style={{ marginTop: 20 }} onClick={handleRestoreStart} disabled={loading.restore}>
-              Start Restoration
-            </button>
-          </SectionCard>
-          */}
-          </>
-        )}
+        </div>
       </div>
 
       {notification && (

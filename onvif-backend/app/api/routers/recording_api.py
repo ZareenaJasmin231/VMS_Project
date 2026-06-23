@@ -275,8 +275,15 @@ def _decrypt(file_path: str) -> io.BytesIO:
     """Decrypt a .enc file on disk or MinIO and return BytesIO of the MP4 payload."""
     is_minio = file_path.startswith("minio:")
     if is_minio:
-        # Check local fallback removed. We strictly stream from MinIO.
-        pass
+        try:
+            object_key = file_path.replace("minio:", "")
+            rec_dir = recorder.get_recordings_dir()
+            local_path = get_local_fallback_path(rec_dir, object_key)
+            if local_path and os.path.exists(local_path):
+                file_path = local_path
+                is_minio = False
+        except Exception as fallback_err:
+            print(f"[DECRYPT] Local fallback check failed: {fallback_err}")
 
     if is_minio:
         try:
@@ -812,22 +819,46 @@ def list_recordings_cameras():
 @recording_router.get("/status")
 def recorder_status():
     import time
-    active = []
+    from datetime import datetime, timedelta
+    
+    active_set = set()
+    
+    # 1. Aggregate from worker heartbeats (active in the last 30 seconds)
+    try:
+        if _db is not None:
+            cutoff = datetime.utcnow() - timedelta(seconds=30)
+            active_workers = _db["worker_heartbeats"].find({"last_seen": {"$gte": cutoff}})
+            for worker in active_workers:
+                worker_active = worker.get("active_recorders", [])
+                if isinstance(worker_active, list):
+                    for stream in worker_active:
+                        active_set.add(stream)
+    except Exception as e:
+        print(f"[API] Error aggregating active recorders from worker heartbeats: {e}")
+
+    # 2. Legacy fallback: check system_status collection
     try:
         if _db is not None:
             status_doc = _db["system_status"].find_one({"type": "recorder_status"})
             if status_doc and (time.time() - status_doc.get("timestamp", 0) < 15):
-                active = status_doc.get("active_recorders", [])
+                for stream in status_doc.get("active_recorders", []):
+                    active_set.add(stream)
     except Exception:
         pass
 
-    if not active:
-        active = [
+    # 3. Fallback: check in-memory recorders of the current process
+    try:
+        in_memory_active = [
             name
             for name, thread in recorder._recorders.items()
             if thread.is_alive() and name in getattr(recorder, '_actively_recording_streams', set())
         ]
-        
+        for stream in in_memory_active:
+            active_set.add(stream)
+    except Exception:
+        pass
+
+    active = sorted(list(active_set))
     rec_dir = recorder.get_recordings_dir()
     return {
         "active_recorders": active,
@@ -875,7 +906,18 @@ def play_recording(
     is_minio = enc_path.startswith("minio:")
     object_key = enc_path.replace("minio:", "") if is_minio else None
 
-    # Check local fallback removed. We strictly stream from MinIO.
+    # Check local fallback
+    if is_minio:
+        try:
+            rec_dir = recorder.get_recordings_dir()
+            local_path = get_local_fallback_path(rec_dir, object_key)
+            if local_path and os.path.exists(local_path):
+                print(f"[PLAY] Found local fallback for MinIO file: {local_path}")
+                enc_path = local_path
+                is_minio = False
+                object_key = None
+        except Exception as fallback_err:
+            print(f"[PLAY] Local fallback check failed: {fallback_err}")
     
     if not is_minio and not os.path.exists(enc_path):
         raise HTTPException(status_code=404, detail=f"Encrypted file missing: {enc_path}")
@@ -1066,10 +1108,17 @@ def play_recording(
             )
             
     except Exception as e:
-        with open("/recordings/error_log.txt", "w") as f:
-            import traceback
-            f.write(traceback.format_exc())
-        print(f"[PLAY] ❌ {enc_path}: {e}")
+        import traceback
+        tb = traceback.format_exc()
+        print(f"[PLAY] ❌ {enc_path}: {e}\n{tb}")
+        try:
+            rec_dir = recorder.get_recordings_dir()
+            if os.path.exists(rec_dir):
+                log_path = os.path.join(rec_dir, "error_log.txt")
+                with open(log_path, "w") as f:
+                    f.write(tb)
+        except Exception as log_err:
+            print(f"[PLAY] Failed to write error log: {log_err}")
         raise HTTPException(status_code=500, detail=f"Decryption failed: {e}")
 
 @recording_router.get("/download")

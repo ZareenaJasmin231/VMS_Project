@@ -1037,13 +1037,13 @@
 
 .dv-stats-panel__sub {
   font-size: 11.5px;
-  color: rgba(255, 255, 255, 0.5);
+  color: rgba(255, 255, 255, 0.85);
 }
 
 .dv-stats-panel__close {
   background: none;
   border: none;
-  color: rgba(255, 255, 255, 0.5);
+  color: rgba(255, 255, 255, 0.85);
   font-size: 22px;
   cursor: pointer;
   padding: 4px;
@@ -1077,7 +1077,7 @@
   font-size: 15px;
   font-weight: 700;
   text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.5);
+  color: rgba(255, 255, 255, 0.85);
   letter-spacing: 0.05em;
   margin-bottom: 8px;
 }
@@ -1091,7 +1091,7 @@
 
 .dv-stats-card__val small {
   font-size: 17px;
-  color: rgba(255, 255, 255, 0.5);
+  color: rgba(255, 255, 255, 0.85);
   font-weight: 400;
 }
 
@@ -1106,7 +1106,7 @@
   display: flex;
   justify-content: space-between;
   font-size: 11.5px;
-  color: rgba(255, 255, 255, 0.6);
+  color: rgba(255, 255, 255, 0.85);
 }
 
 .dv-stats-card__meta {
@@ -1146,8 +1146,8 @@
 .dv-stats-infra__title {
   font-size: 16px;
   font-weight: 700;
-  color: rgba(255, 255, 255, 0.5);
-  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.85);
+  text-transform: none;
   margin-bottom: 10px;
 }
 

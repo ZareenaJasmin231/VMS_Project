@@ -236,28 +236,224 @@ function PremiumPopup({ show, type, title, message, onConfirm, onCancel }) {
     </div>
   );
 }
-// ── Export Format Selection Modal ─────────────────────────────────────
-function ExportFormatModal({ exportMode, isGenerating, onSelect, onCancel }) {
+// ── Export Preview Modal — draggable overlays ─────────────────────────
+function ExportPreviewModal({ baseDataUrl, showDori, isDownloading, onDownload, onCancel, selectedCompany }) {
+  const DORI_ITEMS = [
+    { color: "#a855f7", label: "Identification (250+ px/m)" },
+    { color: "#f97316", label: "Recognition (125+ px/m)" },
+    { color: "#eab308", label: "Observation (62+ px/m)" },
+    { color: "#3b82f6", label: "Detection (25+ px/m)" },
+  ];
+
+  // Each overlay: { show, x, y }  — null x/y → use CSS default
+  const [logo,  setLogo]  = useState({ show: true, x: null, y: null });
+  const [stats, setStats] = useState({ show: true, x: null, y: null });
+  const [dori,  setDori]  = useState({ show: true, x: null, y: null });
+  const previewRef = useRef(null);
+
+  // Generic drag handler factory
+  const makeDragger = (setter) => (e) => {
+    e.preventDefault();
+    const wrap = previewRef.current;
+    if (!wrap) return;
+    const rect = wrap.getBoundingClientRect();
+    const el = e.currentTarget.parentElement;
+    const elRect = el.getBoundingClientRect();
+    const offX = e.clientX - elRect.left;
+    const offY = e.clientY - elRect.top;
+
+    const onMove = (mv) => {
+      const nx = mv.clientX - rect.left - offX;
+      const ny = mv.clientY - rect.top  - offY;
+      setter(prev => ({ ...prev, x: Math.max(0, nx), y: Math.max(0, ny) }));
+    };
+    const onUp = () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup",   onUp);
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup",   onUp);
+  };
+
+  const overlayBase = {
+    position: "absolute", userSelect: "none",
+    boxShadow: "0 4px 24px rgba(0,0,0,0.55)",
+    borderRadius: 8,
+  };
+
+  // Collect final overlay positions for caller
+  const getOverlayState = () => ({ logo, stats, dori });
+
   return (
-    <div className="dv-export-modal-overlay" onClick={onCancel}>
-      <div className="dv-export-modal" onClick={e => e.stopPropagation()}>
-        <div className="dv-export-modal-header">Choose Export Format</div>
-        <div className="dv-export-modal-body">
-          <button className="dv-export-option" disabled={isGenerating} onClick={() => onSelect("jpg")}>
-            <div style={{ fontWeight: 600, fontSize: 15 }}>JPG Image</div>
-          </button>
-          <button className="dv-export-option" disabled={isGenerating} onClick={() => onSelect("pdf")}>
-            <div style={{ fontWeight: 600, fontSize: 15 }}>PDF Report</div>
-          </button>
-          {isGenerating && (
-            <div style={{ textAlign: "center", fontSize: 13, color: "#3b82f6", marginTop: 4 }}>
-              Generating export…
+    <div style={{
+      position: "fixed", inset: 0, zIndex: 99999,
+      background: "rgba(5,8,16,0.88)", backdropFilter: "blur(6px)",
+      display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+    }}>
+      {/* Header */}
+      <div style={{
+        width: "100%", maxWidth: 960, display: "flex", alignItems: "center",
+        justifyContent: "space-between", padding: "0 20px 10px",
+      }}>
+        <div style={{ color: "#e2e8f0", fontWeight: 700, fontSize: 16 }}>
+          Export Preview
+          <span style={{ marginLeft: 8, fontSize: 12, color: "rgba(255,255,255,0.4)", fontWeight: 400 }}>
+            Drag overlays to reposition · ✕ to remove from export
+          </span>
+        </div>
+        <button onClick={onCancel} style={{
+          background: "none", border: "1px solid #2e3d55", color: "#8b9ab0",
+          borderRadius: 6, padding: "4px 12px", cursor: "pointer", fontSize: 13
+        }}>Cancel</button>
+      </div>
+
+      {/* Preview area */}
+      <div ref={previewRef} data-export-preview style={{
+        position: "relative", maxWidth: 960, width: "100%",
+        maxHeight: "70vh", overflow: "hidden", borderRadius: 10,
+        border: "1px solid #2e3d55", background: "#0d1117",
+      }}>
+        {baseDataUrl && (
+          <img src={baseDataUrl} alt="layout preview"
+            style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }} />
+        )}
+
+        {/* ── Logo Badge overlay ── */}
+        {logo.show && (
+          <div style={{
+            ...overlayBase,
+            top:   logo.y  !== null ? logo.y  : 12,
+            right: logo.x  !== null ? undefined : 12,
+            left:  logo.x  !== null ? logo.x  : undefined,
+            background: "rgba(255,255,255,0.94)",
+            border: "1px solid rgba(0,0,0,0.1)",
+            padding: "8px 14px",
+            display: "flex", alignItems: "center", gap: 8,
+            cursor: "grab", minWidth: 180,
+          }}>
+            {/* Drag handle */}
+            <div onMouseDown={makeDragger(setLogo)} style={{
+              position: "absolute", inset: 0, cursor: "grab", borderRadius: 8, zIndex: 0
+            }} />
+            <div style={{ position: "relative", zIndex: 1, display: "flex", alignItems: "center", gap: 8, flex: 1 }}>
+              <img src={selectedCompany === "sentinel" ? sentinelLogoImg : logoImg} alt="Logo" style={{
+                height: 28, borderRadius: 4, objectFit: "contain"
+              }} />
+              <span style={{ fontSize: 12, fontWeight: 700, color: "#0f172a" }}>
+                {selectedCompany === "sentinel" ? "Sentinel Technologies" : "Mirador AI Technologies"}
+              </span>
             </div>
-          )}
-        </div>
-        <div className="dv-export-modal-footer">
-          <button className="dv-export-cancel" disabled={isGenerating} onClick={onCancel}>Cancel</button>
-        </div>
+            <button onClick={() => setLogo(s => ({ ...s, show: false }))} style={{
+              position: "relative", zIndex: 2, background: "none", border: "none",
+              color: "#64748b", cursor: "pointer", fontSize: 14, lineHeight: 1,
+              padding: "2px 4px", borderRadius: 3,
+            }} title="Remove from export">✕</button>
+          </div>
+        )}
+
+        {/* ── Camera Statistics overlay ── */}
+        {stats.show && (
+          <div style={{
+            ...overlayBase,
+            bottom: stats.y !== null ? undefined : 12,
+            right:  stats.x !== null ? undefined : 12,
+            top:    stats.y !== null ? stats.y   : undefined,
+            left:   stats.x !== null ? stats.x   : undefined,
+            background: "rgba(255,255,255,0.92)",
+            border: "1px solid rgba(0,0,0,0.08)",
+            padding: "10px 14px", minWidth: 170,
+            cursor: "grab",
+          }}>
+            <div onMouseDown={makeDragger(setStats)} style={{
+              position: "absolute", inset: 0, cursor: "grab", borderRadius: 8, zIndex: 0
+            }} />
+            <button onClick={() => setStats(s => ({ ...s, show: false }))} style={{
+              position: "absolute", top: 4, right: 6, zIndex: 2,
+              background: "none", border: "none", color: "#64748b",
+              cursor: "pointer", fontSize: 13, lineHeight: 1, padding: "2px 4px",
+            }} title="Remove from export">✕</button>
+            <div style={{
+              position: "absolute", left: 0, top: 0, bottom: 0, width: 4,
+              background: "#1e3a5f", borderRadius: "8px 0 0 8px",
+            }} />
+            <div style={{ position: "relative", zIndex: 1, paddingLeft: 8 }}>
+              <div style={{ fontSize: 11, fontWeight: 800, color: "#0f172a", marginBottom: 4 }}>
+                Camera Statistics
+              </div>
+              <div style={{ fontSize: 11, color: "#1d4ed8", fontWeight: 600, marginBottom: 2 }}>
+                Total Cameras: —
+              </div>
+              <div style={{ fontSize: 10, color: "#374151" }}>Per-type breakdown</div>
+            </div>
+          </div>
+        )}
+
+        {/* ── DORI Legend overlay ── */}
+        {showDori && dori.show && (
+          <div style={{
+            ...overlayBase,
+            bottom: dori.y !== null ? undefined : 12,
+            left:   dori.x !== null ? dori.x   : 12,
+            top:    dori.y !== null ? dori.y   : undefined,
+            background: "rgba(13,20,32,0.92)",
+            border: "1px solid rgba(168,85,247,0.5)",
+            padding: "10px 14px", minWidth: 200,
+            cursor: "grab",
+          }}>
+            <div onMouseDown={makeDragger(setDori)} style={{
+              position: "absolute", inset: 0, cursor: "grab", borderRadius: 8, zIndex: 0
+            }} />
+            <button onClick={() => setDori(s => ({ ...s, show: false }))} style={{
+              position: "absolute", top: 4, right: 6, zIndex: 2,
+              background: "none", border: "none", color: "#9ca3af",
+              cursor: "pointer", fontSize: 13, lineHeight: 1, padding: "2px 4px",
+            }} title="Remove from export">✕</button>
+            <div style={{ position: "relative", zIndex: 1 }}>
+              <div style={{ color: "#c084fc", fontSize: 10, fontWeight: 800, marginBottom: 6 }}>
+                DORI ZONES (EN 62676-4)
+              </div>
+              <div style={{ height: 1, background: "rgba(255,255,255,0.1)", marginBottom: 8 }} />
+              {DORI_ITEMS.map(item => (
+                <div key={item.color} style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 5 }}>
+                  <div style={{
+                    width: 8, height: 8, borderRadius: "50%", background: item.color,
+                    boxShadow: `0 0 5px ${item.color}`, flexShrink: 0,
+                  }} />
+                  <span style={{ color: "#e2e8f0", fontSize: 10, fontWeight: 600 }}>{item.label}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Download buttons */}
+      <div style={{
+        marginTop: 16, display: "flex", gap: 12, alignItems: "center",
+      }}>
+        {isDownloading && (
+          <span style={{ color: "#3b82f6", fontSize: 13 }}>Generating…</span>
+        )}
+        <button
+          disabled={isDownloading}
+          onClick={() => onDownload("jpg", getOverlayState())}
+          style={{
+            background: "#1D9E75", color: "#fff", border: "none",
+            borderRadius: 7, padding: "9px 22px", fontSize: 14, fontWeight: 700,
+            cursor: isDownloading ? "not-allowed" : "pointer", opacity: isDownloading ? 0.6 : 1,
+          }}>
+          ⬇ Download JPG
+        </button>
+        <button
+          disabled={isDownloading}
+          onClick={() => onDownload("pdf", getOverlayState())}
+          style={{
+            background: "transparent", color: "#1D9E75", border: "2px solid #1D9E75",
+            borderRadius: 7, padding: "7px 20px", fontSize: 14, fontWeight: 700,
+            cursor: isDownloading ? "not-allowed" : "pointer", opacity: isDownloading ? 0.6 : 1,
+          }}>
+          ⬇ Download PDF
+        </button>
       </div>
     </div>
   );
@@ -667,7 +863,7 @@ function FovVisualizer({ camera }) {
 // ── Camera drawing ────────────────────────────────────────────────────────────
 // FIX 1: clipZone now auto-detects the camera's own zone when no active zone is set.
 // This ensures FOV is always clipped to its zone even after refresh.
-function drawPlacedCamera(ctx, p, ppm, hovering, selected, zonesRef, activeZoneIdRef, highlightedId, showLabel = true, showPpm = false, hideBeam = false, iconScale = 1.20) {
+function drawPlacedCamera(ctx, p, ppm, hovering, selected, zonesRef, activeZoneIdRef, highlightedId, showLabel = true, showPpm = false, hideBeam = false, iconScale = 1.20, renderLayer = "all", canvasScale = 1) {
   const { x, y, direction, camera } = p;
   const col = TYPE_COLORS[camera.type] || "#3b82f6";
   const isHighlit = p.id === highlightedId;
@@ -682,64 +878,58 @@ function drawPlacedCamera(ctx, p, ppm, hovering, selected, zonesRef, activeZoneI
   const originX = x + Math.cos(angle) * (1.5 * S);
   const originY = y + Math.sin(angle) * (1.5 * S);
 
-  // ── Zone clip — always clip to the camera's own zone ─────────────
-  let clipping = false;
-  let clipZone = null;
+  if (renderLayer === "all" || renderLayer === "beam") {
+    // ── Zone clip — always clip to the camera's own zone ─────────────
+    let clipping = false;
+    let clipZone = null;
 
-  if (zonesRef?.current) {
-    if (activeZoneIdRef?.current) {
-      const activeZone = zonesRef.current.find(z => z.id === activeZoneIdRef.current);
-      if (activeZone && activeZone.polygon?.length >= 3 && pointInPolygon(x, y, activeZone.polygon)) {
-        clipZone = activeZone;
+    if (zonesRef?.current) {
+      if (activeZoneIdRef?.current) {
+        const activeZone = zonesRef.current.find(z => z.id === activeZoneIdRef.current);
+        if (activeZone && activeZone.polygon?.length >= 3 && pointInPolygon(x, y, activeZone.polygon)) {
+          clipZone = activeZone;
+        } else {
+          hideBeam = true;
+        }
       } else {
-        hideBeam = true;
-      }
-    } else {
-      const containedZones = zonesRef.current.filter(
-        z => z.polygon?.length >= 3 && pointInPolygon(x, y, z.polygon)
-      );
-      if (containedZones.length > 0) {
-        containedZones.sort((a, b) => getPolygonArea(a.polygon, ppm) - getPolygonArea(b.polygon, ppm));
-        clipZone = containedZones[0];
+        const containedZones = zonesRef.current.filter(
+          z => z.polygon?.length >= 3 && pointInPolygon(x, y, z.polygon)
+        );
+        if (containedZones.length > 0) {
+          containedZones.sort((a, b) => getPolygonArea(a.polygon, ppm) - getPolygonArea(b.polygon, ppm));
+          clipZone = containedZones[0];
+        }
       }
     }
-  }
 
-  const startClip = () => {
-    if (clipZone && clipZone.polygon.length >= 3) {
-      ctx.save();
-      ctx.beginPath();
-      clipZone.polygon.forEach((pt, i) => {
-        if (i === 0) ctx.moveTo(pt.x, pt.y); else ctx.lineTo(pt.x, pt.y);
-      });
-      ctx.closePath();
-      ctx.clip();
-      clipping = true;
-    }
-  };
-  const endClip = () => { if (clipping) { ctx.restore(); clipping = false; } };
+    const startClip = () => {
+      if (clipZone && clipZone.polygon.length >= 3) {
+        ctx.save();
+        ctx.beginPath();
+        let polyToClip = clipZone.polygon;
+        try {
+          const visPoly = CctvCalc.computeVisibilityPolygon({ x: originX, y: originY }, clipZone.polygon);
+          if (visPoly && visPoly.length >= 3) {
+            polyToClip = visPoly;
+          }
+        } catch (e) {
+          console.error("Visibility clip error:", e);
+        }
 
-  startClip();
+        polyToClip.forEach((pt, i) => {
+          if (i === 0) ctx.moveTo(pt.x, pt.y); else ctx.lineTo(pt.x, pt.y);
+        });
+        ctx.closePath();
+        ctx.clip();
+        clipping = true;
+      }
+    };
+    const endClip = () => { if (clipping) { ctx.restore(); clipping = false; } };
 
-  // ── FOV cone, DORI Clarity Zones, and Range circle ───────────────
-  if (!hideBeam) {
-    // ── FOV cone ─────────────────────────────────────────────────────
-    ctx.save();
-    ctx.beginPath();
-    ctx.moveTo(originX, originY);
-    ctx.arc(originX, originY, radius, angle - halfRad, angle + halfRad);
-    ctx.closePath();
-    if (!showPpm) {
-      const g = ctx.createRadialGradient(originX, originY, 0, originX, originY, radius);
-      g.addColorStop(0, col + (selected ? "77" : isHighlit ? "66" : "44"));
-      g.addColorStop(1, col + "0a");
-      ctx.fillStyle = g; ctx.fill();
-    }
-    ctx.strokeStyle = col + (selected || isHighlit ? "cc" : "66");
-    ctx.lineWidth = selected || isHighlit ? 1.5 : 1; ctx.stroke();
-    ctx.restore();
+    // ── Clip everything (DORI zones + FOV cone) inside the drawn zone polygon ──
+    startClip();
 
-    // ── DORI Clarity Zones (EN 62676-4) ──────────────────────────────
+    // ── DORI Clarity Zones (clipped inside zone boundary) ──
     if (showPpm) {
       const resX = camera.megapixels === 12 ? 4000 :
                    camera.megapixels === 8 ? 3840 :
@@ -751,19 +941,27 @@ function drawPlacedCamera(ctx, p, ppm, hovering, selected, zonesRef, activeZoneI
       const hfovRad = (camera.hfov * Math.PI) / 180;
       const tanHalf = Math.tan(hfovRad / 2);
 
-      const getDistForPpm = (tPpm) => {
+      // Returns distance in METRES where the camera achieves a given pixel density
+      const getDistMetres = (tPpm) => {
         if (camera.type === "fisheye" || camera.hfov >= 180) {
           return (resX / (Math.PI * tPpm)) * 0.35;
         }
         return resX / (2 * tPpm * tanHalf);
       };
 
-      const zonesPpm = [
-        { d: getDistForPpm(25) * ppm, c: "#3b82f6", l: "D" },
-        { d: getDistForPpm(62) * ppm, c: "#eab308", l: "O" },
-        { d: getDistForPpm(125) * ppm, c: "#f97316", l: "R" },
-        { d: getDistForPpm(250) * ppm, c: "#a855f7", l: "I" },
-      ];
+      // Minimum screen-pixel radius per DORI ring (so they're always visible)
+      // We compensate for low ppm by enforcing a floor in screen pixels
+      const MIN_SCREEN_PX = [60, 40, 25, 14]; // Detection, Observation, Recognition, Identification
+      const thresholds = [25, 62, 125, 250];
+      const colors     = ["#3b82f6", "#eab308", "#f97316", "#a855f7"];
+
+      const zonesPpm = thresholds.map((tPpm, i) => {
+        const distMetres  = getDistMetres(tPpm);           // metres
+        const distCanvas  = distMetres * ppm;              // canvas pixels (world space)
+        // Ensure minimum visibility in screen pixels: at least MIN_SCREEN_PX[i] screen px
+        const minCanvas   = MIN_SCREEN_PX[i] / Math.max(canvasScale, 0.05);
+        return { d: Math.max(distCanvas, minCanvas), c: colors[i] };
+      });
 
       zonesPpm.forEach(z => {
         const dVal = Math.min(z.d, radius);
@@ -790,18 +988,37 @@ function drawPlacedCamera(ctx, p, ppm, hovering, selected, zonesRef, activeZoneI
       });
     }
 
+    // ── FOV cone ─────────────────────────────────────────────────────
+    if (!hideBeam) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(originX, originY);
+      ctx.arc(originX, originY, radius, angle - halfRad, angle + halfRad);
+      ctx.closePath();
+      if (!showPpm) {
+        const g = ctx.createRadialGradient(originX, originY, 0, originX, originY, radius);
+        g.addColorStop(0, col + (selected ? "77" : isHighlit ? "66" : "44"));
+        g.addColorStop(1, col + "0a");
+        ctx.fillStyle = g; ctx.fill();
+      }
+      ctx.strokeStyle = col + (selected || isHighlit ? "cc" : "66");
+      ctx.lineWidth = selected || isHighlit ? 1.5 : 1; ctx.stroke();
+      ctx.restore();
+    }
+
+    endClip();
+
+    // ── Range circle (dashed, PTZ only) ───────────────────────────────
+    if (camera.type === "ptz") {
+      ctx.save();
+      ctx.setLineDash([4, 3]);
+      ctx.beginPath(); ctx.arc(x, y, radius, 0, Math.PI * 2);
+      ctx.strokeStyle = col + "AA"; ctx.lineWidth = 1.5; ctx.stroke();
+      ctx.setLineDash([]); ctx.restore();
+    }
   }
 
-  endClip();
-
-  // ── Range circle (dashed, PTZ only) ───────────────────────────────
-  if (camera.type === "ptz") {
-    ctx.save();
-    ctx.setLineDash([4, 3]);
-    ctx.beginPath(); ctx.arc(x, y, radius, 0, Math.PI * 2);
-    ctx.strokeStyle = col + "AA"; ctx.lineWidth = 1.5; ctx.stroke();
-    ctx.setLineDash([]); ctx.restore();
-  }
+  if (renderLayer === "all" || renderLayer === "body") {
 
   // ── Camera body (Type-specific shapes, S=0.62) ──────────────────
   ctx.save();
@@ -1143,6 +1360,7 @@ function drawPlacedCamera(ctx, p, ppm, hovering, selected, zonesRef, activeZoneI
   ctx.textAlign = "center"; ctx.textBaseline = "middle";
   ctx.fillText(lbl, labelCenterX, by + 9);
   ctx.restore();
+  }
 }
 
 
@@ -1334,6 +1552,77 @@ function DvZoneSidebarItem({
   );
 }
 
+// ── DORI Legend Card (Draggable) ─────────────────────────────────────────────
+function DoriLegendCard({ show }) {
+  const [position, setPosition] = useState({ x: 300, y: 100 });
+
+  if (!show) return null;
+
+  const handleMouseDown = (e) => {
+    e.preventDefault();
+    const startX = e.clientX - position.x;
+    const startY = e.clientY - position.y;
+
+    const handleMouseMove = (moveEvent) => {
+      setPosition({
+        x: moveEvent.clientX - startX,
+        y: moveEvent.clientY - startY
+      });
+    };
+
+    const handleMouseUp = () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+  };
+
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        left: position.x,
+        top: position.y,
+        background: 'rgba(13, 20, 32, 0.92)',
+        border: '1px solid rgba(168, 85, 247, 0.5)',
+        borderRadius: 8,
+        padding: '12px',
+        zIndex: 1000,
+        cursor: 'grab',
+        userSelect: 'none',
+        boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
+        width: 220
+      }}
+      onMouseDown={handleMouseDown}
+    >
+      <div style={{ color: '#c084fc', fontSize: 11, fontWeight: 800, marginBottom: 8 }}>
+        DORI ZONES (EN 62676-4)
+      </div>
+      <div style={{ height: 1, background: 'rgba(255,255,255,0.1)', marginBottom: 10 }} />
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#a855f7', boxShadow: '0 0 6px #a855f7' }} />
+          <span style={{ color: '#e2e8f0', fontSize: 12, fontWeight: 600 }}>Identification (250+ px/m)</span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#f97316', boxShadow: '0 0 6px #f97316' }} />
+          <span style={{ color: '#e2e8f0', fontSize: 12, fontWeight: 600 }}>Recognition (125+ px/m)</span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#eab308', boxShadow: '0 0 6px #eab308' }} />
+          <span style={{ color: '#e2e8f0', fontSize: 12, fontWeight: 600 }}>Observation (62+ px/m)</span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#3b82f6', boxShadow: '0 0 6px #3b82f6' }} />
+          <span style={{ color: '#e2e8f0', fontSize: 12, fontWeight: 600 }}>Detection (25+ px/m)</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Main DesignerView ─────────────────────────────────────────────────────────
 export default function DesignerView({ onBack }) {
   const wrapRef = useRef(null);
@@ -1365,9 +1654,14 @@ export default function DesignerView({ onBack }) {
 
   const [saveStatus, setSaveStatus] = useState("saved"); // "saving" | "saved" | "failed"
 
-  const [iconScale, setIconScale] = useState(1.20);
-  const iconScaleRef = useRef(1.20);
+  const [iconScale, setIconScale] = useState(() => {
+    const saved = localStorage.getItem("miradorai_iconScale");
+    return saved ? parseFloat(saved) : 1.20;
+  });
+  const iconScaleRef = useRef(iconScale);
   useEffect(() => { iconScaleRef.current = iconScale; }, [iconScale]);
+  // Persist iconScale to localStorage whenever it changes
+  useEffect(() => { localStorage.setItem("miradorai_iconScale", String(iconScale)); }, [iconScale]);
 
   const [textNodes, setTextNodes] = useState([]);
   const [editingTextNode, setEditingTextNode] = useState(null);
@@ -1380,9 +1674,13 @@ export default function DesignerView({ onBack }) {
   useEffect(() => { textNodesRef.current = textNodes; }, [textNodes]);
 
   const [toolboxOpen, setToolboxOpen] = useState(false);
-  const [tbFontColor, setTbFontColor] = useState("#e8edf5");
-  const [tbFontSize, setTbFontSize] = useState(36);
-  const [tbFontStyle, setTbFontStyle] = useState("Arial");
+  const [tbFontColor, setTbFontColor] = useState(() => localStorage.getItem("miradorai_tbFontColor") || "#e8edf5");
+  const [tbFontSize, setTbFontSize] = useState(() => { const s = localStorage.getItem("miradorai_tbFontSize"); return s ? Number(s) : 36; });
+  const [tbFontStyle, setTbFontStyle] = useState(() => localStorage.getItem("miradorai_tbFontStyle") || "Arial");
+  // Persist text box settings to localStorage whenever they change
+  useEffect(() => { localStorage.setItem("miradorai_tbFontColor", tbFontColor); }, [tbFontColor]);
+  useEffect(() => { localStorage.setItem("miradorai_tbFontSize", String(tbFontSize)); }, [tbFontSize]);
+  useEffect(() => { localStorage.setItem("miradorai_tbFontStyle", tbFontStyle); }, [tbFontStyle]);
 
   const draggingTextNodeIdRef = useRef(null);
   const draggingTextStartRef = useRef(null);
@@ -1419,7 +1717,51 @@ export default function DesignerView({ onBack }) {
     });
   }, [placed]);
 
-  const hardware = CctvCalc.getHardwareRecommendations(placed.length);
+  const [manualCams, setManualCams] = useState(() => {
+    try {
+      const saved = localStorage.getItem("miradorai_manual_cams_" + MAP_ID);
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  useEffect(() => {
+    localStorage.setItem("miradorai_manual_cams_" + MAP_ID, JSON.stringify(manualCams));
+  }, [manualCams]);
+
+  const [newMc, setNewMc] = useState({
+    brand: "",
+    model: "",
+    qty: 1
+  });
+
+  const addManualCam = () => {
+    if (!newMc.brand || !newMc.model) {
+      alert("Please select both Brand and Model.");
+      return;
+    }
+    const newCam = {
+      ...newMc,
+      id: "manual_" + Date.now(),
+      qty: Number(newMc.qty) || 1
+    };
+    setManualCams(prev => [...prev, newCam]);
+    setNewMc({
+      brand: "",
+      model: "",
+      qty: 1
+    });
+  };
+
+  const updateManualCam = (id, field, value) => {
+    setManualCams(prev => prev.map(c => c.id === id ? { ...c, [field]: value } : c));
+  };
+
+  const manualCamsCount = manualCams.reduce((sum, mc) => sum + (Number(mc.qty) || 0), 0);
+  const totalCamsCount = placed.length + manualCamsCount;
+
+  const hardware = CctvCalc.getHardwareRecommendations(totalCamsCount);
   const lastNvrRef = useRef("");
   useEffect(() => {
     if (hardware.nvr !== lastNvrRef.current) {
@@ -1460,6 +1802,10 @@ export default function DesignerView({ onBack }) {
 
   const [editingSlideId, setEditingSlideId] = useState(null);
   const [editingSlideName, setEditingSlideName] = useState("");
+
+  const [expandedVersions, setExpandedVersions] = useState({});
+  const [editingVersionId, setEditingVersionId] = useState(null);
+  const [editingVersionName, setEditingVersionName] = useState("");
 
   const recordState = useCallback((p = placedRef.current, z = zonesRef.current) => {
     const snapshot = {
@@ -1582,6 +1928,10 @@ export default function DesignerView({ onBack }) {
   const [showFormatModal, setShowFormatModal] = useState(false);
   const [pendingExportMode, setPendingExportMode] = useState(null); // "design" | "heatmap"
   const [isGeneratingExport, setIsGeneratingExport] = useState(false);
+  // ── Export preview state ──
+  const [exportPreviewOpen,  setExportPreviewOpen]  = useState(false);
+  const [exportPreviewDataUrl, setExportPreviewDataUrl] = useState(null);
+  const [exportPreviewCanvas,  setExportPreviewCanvas]  = useState(null);
   const [showStats, setShowStats] = useState(false);
   const [showPpm, setShowPpm] = useState(false);
   const [showConfigDrawer, setShowConfigDrawer] = useState(false);
@@ -1589,6 +1939,8 @@ export default function DesignerView({ onBack }) {
   const [inspectorTab, setInspectorTab] = useState("cameras"); // "cameras" | "zones"
   const [retentionDays, setRetentionDays] = useState(30);
   const exportMenuRef = useRef(null);
+  
+  const [showEarthMap, setShowEarthMap] = useState(false);
 
   // ── Company Selection for Exports ──
   const [selectedCompany, setSelectedCompany] = useState("mirador");
@@ -1918,7 +2270,7 @@ export default function DesignerView({ onBack }) {
       ctx.restore();
     }
 
-    // ── Placed cameras ────────────────────────────────────────────────────────
+    // ── Placed cameras - Pass 1: Draw ALL beams first ─────────────────────────
     placedRef.current.forEach((p, i) => {
       drawPlacedCamera(
         ctx, p, ppm,
@@ -1930,7 +2282,27 @@ export default function DesignerView({ onBack }) {
         false,
         showPpm,
         false,
-        iconScaleRef.current
+        iconScaleRef.current,
+        "beam",
+        scaleRef.current
+      );
+    });
+
+    // ── Placed cameras - Pass 2: Draw ALL bodies & labels ─────────────────────
+    placedRef.current.forEach((p, i) => {
+      drawPlacedCamera(
+        ctx, p, ppm,
+        i === hoveredIdx,
+        i === selectedIdx,
+        zonesRef,
+        activeZoneIdRef,
+        highlightedCamIdRef.current,
+        false,
+        showPpm,
+        false,
+        iconScaleRef.current,
+        "body",
+        scaleRef.current
       );
     });
 
@@ -2216,6 +2588,10 @@ export default function DesignerView({ onBack }) {
             draftZonesRef.current = activeSlide.draftZones || [];
             setDraftZones(activeSlide.draftZones || []);
 
+            // Restore text annotations per slide
+            textNodesRef.current = activeSlide.textNodes || [];
+            setTextNodes(activeSlide.textNodes || []);
+
             if (activeSlide.floorPlan) {
               const img = new Image();
               img.onload = () => {
@@ -2305,7 +2681,8 @@ export default function DesignerView({ onBack }) {
         currentSlide.floorPlan === hasFloorImg &&
         JSON.stringify(currentSlide.placed) === JSON.stringify(placed) &&
         JSON.stringify(currentSlide.zones) === JSON.stringify(zones) &&
-        JSON.stringify(currentSlide.draftZones) === JSON.stringify(draftZones)
+        JSON.stringify(currentSlide.draftZones) === JSON.stringify(draftZones) &&
+        JSON.stringify(currentSlide.textNodes) === JSON.stringify(textNodes)
       ) {
         return prevSlides;
       }
@@ -2317,11 +2694,12 @@ export default function DesignerView({ onBack }) {
         placed,
         zones,
         draftZones,
-        floorPlan: hasFloorImg
+        floorPlan: hasFloorImg,
+        textNodes
       };
       return updated;
     });
-  }, [placed, zones, draftZones, ppm, activeSlideId]);
+  }, [placed, zones, draftZones, ppm, activeSlideId, textNodes]);
 
   // ── Camera model fetch ────────────────────────────────────────────────────
   useEffect(() => {
@@ -3567,6 +3945,113 @@ export default function DesignerView({ onBack }) {
     apiDeleteFloorPlan();
   }
 
+  // ── Manual Save Layout (Versioned) ──────────────────────────────────────────
+  function handleManualSave() {
+    const activeSlideIdx = slidesRef.current.findIndex(s => s.id === activeSlideIdRef.current);
+    if (activeSlideIdx < 0) return;
+    
+    const currentSlide = slidesRef.current[activeSlideIdx];
+    const versions = currentSlide.versions || [];
+    const currentPlaced = placedRef.current || [];
+    
+    let hasChanges = true;
+    if (versions.length > 0) {
+      const lastVersionPlaced = versions[versions.length - 1].placed || [];
+      if (lastVersionPlaced.length === currentPlaced.length) {
+        const lastIds = lastVersionPlaced.map(c => c.id).sort().join(',');
+        const currIds = currentPlaced.map(c => c.id).sort().join(',');
+        if (lastIds === currIds) {
+          hasChanges = false;
+        }
+      }
+    }
+    
+    if (hasChanges) {
+      const newVersion = {
+        id: "v_" + Date.now(),
+        name: `v${versions.length + 1}`,
+        timestamp: Date.now(),
+        placed: JSON.parse(JSON.stringify(currentPlaced))
+      };
+      const updatedSlide = { ...currentSlide, versions: [...versions, newVersion] };
+      const updatedSlides = [...slidesRef.current];
+      updatedSlides[activeSlideIdx] = updatedSlide;
+      slidesRef.current = updatedSlides;
+      setSlides(updatedSlides);
+      
+      localStorage.setItem(`miradorai_slides_${MAP_ID}`, JSON.stringify(updatedSlides));
+      alert(`Saved ${newVersion.name}!`);
+    } else {
+      alert("No camera changes detected since last save.");
+    }
+  }
+
+  function restoreVersion(slideId, versionId) {
+    const slide = slidesRef.current.find(s => s.id === slideId);
+    if (!slide || !slide.versions) return;
+    const version = slide.versions.find(v => v.id === versionId);
+    if (!version) return;
+    
+    if (activeSlideIdRef.current !== slideId) {
+      switchSlide(slideId);
+    }
+    
+    recordState(); 
+    const restoredPlaced = JSON.parse(JSON.stringify(version.placed));
+    placedRef.current = restoredPlaced;
+    setPlaced(restoredPlaced);
+    setSelectedIdx(null);
+    setHighlightedCamId(null);
+    highlightedCamIdRef.current = null;
+    draw();
+    
+    apiSaveLayout({ placed: restoredPlaced, zones: zonesRef.current, ppm: ppmRef.current });
+  }
+
+  function renameVersion(slideId, versionId, newName) {
+    if (!newName.trim()) return;
+    const activeSlideIdx = slidesRef.current.findIndex(s => s.id === slideId);
+    if (activeSlideIdx < 0) return;
+    
+    const updatedSlides = [...slidesRef.current];
+    const slide = { ...updatedSlides[activeSlideIdx] };
+    if (!slide.versions) return;
+    
+    const vIdx = slide.versions.findIndex(v => v.id === versionId);
+    if (vIdx < 0) return;
+    
+    const newVersions = [...slide.versions];
+    newVersions[vIdx] = { ...newVersions[vIdx], name: newName.trim() };
+    slide.versions = newVersions;
+    updatedSlides[activeSlideIdx] = slide;
+    
+    slidesRef.current = updatedSlides;
+    setSlides(updatedSlides);
+    localStorage.setItem(`miradorai_slides_${MAP_ID}`, JSON.stringify(updatedSlides));
+  }
+
+  function deleteVersion(slideId, versionId) {
+    showConfirm(
+      "Delete Version",
+      "Are you sure you want to delete this version? This cannot be undone.",
+      () => {
+        const activeSlideIdx = slidesRef.current.findIndex(s => s.id === slideId);
+        if (activeSlideIdx < 0) return;
+        
+        const updatedSlides = [...slidesRef.current];
+        const slide = { ...updatedSlides[activeSlideIdx] };
+        if (!slide.versions) return;
+        
+        slide.versions = slide.versions.filter(v => v.id !== versionId);
+        updatedSlides[activeSlideIdx] = slide;
+        
+        slidesRef.current = updatedSlides;
+        setSlides(updatedSlides);
+        localStorage.setItem(`miradorai_slides_${MAP_ID}`, JSON.stringify(updatedSlides));
+      }
+    );
+  }
+
   // ── Clear all cameras from the floor (keeps floor plan image) ──────────────
   function clearFloorCameras() {
     showConfirm(
@@ -3684,7 +4169,7 @@ export default function DesignerView({ onBack }) {
   }));
   const heatmapCameras = placed.map(p => ({ id: p.id, status: "online" }));
 
-function drawCameraStatsToCanvas(ctx, canvasW, canvasH, placedCameras) {
+function drawCameraStatsToCanvas(ctx, canvasW, canvasH, placedCameras, overrideX = null, overrideY = null) {
   const typeCounts = {};
   placedCameras.forEach(p => {
     const t = p.camera.type || "dome";
@@ -3718,8 +4203,9 @@ function drawCameraStatsToCanvas(ctx, canvasW, canvasH, placedCameras) {
 
   const boxW = padX * 2 + maxTextW;
   const boxH = padY * 2 + (entries.length + 1.5) * rowGap;
-  const bx = canvasW - boxW - margin;
-  const by = canvasH - boxH - margin;
+  // Use override position if provided (from drag), else default bottom-right
+  const bx = overrideX !== null ? overrideX : canvasW - boxW - margin;
+  const by = overrideY !== null ? overrideY : canvasH - boxH - margin;
 
   ctx.shadowColor = "rgba(0,0,0,0.18)";
   ctx.shadowBlur = baseUnit * 1.2;
@@ -3770,7 +4256,62 @@ function drawCameraStatsToCanvas(ctx, canvasW, canvasH, placedCameras) {
   ctx.restore();
 }
 
-function buildExportCanvas(exportMode = "design", company = "mirador", onReady) {
+// ── Draw DORI legend box to canvas at given pixel position ──────────────────
+function drawDoriLegendToCanvas(ctx, x, y) {
+  const ITEMS = [
+    { color: "#a855f7", label: "Identification (250+ px/m)" },
+    { color: "#f97316", label: "Recognition (125+ px/m)" },
+    { color: "#eab308", label: "Observation (62+ px/m)" },
+    { color: "#3b82f6", label: "Detection (25+ px/m)" },
+  ];
+  const pad = 12;
+  const dotR = 5;
+  const rowH = 20;
+  const titleH = 22;
+  const sepH  = 10;
+  const boxW  = 220;
+  const boxH  = pad * 2 + titleH + sepH + ITEMS.length * rowH;
+
+  ctx.save();
+  // Background
+  ctx.fillStyle = "rgba(13,20,32,0.92)";
+  if (ctx.roundRect) ctx.roundRect(x, y, boxW, boxH, 8);
+  else ctx.rect(x, y, boxW, boxH);
+  ctx.fill();
+  // Border
+  ctx.strokeStyle = "rgba(168,85,247,0.5)";
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  // Title
+  ctx.font = "bold 11px Inter, Arial, sans-serif";
+  ctx.fillStyle = "#c084fc";
+  ctx.textAlign = "left";
+  ctx.textBaseline = "middle";
+  ctx.fillText("DORI ZONES (EN 62676-4)", x + pad, y + pad + titleH / 2);
+  // Separator
+  ctx.fillStyle = "rgba(255,255,255,0.1)";
+  ctx.fillRect(x + pad, y + pad + titleH + 3, boxW - pad * 2, 1);
+  // Items
+  ITEMS.forEach((item, i) => {
+    const iy = y + pad + titleH + sepH + i * rowH + rowH / 2;
+    ctx.beginPath();
+    ctx.arc(x + pad + dotR, iy, dotR, 0, Math.PI * 2);
+    ctx.fillStyle = item.color;
+    ctx.shadowColor = item.color;
+    ctx.shadowBlur = 6;
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.font = "600 11px Inter, Arial, sans-serif";
+    ctx.fillStyle = "#e2e8f0";
+    ctx.fillText(item.label, x + pad + dotR * 2 + 6, iy);
+  });
+  ctx.restore();
+}
+
+// ── Build export canvas (base layout, then composited overlays) ──────────────
+// overlayOpts: { logo:{show,x,y}, stats:{show,x,y}, dori:{show,x,y} }
+// previewW/previewH: dimensions of the preview container (for coordinate mapping)
+function buildExportCanvas(exportMode = "design", company = "mirador", overlayOpts, previewSize, onReady) {
   const img = floorImgRef.current;
   if (!img) { onReady(null); return; }
 
@@ -3785,6 +4326,11 @@ function buildExportCanvas(exportMode = "design", company = "mirador", onReady) 
   ctx.fillRect(0, 0, oc.width, oc.height);
   ctx.scale(exportScale, exportScale);
   ctx.drawImage(img, 0, 0);
+
+  // ── Helper: map preview coords → export canvas coords ─────────────────────
+  // previewSize may be null (first build = no overlays rendered yet)
+  const mapCoord = (v, previewDim, canvasDim) =>
+    (previewSize && previewDim && v !== null) ? (v / previewDim) * canvasDim : null;
 
   if (exportMode === "design") {
     zonesRef.current.forEach(zone => {
@@ -3805,13 +4351,29 @@ function buildExportCanvas(exportMode = "design", company = "mirador", onReady) 
       ctx.restore();
     });
     placedRef.current.forEach(p =>
-      drawPlacedCamera(ctx, p, ppm, false, false, zonesRef, activeZoneIdRef, null, false, showPpm, false, iconScaleRef.current)
+      drawPlacedCamera(ctx, p, ppm, false, false, zonesRef, activeZoneIdRef, null, false, showPpm, false, iconScaleRef.current, "beam", scaleRef.current)
     );
-    // ── Stats box: reset transform so coords are true canvas pixels ──
-    ctx.save();
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    drawCameraStatsToCanvas(ctx, oc.width, oc.height, placedRef.current);
-    ctx.restore();
+    placedRef.current.forEach(p =>
+      drawPlacedCamera(ctx, p, ppm, false, false, zonesRef, activeZoneIdRef, null, false, showPpm, false, iconScaleRef.current, "body", scaleRef.current)
+    );
+    // ── Camera Stats box ──
+    if (overlayOpts && overlayOpts.stats?.show !== false) {
+      ctx.save();
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      const sx = mapCoord(overlayOpts?.stats?.x, previewSize?.w, oc.width);
+      const sy = mapCoord(overlayOpts?.stats?.y, previewSize?.h, oc.height);
+      drawCameraStatsToCanvas(ctx, oc.width, oc.height, placedRef.current, sx, sy);
+      ctx.restore();
+    }
+    // ── DORI legend ──
+    if (showPpm && overlayOpts && overlayOpts.dori?.show !== false) {
+      ctx.save();
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      const dx = mapCoord(overlayOpts?.dori?.x, previewSize?.w, oc.width) ?? 18;
+      const dy = mapCoord(overlayOpts?.dori?.y, previewSize?.h, oc.height) ?? (oc.height - 140);
+      drawDoriLegendToCanvas(ctx, dx, dy);
+      ctx.restore();
+    }
 
   } else if (exportMode === "heatmap") {
     const hcvs = document.createElement("canvas");
@@ -3837,20 +4399,42 @@ function buildExportCanvas(exportMode = "design", company = "mirador", onReady) 
       ctx.restore();
     });
     placedRef.current.forEach(p =>
-      drawPlacedCamera(ctx, p, ppm, false, false, zonesRef, activeZoneIdRef, null, false, showPpm, false, iconScaleRef.current)
+      drawPlacedCamera(ctx, p, ppm, false, false, zonesRef, activeZoneIdRef, null, false, showPpm, false, iconScaleRef.current, "beam", scaleRef.current)
     );
-    // ── Stats box: reset transform so coords are true canvas pixels ──
-    ctx.save();
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    drawCameraStatsToCanvas(ctx, oc.width, oc.height, placedRef.current);
-    ctx.restore();
+    placedRef.current.forEach(p =>
+      drawPlacedCamera(ctx, p, ppm, false, false, zonesRef, activeZoneIdRef, null, false, showPpm, false, iconScaleRef.current, "body", scaleRef.current)
+    );
+    // ── Camera Stats box ──
+    if (overlayOpts && overlayOpts.stats?.show !== false) {
+      ctx.save();
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      const sx = mapCoord(overlayOpts?.stats?.x, previewSize?.w, oc.width);
+      const sy = mapCoord(overlayOpts?.stats?.y, previewSize?.h, oc.height);
+      drawCameraStatsToCanvas(ctx, oc.width, oc.height, placedRef.current, sx, sy);
+      ctx.restore();
+    }
+    // ── DORI legend ──
+    if (showPpm && overlayOpts && overlayOpts.dori?.show !== false) {
+      ctx.save();
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      const dx = mapCoord(overlayOpts?.dori?.x, previewSize?.w, oc.width) ?? 18;
+      const dy = mapCoord(overlayOpts?.dori?.y, previewSize?.h, oc.height) ?? (oc.height - 140);
+      drawDoriLegendToCanvas(ctx, dx, dy);
+      ctx.restore();
+    }
   }
 
-  // ── Watermark badge ──
+  // ── Watermark badge (logo) ──
   const logoSrc     = company === "sentinel" ? sentinelLogoImg : logoImg;
   const companyName = company === "sentinel"
     ? "SENTINEL TECHNOLOGIES PRIVATE LIMITED"
     : "Mirador AI Technologies";
+
+  // Skip logo if user removed it in preview or if previewing base image
+  if (!overlayOpts || overlayOpts.logo?.show === false) {
+    onReady(oc);
+    return;
+  }
 
   const watermark = new Image();
   watermark.onload = () => {
@@ -3873,8 +4457,12 @@ function buildExportCanvas(exportMode = "design", company = "mirador", onReady) 
 
     const badgeW = padX * 2 + logoW + gap + textW;
     const badgeH = Math.max(logoH, tSize) + padY * 2;
-    const bx = oc.width  - badgeW - margin;
-    const by = margin;
+
+    // Use dragged position if available, else default top-right
+    const mappedX = mapCoord(overlayOpts?.logo?.x, previewSize?.w, oc.width);
+    const mappedY = mapCoord(overlayOpts?.logo?.y, previewSize?.h, oc.height);
+    const bx = mappedX !== null ? mappedX : oc.width  - badgeW - margin;
+    const by = mappedY !== null ? mappedY : margin;
 
     ctx.shadowColor = "rgba(0,0,0,0.18)";
     ctx.shadowBlur = 14;
@@ -3963,14 +4551,37 @@ function buildExportCanvas(exportMode = "design", company = "mirador", onReady) 
     buildDoc();
   }
 
-  function handleExportFormatSelect(format) {
-    if (!pendingExportMode) return;
+  // ── Handle export: build base canvas → open preview modal ─────────────────
+  function handleOpenExportPreview(mode) {
+    if (!floorImgRef.current) return;
+    setPendingExportMode(mode);
     setIsGeneratingExport(true);
-    buildExportCanvas(pendingExportMode, selectedCompany, (canvas) => {
+    // Build base canvas (no overlays) for the preview image
+    buildExportCanvas(mode, selectedCompany, null, null, (canvas) => {
+      setIsGeneratingExport(false);
+      if (!canvas) return;
+      setExportPreviewCanvas(canvas);
+      setExportPreviewDataUrl(canvas.toDataURL("image/jpeg", 0.85));
+      setExportPreviewOpen(true);
+    });
+  }
+
+  // ── Handle final download after preview ────────────────────────────────────
+  function handleExportDownload(format, overlayState) {
+    if (!pendingExportMode || !exportPreviewCanvas) return;
+    setIsGeneratingExport(true);
+    // Get preview container dimensions for coordinate mapping
+    const previewEl = document.querySelector("[data-export-preview]");
+    const previewSize = previewEl
+      ? { w: previewEl.offsetWidth, h: previewEl.offsetHeight }
+      : null;
+    buildExportCanvas(pendingExportMode, selectedCompany, overlayState, previewSize, (canvas) => {
+      setIsGeneratingExport(false);
       if (format === "jpg") downloadCanvasAsJpg(canvas, pendingExportMode);
       else if (format === "pdf") generatePdfReport(canvas, pendingExportMode);
-      setIsGeneratingExport(false);
-      setShowFormatModal(false);
+      setExportPreviewOpen(false);
+      setExportPreviewCanvas(null);
+      setExportPreviewDataUrl(null);
       setPendingExportMode(null);
     });
   }
@@ -4235,7 +4846,7 @@ function buildExportCanvas(exportMode = "design", company = "mirador", onReady) 
                     className="dv-dropdown-card"
                     disabled={placed.length === 0}
                     style={{ opacity: placed.length === 0 ? 0.4 : 1, cursor: placed.length === 0 ? "not-allowed" : "pointer" }}
-onClick={() => { if (placed.length > 0) { setFileDropdownOpen(false); setPendingExportMode("design"); setShowFormatModal(true); } }}                  >
+onClick={() => { if (placed.length > 0) { setFileDropdownOpen(false); handleOpenExportPreview("design"); } }}                  >
                     <div className="dv-dropdown-card__icon">
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="22" height="22">
                         <rect x="3" y="3" width="18" height="18" rx="2" /><path d="M3 9h18M9 21V9" />
@@ -4270,7 +4881,7 @@ onClick={() => { if (placed.length > 0) { setFileDropdownOpen(false); setPending
                     className="dv-dropdown-card"
                     disabled={placed.length === 0}
                     style={{ opacity: placed.length === 0 ? 0.4 : 1, cursor: placed.length === 0 ? "not-allowed" : "pointer" }}
-                    onClick={() => { if (placed.length > 0) { setFileDropdownOpen(false); setPendingExportMode("heatmap"); setShowFormatModal(true); } }}
+                    onClick={() => { if (placed.length > 0) { setFileDropdownOpen(false); handleOpenExportPreview("heatmap"); } }}
                     >
                     <div className="dv-dropdown-card__icon dv-dropdown-card__icon--heatmap">
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="22" height="22">
@@ -4329,6 +4940,19 @@ onClick={() => { if (placed.length > 0) { setFileDropdownOpen(false); setPending
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="18" height="18">
                 <circle cx="12" cy="12" r="3"/>
                 <circle cx="12" cy="12" r="8" strokeDasharray="2 3"/>
+              </svg>
+            </button>
+
+            {/* ── Open Map Button ── */}
+            <button
+              className={`dv-icon-btn ${showEarthMap ? "dv-icon-btn--active" : ""}`}
+              onClick={(e) => { e.stopPropagation(); setShowEarthMap(true); }}
+              title="Open Google Map"
+              style={{ padding: "8px" }}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="18" height="18">
+                <circle cx="12" cy="12" r="10"/>
+                <path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
               </svg>
             </button>
 
@@ -4600,6 +5224,7 @@ onClick={() => { if (placed.length > 0) { setFileDropdownOpen(false); setPending
             <div className="dv-toolbar-divider" />
 
             {/* ── Undo / Redo ── */}
+            {/* ── Undo / Redo ── */}
             <button className="dv-tbtn" onClick={handleUndo} disabled={undoStack.length === 0} title="Undo last action" style={{ padding: "4px 8px" }}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="13" height="13">
                 <path d="M3 7v6h6M21 17a9 9 0 00-9-9 9 9 0 00-6 2.3L3 13" />
@@ -4706,17 +5331,6 @@ onClick={() => { if (placed.length > 0) { setFileDropdownOpen(false); setPending
               Proposal
             </button>
 
-            <button
-              className="dv-tbtn dv-tbtn--danger"
-              onClick={clearFloorCameras}
-              title="Remove all cameras from floor (keeps floor plan)"
-              style={{ borderColor: "rgba(239, 68, 68, 0.25)", color: "#ef4444", background: "rgba(239, 68, 68, 0.05)", padding: "4px 8px" }}
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="12" height="12" style={{ marginRight: 2 }}>
-                <polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14H6L5 6" />
-              </svg>
-              Clear Layout
-            </button>
             {/* ── Toolbox Dropdown ── */}
             <div style={{ position: "relative" }}>
               <button
@@ -4748,9 +5362,8 @@ onClick={() => { if (placed.length > 0) { setFileDropdownOpen(false); setPending
                   width: 200,
                   pointerEvents: 'auto'
                 }}>
-                  {/* Camera Icon Size */}
                   <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                    <div style={{ fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,0.6)", textTransform: "uppercase" }}>Camera Icon Size</div>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,0.85)", textTransform: "uppercase" }}>Camera Icon Size</div>
                     <div style={{ display: "flex", background: "rgba(255,255,255,0.05)", borderRadius: 4, overflow: "hidden", alignItems: "center", height: 28, border: '1px solid rgba(255,255,255,0.1)', justifyContent: "space-between" }}>
                       <button className="dv-tbtn" onClick={() => { setIconScale(s => Math.max(0.4, s - 0.2)); setTimeout(draw, 0); }} style={{ padding: "4px 8px", background: "transparent", border: "none", height: "100%" }} title="Decrease Icon Size">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="12" height="12"><line x1="5" y1="12" x2="19" y2="12" /></svg>
@@ -4774,10 +5387,9 @@ onClick={() => { if (placed.length > 0) { setFileDropdownOpen(false); setPending
 
                   <hr style={{ border: 0, borderTop: "1px solid rgba(255,255,255,0.1)", margin: "4px 0" }} />
 
-                  {/* Text Annotation Settings */}
                   <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                    <div style={{ fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,0.6)", textTransform: "uppercase" }}>Text Box Options</div>
-                   
+                    <div style={{ fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,0.85)", textTransform: "uppercase" }}>Text Box Options</div>
+                    
                     <div style={{ display: "flex", gap: 8 }}>
                       <input type="color" value={tbFontColor} onChange={e => {
                         const val = e.target.value;
@@ -4803,7 +5415,7 @@ onClick={() => { if (placed.length > 0) { setFileDropdownOpen(false); setPending
                             draw();
                           }
                         }} style={{ width: 36, background: "transparent", border: "none", color: "white", fontSize: 12, outline: "none", textAlign: "center" }} title="Font Size" />
-                        <span style={{ fontSize: 10, color: "rgba(255,255,255,0.4)" }}>px</span>
+                        <span style={{ fontSize: 10, color: "rgba(255,255,255,0.85)" }}>px</span>
                       </div>
                     </div>
 
@@ -4844,6 +5456,32 @@ onClick={() => { if (placed.length > 0) { setFileDropdownOpen(false); setPending
                 </div>
               )}
             </div>
+
+            <button
+              className="dv-tbtn"
+              onClick={handleManualSave}
+              title="Save layout version"
+              style={{ borderColor: "rgba(59, 130, 246, 0.4)", color: "#60a5fa", background: "rgba(59, 130, 246, 0.1)", padding: "4px 8px" }}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="12" height="12" style={{ marginRight: 2 }}>
+                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+                <polyline points="17 21 17 13 7 13 7 21" />
+                <polyline points="7 3 7 8 15 8" />
+              </svg>
+              Save Layout
+            </button>
+
+            <button
+              className="dv-tbtn dv-tbtn--danger"
+              onClick={clearFloorCameras}
+              title="Remove all cameras from floor (keeps floor plan)"
+              style={{ borderColor: "rgba(239, 68, 68, 0.25)", color: "#ef4444", background: "rgba(239, 68, 68, 0.05)", padding: "4px 8px" }}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="12" height="12" style={{ marginRight: 2 }}>
+                <polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14H6L5 6" />
+              </svg>
+              Clear Layout
+            </button>
           </div>
 
         </div>
@@ -4867,71 +5505,78 @@ onClick={() => { if (placed.length > 0) { setFileDropdownOpen(false); setPending
             transition: "width 0.3s ease"
           }}
         >
-          {/* Toggle Button */}
-          <button
-            onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-            style={{
-              background: "none",
-              border: "none",
-              color: "#60a5fa",
-              padding: "12px",
-              cursor: "pointer",
-              display: "flex",
-              justifyContent: isSidebarCollapsed ? "center" : "flex-end",
-              borderBottom: "0.5px solid #1e2d3e",
-              outline: "none"
-            }}
-            title={isSidebarCollapsed ? "Open Sidebar" : "Close Sidebar"}
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16">
-              {isSidebarCollapsed ? (
-                <path d="M5 12h14M12 5l7 7-7 7" />
-              ) : (
-                <path d="M19 12H5M12 19l-7-7 7-7" />
-              )}
-            </svg>
-          </button>
-         
+          {/* Toggle Button & Header */}
           <div
             style={{
-              padding: "12px 14px",
+              padding: isSidebarCollapsed ? "12px" : "12px 14px",
               borderBottom: "0.5px solid #1e2d3e",
-              fontSize: "11px",
-              fontWeight: "700",
-              textTransform: "uppercase",
-              letterSpacing: "0.05em",
-              color: "#7a8499",
-              display: isSidebarCollapsed ? "none" : "flex",
+              display: "flex",
               alignItems: "center",
-              justifyContent: "space-between"
+              justifyContent: isSidebarCollapsed ? "center" : "space-between"
             }}
           >
-            <span>Floor Drafts ({slides.length})</span>
-            <button
-              onClick={() => addNewSlide(null)}
-              style={{
-                background: "rgba(59, 130, 246, 0.15)",
-                border: "1px solid rgba(59, 130, 246, 0.4)",
-                borderRadius: "4px",
-                color: "#60a5fa",
-                fontSize: "10px",
-                padding: "2px 6px",
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                gap: "2px",
-                transition: "all 0.15s ease"
-              }}
-              onMouseEnter={e => { e.currentTarget.style.background = "rgba(59, 130, 246, 0.25)"; }}
-              onMouseLeave={e => { e.currentTarget.style.background = "rgba(59, 130, 246, 0.15)"; }}
-              title="Add a new blank floor layout draft"
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="10" height="10">
-                <line x1="12" y1="5" x2="12" y2="19" />
-                <line x1="5" y1="12" x2="19" y2="12" />
-              </svg>
-              New
-            </button>
+            {!isSidebarCollapsed && (
+              <span style={{
+                fontSize: "11px",
+                fontWeight: "700",
+                textTransform: "uppercase",
+                letterSpacing: "0.05em",
+                color: "#7a8499"
+              }}>
+                Floor Drafts ({slides.length})
+              </span>
+            )}
+            
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              {!isSidebarCollapsed && (
+                <button
+                  onClick={() => addNewSlide(null)}
+                  style={{
+                    background: "rgba(59, 130, 246, 0.15)",
+                    border: "1px solid rgba(59, 130, 246, 0.4)",
+                    borderRadius: "4px",
+                    color: "#60a5fa",
+                    fontSize: "10px",
+                    padding: "2px 6px",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "2px",
+                    transition: "all 0.15s ease"
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.background = "rgba(59, 130, 246, 0.25)"; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = "rgba(59, 130, 246, 0.15)"; }}
+                  title="Add a new blank floor layout draft"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="10" height="10">
+                    <line x1="12" y1="5" x2="12" y2="19" />
+                    <line x1="5" y1="12" x2="19" y2="12" />
+                  </svg>
+                  New
+                </button>
+              )}
+              <button
+                onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: "#60a5fa",
+                  padding: "0",
+                  cursor: "pointer",
+                  display: "flex",
+                  outline: "none"
+                }}
+                title={isSidebarCollapsed ? "Open Sidebar" : "Close Sidebar"}
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16">
+                  {isSidebarCollapsed ? (
+                    <path d="M5 12h14M12 5l7 7-7 7" />
+                  ) : (
+                    <path d="M19 12H5M12 19l-7-7 7-7" />
+                  )}
+                </svg>
+              </button>
+            </div>
           </div>
 
           <div
@@ -4952,20 +5597,20 @@ onClick={() => { if (placed.length > 0) { setFileDropdownOpen(false); setPending
               const zoneCount = slide.zones?.length || 0;
 
               return (
-                <div
-                  key={slide.id}
-                  onClick={() => switchSlide(slide.id)}
-                  style={{
-                    display: "flex",
-                    gap: "8px",
-                    cursor: "pointer",
-                    position: "relative",
-                    transition: "all 0.2s ease",
-                    padding: "4px",
-                    borderRadius: "6px",
-                    background: isActive ? "rgba(59, 130, 246, 0.05)" : "transparent"
-                  }}
-                >
+                <div key={slide.id} style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                  <div
+                    onClick={() => switchSlide(slide.id)}
+                    style={{
+                      display: "flex",
+                      gap: "8px",
+                      cursor: "pointer",
+                      position: "relative",
+                      transition: "all 0.2s ease",
+                      padding: "4px",
+                      borderRadius: "6px",
+                      background: isActive ? "rgba(59, 130, 246, 0.05)" : "transparent"
+                    }}
+                  >
                   {/* Slide index number */}
                   <div
                     style={{
@@ -5154,11 +5799,124 @@ onClick={() => { if (placed.length > 0) { setFileDropdownOpen(false); setPending
                       )}
 
                       {/* Counts stats line */}
-                      <div style={{ fontSize: "9.5px", color: "#6b7280", marginTop: "2px" }}>
-                        {camCount} Cam{camCount !== 1 ? "s" : ""} • {zoneCount} Zone{zoneCount !== 1 ? "s" : ""}
+                      <div style={{ fontSize: "9.5px", color: "#ffffff", marginTop: "2px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <span>{camCount} Cam{camCount !== 1 ? "s" : ""} • {zoneCount} Zone{zoneCount !== 1 ? "s" : ""}</span>
+                        {slide.versions && slide.versions.length > 0 && (
+                          <div
+                            onClick={(e) => { e.stopPropagation(); setExpandedVersions(prev => ({ ...prev, [slide.id]: !prev[slide.id] })); }}
+                            style={{ cursor: "pointer", padding: "2px", display: "flex", alignItems: "center", justifyContent: "center" }}
+                            title={expandedVersions[slide.id] ? "Hide versions" : "Show versions"}
+                          >
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="12" height="12"
+                              style={{ transition: "transform 0.2s", transform: expandedVersions[slide.id] ? "rotate(180deg)" : "rotate(0deg)" }}
+                            >
+                              <polyline points="6 9 12 15 18 9" />
+                            </svg>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
+                </div>
+
+                {/* Versions Tree */}
+                {slide.versions && slide.versions.length > 0 && expandedVersions[slide.id] && (
+                  <div style={{ paddingLeft: "28px", display: "flex", flexDirection: "column", gap: "4px", position: "relative", paddingBottom: "4px" }}>
+                      <div style={{ position: "absolute", left: "14px", top: 0, bottom: "14px", width: "1px", background: "#1e2d3e" }}></div>
+                      {slide.versions.map((v, vIdx) => (
+                        <div
+                          key={v.id}
+                          onClick={(e) => { e.stopPropagation(); restoreVersion(slide.id, v.id); }}
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "8px",
+                            fontSize: "12px",
+                            color: "#ffffff",
+                            cursor: "pointer",
+                            padding: "4px 8px",
+                            borderRadius: "4px",
+                            background: "rgba(255,255,255,0.02)",
+                            position: "relative",
+                            border: "0.5px solid transparent",
+                            transition: "all 0.15s"
+                          }}
+                          onMouseEnter={e => { e.currentTarget.style.background = "rgba(255,255,255,0.06)"; e.currentTarget.style.borderColor = "#2e3d55"; }}
+                          onMouseLeave={e => { e.currentTarget.style.background = "rgba(255,255,255,0.02)"; e.currentTarget.style.borderColor = "transparent"; }}
+                          title={`Restore ${v.name}`}
+                        >
+                          <div style={{ position: "absolute", left: "-14px", top: "50%", width: "10px", height: "1px", background: "#1e2d3e" }}></div>
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="10" height="10" style={{ flexShrink: 0 }}>
+                            <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+                            <polyline points="17 21 17 13 7 13 7 21" />
+                            <polyline points="7 3 7 8 15 8" />
+                          </svg>
+
+                          {editingVersionId === v.id ? (
+                            <input
+                              type="text"
+                              value={editingVersionName}
+                              onChange={e => setEditingVersionName(e.target.value)}
+                              onBlur={() => {
+                                renameVersion(slide.id, v.id, editingVersionName);
+                                setEditingVersionId(null);
+                              }}
+                              onKeyDown={e => {
+                                if (e.key === "Enter") {
+                                  renameVersion(slide.id, v.id, editingVersionName);
+                                  setEditingVersionId(null);
+                                } else if (e.key === "Escape") {
+                                  setEditingVersionId(null);
+                                }
+                              }}
+                              onClick={e => e.stopPropagation()}
+                              autoFocus
+                              style={{
+                                background: "#070a0f", border: "1px solid #3b82f6", borderRadius: "3px", color: "#ffffff",
+                                fontSize: "12px", padding: "1px 4px", width: "100%", outline: "none"
+                              }}
+                            />
+                          ) : (
+                            <>
+                              <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{v.name}</span>
+                              <span style={{ fontSize: "10px", color: "#ffffff", flexShrink: 0 }}>
+                                ({v.placed ? v.placed.length : 0})
+                              </span>
+                              <svg
+                                viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="10" height="10"
+                                style={{ opacity: 0.3, cursor: "pointer", flexShrink: 0, marginLeft: "4px" }}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setEditingVersionId(v.id);
+                                  setEditingVersionName(v.name);
+                                }}
+                                title="Rename version"
+                              >
+                                <path d="M12 20h9M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z" />
+                              </svg>
+                              <svg
+                                viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="10" height="10"
+                                style={{ opacity: 0.8, cursor: "pointer", flexShrink: 0, marginLeft: "4px", color: "#ef4444" }}
+                                onMouseEnter={e => e.currentTarget.style.opacity = 1}
+                                onMouseLeave={e => e.currentTarget.style.opacity = 0.8}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  deleteVersion(slide.id, v.id);
+                                }}
+                                title="Delete version"
+                              >
+                                <line x1="18" y1="6" x2="6" y2="18" />
+                                <line x1="6" y1="6" x2="18" y2="18" />
+                              </svg>
+                              <span style={{ fontSize: "9px", color: "#ffffff", flexShrink: 0, marginLeft: "4px" }}>
+                                {new Date(v.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                              </span>
+                            </>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -5485,6 +6243,38 @@ onClick={() => { if (placed.length > 0) { setFileDropdownOpen(false); setPending
             onDoubleClick={onDoubleClick}
             onContextMenu={onContextMenu}
           />
+
+          {/* ── Google Map Inside Canvas ── */}
+          {showEarthMap && (
+            <div style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, zIndex: 100, backgroundColor: "#000", overflow: "hidden", borderRadius: "8px" }}>
+              <div style={{ position: "absolute", top: "16px", left: "16px", zIndex: 101, display: "flex", gap: "10px" }}>
+                <button 
+                  onClick={(e) => { e.stopPropagation(); setShowEarthMap(false); }}
+                  style={{ background: "#1e293b", color: "#f8fafc", border: "1px solid #475569", borderRadius: "6px", padding: "8px 16px", cursor: "pointer", fontWeight: "600", boxShadow: "0 4px 6px rgba(0,0,0,0.3)" }}
+                >
+                  ← Back to Designer
+                </button>
+                <a 
+                  href="https://earth.google.com/web/" 
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  onClick={e => e.stopPropagation()}
+                  style={{ background: "rgba(59,130,246,0.15)", color: "#60a5fa", border: "1px solid rgba(59,130,246,0.3)", borderRadius: "6px", padding: "8px 16px", cursor: "pointer", fontWeight: "600", textDecoration: "none", boxShadow: "0 4px 6px rgba(0,0,0,0.3)", display: "flex", alignItems: "center" }}
+                >
+                  Open Full Google Earth ↗
+                </a>
+              </div>
+              <iframe 
+                src="https://www.google.com/maps/embed?pb=!1m14!1m12!1m3!1d15000000!2d0!3d0!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!5e1!3m2!1sen!2sus!4v1717616110000!5m2!1sen!2sus" 
+                width="100%" 
+                height="100%" 
+                style={{ border: 0 }}
+                allowFullScreen
+                loading="lazy"
+                title="Google Map"
+              />
+            </div>
+          )}
 
           {editingTextNode && (() => {
             const node = textNodes.find(n => n.id === editingTextNode);
@@ -5892,15 +6682,14 @@ onClick={() => { if (placed.length > 0) { setFileDropdownOpen(false); setPending
           retentionDays={retentionDays}
           setRetentionDays={setRetentionDays}
           onClose={() => setShowStats(false)}
-          cameraPrices={cameraPrices}
-          setCameraPrices={setCameraPrices}
-          accessoryPrices={accessoryPrices}
-          setAccessoryPrices={setAccessoryPrices}
-          nvrPrice={nvrPrice}
-          setNvrPrice={setNvrPrice}
-          switchUnitPrice={switchUnitPrice}
-          setSwitchUnitPrice={setSwitchUnitPrice}
           selectedCompany={selectedCompany}
+          manualCams={manualCams}
+          setManualCams={setManualCams}
+          newMc={newMc}
+          setNewMc={setNewMc}
+          addManualCam={addManualCam}
+          updateManualCam={updateManualCam}
+          cameraDB={cameraDB}
         />
       )}
 
@@ -6104,12 +6893,21 @@ onClick={() => { if (placed.length > 0) { setFileDropdownOpen(false); setPending
           </div>
         </div>
       )}
-{showFormatModal && (
-        <ExportFormatModal
-          exportMode={pendingExportMode}
-          isGenerating={isGeneratingExport}
-          onSelect={handleExportFormatSelect}
-          onCancel={() => { if (!isGeneratingExport) { setShowFormatModal(false); setPendingExportMode(null); } }}
+{exportPreviewOpen && (
+        <ExportPreviewModal
+          baseDataUrl={exportPreviewDataUrl}
+          showDori={showPpm}
+          isDownloading={isGeneratingExport}
+          onDownload={handleExportDownload}
+          selectedCompany={selectedCompany}
+          onCancel={() => {
+            if (!isGeneratingExport) {
+              setExportPreviewOpen(false);
+              setExportPreviewCanvas(null);
+              setExportPreviewDataUrl(null);
+              setPendingExportMode(null);
+            }
+          }}
         />
       )}
       <PremiumPopup {...popupState} />
@@ -6119,33 +6917,54 @@ onClick={() => { if (placed.length > 0) { setFileDropdownOpen(false); setPending
 
 
 // ── Project Stats Panel ───────────────────────────────────────────────
+// ── Project Stats Panel ───────────────────────────────────────────────
 function ProjectStatsPanel({
   placed,
   retentionDays,
   setRetentionDays,
   onClose,
-  cameraPrices,
-  setCameraPrices,
-  accessoryPrices,
-  setAccessoryPrices,
-  nvrPrice,
-  setNvrPrice,
-  switchUnitPrice,
-  setSwitchUnitPrice,
-  selectedCompany
+  selectedCompany,
+  manualCams = [],
+  setManualCams,
+  newMc,
+  setNewMc,
+  addManualCam,
+  updateManualCam,
+  cameraDB = []
 }) {
   const [codec, setCodec] = useState("h265");
-  const [activeTab, setActiveTab] = useState("perf"); // "perf" | "bom"
+  const [activeTab, setActiveTab] = useState("layout"); // "layout" | "simulate"
 
-  const cameraCount = placed.length;
+  const activePlaced = activeTab === "layout" ? placed : [];
+  const activeManualCams = activeTab === "simulate" ? manualCams : [];
+
+  const manualCamsCount = activeManualCams.reduce((sum, mc) => sum + (Number(mc.qty) || 0), 0);
+  const cameraCount = activePlaced.length + manualCamsCount;
 
   // Use dynamic camera scenario calculations for realistic project bandwidth
-  const bitrates = placed.map(p => CctvCalc.estimateCameraBitrate(p, codec));
+  const placedBitrates = activePlaced.map(p => CctvCalc.estimateCameraBitrate(p, codec));
+  const manualBitrates = activeManualCams.flatMap(mc => {
+    const dbCam = cameraDB.find(c => c.brand === mc.brand && c.model === mc.model);
+    if (!dbCam) return Array(Number(mc.qty) || 1).fill(4);
+    const dummy = {
+      camera: dbCam,
+      fps: 25,
+      recordingMode: "continuous",
+      lighting: "normal"
+    };
+    const rate = CctvCalc.estimateCameraBitrate(dummy, codec);
+    return Array(Number(mc.qty) || 1).fill(rate);
+  });
+  const bitrates = [...placedBitrates, ...manualBitrates];
 
   const totalBandwidth = bitrates.reduce((sum, b) => sum + b, 0);
   const avgBitrate = cameraCount > 0 ? totalBandwidth / cameraCount : 0;
-  const totalFPS = placed.reduce((sum, p) => sum + (p.fps || 25), 0);
+  
+  const placedFPS = activePlaced.reduce((sum, p) => sum + (p.fps || 25), 0);
+  const manualFPS = activeManualCams.reduce((sum, mc) => sum + 25 * (Number(mc.qty) || 1), 0);
+  const totalFPS = placedFPS + manualFPS;
   const avgFPS = cameraCount > 0 ? totalFPS / cameraCount : 0;
+
   const totalStorageGB = cameraCount > 0
     ? (totalBandwidth * 3600 * 24 * retentionDays) / (8 * 1024)
     : 0;
@@ -6153,12 +6972,17 @@ function ProjectStatsPanel({
   const hardware = CctvCalc.getHardwareRecommendations(cameraCount);
 
   const typeCounts = {};
-  placed.forEach(p => {
+  activePlaced.forEach(p => {
     const t = p.camera.type || "dome";
     typeCounts[t] = (typeCounts[t] || 0) + 1;
   });
+  activeManualCams.forEach(mc => {
+    const dbCam = cameraDB.find(c => c.brand === mc.brand && c.model === mc.model);
+    const t = dbCam ? (dbCam.type || "dome") : "dome";
+    typeCounts[t] = (typeCounts[t] || 0) + (Number(mc.qty) || 0);
+  });
 
-  const handleDownloadReport = () => {
+  const handleDownloadReport = (format = "png") => {
     const reportData = {
       cameraCount,
       avgBitrate,
@@ -6172,21 +6996,32 @@ function ProjectStatsPanel({
       dailyStorageTotalGB: totalBandwidth * 3600 * 24 / (8 * 1024),
       companyName: selectedCompany === "mirador" ? "Mirador AI Technologies" : "SENTINEL TECHNOLOGIES PRIVATE LIMITED",
     };
+
+    const processDownload = () => {
+      const dataUrl = drawStorageReport(reportData);
+      if (format === "pdf") {
+        const pdf = new jsPDF({
+          orientation: "portrait",
+          unit: "px",
+          format: [1200, 1700]
+        });
+        pdf.addImage(dataUrl, "PNG", 0, 0, 1200, 1700);
+        pdf.save(`Storage_Report_${codec.toUpperCase()}.pdf`);
+      } else {
+        const link = document.createElement("a");
+        link.href = dataUrl;
+        link.download = `Storage_Report_${codec.toUpperCase()}.png`;
+        link.click();
+      }
+    };
+
     const img = new Image();
     img.onload = () => {
       reportData.logoImg = img;
-      const dataUrl = drawStorageReport(reportData);
-      const link = document.createElement("a");
-      link.href = dataUrl;
-      link.download = `Storage_Report_${codec.toUpperCase()}.png`;
-      link.click();
+      processDownload();
     };
     img.onerror = () => {
-      const dataUrl = drawStorageReport(reportData);
-      const link = document.createElement("a");
-      link.href = dataUrl;
-      link.download = `Storage_Report_${codec.toUpperCase()}.png`;
-      link.click();
+      processDownload();
     };
     img.src = selectedCompany === "mirador" ? logoImg : sentinelLogoImg;
   };
@@ -6206,13 +7041,13 @@ function ProjectStatsPanel({
     const csvRows = [
       ["Item Type", "Model/Part", "Qty", "Recording Scenario", "Mounting Bracket", "Accessories Included", "Unit Price (INR)", "Accessories Price (INR)", "Total Line Cost (INR)"]
     ];
-   
+    
     // 1. Add individual camera configurations
     placed.forEach((p) => {
       const accessories = [];
       if (p.includeBackbox) accessories.push("Weatherproof Backbox");
       if (p.includePoe) accessories.push("PoE Injector");
-     
+      
       const cPrice = getCameraBaseVal(p);
       const aPrice = getCameraAccVal(p);
 
@@ -6228,7 +7063,24 @@ function ProjectStatsPanel({
         `Rs. ${cPrice + aPrice}`
       ]);
     });
-   
+
+    // 1.5 Add manually added cameras
+    manualCams.forEach((mc) => {
+      const cPrice = mc.cameraPrice || 0;
+      const aPrice = mc.accPrice || 0;
+      csvRows.push([
+        mc.type.toUpperCase(),
+        `${mc.brand} ${mc.model} (Manual)`,
+        String(mc.qty),
+        "Manual Input",
+        "—",
+        mc.accessories || "None",
+        `Rs. ${cPrice}`,
+        `Rs. ${aPrice}`,
+        `Rs. ${(cPrice + aPrice) * mc.qty}`
+      ]);
+    });
+    
     if (cameraCount > 0) {
       // 2. Add Network Video Recorder
       csvRows.push([
@@ -6242,7 +7094,7 @@ function ProjectStatsPanel({
         "Rs. 0",
         `Rs. ${nvrPrice}`
       ]);
-     
+      
       // 3. Add PoE Switches
       csvRows.push([
         "INFRASTRUCTURE",
@@ -6256,13 +7108,18 @@ function ProjectStatsPanel({
         `Rs. ${switchUnitPrice * hardware.switchesCount}`
       ]);
     }
-   
+    
     // Combined calculations
-    const totalCamBaseINR = placed.reduce((sum, p) => sum + getCameraBaseVal(p), 0);
-    const totalCamAccINR = placed.reduce((sum, p) => sum + getCameraAccVal(p), 0);
+    const placedBaseINR = placed.reduce((sum, p) => sum + getCameraBaseVal(p), 0);
+    const placedAccINR = placed.reduce((sum, p) => sum + getCameraAccVal(p), 0);
+    const manualBaseINR = manualCams.reduce((sum, mc) => sum + (mc.cameraPrice || 0) * (mc.qty || 1), 0);
+    const manualAccINR = manualCams.reduce((sum, mc) => sum + (mc.accPrice || 0) * (mc.qty || 1), 0);
+
+    const totalCamBaseINR = placedBaseINR + manualBaseINR;
+    const totalCamAccINR = placedAccINR + manualAccINR;
     const totalInfraINR = cameraCount > 0 ? (nvrPrice + switchUnitPrice * hardware.switchesCount) : 0;
     const grandTotalINR = totalCamBaseINR + totalCamAccINR + totalInfraINR;
-   
+    
     csvRows.push([]);
     csvRows.push(["", "", "", "", "", "Cameras Base Subtotal", "", "", `Rs. ${totalCamBaseINR}`]);
     csvRows.push(["", "", "", "", "", "Accessories Subtotal", "", "", `Rs. ${totalCamAccINR}`]);
@@ -6271,7 +7128,7 @@ function ProjectStatsPanel({
 
     const csvContent = "data:text/csv;charset=utf-8,"
       + csvRows.map(e => e.map(val => `"${String(val).replace(/"/g, '""')}"`).join(",")).join("\n");
-     
+      
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
@@ -6280,10 +7137,9 @@ function ProjectStatsPanel({
     link.click();
     document.body.removeChild(link);
   };
-
   return (
     <div className="dv-stats-overlay" onClick={onClose}>
-      <div className="dv-stats-panel" style={{ width: activeTab === "bom" ? 720 : 560, maxWidth: "90vw", transition: "width 0.2s" }} onClick={e => e.stopPropagation()}>
+      <div className="dv-stats-panel" style={{ width: activeTab === "bom" ? 820 : 640, maxWidth: "90vw", transition: "width 0.2s" }} onClick={e => e.stopPropagation()}>
         <div className="dv-stats-panel__header" style={{ borderBottom: "none", paddingBottom: 6 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <div className="dv-stats-panel__icon">
@@ -6293,39 +7149,22 @@ function ProjectStatsPanel({
             </div>
             <div>
               <div className="dv-stats-panel__title">Proposal Summary</div>
-              <div className="dv-stats-panel__sub">Automated calculations based on layout</div>
+              {/* <div className="dv-stats-panel__sub">Automated calculations based on layout</div> */}
             </div>
           </div>
           <div style={{ display: "flex", gap: 8 }}>
-            {activeTab === "perf" ? (
-              <button className="dv-stats-panel__download" onClick={handleDownloadReport} title="Download Infographic Report">
+              <button className="dv-stats-panel__download" onClick={() => handleDownloadReport("png")} title="Download PNG Report">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14">
                   <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
                 </svg>
-                Download Report
+                PNG
               </button>
-            ) : (
-              <>
-                <button className="dv-stats-panel__download" onClick={handleExportCSV} title="Export Bill of Materials to CSV">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
-                  </svg>
-                  Export CSV
-                </button>
-                <button
-                  className="dv-stats-panel__download"
-                  onClick={() => window.print()}
-                  title="Print Sales Quote / Proposal"
-                  style={{ background: "#a855f722", borderColor: "#a855f7", color: "#c084fc" }}
-                >
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
-                    <path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
-                    <path d="M6 14h12v8H6z" />
-                  </svg>
-                  Print Proposal
-                </button>
-              </>
-            )}
+              <button className="dv-stats-panel__download" onClick={() => handleDownloadReport("pdf")} title="Download PDF Report">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
+                </svg>
+                PDF
+              </button>
             <button className="dv-stats-panel__close" onClick={onClose}>✕</button>
           </div>
         </div>
@@ -6333,39 +7172,37 @@ function ProjectStatsPanel({
         {/* Tab Buttons */}
         <div style={{ display: "flex", borderBottom: "1px solid #1e2d3e", background: "#090d13", padding: "0 20px" }}>
           <button
-            onClick={() => setActiveTab("perf")}
+            onClick={() => setActiveTab("layout")}
             style={{
               padding: "12px 18px",
               background: "transparent",
               border: "none",
-              borderBottom: activeTab === "perf" ? "2px solid #3b82f6" : "2px solid transparent",
-              color: activeTab === "perf" ? "#3b82f6" : "rgba(255, 255, 255, 0.5)",
+              borderBottom: activeTab === "layout" ? "2px solid #3b82f6" : "2px solid transparent",
+              color: activeTab === "layout" ? "#3b82f6" : "rgba(255, 255, 255, 0.85)",
               fontWeight: 700,
               fontSize: 16,
               cursor: "pointer",
               transition: "all 0.2s"
             }}
           >
-            Storage & Performance
+            Layout Summary
           </button>
-          {/*
           <button
-            onClick={() => setActiveTab("bom")}
+            onClick={() => setActiveTab("simulate")}
             style={{
               padding: "12px 18px",
               background: "transparent",
               border: "none",
-              borderBottom: activeTab === "bom" ? "2px solid #a855f7" : "2px solid transparent",
-              color: activeTab === "bom" ? "#a855f7" : "rgba(255, 255, 255, 0.5)",
+              borderBottom: activeTab === "simulate" ? "2px solid #a855f7" : "2px solid transparent",
+              color: activeTab === "simulate" ? "#a855f7" : "rgba(255, 255, 255, 0.85)",
               fontWeight: 700,
               fontSize: 16,
               cursor: "pointer",
               transition: "all 0.2s"
             }}
           >
-            Material & Quotation
+            Capacity Modeler
           </button>
-          */}
         </div>
 
         <div className="dv-stats-panel__content" style={{ maxHeight: "calc(80vh - 120px)", overflowY: "auto", padding: "16px 20px 20px" }}>
@@ -6422,51 +7259,44 @@ function ProjectStatsPanel({
                         if (p.mounting && p.mounting !== "default") accessories.push(`${p.mounting} arm`);
                         if (p.includeBackbox) accessories.push("backbox");
                         if (p.includePoe) accessories.push("PoE");
+                        const accessoriesStr = accessories.join(", ") || "None";
 
                         return (
                           <tr key={groupKey} style={{ borderBottom: "1px solid #1e2d3e", background: idx % 2 === 0 ? "#0d1117" : "#090d13" }}>
-                            <td style={{ padding: "10px 12px", textTransform: "uppercase", fontWeight: 700, fontSize: 14, color: "rgba(255, 255, 255, 0.5)" }}>
-                              {p.camera.type || "dome"}
+                            <td style={{ padding: "10px 12px", textTransform: "uppercase", fontWeight: 700, fontSize: 13, color: "#3b82f6" }}>
+                              {p.camera.type}
                             </td>
                             <td style={{ padding: "10px 12px" }}>
-                              <div style={{ fontWeight: 600, color: "#f8fafc" }}>{p.camera.brand} {p.camera.model}</div>
-                              <div style={{ fontSize: 13, color: "rgba(255, 255, 255, 0.5)", marginTop: 2 }}>
-                                {p.recordingMode || "continuous"} · {p.fps || 25} FPS · {p.lighting || "normal"}
-                              </div>
+                              <div style={{ fontWeight: 600, color: "#f8fafc" }}>{p.camera.brand}</div>
+                              <div style={{ fontSize: 13, color: "rgba(255, 255, 255, 0.5)", marginTop: 2 }}>{p.camera.model}</div>
                             </td>
                             <td style={{ padding: "10px 12px", textAlign: "center", fontWeight: 700 }}>{qty}</td>
-                            <td style={{ padding: "10px 12px", color: "#cbd5e1" }}>
-                              {accessories.length > 0 ? accessories.join(" + ") : "None"}
-                            </td>
+                            <td style={{ padding: "10px 12px", fontSize: 13, color: "#a0aec0" }}>{accessoriesStr}</td>
                             <td style={{ padding: "10px 12px", textAlign: "right" }}>
                               <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 4 }}>
                                 <span style={{ color: "rgba(255, 255, 255, 0.5)" }}>₹</span>
                                 <input
                                   type="number"
-                                  placeholder="—"
+                                  placeholder="Set price"
                                   value={camPriceVal}
                                   onChange={(e) => {
-                                    const val = e.target.value === "" ? undefined : Number(e.target.value);
-                                    // Apply the same unit price to all ids in this group
-                                    setCameraPrices(prev => {
+                                    const val = e.target.value === "" ? "" : Number(e.target.value);
+                                    setCameraPrices((prev) => {
                                       const next = { ...prev };
-                                      ids.forEach(id => {
-                                        if (val === undefined) delete next[id];
-                                        else next[id] = val;
-                                      });
+                                      ids.forEach((id) => { next[id] = val; });
                                       return next;
                                     });
                                   }}
                                   className="dv-bom-input"
                                   style={{
-                                    width: "75px",
+                                    width: "80px",
                                     background: "#0b0f1a",
                                     border: "0.5px solid #2e3d55",
                                     borderRadius: 4,
                                     color: "#e8edf5",
                                     padding: "2px 4px",
                                     textAlign: "right",
-                                    fontSize: 15,
+                                    fontSize: 14,
                                     fontFamily: "monospace",
                                     outline: "none",
                                   }}
@@ -6478,29 +7308,26 @@ function ProjectStatsPanel({
                                 <span style={{ color: "rgba(255, 255, 255, 0.5)" }}>₹</span>
                                 <input
                                   type="number"
-                                  placeholder="—"
+                                  placeholder="Set price"
                                   value={accPriceVal}
                                   onChange={(e) => {
-                                    const val = e.target.value === "" ? undefined : Number(e.target.value);
-                                    setAccessoryPrices(prev => {
+                                    const val = e.target.value === "" ? "" : Number(e.target.value);
+                                    setAccessoryPrices((prev) => {
                                       const next = { ...prev };
-                                      ids.forEach(id => {
-                                        if (val === undefined) delete next[id];
-                                        else next[id] = val;
-                                      });
+                                      ids.forEach((id) => { next[id] = val; });
                                       return next;
                                     });
                                   }}
                                   className="dv-bom-input"
                                   style={{
-                                    width: "65px",
+                                    width: "70px",
                                     background: "#0b0f1a",
                                     border: "0.5px solid #2e3d55",
                                     borderRadius: 4,
                                     color: "#e8edf5",
                                     padding: "2px 4px",
                                     textAlign: "right",
-                                    fontSize: 15,
+                                    fontSize: 14,
                                     fontFamily: "monospace",
                                     outline: "none",
                                   }}
@@ -6514,8 +7341,174 @@ function ProjectStatsPanel({
                         );
                       });
                     })()}
-                   
-                    {placed.length > 0 && (
+                    
+                    {/* Render Manually Added Cameras */}
+                    {manualCams.map((mc, idx) => {
+                      const lineTotal = ((mc.cameraPrice || 0) + (mc.accPrice || 0)) * (mc.qty || 1);
+                      return (
+                        <tr key={mc.id} style={{ borderBottom: "1px solid #1e2d3e", background: idx % 2 === 0 ? "#0d1117" : "#090d13" }}>
+                          <td style={{ padding: "10px 12px" }}>
+                            <select
+                              value={mc.type}
+                              onChange={(e) => updateManualCam(mc.id, "type", e.target.value)}
+                              style={{ background: "#0b0f1a", border: "0.5px solid #2e3d55", borderRadius: 4, color: "#e8edf5", padding: "2px 4px", fontSize: 13, cursor: "pointer", outline: "none" }}
+                            >
+                              <option value="dome">Dome</option>
+                              <option value="bullet">Bullet</option>
+                              <option value="ptz">PTZ</option>
+                              <option value="fisheye">Fisheye</option>
+                              <option value="box">Box</option>
+                              <option value="turret">Turret</option>
+                            </select>
+                          </td>
+                          <td style={{ padding: "10px 12px" }}>
+                            <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                              <input
+                                value={mc.brand}
+                                onChange={(e) => updateManualCam(mc.id, "brand", e.target.value)}
+                                style={{ width: "65px", background: "#0b0f1a", border: "0.5px solid #2e3d55", borderRadius: 4, color: "#e8edf5", padding: "2px 4px", fontSize: 13, outline: "none" }}
+                                placeholder="Brand"
+                              />
+                              <input
+                                value={mc.model}
+                                onChange={(e) => updateManualCam(mc.id, "model", e.target.value)}
+                                style={{ width: "95px", background: "#0b0f1a", border: "0.5px solid #2e3d55", borderRadius: 4, color: "#e8edf5", padding: "2px 4px", fontSize: 13, outline: "none" }}
+                                placeholder="Model"
+                              />
+                              <button
+                                onClick={() => setManualCams(prev => prev.filter(c => c.id !== mc.id))}
+                                style={{ background: "none", border: "none", color: "#ef4444", fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", padding: "2px", fontWeight: "bold" }}
+                                title="Remove Manual Camera"
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          </td>
+                          <td style={{ padding: "10px 12px", textAlign: "center" }}>
+                            <input
+                              type="number"
+                              min="1"
+                              value={mc.qty}
+                              onChange={(e) => updateManualCam(mc.id, "qty", Number(e.target.value))}
+                              style={{ width: "45px", background: "#0b0f1a", border: "0.5px solid #2e3d55", borderRadius: 4, color: "#e8edf5", padding: "2px 4px", fontSize: 13, textAlign: "center", outline: "none" }}
+                            />
+                          </td>
+                          <td style={{ padding: "10px 12px" }}>
+                            <input
+                              value={mc.accessories}
+                              onChange={(e) => updateManualCam(mc.id, "accessories", e.target.value)}
+                              style={{ width: "100px", background: "#0b0f1a", border: "0.5px solid #2e3d55", borderRadius: 4, color: "#e8edf5", padding: "2px 4px", fontSize: 13, outline: "none" }}
+                              placeholder="e.g. Wall mount"
+                            />
+                          </td>
+                          <td style={{ padding: "10px 12px", textAlign: "right" }}>
+                            <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 2 }}>
+                              <span style={{ color: "rgba(255, 255, 255, 0.4)", fontSize: 13 }}>₹</span>
+                              <input
+                                type="number"
+                                value={mc.cameraPrice}
+                                onChange={(e) => updateManualCam(mc.id, "cameraPrice", Number(e.target.value))}
+                                style={{ width: "65px", background: "#0b0f1a", border: "0.5px solid #2e3d55", borderRadius: 4, color: "#e8edf5", padding: "2px 4px", fontSize: 13, textAlign: "right", outline: "none" }}
+                              />
+                            </div>
+                          </td>
+                          <td style={{ padding: "10px 12px", textAlign: "right" }}>
+                            <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 2 }}>
+                              <span style={{ color: "rgba(255, 255, 255, 0.4)", fontSize: 13 }}>₹</span>
+                              <input
+                                type="number"
+                                value={mc.accPrice}
+                                onChange={(e) => updateManualCam(mc.id, "accPrice", Number(e.target.value))}
+                                style={{ width: "55px", background: "#0b0f1a", border: "0.5px solid #2e3d55", borderRadius: 4, color: "#e8edf5", padding: "2px 4px", fontSize: 13, textAlign: "right", outline: "none" }}
+                              />
+                            </div>
+                          </td>
+                          <td style={{ padding: "10px 12px", textAlign: "right", fontFamily: "monospace", color: "#a855f7", fontWeight: 700 }}>
+                            ₹{lineTotal.toLocaleString("en-IN")}
+                          </td>
+                        </tr>
+                      );
+                    })}
+
+                    {/* Inline Form to Add a New Manual Camera */}
+                    <tr style={{ background: "rgba(59, 130, 246, 0.05)", borderTop: "1.5px solid #1e2d3e" }}>
+                      <td style={{ padding: "8px 10px" }}>
+                        <select
+                          value={newMc.type}
+                          onChange={e => setNewMc({ ...newMc, type: e.target.value })}
+                          style={{ background: "#0b0f1a", border: "0.5px solid #2e3d55", borderRadius: 4, color: "#e8edf5", padding: "4px", fontSize: 13, cursor: "pointer", outline: "none" }}
+                        >
+                          <option value="dome">Dome</option>
+                          <option value="bullet">Bullet</option>
+                          <option value="ptz">PTZ</option>
+                          <option value="fisheye">Fisheye</option>
+                          <option value="box">Box</option>
+                          <option value="turret">Turret</option>
+                        </select>
+                      </td>
+                      <td style={{ padding: "8px 10px" }}>
+                        <div style={{ display: "flex", gap: 4 }}>
+                          <input
+                            placeholder="Brand"
+                            value={newMc.brand}
+                            onChange={e => setNewMc({ ...newMc, brand: e.target.value })}
+                            style={{ width: "65px", background: "#0b0f1a", border: "0.5px solid #2e3d55", borderRadius: 4, color: "#e8edf5", padding: "4px", fontSize: 13, outline: "none" }}
+                          />
+                          <input
+                            placeholder="Model"
+                            value={newMc.model}
+                            onChange={e => setNewMc({ ...newMc, model: e.target.value })}
+                            style={{ width: "95px", background: "#0b0f1a", border: "0.5px solid #2e3d55", borderRadius: 4, color: "#e8edf5", padding: "4px", fontSize: 13, outline: "none" }}
+                          />
+                        </div>
+                      </td>
+                      <td style={{ padding: "8px 10px", textAlign: "center" }}>
+                        <input
+                          type="number"
+                          min="1"
+                          value={newMc.qty}
+                          onChange={e => setNewMc({ ...newMc, qty: Number(e.target.value) })}
+                          style={{ width: "45px", background: "#0b0f1a", border: "0.5px solid #2e3d55", borderRadius: 4, color: "#e8edf5", padding: "4px", fontSize: 13, textAlign: "center", outline: "none" }}
+                        />
+                      </td>
+                      <td style={{ padding: "8px 10px" }}>
+                        <input
+                          placeholder="Accessories"
+                          value={newMc.accessories}
+                          onChange={e => setNewMc({ ...newMc, accessories: e.target.value })}
+                          style={{ width: "100px", background: "#0b0f1a", border: "0.5px solid #2e3d55", borderRadius: 4, color: "#e8edf5", padding: "4px", fontSize: 13, outline: "none" }}
+                        />
+                      </td>
+                      <td style={{ padding: "8px 10px", textAlign: "right" }}>
+                        <input
+                          type="number"
+                          placeholder="Cam Price"
+                          value={newMc.cameraPrice}
+                          onChange={e => setNewMc({ ...newMc, cameraPrice: e.target.value })}
+                          style={{ width: "65px", background: "#0b0f1a", border: "0.5px solid #2e3d55", borderRadius: 4, color: "#e8edf5", padding: "4px", fontSize: 13, textAlign: "right", outline: "none" }}
+                        />
+                      </td>
+                      <td style={{ padding: "8px 10px", textAlign: "right" }}>
+                        <input
+                          type="number"
+                          placeholder="Acc Price"
+                          value={newMc.accPrice}
+                          onChange={e => setNewMc({ ...newMc, accPrice: e.target.value })}
+                          style={{ width: "55px", background: "#0b0f1a", border: "0.5px solid #2e3d55", borderRadius: 4, color: "#e8edf5", padding: "4px", fontSize: 13, textAlign: "right", outline: "none" }}
+                        />
+                      </td>
+                      <td style={{ padding: "8px 10px", textAlign: "right" }}>
+                        <button
+                          onClick={addManualCam}
+                          className="dv-tbtn"
+                          style={{ padding: "4px 8px", background: "#3b82f622", borderColor: "#3b82f6", color: "#60a5fa", borderRadius: 4, fontSize: 12, display: "inline-block", width: "auto" }}
+                        >
+                          + Add
+                        </button>
+                      </td>
+                    </tr>
+                    
+                    {cameraCount > 0 && (
                       <>
                         {/* Infrastructure rows */}
                         <tr style={{ borderBottom: "1px solid #1e2d3e", background: "#090d13" }}>
@@ -6597,7 +7590,7 @@ function ProjectStatsPanel({
                   </tbody>
                 </table>
               </div>
-
+ 
               {/* Cost Summary Cards */}
               {(() => {
                 // Compute totals only from filled-in prices
@@ -6616,6 +7609,13 @@ function ProjectStatsPanel({
                   if (cp !== undefined) { camTotal += Number(cp) * qty; camHasAny = true; }
                   if (ap !== undefined) { camTotal += Number(ap) * qty; camHasAny = true; }
                 });
+                
+                // Add manual cams totals
+                manualCams.forEach(mc => {
+                  camTotal += ((mc.cameraPrice || 0) + (mc.accPrice || 0)) * (mc.qty || 1);
+                  camHasAny = true;
+                });
+
                 const nvrNum = nvrPrice !== "" ? Number(nvrPrice) : null;
                 const swNum = switchUnitPrice !== "" ? Number(switchUnitPrice) : null;
                 const infraTotal = (nvrNum !== null ? nvrNum : 0) + (swNum !== null ? swNum * hardware.switchesCount : 0);
@@ -6693,7 +7693,7 @@ function ProjectStatsPanel({
                   </div>
 
                   <div className="dv-stats-card__slider">
-                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14, color: "rgba(255, 255, 255, 0.5)", marginBottom: 4 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14, color: "rgba(255, 255, 255, 0.85)", marginBottom: 4 }}>
                       <span>Retention Period</span>
                       <span style={{ color: "#3b82f6", fontWeight: 700 }}>{retentionDays} Days</span>
                     </div>
@@ -6722,10 +7722,87 @@ function ProjectStatsPanel({
                   </div>
                 </div>
               </div>
+
+              {activeTab === "simulate" && (
+                <div style={{ marginTop: 32, paddingTop: 20, borderTop: "1px solid #1e2d3e" }}>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: "#e8edf5", marginBottom: 16, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                    Simulate Additional Cameras
+                  </div>
+                
+                {manualCams.map(mc => (
+                  <div key={mc.id} style={{ display: "flex", gap: 12, marginBottom: 12, alignItems: "center", background: "#0d1117", padding: "8px 12px", borderRadius: 6, border: "1px solid #1e2d3e" }}>
+                    <div style={{ flex: 1, color: "#f8fafc", fontSize: 14, fontWeight: 600 }}>
+                      {mc.brand} <span style={{ color: "rgba(255, 255, 255, 0.5)", fontWeight: 400 }}>- {mc.model}</span>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <span style={{ fontSize: 13, color: "rgba(255, 255, 255, 0.85)" }}>Qty</span>
+                      <input
+                        type="number"
+                        min="1"
+                        value={mc.qty}
+                        onChange={(e) => updateManualCam(mc.id, "qty", Number(e.target.value))}
+                        style={{ width: "60px", background: "#0b0f1a", border: "0.5px solid #2e3d55", borderRadius: 4, color: "#e8edf5", padding: "6px", fontSize: 13, textAlign: "center", outline: "none" }}
+                      />
+                    </div>
+                    <button
+                      onClick={() => setManualCams(prev => prev.filter(c => c.id !== mc.id))}
+                      style={{ background: "none", border: "none", color: "#ef4444", cursor: "pointer", padding: "4px 8px", fontSize: 16, fontWeight: "bold" }}
+                      title="Remove Camera"
+                    >✕</button>
+                  </div>
+                ))}
+
+                <div style={{ display: "flex", gap: 12, marginTop: 16, alignItems: "center", background: "rgba(59, 130, 246, 0.05)", padding: "12px", borderRadius: 6, border: "1px dashed #2e3d55" }}>
+                  <select
+                    value={newMc.brand}
+                    onChange={e => setNewMc({ ...newMc, brand: e.target.value, model: "" })}
+                    style={{ flex: 1, background: "#0b0f1a", border: "0.5px solid #2e3d55", borderRadius: 4, color: "#e8edf5", padding: "8px", fontSize: 13, outline: "none" }}
+                  >
+                    <option value="">Select Brand</option>
+                    {[...new Set(cameraDB.map(c => c.brand))].filter(Boolean).map(b => (
+                      <option key={b} value={b}>{b}</option>
+                    ))}
+                  </select>
+                  
+                  <select
+                    value={newMc.model}
+                    onChange={e => setNewMc({ ...newMc, model: e.target.value })}
+                    disabled={!newMc.brand}
+                    style={{ flex: 1, background: "#0b0f1a", border: "0.5px solid #2e3d55", borderRadius: 4, color: "#e8edf5", padding: "8px", fontSize: 13, outline: "none" }}
+                  >
+                    <option value="">Select Model</option>
+                    {cameraDB.filter(c => c.brand === newMc.brand).map(c => (
+                      <option key={c.id} value={c.model}>{c.model}</option>
+                    ))}
+                  </select>
+
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ fontSize: 13, color: "rgba(255, 255, 255, 0.85)" }}>Qty</span>
+                    <input
+                      type="number"
+                      min="1"
+                      value={newMc.qty}
+                      onChange={e => setNewMc({ ...newMc, qty: Number(e.target.value) })}
+                      style={{ width: "60px", background: "#0b0f1a", border: "0.5px solid #2e3d55", borderRadius: 4, color: "#e8edf5", padding: "8px", fontSize: 13, textAlign: "center", outline: "none" }}
+                    />
+                  </div>
+                  
+                  <button
+                    onClick={addManualCam}
+                    disabled={!newMc.brand || !newMc.model}
+                    style={{ padding: "8px 16px", background: "#3b82f6", color: "#fff", border: "none", borderRadius: 4, fontSize: 13, fontWeight: 600, cursor: "pointer", opacity: (!newMc.brand || !newMc.model) ? 0.5 : 1, transition: "opacity 0.2s" }}
+                  >
+                    Add Camera
+                  </button>
+                </div>
+              </div>
+              )}
             </>
           )}
         </div>
       </div>
+
+
     </div>
   );
 }
