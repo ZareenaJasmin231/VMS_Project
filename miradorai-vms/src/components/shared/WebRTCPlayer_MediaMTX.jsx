@@ -3,21 +3,23 @@ import { useImageConfig } from "../../hooks/useImageConfig";
 import { Volume2, VolumeX } from "lucide-react";
 import { useDigitalZoom } from "../../hooks/useDigitalZoom";
 
-function WebRTCPlayer_MediaMTX({ streamKey, cameraId, onConnectChange }) {
+function WebRTCPlayer_MediaMTX({ streamKey, cameraId, onConnectChange, onError }) {
   const videoRef = useRef(null);
   const containerRef = useRef(null);
-
-  const [activeStreamKey, setActiveStreamKey] = useState(streamKey);
-
-  useEffect(() => {
-    setActiveStreamKey(streamKey);
-  }, [streamKey]);
 
   const [status, setStatus] = useState("connecting"); // "connecting", "connected", "reconnecting", "failed"
   const [errorMsg, setErrorMsg] = useState("");
   const [isMuted, setIsMuted] = useState(true);
   const [hovered, setHovered] = useState(false);
   const [btnHovered, setBtnHovered] = useState(false);
+  
+  const [currentStreamKey, setCurrentStreamKey] = useState(streamKey);
+  const [hasFallenBack, setHasFallenBack] = useState(false);
+
+  useEffect(() => {
+    setCurrentStreamKey(streamKey);
+    setHasFallenBack(false);
+  }, [streamKey]);
 
   const { cssFilter, cssTransform } = useImageConfig(cameraId || streamKey);
   const { zoom, zoomTransform, handlers } = useDigitalZoom(containerRef, videoRef);
@@ -38,12 +40,10 @@ function WebRTCPlayer_MediaMTX({ streamKey, cameraId, onConnectChange }) {
     // Cleanup WHEP session
     if (whepLocationRef.current) {
       try {
-        const whepUrl = new URL(whepLocationRef.current, `http://127.0.0.1:8889/${activeStreamKey}/whep`);
-        fetch(whepUrl.toString(), { method: "DELETE", keepalive: true }).catch((err) =>
-          console.error("WHEP delete failed", err)
-        );
-      } catch (err) {
-        console.error("Failed to parse WHEP location URL", err);
+        const whepUrl = new URL(whepLocationRef.current, `http://127.0.0.1:8889/${currentStreamKey}/whep`);
+        fetch(whepUrl.toString(), { method: "DELETE", keepalive: true }).catch(() => {});
+      } catch {
+        // ignore
       }
       whepLocationRef.current = null;
     }
@@ -100,7 +100,7 @@ function WebRTCPlayer_MediaMTX({ streamKey, cameraId, onConnectChange }) {
             reconnectTimeoutRef.current = setTimeout(() => {
               reconnectTimeoutRef.current = null;
               startConnection();
-            }, 3000);
+            }, 5000);
           }
         }
       };
@@ -108,7 +108,7 @@ function WebRTCPlayer_MediaMTX({ streamKey, cameraId, onConnectChange }) {
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
 
-      const response = await fetch(`http://127.0.0.1:8889/${activeStreamKey}/whep`, {
+      const response = await fetch(`http://127.0.0.1:8889/${currentStreamKey}/whep`, {
         method: "POST",
         headers: {
           "Content-Type": "application/sdp",
@@ -117,12 +117,20 @@ function WebRTCPlayer_MediaMTX({ streamKey, cameraId, onConnectChange }) {
       });
 
       if (!response.ok) {
-        if ((response.status === 400 || response.status === 404) && activeStreamKey.endsWith("_sub")) {
-          console.warn(`[WebRTC] Sub stream failed (${response.status}), falling back to main stream`);
-          setActiveStreamKey(activeStreamKey.replace("_sub", ""));
+        if (response.status === 400 && !hasFallenBack) {
+          console.warn(`[WebRTC] WHEP 400 error on ${currentStreamKey}. Trying fallback path as a safety net...`);
+          setHasFallenBack(true);
+          setCurrentStreamKey((prev) => prev.endsWith("_h264") ? prev.replace("_h264", "") : prev + "_h264");
           return;
         }
-        throw new Error(`HTTP error! status: ${response.status}`);
+
+        // 400 = codec/stream not compatible, 404 = stream not registered yet
+        // Do NOT automatically fall back to HLS – user must choose mode manually.
+        // Show an offline/waiting state and retry after a longer delay.
+        const isStreamError = response.status === 400 || response.status === 404;
+        const err = new Error(`WHEP error: ${response.status}`);
+        err.isStreamError = isStreamError;
+        throw err;
       }
 
       const locationHeader = response.headers.get("Location");
@@ -136,18 +144,32 @@ function WebRTCPlayer_MediaMTX({ streamKey, cameraId, onConnectChange }) {
         sdp: answer,
       });
     } catch (err) {
-      console.error("MediaMTX WHEP Error", err);
-      if (isComponentMounted.current) {
+      if (!isComponentMounted.current) return;
+
+      const isStreamError = err.isStreamError;
+
+      if (isStreamError) {
+        // Stream not yet available or codec incompatible — show offline state, retry slowly
+        setStatus("offline");
+        setErrorMsg("Stream unavailable");
+        onConnectChange?.(false);
+        // Report error to parent (for logging) but NOT as a codec-fallback trigger
+        if (onError) onError(err);
+      } else {
+        // Network / ICE error — reconnect
         setStatus("failed");
         setErrorMsg("Connection failed");
         onConnectChange?.(false);
+        if (onError) onError(err);
+      }
 
-        if (!reconnectTimeoutRef.current) {
-          reconnectTimeoutRef.current = setTimeout(() => {
-            reconnectTimeoutRef.current = null;
-            startConnection();
-          }, 3000);
-        }
+      // Always retry after a delay (longer for stream errors to avoid flooding)
+      if (!reconnectTimeoutRef.current) {
+        const delay = isStreamError ? 10000 : 5000;
+        reconnectTimeoutRef.current = setTimeout(() => {
+          reconnectTimeoutRef.current = null;
+          if (isComponentMounted.current) startConnection();
+        }, delay);
       }
     }
   };
@@ -162,7 +184,7 @@ function WebRTCPlayer_MediaMTX({ streamKey, cameraId, onConnectChange }) {
       onConnectChange?.(false);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeStreamKey]);
+  }, [currentStreamKey]);
 
   const toggleMute = (e) => {
     e.stopPropagation();
@@ -249,6 +271,17 @@ function WebRTCPlayer_MediaMTX({ streamKey, cameraId, onConnectChange }) {
         <div style={centreStyle}>
           <span style={{ fontSize: 11, color: "#f59e0b", letterSpacing: 1 }}>
             ● RECONNECTING…
+          </span>
+        </div>
+      )}
+      {status === "offline" && (
+        <div style={centreStyle}>
+          <span style={{ color: "#64748b", fontSize: 20 }}>📷</span>
+          <span style={{ color: "#64748b", fontSize: 11 }}>
+            {errorMsg || "Stream unavailable"}
+          </span>
+          <span style={{ color: "#475569", fontSize: 10 }}>
+            Retrying…
           </span>
         </div>
       )}

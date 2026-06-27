@@ -4,6 +4,7 @@ import HlsPlayer from "../../components/shared/HlsPlayer";
 import Hls from "hls.js";
 import { useDigitalZoom } from "../../hooks/useDigitalZoom";
 import SidePlaybackPanel from "../../components/shared/SidePlaybackPanel";
+import PTZControls from "../../components/shared/PTZControls";
 import { useAuth } from "../../context/AuthContext";
 import "./LiveViewPage.css";
 
@@ -612,10 +613,26 @@ function AlertsPanel({ onAlertCountUpdate, onTotalAlertCountChange, isOpen }) {
 function CameraCell({ device, streamMode, onFullscreen, alertCount, onBadgeClick, isRecording, onLiveChange }) {
   const showRec = localStorage.getItem("miradorai_show_rec_ind") !== "false";
   const [isLive, setIsLive] = useState(false);
+  const [localStreamMode, setLocalStreamMode] = useState(streamMode);
+  const [ptzOpen, setPtzOpen] = useState(false);
+
+  useEffect(() => {
+    setLocalStreamMode(streamMode);
+  }, [streamMode]);
 
   useEffect(() => {
     onLiveChange?.(device.ip, isLive);
   }, [device.ip, isLive, onLiveChange]);
+
+  // WebRTC errors are handled inside the player (retries automatically).
+  // We no longer auto-fall back to HLS — the user chooses the mode via the toolbar.
+  const handleWebRTCError = () => {};
+
+  // Calculate the target stream key based on stored codec metadata.
+  // If the camera is known to be H.265, we default to the transcoder path (_h264)
+  // to avoid the initial 400 Bad Request error. The player will handle fallback.
+  const baseStreamKey = device.ome_stream || device.stream_key || device.live_stream || (device.ip ? device.ip.replace(/\./g, "_") : "");
+  const streamKeyToUse = device.live_codec === "H.265" ? `${baseStreamKey}_h264` : baseStreamKey;
 
   return (
     <div
@@ -644,7 +661,21 @@ function CameraCell({ device, streamMode, onFullscreen, alertCount, onBadgeClick
         )}
         <div className="lv-cell__actions">
           <span className="lv-cell__ip">{device.ip}</span>
- 
+
+          {/* PTZ Toggle Button */}
+          <button
+            className={`lv-ptz-toggle-btn ${ptzOpen ? "active" : ""}`}
+            onClick={(e) => { e.stopPropagation(); setPtzOpen((v) => !v); }}
+            title={ptzOpen ? "Hide PTZ Controls" : "Show PTZ Controls"}
+            type="button"
+          >
+            {/* PTZ crosshair icon */}
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="13" height="13">
+              <circle cx="12" cy="12" r="3"/>
+              <path d="M12 2v4M12 18v4M2 12h4M18 12h4"/>
+            </svg>
+          </button>
+
           <button
             className="lv-cell__fs-btn"
             onClick={onFullscreen}
@@ -661,21 +692,28 @@ function CameraCell({ device, streamMode, onFullscreen, alertCount, onBadgeClick
       <div className="lv-cam__player" style={{ position: "relative" }}>
         {device.ws_url || device.rtsp_url ? (
           <>
-            {streamMode === "webrtc" ? (
+            {localStreamMode === "webrtc" ? (
               <WebRTCPlayer_MediaMTX
-                key={device.stream_key || device.ome_stream || (device.ip ? device.ip.replace(/\./g, "_") : "")}
-                streamKey={device.stream_key || device.ome_stream || (device.ip ? device.ip.replace(/\./g, "_") : "")}
+                key={streamKeyToUse}
+                streamKey={streamKeyToUse}
                 cameraId={device.id}
                 onConnectChange={setIsLive}
               />
             ) : (
               <HlsPlayer
-                key={`hls-${device.stream_key || device.ome_stream || (device.ip ? device.ip.replace(/\./g, "_") : "")}`}
-                streamKey={device.stream_key || device.ome_stream || (device.ip ? device.ip.replace(/\./g, "_") : "")}
+                key={`hls-${streamKeyToUse}`}
+                streamKey={streamKeyToUse}
                 onConnectChange={setIsLive}
               />
             )}
             <MaskOverlay ip={device.ip} />
+            {/* Inline PTZ Panel */}
+            {ptzOpen && (
+              <PTZControls
+                camera={device}
+                onClose={() => setPtzOpen(false)}
+              />
+            )}
           </>
         ) : (
           <div className="lv-no-stream">
@@ -805,7 +843,7 @@ export default function LiveViewPage() {
   const [modeDropdownOpen, setModeDropdownOpen] = useState(false);
 
   const [streamMode, setStreamMode] = useState(() => {
-    return localStorage.getItem("liveview_stream_mode") || "hls";
+    return localStorage.getItem("liveview_stream_mode") || "webrtc";
   });
 
   useEffect(() => {
@@ -838,6 +876,17 @@ export default function LiveViewPage() {
   const [liveStatus,   setLiveStatus]   = useState({});
   const [fsDevice,     setFsDevice]     = useState(null);
   const [fsLive,       setFsLive]       = useState(false);
+  const [fsStreamMode, setFsStreamMode] = useState(streamMode);
+  const [fsPtzOpen,    setFsPtzOpen]    = useState(false);
+
+  useEffect(() => {
+    setFsStreamMode(streamMode);
+  }, [streamMode, fsDevice]);
+
+  // WebRTC errors are handled inside the player (retries automatically).
+  // No auto-fallback to HLS from fullscreen either.
+  const handleFsWebRTCError = () => {};
+
   const [fsMenuOpen,   setFsMenuOpen]   = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [alertCounts,  setAlertCounts]  = useState({});
@@ -1308,7 +1357,7 @@ export default function LiveViewPage() {
                 <path d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14v-4z" />
                 <rect x="3" y="6" width="12" height="12" rx="2" ry="2" />
               </svg>
-              <span>{streamMode === "hls" ? "Standard Latency" : "Ultra-Low Latency"}</span>
+              <span>{streamMode === "hls" ? "Buffered (HLS)" : "Real-Time (WebRTC)"}</span>
               <svg className={`lv-chevron-icon ${modeDropdownOpen ? "open" : ""}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="10" height="10">
                 <path d="M6 9l6 6 6-6" />
               </svg>
@@ -1317,21 +1366,6 @@ export default function LiveViewPage() {
             {modeDropdownOpen && (
               <div className="lv-grid-dropdown-menu">
                 <button
-                  className={`lv-grid-dropdown-item ${streamMode === "hls" ? "selected" : ""}`}
-                  onClick={() => {
-                    setStreamMode("hls");
-                    setModeDropdownOpen(false);
-                  }}
-                  type="button"
-                >
-                  <span className="lv-grid-dropdown-item-label">Standard Latency (Recommended)</span>
-                  {streamMode === "hls" && (
-                    <svg className="lv-check-icon" viewBox="0 0 24 24" fill="none" stroke="var(--teal)" strokeWidth="3" width="12" height="12">
-                      <polyline points="20 6 9 17 4 12" />
-                    </svg>
-                  )}
-                </button>
-                <button
                   className={`lv-grid-dropdown-item ${streamMode === "webrtc" ? "selected" : ""}`}
                   onClick={() => {
                     setStreamMode("webrtc");
@@ -1339,8 +1373,23 @@ export default function LiveViewPage() {
                   }}
                   type="button"
                 >
-                  <span className="lv-grid-dropdown-item-label">Ultra-Low Latency</span>
+                  <span className="lv-grid-dropdown-item-label">Real-Time (RTSP/WebRTC)</span>
                   {streamMode === "webrtc" && (
+                    <svg className="lv-check-icon" viewBox="0 0 24 24" fill="none" stroke="var(--teal)" strokeWidth="3" width="12" height="12">
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                  )}
+                </button>
+                <button
+                  className={`lv-grid-dropdown-item ${streamMode === "hls" ? "selected" : ""}`}
+                  onClick={() => {
+                    setStreamMode("hls");
+                    setModeDropdownOpen(false);
+                  }}
+                  type="button"
+                >
+                  <span className="lv-grid-dropdown-item-label">Buffered (HLS)</span>
+                  {streamMode === "hls" && (
                     <svg className="lv-check-icon" viewBox="0 0 24 24" fill="none" stroke="var(--teal)" strokeWidth="3" width="12" height="12">
                       <polyline points="20 6 9 17 4 12" />
                     </svg>
@@ -1519,36 +1568,57 @@ export default function LiveViewPage() {
                   <span className="lv-rec-dot" />
                 )}
                 <span className="lv-fullscreen-overlay__ip">{fsDevice.ip}</span>
- 
               </div>
-              <button
-                className="lv-fullscreen-overlay__exit"
-                onClick={exitFullscreen}
-                type="button"
-                title="Exit fullscreen (Esc)"
-              >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="13" height="13">
-                  <path d="M8 3v3a2 2 0 01-2 2H3M21 8h-3a2 2 0 01-2-2V3M3 16h3a2 2 0 012 2v3M16 21v-3a2 2 0 012-2h3"/>
-                </svg>
-                Exit Fullscreen
-              </button>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                {/* PTZ toggle in fullscreen */}
+                <button
+                  className={`lv-ptz-toggle-btn ${fsPtzOpen ? "active" : ""}`}
+                  onClick={() => setFsPtzOpen((v) => !v)}
+                  title={fsPtzOpen ? "Hide PTZ Controls" : "PTZ Controls"}
+                  type="button"
+                  style={{ width: 32, height: 32 }}
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15">
+                    <circle cx="12" cy="12" r="3"/>
+                    <path d="M12 2v4M12 18v4M2 12h4M18 12h4"/>
+                  </svg>
+                </button>
+                <button
+                  className="lv-fullscreen-overlay__exit"
+                  onClick={exitFullscreen}
+                  type="button"
+                  title="Exit fullscreen (Esc)"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="13" height="13">
+                    <path d="M8 3v3a2 2 0 01-2 2H3M21 8h-3a2 2 0 01-2-2V3M3 16h3a2 2 0 012 2v3M16 21v-3a2 2 0 012-2h3"/>
+                  </svg>
+                  Exit Fullscreen
+                </button>
+              </div>
             </div>
             <div className="lv-fullscreen-overlay__player" style={{ position: "relative" }}>
-              {streamMode === "webrtc" ? (
+              {fsStreamMode === "webrtc" ? (
                 <WebRTCPlayer_MediaMTX
-                  key={`fs-${fsDevice.stream_key}`}
-                  streamKey={fsDevice.stream_key}
+                  key={`fs-${fsDevice.ome_stream || fsDevice.stream_key || fsDevice.live_stream}`}
+                  streamKey={fsDevice.ome_stream || fsDevice.stream_key || fsDevice.live_stream}
                   cameraId={fsDevice.id}
                   onConnectChange={setFsLive}
                 />
               ) : (
                 <HlsPlayer
-                  key={`fs-hls-${fsDevice.stream_key}`}
-                  streamKey={fsDevice.stream_key}
+                  key={`fs-hls-${fsDevice.ome_stream || fsDevice.stream_key || fsDevice.live_stream}`}
+                  streamKey={fsDevice.ome_stream || fsDevice.stream_key || fsDevice.live_stream}
                   onConnectChange={setFsLive}
                 />
               )}
               <MaskOverlay ip={fsDevice.ip} />
+              {/* PTZ panel in fullscreen */}
+              {fsPtzOpen && (
+                <PTZControls
+                  camera={fsDevice}
+                  onClose={() => setFsPtzOpen(false)}
+                />
+              )}
             </div>
           </div>
         )}

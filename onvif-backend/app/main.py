@@ -24,7 +24,6 @@ from app.api.routers.dashboard_router import router as dashboard_router
 from app.api.routers.system_router import router as system_router
 from app.api.routers.storage_router_ext import router as storage_router_ext
 from app.api.routers.dashboard_diagnostics_router import router as dashboard_diagnostics_router
-
 # Existing routers from other files that were already separate
 from app.api.routers.recording_api import recording_router, storage_router
 from app.api.routers.masks_router import router as masks_router

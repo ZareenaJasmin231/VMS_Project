@@ -927,6 +927,7 @@ def play_recording(
     if file_size_on_disk < 100:
         raise HTTPException(status_code=415, detail="Recording is empty or corrupted")
 
+
     try:
         key = _load_key()
         
@@ -1107,6 +1108,9 @@ def play_recording(
                 headers=headers
             )
             
+    except HTTPException:
+        # Re-raise FastAPI HTTP exceptions as-is (e.g. 404 from MinIO check)
+        raise
     except Exception as e:
         import traceback
         tb = traceback.format_exc()

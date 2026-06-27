@@ -42,6 +42,10 @@ async def camera_health_collector():
         await asyncio.sleep(10)            
 
 async def analytics_poll_loop(ip: str, port: int, username: str, password: str, manufacturer: str = "bosch"):
+    # # TEMPORARILY DISABLED: The polling loop consumes excessive RAM/CPU when cameras are offline
+    # print(f"[ANALYTICS] ⏸ Analytics polling is temporarily disabled to save RAM for {ip}")
+    # return
+
     print(f"[ANALYTICS] ▶ Started polling for {ip} ({manufacturer})")
 
     consecutive_failures = 0

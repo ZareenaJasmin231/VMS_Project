@@ -67,6 +67,7 @@ class StreamRegisterRequest(BaseModel):
     mac:          str = "—"
     device_name:  str = ""
     group_id:     str = "default"
+    live_codec:   Optional[str] = "H.264"
 
 class StreamAssignRequest(BaseModel):
     ip:                str
@@ -80,6 +81,7 @@ class StreamAssignRequest(BaseModel):
     recording_rtsp:    str
     live_profile:      str = ""
     recording_profile: str = ""
+    live_codec:        Optional[str] = "H.264"
 
 class VideoEncoderSettingRequest(BaseModel):
     ip:                str

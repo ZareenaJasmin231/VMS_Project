@@ -612,6 +612,7 @@ export default function StreamProfilesPage() {
           recording_rtsp:    recProfile.rtsp_url,
           live_profile:      liveProfile.name,
           recording_profile: recProfile.name,
+          live_codec:        liveProfile.supported_encodings?.includes("H.265") ? "H.265" : "H.264",
         }),
       });
 

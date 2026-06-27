@@ -1605,17 +1605,20 @@ def move_camera_ptz(ip, port, username, password, pan, tilt, zoom):
             return {"success": False, "error": "No profiles found"}
 
         token   = profiles[0].token
-        request = ptz_service.create_type("AbsoluteMove")
-        request.ProfileToken = token
-        request.Position = {
-            "PanTilt": {"x": float(pan),  "y": float(tilt)},
-            "Zoom":    {"x": float(zoom)},
-        }
-        request.Speed = {
-            "PanTilt": {"x": 0.5, "y": 0.5},
-            "Zoom":    {"x": 0.5},
-        }
-        ptz_service.AbsoluteMove(request)
+        if float(pan) == 0.0 and float(tilt) == 0.0 and float(zoom) == 0.0:
+            request = ptz_service.create_type("Stop")
+            request.ProfileToken = token
+            request.PanTilt = True
+            request.Zoom = True
+            ptz_service.Stop(request)
+        else:
+            request = ptz_service.create_type("ContinuousMove")
+            request.ProfileToken = token
+            request.Velocity = {
+                "PanTilt": {"x": float(pan),  "y": float(tilt)},
+                "Zoom":    {"x": float(zoom)},
+            }
+            ptz_service.ContinuousMove(request)
         return {"success": True}
     except Exception as e:
         return {"success": False, "error": str(e)}

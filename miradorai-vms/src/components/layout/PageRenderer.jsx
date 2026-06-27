@@ -51,15 +51,19 @@ import DesignerView from "../../pages/Mapview/DesignerView";
 import MaskingPage from "../../pages/devices/MaskingPage";
 import ForensicSearchPage from "../../pages/forensic/ForensicSearchPage";
 import AiAnalyticsPage from "../../pages/analytics/AiAnalyticsPage";
-import DatasheetPage from "../../pages/manual/DatasheetPage";
 
+// ✅ REPORTS
+import ReportsPlaceholderPage from "../../pages/reports/ReportsPlaceholderPage";
+
+const RecordingReportPage = (props) => <ReportsPlaceholderPage {...props} reportName="Recording Report" />;
+const StorageReportPage = (props) => <ReportsPlaceholderPage {...props} reportName="Storage Report" />;
+const AnalyticsReportPage = (props) => <ReportsPlaceholderPage {...props} reportName="Analytics Report" />;
 
 // ================= PAGE MAP =================
 const MAP = {
   // ✅ DASHBOARD (DEFAULT PAGE)
   "dashboard": DashboardPage,
   "ai-analytics": AiAnalyticsPage,
-  "manual": DatasheetPage,
 
   // ================= DEVICES =================
   "add-devices": AddDevicesPage,
@@ -100,6 +104,11 @@ const MAP = {
   "firmware-upgrade": FirmwareUpgradePage,
   "smartsearch-settings": SmartSearchSettingsPage,
   "forensic-search": ForensicSearchPage,
+
+  // ================= REPORTS =================
+  "recording-report": RecordingReportPage,
+  "storage-report": StorageReportPage,
+  "analytics-report": AnalyticsReportPage,
 
 
 

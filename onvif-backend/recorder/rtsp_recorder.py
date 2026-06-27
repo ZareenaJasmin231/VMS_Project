@@ -37,6 +37,7 @@ _vf_filters: dict[str, str]              = {}
 _camera_data: dict[str, dict]             = {}
 _motion_events: dict[str, threading.Event] = {}
 _actively_recording_streams = set()
+_codec_cache: dict[str, str] = {}
 
 _latest_face_urls: dict[str, str] = {}
 _last_trigger_log_times: dict[str, float] = {}
@@ -265,6 +266,21 @@ class CameraRecorder:
                 self._check_termination()
             return
 
+        if self.stream_name == "192_168_126_230" and not os.path.exists(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "devices_data", "probe_dump.txt"))):
+            try:
+                out = subprocess.check_output(["ffprobe", "-i", self.rtsp_url], stderr=subprocess.STDOUT, timeout=10)
+                dump_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "devices_data", "probe_dump.txt"))
+                with open(dump_path, "wb") as f:
+                    f.write(out)
+            except subprocess.CalledProcessError as e:
+                dump_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "devices_data", "probe_dump.txt"))
+                with open(dump_path, "wb") as f:
+                    f.write(e.output)
+            except Exception as e:
+                dump_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "devices_data", "probe_dump.txt"))
+                with open(dump_path, "w") as f:
+                    f.write(str(e))
+
         if self.state == "IDLE":
             # ── Check Schedule ──────────────────────────────────────────
             now = datetime.now()
@@ -376,20 +392,63 @@ class CameraRecorder:
                 current_vf = fresh_vf
                 self.vf_filter = fresh_vf
 
-        if current_vf:
+        # --- Detect Codec for H.265 fallback ---
+        needs_transcode = False
+        codec = _codec_cache.get(self.stream_name)
+        
+        safe_url = self.rtsp_url.replace("&transport=tcp", "")
+        
+        if not codec:
+            try:
+                probe_cmd = [
+                    "ffprobe", "-v", "warning", "-select_streams", "v:0",
+                    "-show_entries", "stream=codec_name", "-of",
+                    "default=noprint_wrappers=1:nokey=1", safe_url
+                ]
+                probe_out = subprocess.check_output(probe_cmd, timeout=5, stderr=subprocess.DEVNULL)
+                codec = probe_out.decode('utf-8').strip()
+                _codec_cache[self.stream_name] = codec
+                print(f"[RECORDER] 🔎 Detected codec for {self.stream_name}: {codec}")
+            except Exception as e:
+                print(f"[RECORDER] ⚠ Could not probe codec for {self.stream_name}: {e}")
+                codec = "unknown"
+        
+        if codec in ["hevc", "h265"]:
+            needs_transcode = True
+
+        is_bosch = meta and meta.get("manufacturer", "").lower() == "bosch"
+        if self.stream_name == "192_168_126_230":
+            needs_transcode = True
+
+        if current_vf or needs_transcode:
             cmd = [
                 FFMPEG_BIN,
-                "-loglevel",       "error",
-                "-rtsp_transport", "tcp",
-                "-i",              self.rtsp_url,
-                "-t",              str(self.current_chunk_duration),
-                "-vf",             current_vf,
+                "-loglevel",       "warning",
+                "-err_detect",     "ignore_err",
+                "-ignore_unknown",
+                "-fflags",         "+genpts",
+                "-use_wallclock_as_timestamps", "1",
+                "-i",              safe_url,
+                "-t",              str(self.current_chunk_duration)
+            ]
+            
+            if current_vf:
+                cmd.extend(["-vf", current_vf])
+                
+            cmd.extend([
                 "-c:v",            "libx264",
                 "-preset",         "ultrafast",
                 "-crf",            "23",
-                "-c:a",            "aac",
-                "-map",            "0:v",
-                "-map",            "0:a?",
+            ])
+            if is_bosch:
+                cmd.extend(["-an"])
+            else:
+                cmd.extend([
+                    "-c:a",            "aac",
+                    "-map",            "0:v",
+                    "-map",            "0:a?",
+                ])
+            cmd.extend([
                 "-f",              "segment",
                 "-segment_time",   "10",
                 "-segment_start_number", str(segment_start),
@@ -398,18 +457,28 @@ class CameraRecorder:
                 "-avoid_negative_ts", "make_zero",
                 "-y",
                 os.path.join(self.out_dir, f"{self.time_str}_%03d.ts")
-            ]
+            ])
         else:
             cmd = [
                 FFMPEG_BIN,
-                "-loglevel",       "error",
-                "-rtsp_transport", "tcp",
-                "-i",              self.rtsp_url,
+                "-loglevel",       "warning",
+                "-err_detect",     "ignore_err",
+                "-ignore_unknown",
+                "-fflags",         "+genpts",
+                "-use_wallclock_as_timestamps", "1",
+                "-i",              safe_url,
                 "-t",              str(self.current_chunk_duration),
-                "-c:v",            "copy",
-                "-c:a",            "aac",
-                "-map",            "0:v",
-                "-map",            "0:a?",
+                "-c:v",            "copy"
+            ]
+            if is_bosch:
+                cmd.extend(["-an"])
+            else:
+                cmd.extend([
+                    "-c:a",            "aac",
+                    "-map",            "0:v",
+                    "-map",            "0:a?",
+                ])
+            cmd.extend([
                 "-f",              "segment",
                 "-segment_time",   "10",
                 "-segment_start_number", str(segment_start),
@@ -418,7 +487,7 @@ class CameraRecorder:
                 "-avoid_negative_ts", "make_zero",
                 "-y",
                 os.path.join(self.out_dir, f"{self.time_str}_%03d.ts")
-            ]
+            ])
 
         _actively_recording_streams.add(self.stream_name)
         try:
@@ -481,8 +550,11 @@ class CameraRecorder:
             try:
                 stderr_out = self.proc.stderr.read().decode(errors="replace").strip()
                 print(f"[RECORDER] ⚠ ffmpeg exited {returncode} for {self.stream_name}: {stderr_out[-200:]}")
-            except Exception:
-                pass
+                err_log_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "devices_data", f"ffmpeg_error_{self.stream_name}.txt"))
+                with open(err_log_path, "w", encoding="utf-8") as f:
+                    f.write(stderr_out)
+            except Exception as ex:
+                print(f"[RECORDER] Error saving stderr: {ex}")
         else:
             meta = _camera_data.get(self.stream_name, self.camera_data)
             motion_only = meta.get("motion_only", False)

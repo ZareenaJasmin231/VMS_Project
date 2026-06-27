@@ -214,6 +214,12 @@ async def onvif_probe(req: ProbeRequest):
         else:
             rtsp = result.get("stream_uri", "")
         rtsp = re.sub(r"[&?]proto=Onvif", "", rtsp)
+        
+        live_codec = "H.264"
+        if profiles_list and profiles_list[0].get("supported_encodings"):
+            encs = profiles_list[0]["supported_encodings"]
+            if "H.265" in encs:
+                live_codec = "H.265"
 
         parsed = urllib.parse.urlparse(rtsp)
         if req.username and not parsed.username:
@@ -258,11 +264,13 @@ async def onvif_probe(req: ProbeRequest):
             print("MEDIAMTX RESPONSE:", ome_response)
             print(f"[ONVIF] OME response: {ome_response}")
  
+            live_stream = ome_response.get("transcoded_stream")
             if not existing:
                 new_device = {
                     "ome_stream":     stream_name,
                     "rtsp_url":       rtsp,
                     "recording_rtsp": rtsp,
+                    "live_stream":    live_stream,
                     "ip":             req.ip,
                     "port":           req.port,
                     "username":       req.username,
@@ -270,15 +278,19 @@ async def onvif_probe(req: ProbeRequest):
                     "active_rec_profile": "MAIN_STREAM",
                     "recording_profile":  "MAIN_STREAM",
                     "enabled":        True,
+                    "live_codec":     live_codec,
                 }
                 devices.append(new_device)
                 save_devices(devices)
             else:
                 existing["rtsp_url"]       = rtsp
                 existing["recording_rtsp"] = existing.get("recording_rtsp", rtsp)
+                if live_stream:
+                    existing["live_stream"] = live_stream
                 existing["port"]           = req.port
                 existing["username"]       = req.username
                 existing["password"]       = req.password
+                existing["live_codec"]     = live_codec
                 save_devices(devices)
  
             save_camera_to_db({
@@ -295,6 +307,7 @@ async def onvif_probe(req: ProbeRequest):
                 "added_at":        datetime.utcnow(),
                 "status":          "streaming",
                 "enabled":         True,
+                "live_stream":     ome_response.get("transcoded_stream"),
                 "stream_count":    result.get("stream_count", 0),
                 "stream_profiles": result.get("all_profiles", result.get("profiles", [])),
                 "active_rec_profile": "MAIN_STREAM",
@@ -302,17 +315,20 @@ async def onvif_probe(req: ProbeRequest):
                 "api_profile":     result.get("api_profile"),
                 "group_id":        req.group_id,
                 "device_name":     req.device_name,
+                "live_codec":      live_codec,
             })
             print(f"[ONVIF] 🎥 Recording will be started by the assigned worker process for {stream_name}")
  
         else:
             print(f"[ONVIF] Stream {stream_name} already live in MediaMTX, skipping.")
             ome_response = {"status": "ok", "message": "Already registered"}
+            live_stream = existing.get("live_stream") if existing else None
  
         result["ome_stream"]   = stream_name
         result["ome_response"] = ome_response
-        result["ws_url"]       = f"http://host.docker.internal:8889/{stream_name}"
-        result["stream_key"]   = stream_name
+        live_key = live_stream if live_stream else stream_name
+        result["ws_url"]       = f"http://host.docker.internal:8889/{live_key}"
+        result["stream_key"]   = live_key
         result["status"]       = "streaming"
         result["rtsp_url"]     = rtsp
  
@@ -356,11 +372,12 @@ async def register_rtsp_stream(req: StreamRegisterRequest):
         print(f"[RTSP] Stream {stream_name} already live in OME, skipping.")
         existing["rtsp_url"] = rtsp
         save_devices(devices)
+        live_key = existing.get("live_stream") or stream_name
         return {
             "success":    True,
             "ome_stream": stream_name,
-            "ws_url":     f"http://host.docker.internal:8889/{stream_name}",
-            "stream_key": stream_name,
+            "ws_url":     f"http://host.docker.internal:8889/{live_key}",
+            "stream_key": live_key,
             "status":     "streaming",
             "rtsp_url":   rtsp,
         }
@@ -384,6 +401,7 @@ async def register_rtsp_stream(req: StreamRegisterRequest):
             "ome_stream":     stream_name,
             "rtsp_url":       rtsp,
             "recording_rtsp": rtsp,
+            "live_stream":    ome_response.get("transcoded_stream"),
             "ip":             host,
             "port":           req.port,
             "username":       req.username,
@@ -391,14 +409,18 @@ async def register_rtsp_stream(req: StreamRegisterRequest):
             "active_rec_profile": "MAIN_STREAM",
             "recording_profile":  "MAIN_STREAM",
             "enabled":        True,
+            "live_codec":     req.live_codec,
         }
         devices.append(new_device)
     else:
         existing["rtsp_url"]       = rtsp
         existing["recording_rtsp"] = existing.get("recording_rtsp", rtsp)
+        if ome_response.get("transcoded_stream"):
+            existing["live_stream"] = ome_response.get("transcoded_stream")
         existing["port"]           = req.port
         existing["username"]       = req.username
         existing["password"]       = req.password
+        existing["live_codec"]     = req.live_codec
         new_device = existing
     save_devices(devices)
  
@@ -416,22 +438,25 @@ async def register_rtsp_stream(req: StreamRegisterRequest):
         "password":       req.password,
         "added_at":       datetime.utcnow(),
         "status":         "streaming",
+        "live_stream":    ome_response.get("transcoded_stream"),
         "active_rec_profile": "MAIN_STREAM",
         "recording_profile":  "MAIN_STREAM",
         "enabled":        True,
         "source":         "rtsp",
         "group_id":       req.group_id,
+        "live_codec":     req.live_codec,
     })
  
  
     _watchdog_failures[stream_name] = 0
     print(f"[RTSP] 🎥 Recording will be started by the assigned worker process for {stream_name}")
  
+    live_key = ome_response.get("transcoded_stream") or stream_name
     return {
         "success":    True,
         "ome_stream": stream_name,
-        "ws_url":     f"http://host.docker.internal:8889/{stream_name}",
-        "stream_key": stream_name,
+        "ws_url":     f"http://host.docker.internal:8889/{live_key}",
+        "stream_key": live_key,
         "status":     "streaming",
         "rtsp_url":   rtsp,
     }
@@ -492,6 +517,7 @@ async def assign_streams(req: StreamAssignRequest):
         existing["active_live_profile"] = req.live_profile
         existing["active_rec_profile"]  = req.recording_profile
         existing["recording_profile"]   = req.recording_profile
+        existing["live_codec"]          = req.live_codec
         device_entry = existing
     else:
         device_entry = {
@@ -505,7 +531,7 @@ async def assign_streams(req: StreamAssignRequest):
             "active_live_profile":  req.live_profile,
             "active_rec_profile":   req.recording_profile,
             "recording_profile":    req.recording_profile,
-
+            "live_codec":           req.live_codec,
         }
         devices.append(device_entry)
 
@@ -528,6 +554,7 @@ async def assign_streams(req: StreamAssignRequest):
     "active_live_profile":  req.live_profile,
     "active_rec_profile":   req.recording_profile,
     "recording_profile":    req.recording_profile,
+    "live_codec":           req.live_codec,
 
     "updated_at":           datetime.utcnow(),
 })
@@ -540,11 +567,12 @@ async def assign_streams(req: StreamAssignRequest):
     # ── 5. Reset watchdog so the stream is not blacklisted ───────────
     _watchdog_failures[stream_name] = 0
 
+    live_key = existing.get("live_stream") if existing else stream_name
     return {
         "success":           True,
         "ome_stream":        stream_name,
-        "ws_url":            f"http://host.docker.internal:8889/{stream_name}",
-        "stream_key":        stream_name,
+        "ws_url":            f"http://host.docker.internal:8889/{live_key}",
+        "stream_key":        live_key,
         "live_rtsp":         req.live_rtsp,
         "recording_rtsp":    req.recording_rtsp,
         "live_profile":      req.live_profile,

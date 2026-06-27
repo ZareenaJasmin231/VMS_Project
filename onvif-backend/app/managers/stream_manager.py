@@ -97,10 +97,15 @@ def load_devices():
                     "recording_profile":   d.get("recording_profile", ""),
                     "assigned_schedule_id": d.get("assigned_schedule_id", "Always"),
                     "motion_only":          d.get("motion_only", False),
+                    "live_codec":           d.get("live_codec", "H.264"),
                 } for d in deduped if d.get("ip") and d.get("rtsp_url")]
                 
                 save_devices(final_list)
                 return final_list
+            else:
+                print("[STARTUP] MongoDB connected successfully but contains 0 cameras. Syncing empty state to devices.json.")
+                save_devices([])
+                return []
         except Exception as e:
             print(f"[STARTUP] MongoDB load failed: {e} — falling back to devices.json")
 

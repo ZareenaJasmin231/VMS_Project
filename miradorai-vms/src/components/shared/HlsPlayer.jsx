@@ -60,13 +60,11 @@ function HlsPlayer({ streamKey, streamUrl, muted = true, autoplay = true, classN
         if (data.fatal) {
           switch (data.type) {
             case Hls.ErrorTypes.NETWORK_ERROR:
-              if (activeStreamKey.endsWith("_sub")) {
-                console.warn(`[HLS] Sub stream failed (Network Error), falling back to main stream`);
-                setActiveStreamKey(activeStreamKey.replace("_sub", ""));
-                return;
-              }
+              // Stream not yet available — wait and retry
               setStatus("reconnecting");
-              hls.startLoad();
+              setTimeout(() => {
+                if (hls) hls.startLoad();
+              }, 5000);
               break;
             case Hls.ErrorTypes.MEDIA_ERROR:
               hls.recoverMediaError();
@@ -89,11 +87,6 @@ function HlsPlayer({ streamKey, streamUrl, muted = true, autoplay = true, classN
         if (autoplay) video.play().catch(() => {});
       });
       video.addEventListener("error", () => {
-        if (activeStreamKey.endsWith("_sub")) {
-          console.warn(`[HLS] Sub stream failed (Native Error), falling back to main stream`);
-          setActiveStreamKey(activeStreamKey.replace("_sub", ""));
-          return;
-        }
         setStatus("failed");
         setErrorMsg("Stream failed");
         onConnectChange?.(false);
@@ -133,16 +126,6 @@ function HlsPlayer({ streamKey, streamUrl, muted = true, autoplay = true, classN
     pointerEvents: "none",
   };
 
-  const msgStyle = {
-    position: "absolute",
-    top: 8,
-    left: 8,
-    right: 8,
-    textAlign: "center",
-    pointerEvents: "none",
-    zIndex: 10,
-  };
-
   return (
     <div
       ref={containerRef}
@@ -166,12 +149,6 @@ function HlsPlayer({ streamKey, streamUrl, muted = true, autoplay = true, classN
         }}
       />
       
-      {/* Real-time feature disabled warning overlay */}
-      <div style={msgStyle}>
-        <span style={{ background: "rgba(0,0,0,0.6)", padding: "4px 8px", borderRadius: 4, fontSize: 10, color: "#94a3b8" }}>
-          Buffered Mode. Switch to Real-Time for interactive controls.
-        </span>
-      </div>
 
       {status === "connecting" && (
         <div style={centreStyle}>

@@ -792,11 +792,14 @@ def _upload_and_cleanup_enc_files(recordings_dir):
                             minio_meta_key = f"{camera_id}/{date_part}/{fname.replace('.enc', '.meta')}"
                             
                             print(f"[ENCRYPT] ☁️ Uploading finished 5-min file to MinIO: {fname}")
-                            minio_client.upload_file(minio_key, full_path)
+                            upload_success = minio_client.upload_file(minio_key, full_path)
                             meta_path = full_path.replace('.enc', '.meta')
                             if os.path.exists(meta_path):
                                 minio_client.upload_file(minio_meta_key, meta_path)
                                 
+                            if not upload_success:
+                                print(f"[ENCRYPT] ⚠️  MinIO upload failed for {minio_key} — keeping local file and skipping DB update")
+                                continue
                             try:
                                 metadata_collection.update_one(
                                     {
@@ -810,18 +813,8 @@ def _upload_and_cleanup_enc_files(recordings_dir):
                                         }
                                     }
                                 )
-                                # Delete the local files after successful upload and db update
-                                try:
-                                    os.remove(full_path)
-                                    print(f"[ENCRYPT] 🗑️ Deleted local {fname} after MinIO upload")
-                                except OSError as e:
-                                    print(f"[ENCRYPT] Could not delete local file {full_path}: {e}")
-                                    
-                                if os.path.exists(meta_path):
-                                    try:
-                                        os.remove(meta_path)
-                                    except OSError:
-                                        pass
+                                # Retain local files as backup instead of deleting them
+                                print(f"[ENCRYPT] ✅ Verified MinIO upload for {fname}. Local file retained.")
                             except Exception as db_err:
                                 print(f"[ENCRYPT] DB MinIO update failed: {db_err}")
                                 

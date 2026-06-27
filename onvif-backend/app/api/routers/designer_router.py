@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Form
 from app.core.database import mongo_client
 from datetime import datetime
 from pydantic import BaseModel
@@ -409,3 +409,80 @@ def detect_zones(req: ZoneDetectRequest):
     except Exception as e:
         print(f"[ZONE-DETECTION] ❌ Failed to detect zones: {e}")
         raise HTTPException(status_code=500, detail=f"Zone detection error: {str(e)}")
+
+
+# ── POST /api/designer/upload-datasheet ──────────────────────────────
+@router.post("/upload-datasheet", dependencies=[Depends(verify_token)])
+async def upload_datasheet(file: UploadFile = File(...), overwrite: bool = Form(False)):
+    """
+    Parses a camera datasheet PDF and extracts specs to insert a new camera_model.
+    Skips if a camera with the same brand and model already exists.
+    """
+    if file.content_type != "application/pdf":
+        raise HTTPException(status_code=400, detail="Only PDF files are supported.")
+        
+    try:
+        import pdfplumber
+        from app.utils.datasheet_parser import DatasheetParser
+        import io
+        
+        # Read the file in memory
+        content = await file.read()
+        
+        # Extract text using pdfplumber
+        text = ""
+        with pdfplumber.open(io.BytesIO(content)) as pdf:
+            for page in pdf.pages:
+                page_text = page.extract_text()
+                if page_text:
+                    text += page_text + "\n"
+                    
+        if not text.strip():
+            raise HTTPException(status_code=400, detail="Could not extract text from the PDF. It may be an image-only PDF.")
+            
+        # Parse text using the heuristic parser
+        parser = DatasheetParser(text)
+        extracted_data = parser.parse()
+        
+        if not extracted_data:
+            raise HTTPException(status_code=500, detail="Failed to parse data from the PDF.")
+            
+        # Check if exists (Skip strategy as per user request)
+        cam_col = _db["camera_models"]
+        existing = cam_col.find_one({"id": extracted_data["id"]})
+        if not existing:
+            # Maybe check by brand and model too just in case id generation differs
+            existing = cam_col.find_one({
+                "brand": {"$regex": f"^{extracted_data['brand']}$", "$options": "i"},
+                "model": {"$regex": f"^{extracted_data['model']}$", "$options": "i"}
+            })
+            
+        if existing:
+            if overwrite:
+                cam_col.update_one({"_id": existing["_id"]}, {"$set": extracted_data})
+                return {
+                    "success": True, 
+                    "skipped": False, 
+                    "message": f"Camera model {extracted_data['brand']} {extracted_data['model']} was successfully overwritten.",
+                    "camera": {k: v for k, v in extracted_data.items() if k != '_id'}
+                }
+            else:
+                return {
+                    "success": True, 
+                    "skipped": True, 
+                    "message": f"Camera model {extracted_data['brand']} {extracted_data['model']} already exists. (Skipped)",
+                    "camera": {k: v for k, v in existing.items() if k != '_id'}
+                }
+        # Insert new camera model
+        cam_col.insert_one(extracted_data)
+        
+        return {
+            "success": True, 
+            "skipped": False,
+            "message": "Datasheet processed and camera model added successfully.",
+            "camera": {k: v for k, v in extracted_data.items() if k != '_id'}
+        }
+        
+    except Exception as e:
+        print(f"[DATASHEET-UPLOAD] ❌ Failed to process datasheet: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to process datasheet: {str(e)}")
