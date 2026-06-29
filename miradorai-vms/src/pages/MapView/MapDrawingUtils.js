@@ -275,7 +275,7 @@ export function renderMapViewSnapshot(ctx, options) {
   }
 
   // ── 4. Camera bodies (Map View Style) ──
-  const S = 0.62;
+  const S = options.iconScale || 1.20;
   markers.forEach((m, i) => {
     const cam = cameras.find(c => c.id === m.camId) || { status: "offline" };
     const online = cam.status === "online";
@@ -283,50 +283,286 @@ export function renderMapViewSnapshot(ctx, options) {
     const col = online ? (isHighlit ? "#5aabf0" : "#1D9E75") : "#555";
     const R = 8;
     const angle = (m.direction || 0) * (Math.PI / 180);
+    const type = getCamTypeFromName(cam?.name || cam?.model);
 
     // Glow
     ctx.beginPath(); ctx.arc(m.x, m.y, R + 1.5, 0, Math.PI * 2);
     ctx.fillStyle = col + (isHighlit ? "40" : "20"); ctx.fill();
 
     ctx.save();
-    ctx.translate(m.x, m.y); ctx.rotate(angle);
+    ctx.translate(m.x, m.y);
 
-    // Mount
-    ctx.beginPath(); ctx.arc(-14 * S, 0, 5 * S, 0, Math.PI * 2);
-    ctx.fillStyle = isHighlit ? "#a8ccee" : "#cecece"; ctx.fill();
-    ctx.strokeStyle = isHighlit ? "#5aabf0" : "#888"; ctx.lineWidth = 0.8; ctx.stroke();
+    if (type === "bullet") {
+      const bS = S * 0.9;
+      
+      // --- FIXED MOUNT & ARM ---
+      ctx.save();
+      if (m.flip) ctx.scale(-1, 1);
+      
+      // Wall Plate
+      ctx.beginPath();
+      ctx.moveTo(5*bS, 10*bS);
+      ctx.lineTo(10*bS, 8*bS);
+      ctx.lineTo(10*bS, 18*bS);
+      ctx.lineTo(5*bS, 20*bS);
+      ctx.closePath();
+      ctx.fillStyle = "#ffffff"; ctx.fill();
+      ctx.strokeStyle = "#000000"; ctx.lineWidth = 1; ctx.stroke();
+      
+      // Wall plate side
+      ctx.beginPath();
+      ctx.moveTo(5*bS, 10*bS);
+      ctx.lineTo(2*bS, 11*bS);
+      ctx.lineTo(2*bS, 21*bS);
+      ctx.lineTo(5*bS, 20*bS);
+      ctx.closePath();
+      ctx.fillStyle = "#f5f5f5"; ctx.fill();
+      ctx.strokeStyle = "#000000"; ctx.stroke();
 
-    // Neck
-    ctx.beginPath();
-    if (ctx.roundRect) ctx.roundRect(-14 * S, -2.5 * S, 7 * S, 5 * S, 1.5);
-    else ctx.rect(-14 * S, -2.5 * S, 7 * S, 5 * S);
-    ctx.fillStyle = isHighlit ? "#9bbdd8" : "#c4c4c4"; ctx.fill(); ctx.stroke();
+      // Horizontal Arm
+      ctx.beginPath();
+      ctx.moveTo(-2*bS, 14*bS);
+      ctx.lineTo(5*bS, 12*bS);
+      ctx.lineTo(5*bS, 15*bS);
+      ctx.lineTo(-2*bS, 17*bS);
+      ctx.closePath();
+      ctx.fillStyle = "#ffffff"; ctx.fill();
+      ctx.strokeStyle = "#000000"; ctx.stroke();
+      
+      // Vertical Arm
+      ctx.beginPath();
+      ctx.moveTo(-4*bS, 0);
+      ctx.lineTo(0*bS, -1*bS);
+      ctx.lineTo(0*bS, 14*bS);
+      ctx.lineTo(-4*bS, 15*bS);
+      ctx.closePath();
+      ctx.fillStyle = "#ffffff"; ctx.fill();
+      ctx.strokeStyle = "#000000"; ctx.stroke();
 
-    // Body
-    ctx.beginPath();
-    if (ctx.roundRect) ctx.roundRect(-7 * S, -5.5 * S, 17 * S, 11 * S, 5 * S);
-    else ctx.rect(-7 * S, -5.5 * S, 17 * S, 11 * S);
-    ctx.fillStyle = isHighlit ? "#daeeff" : "#efefef"; ctx.fill();
-    ctx.strokeStyle = isHighlit ? "#5aabf0" : "#aaa"; ctx.lineWidth = 0.8; ctx.stroke();
+      ctx.restore();
 
-    // Bezel
-    ctx.beginPath(); ctx.arc(10 * S, 0, 5.5 * S, 0, Math.PI * 2);
-    ctx.fillStyle = isHighlit ? "#b8d8f0" : "#dfdfdf"; ctx.fill();
-    ctx.strokeStyle = isHighlit ? "#5aabf0" : "#aaa"; ctx.stroke();
+      // --- ROTATING CAMERA BODY ---
+      ctx.rotate(angle);
+      if (Math.cos(angle) < 0) ctx.scale(1, -1);
+      
+      // Body Cylinder
+      ctx.beginPath();
+      ctx.moveTo(-12*bS, -7*bS);
+      ctx.lineTo(8*bS, -7*bS);
+      ctx.bezierCurveTo(12*bS, -7*bS, 12*bS, 7*bS, 8*bS, 7*bS);
+      ctx.lineTo(-12*bS, 7*bS);
+      ctx.bezierCurveTo(-8*bS, 7*bS, -8*bS, -7*bS, -12*bS, -7*bS);
+      ctx.closePath();
+      ctx.fillStyle = "#ffffff"; ctx.fill();
+      ctx.strokeStyle = "#000000"; ctx.lineWidth = 1; ctx.stroke();
 
-    // Lens
-    ctx.beginPath(); ctx.arc(10 * S, 0, 3.2 * S, 0, Math.PI * 2);
-    ctx.fillStyle = "#0e0e0e"; ctx.fill();
+      // Sunshield
+      ctx.beginPath();
+      ctx.moveTo(-14*bS, -8*bS);
+      ctx.lineTo(10*bS, -8*bS);
+      ctx.bezierCurveTo(16*bS, -8*bS, 16*bS, -1*bS, 10*bS, -1*bS);
+      ctx.lineTo(-14*bS, -1*bS);
+      ctx.closePath();
+      ctx.fillStyle = "#ffffff"; ctx.fill();
+      ctx.strokeStyle = "#000000"; ctx.stroke();
+
+      // Front Face (Dark oval)
+      ctx.beginPath();
+      ctx.ellipse(8*bS, 0, 2.5*bS, 6.5*bS, 0, 0, Math.PI*2);
+      ctx.fillStyle = "#1b3039"; ctx.fill();
+      ctx.strokeStyle = "#000000"; ctx.stroke();
+
+      // Lens Outer White Ring
+      ctx.beginPath();
+      ctx.ellipse(8*bS, 0, 1.2*bS, 3.5*bS, 0, 0, Math.PI*2);
+      ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 1; ctx.stroke();
+      
+      // Lens Inner Dark Center
+      ctx.beginPath();
+      ctx.ellipse(8*bS, 0, 0.5*bS, 1.5*bS, 0, 0, Math.PI*2);
+      ctx.fillStyle = "#000000"; ctx.fill();
+
+    } else if (type === "ptz") {
+      const pS = S * 0.9;
+      
+      // --- FIXED MOUNT & ARM ---
+      ctx.save();
+      if (m.flip) ctx.scale(-1, 1);
+      
+      // Wall Plate (Left side)
+      ctx.beginPath();
+      ctx.moveTo(-10*pS, -6*pS);
+      ctx.lineTo(-10*pS, 10*pS);
+      ctx.lineTo(-14*pS, 12*pS);
+      ctx.lineTo(-14*pS, -8*pS);
+      ctx.closePath();
+      ctx.fillStyle = "#ffffff"; ctx.fill();
+      ctx.strokeStyle = "#000000"; ctx.lineWidth = 1; ctx.stroke();
+
+      // Arm
+      ctx.beginPath();
+      ctx.moveTo(-10*pS, 0);
+      ctx.lineTo(-4*pS, -2*pS);
+      ctx.lineTo(-4*pS, 2*pS);
+      ctx.lineTo(-10*pS, 4*pS);
+      ctx.closePath();
+      ctx.fillStyle = "#ffffff"; ctx.fill();
+      ctx.strokeStyle = "#000000"; ctx.stroke();
+      
+      ctx.restore();
+
+      // --- ROTATING CAMERA BODY ---
+      ctx.rotate(angle);
+      
+      // Top cap
+      ctx.beginPath();
+      ctx.moveTo(-4*pS, -3*pS);
+      ctx.lineTo(-4*pS, 3*pS);
+      ctx.lineTo(-2*pS, 3*pS);
+      ctx.lineTo(-2*pS, -3*pS);
+      ctx.fillStyle = "#ffffff"; ctx.fill();
+      ctx.strokeStyle = "#000000"; ctx.lineWidth = 1; ctx.stroke();
+
+      // Main Bell Housing
+      ctx.beginPath();
+      ctx.moveTo(-2*pS, -3*pS);
+      ctx.lineTo(-2*pS, 3*pS);  
+      ctx.bezierCurveTo(4*pS, 8*pS, 6*pS, 9*pS, 8*pS, 9*pS);
+      ctx.lineTo(8*pS, -9*pS);
+      ctx.bezierCurveTo(6*pS, -9*pS, 4*pS, -8*pS, -2*pS, -3*pS);
+      ctx.closePath();
+      ctx.fillStyle = "#ffffff"; ctx.fill();
+      ctx.strokeStyle = "#000000"; ctx.stroke();
+
+      // Lower Dome (Dark glass)
+      ctx.beginPath();
+      ctx.moveTo(8*pS, -8*pS);
+      ctx.lineTo(8*pS, 8*pS);
+      ctx.bezierCurveTo(14*pS, 8*pS, 16*pS, 4*pS, 16*pS, 0);
+      ctx.bezierCurveTo(16*pS, -4*pS, 14*pS, -8*pS, 8*pS, -8*pS);
+      ctx.closePath();
+      ctx.fillStyle = "#1a1a1a"; ctx.fill();
+      ctx.strokeStyle = "#000000"; ctx.stroke();
+
+      // Lens housing
+      ctx.beginPath();
+      ctx.roundRect(8*pS, -3*pS, 4*pS, 6*pS, 1);
+      ctx.fillStyle = "#262626"; ctx.fill();
+      
+      // Lens
+      ctx.beginPath();
+      ctx.arc(10*pS, 0, 1.8*pS, 0, Math.PI*2);
+      ctx.fillStyle = "#000000"; ctx.fill();
+
+    } else {
+      // For all other types, we rotate first
+      ctx.rotate(angle);
+
+      if (type === "dome" || type === "turret") {
+        // Top white cover (hemisphere)
+        ctx.beginPath();
+        ctx.arc(0, 0, 11 * S, 0, Math.PI * 2);
+        ctx.fillStyle = "#ffffff"; ctx.fill();
+        ctx.strokeStyle = "#000000"; ctx.lineWidth = 1; ctx.stroke();
+        
+        // Cutout for the black dome
+        ctx.beginPath();
+        ctx.arc(3 * S, 0, 8.5 * S, 0, Math.PI * 2);
+        ctx.fillStyle = "#222222"; ctx.fill();
+        ctx.strokeStyle = "#000000"; ctx.lineWidth = 1; ctx.stroke();
+        
+        // White rim
+        ctx.beginPath();
+        ctx.arc(3 * S, 0, 8.5 * S, 0, Math.PI * 2);
+        ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 1.5; ctx.stroke();
+        
+        // Inner lens housing
+        ctx.beginPath();
+        ctx.arc(4 * S, 0, 5 * S, 0, Math.PI * 2);
+        ctx.fillStyle = "#111111"; ctx.fill();
+        ctx.strokeStyle = "#000000"; ctx.lineWidth = 1; ctx.stroke();
+
+        // IR LED ring
+        for (let k = 0; k < 12; k++) {
+          const a = (k / 12) * Math.PI * 2;
+          const lx = 4 * S + Math.cos(a) * 3.8 * S;
+          const ly = Math.sin(a) * 3.8 * S;
+          ctx.beginPath();
+          ctx.arc(lx, ly, 0.6 * S, 0, Math.PI * 2);
+          ctx.fillStyle = "#dddddd"; ctx.fill();
+        }
+
+        // Center Lens
+        ctx.beginPath();
+        ctx.arc(4 * S, 0, 2 * S, 0, Math.PI * 2);
+        ctx.fillStyle = "#000000"; ctx.fill();
+        
+        // Lens glint
+        ctx.beginPath();
+        ctx.arc(4.5 * S, -0.5 * S, 0.5 * S, 0, Math.PI * 2);
+        ctx.fillStyle = "rgba(255,255,255,0.6)"; ctx.fill();
+      }
+      else if (type === "fisheye") {
+        ctx.beginPath(); ctx.arc(0, 0, 12 * S, 0, Math.PI * 2);
+        ctx.fillStyle = "#ffffff"; ctx.fill();
+        ctx.strokeStyle = "#000000"; ctx.lineWidth = 1; ctx.stroke();
     
-    // Sparkle
-    ctx.beginPath(); ctx.arc(10.8 * S, -1.1 * S, 1.1 * S, 0, Math.PI * 2);
-    ctx.fillStyle = "rgba(255,255,255,0.60)"; ctx.fill();
+        ctx.beginPath(); ctx.arc(0, 0, 8 * S, 0, Math.PI * 2);
+        ctx.strokeStyle = "#000000"; ctx.lineWidth = 1; ctx.stroke();
+    
+        ctx.beginPath(); ctx.arc(0, 0, 3.5 * S, 0, Math.PI * 2);
+        ctx.fillStyle = "#0e0e0e"; ctx.fill();
+        ctx.strokeStyle = "#000000"; ctx.stroke();
+    
+        ctx.beginPath(); ctx.arc(0, 0, 1.5 * S, 0, Math.PI * 2);
+        ctx.strokeStyle = "rgba(255,255,255,0.2)"; ctx.stroke();
+      }
+      else {
+        // BOX / THERMAL / OTHER
+        const shift = 14 * S;
+        ctx.translate(-shift, 0);
+    
+        // Mount
+        ctx.beginPath(); ctx.arc(-14 * S, 0, 5 * S, 0, Math.PI * 2);
+        ctx.fillStyle = "#ffffff"; ctx.fill();
+        ctx.strokeStyle = "#000000"; ctx.lineWidth = 1; ctx.stroke();
+    
+        // Neck
+        ctx.beginPath();
+        ctx.roundRect(-14 * S, -2.5 * S, 7 * S, 5 * S, 1.5);
+        ctx.fillStyle = "#ffffff"; ctx.fill();
+        ctx.strokeStyle = "#000000"; ctx.lineWidth = 1; ctx.stroke();
+    
+        // Main barrel body
+        ctx.beginPath();
+        ctx.roundRect(-7 * S, -5.5 * S, 17 * S, 11 * S, 5 * S);
+        ctx.fillStyle = "#ffffff"; ctx.fill();
+        ctx.strokeStyle = "#000000"; ctx.lineWidth = 1; ctx.stroke();
+    
+        // Front bezel ring
+        ctx.beginPath(); ctx.arc(10 * S, 0, 5.5 * S, 0, Math.PI * 2);
+        ctx.fillStyle = "#ffffff"; ctx.fill();
+        ctx.strokeStyle = "#000000"; ctx.lineWidth = 1; ctx.stroke();
+    
+        // Lens
+        ctx.beginPath(); ctx.arc(10 * S, 0, 3.2 * S, 0, Math.PI * 2);
+        ctx.fillStyle = "#0e0e0e"; ctx.fill();
+    
+        // Lens reflection
+        ctx.beginPath(); ctx.arc(10.8 * S, -1.1 * S, 1.1 * S, 0, Math.PI * 2);
+        ctx.fillStyle = "rgba(255,255,255,0.60)"; ctx.fill();
+      }
+    }
 
-    // Recording Indicator LED Dot (rotated with body)
+    // Recording LED dot
     const showRec = localStorage.getItem("miradorai_show_rec_ind") !== "false";
     if (online && showRec) {
       ctx.beginPath();
-      ctx.arc(-14 * S, -6 * S, 2 * S, 0, Math.PI * 2);
+      if (type === "bullet" || type === "ptz" || type === "box" || type === "thermal") {
+        ctx.arc(-14 * S, -6 * S, 2 * S, 0, Math.PI * 2);
+      } else {
+        ctx.arc(-8 * S, -8 * S, 2 * S, 0, Math.PI * 2);
+      }
       ctx.fillStyle = "#ff4d4f";
       ctx.fill();
       ctx.strokeStyle = "#ffffff";
@@ -339,7 +575,7 @@ export function renderMapViewSnapshot(ctx, options) {
     // Number label
     ctx.save();
     ctx.translate(m.x, m.y);
-    ctx.fillStyle = online ? "#fff" : "#aaa";
+    ctx.fillStyle = online ? "#000000" : "#666666";
     ctx.font = `bold 8px monospace`;
     ctx.textAlign = "center"; ctx.textBaseline = "middle";
     ctx.fillText((i + 1).toString(), -2 * S, 0);

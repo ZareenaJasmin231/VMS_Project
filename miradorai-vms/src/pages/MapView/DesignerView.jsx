@@ -33,7 +33,7 @@ async function apiSaveLayout({ placed, zones, ppm, floorPlan = null }) {
         map_id: MAP_ID,
         floor_id: FLOOR_ID,
         placed: placed.map(p => ({ id: p.id, x: p.x, y: p.y, direction: p.direction, camera: p.camera, ...(p.labelOffset ? { labelOffset: p.labelOffset } : {}) })),
-        zones: zones.map(z => ({ id: z.id, name: z.name, color: z.color, polygon: z.polygon })),
+        zones: zones.map(z => ({ id: z.id, name: z.name, color: z.color, polygon: z.polygon, isShape: z.isShape || false, isBoomBarrier: z.isBoomBarrier || false })),
         ppm,
         floor_plan: floorPlan,
       }),
@@ -48,7 +48,7 @@ async function apiSaveZones(zones) {
     await fetch(`${API}/api/designer/zones?map_id=${MAP_ID}&floor_id=${FLOOR_ID}`, {
       method: "POST",
       headers: getAuthHeaders(),
-      body: JSON.stringify(zones.map(z => ({ id: z.id, name: z.name, color: z.color, polygon: z.polygon }))),
+      body: JSON.stringify(zones.map(z => ({ id: z.id, name: z.name, color: z.color, polygon: z.polygon, isShape: z.isShape || false, isBoomBarrier: z.isBoomBarrier || false }))),
     });
   } catch (e) {
     console.error("[DESIGNER] ❌ Zone save failed", e);
@@ -123,6 +123,8 @@ const TYPE_COLORS = {
 
 };
 const ZONE_COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#ec4899", "#8b5cf6", "#f97316", "#06b6d4"];
+const SHAPE_NAMES = new Set(["Rectangle","Circle","Triangle","Hexagon","Diamond","Star","Cross","Arrow","L-Shape","T-Shape","U-Shape","Boom Barrier"]);
+function isShapeZone(zone) { return !!(zone.isShape || zone.isBoomBarrier || SHAPE_NAMES.has(zone.name)); }
 
 // ── Point-in-polygon helper ───────────────────────────────────────────────────
 function pointInPolygon(px, py, polygon) {
@@ -945,6 +947,7 @@ function drawPlacedCamera(ctx, p, ppm, hovering, selected, zonesRef, activeZoneI
     // ── Zone clip — always clip to the camera's own zone ─────────────
     let clipping = false;
     let clipZone = null;
+    const boomBarriers = (zonesRef?.current || []).filter(z => z.isBoomBarrier);
 
     if (zonesRef?.current) {
       if (activeZoneIdRef?.current) {
@@ -956,7 +959,7 @@ function drawPlacedCamera(ctx, p, ppm, hovering, selected, zonesRef, activeZoneI
         }
       } else {
         const containedZones = zonesRef.current.filter(
-          z => z.polygon?.length >= 3 && pointInPolygon(x, y, z.polygon)
+          z => z.polygon?.length >= 3 && pointInPolygon(x, y, z.polygon) && !z.isBoomBarrier
         );
         if (containedZones.length > 0) {
           containedZones.sort((a, b) => getPolygonArea(a.polygon, ppm) - getPolygonArea(b.polygon, ppm));
@@ -966,12 +969,25 @@ function drawPlacedCamera(ctx, p, ppm, hovering, selected, zonesRef, activeZoneI
     }
 
     const startClip = () => {
-      if (clipZone && clipZone.polygon.length >= 3) {
+      if ((clipZone && clipZone.polygon.length >= 3) || boomBarriers.length > 0) {
         ctx.save();
         ctx.beginPath();
-        let polyToClip = clipZone.polygon;
+        let basePoly = clipZone?.polygon;
+        
+        if (!basePoly) {
+           basePoly = [];
+           const R = radius + 10;
+           for(let i=0; i<=16; i++){
+               const a = angle - halfRad + (2*halfRad * (i/16));
+               basePoly.push({ x: originX + Math.cos(a)*R, y: originY + Math.sin(a)*R });
+           }
+           basePoly.push({x: originX, y: originY});
+        }
+
+        let polyToClip = basePoly;
         try {
-          const visPoly = CctvCalc.computeVisibilityPolygon({ x: originX, y: originY }, clipZone.polygon);
+          const obstaclesPolys = boomBarriers.map(z => z.polygon);
+          const visPoly = CctvCalc.computeVisibilityPolygon({ x: originX, y: originY }, basePoly, obstaclesPolys);
           if (visPoly && visPoly.length >= 3) {
             polyToClip = visPoly;
           }
@@ -1971,6 +1987,62 @@ export default function DesignerView({ onBack }) {
     };
   }, []);
 
+  const addShapeToCanvas = (shapeType) => {
+    const cx = ((canvasRef.current?.width || 800) / 2 - offsetRef.current.x) / scaleRef.current;
+    const cy = ((canvasRef.current?.height || 600) / 2 - offsetRef.current.y) / scaleRef.current;
+    const S = 50; // Size factor
+
+    let polygon = [];
+    if (shapeType === "Rectangle") {
+      polygon = [{x: cx-S, y: cy-S}, {x: cx+S, y: cy-S}, {x: cx+S, y: cy+S}, {x: cx-S, y: cy+S}];
+    } else if (shapeType === "Circle") {
+      for (let i = 0; i < 16; i++) {
+        const a = (i / 16) * Math.PI * 2;
+        polygon.push({x: cx + Math.cos(a)*S, y: cy + Math.sin(a)*S});
+      }
+    } else if (shapeType === "Triangle") {
+      polygon = [{x: cx, y: cy-S}, {x: cx+S, y: cy+S}, {x: cx-S, y: cy+S}];
+    } else if (shapeType === "Diamond") {
+      polygon = [{x: cx, y: cy-S}, {x: cx+S, y: cy}, {x: cx, y: cy+S}, {x: cx-S, y: cy}];
+    } else if (shapeType === "Star") {
+      for (let i = 0; i < 10; i++) {
+        const a = (i / 10) * Math.PI * 2 - Math.PI/2;
+        const r = i % 2 === 0 ? S : S/2.5;
+        polygon.push({x: cx + Math.cos(a)*r, y: cy + Math.sin(a)*r});
+      }
+    } else if (shapeType === "L-Shape") {
+      polygon = [{x: cx-S/2, y: cy-S}, {x: cx+S/2, y: cy-S}, {x: cx+S/2, y: cy+S/2}, {x: cx+S, y: cy+S/2}, {x: cx+S, y: cy+S}, {x: cx-S/2, y: cy+S}];
+    } else if (shapeType === "T-Shape") {
+      polygon = [{x: cx-S, y: cy-S}, {x: cx+S, y: cy-S}, {x: cx+S, y: cy-S/2}, {x: cx+S/3, y: cy-S/2}, {x: cx+S/3, y: cy+S}, {x: cx-S/3, y: cy+S}, {x: cx-S/3, y: cy-S/2}, {x: cx-S, y: cy-S/2}];
+    } else if (shapeType === "U-Shape") {
+      polygon = [{x: cx-S, y: cy-S}, {x: cx-S/2, y: cy-S}, {x: cx-S/2, y: cy+S/2}, {x: cx+S/2, y: cy+S/2}, {x: cx+S/2, y: cy-S}, {x: cx+S, y: cy-S}, {x: cx+S, y: cy+S}, {x: cx-S, y: cy+S}];
+    } else if (shapeType === "Cross") {
+      polygon = [{x: cx-S/3, y: cy-S}, {x: cx+S/3, y: cy-S}, {x: cx+S/3, y: cy-S/3}, {x: cx+S, y: cy-S/3}, {x: cx+S, y: cy+S/3}, {x: cx+S/3, y: cy+S/3}, {x: cx+S/3, y: cy+S}, {x: cx-S/3, y: cy+S}, {x: cx-S/3, y: cy+S/3}, {x: cx-S, y: cy+S/3}, {x: cx-S, y: cy-S/3}, {x: cx-S/3, y: cy-S/3}];
+    } else if (shapeType === "Arrow") {
+      polygon = [{x: cx-S/2, y: cy+S/2}, {x: cx+S/2, y: cy+S/2}, {x: cx+S/2, y: cy}, {x: cx+S, y: cy}, {x: cx, y: cy-S}, {x: cx-S, y: cy}, {x: cx-S/2, y: cy}];
+    } else if (shapeType === "Hexagon") {
+      for (let i = 0; i < 6; i++) {
+        const a = (i / 6) * Math.PI * 2;
+        polygon.push({x: cx + Math.cos(a)*S, y: cy + Math.sin(a)*S});
+      }
+    } else if (shapeType === "Boom Barrier") {
+      polygon = [{x: cx-S*2, y: cy-S/4}, {x: cx+S*2, y: cy-S/4}, {x: cx+S*2, y: cy+S/4}, {x: cx-S*2, y: cy+S/4}];
+    }
+
+    const newZone = {
+      id: "zone_" + Date.now(),
+      name: shapeType,
+      color: shapeType === "Boom Barrier" ? "#ef4444" : "#8b5cf6",
+      polygon,
+      isShape: shapeType !== "Boom Barrier",
+      isBoomBarrier: shapeType === "Boom Barrier"
+    };
+
+    const newZones = [...zonesRef.current, newZone];
+    zonesRef.current = newZones;
+    setZones(newZones);
+    draw();
+  };
 
   const [showHeatmap, setShowHeatmap] = useState(false);
   const [hasFloor, setHasFloor] = useState(false);
@@ -2079,6 +2151,21 @@ export default function DesignerView({ onBack }) {
   }, [apiSaveLayout]);
 
   // ── Canvas draw ───────────────────────────────────────────────────────────
+  const getStripePattern = (ctx) => {
+    if (ctx._stripePattern) return ctx._stripePattern;
+    const pCvs = document.createElement("canvas");
+    pCvs.width = 20; pCvs.height = 20;
+    const pCtx = pCvs.getContext("2d");
+    pCtx.fillStyle = "#ef4444"; pCtx.fillRect(0,0,20,20);
+    pCtx.beginPath(); pCtx.moveTo(0,20); pCtx.lineTo(20,0);
+    pCtx.moveTo(-10,10); pCtx.lineTo(10,-10);
+    pCtx.moveTo(10,30); pCtx.lineTo(30,10);
+    pCtx.lineWidth = 10; pCtx.strokeStyle = "#ffffff"; pCtx.stroke();
+    const pat = ctx.createPattern(pCvs, 'repeat');
+    ctx._stripePattern = pat;
+    return pat;
+  };
+
   const draw = useCallback(() => {
     const cvs = canvasRef.current; if (!cvs) return;
     const wrap = cvs.parentElement; if (!wrap) return;
@@ -2261,10 +2348,25 @@ export default function DesignerView({ onBack }) {
       ctx.beginPath();
       zone.polygon.forEach((p, i) => { if (i === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y); });
       ctx.closePath();
-      // ctx.fillStyle = zone.color + (isActive ? "28" : "14"); ctx.fill();
-      ctx.strokeStyle = zone.color + (isActive ? "ff" : "aa");
-      ctx.lineWidth = isEditingZone ? 2.5 / sc : (isActive ? 2.5 : 1.5);
-      if (!isActive) ctx.setLineDash([6, 4]);
+      ctx.closePath();
+      
+      if (zone.isBoomBarrier) {
+        ctx.fillStyle = getStripePattern(ctx);
+        ctx.fill();
+        ctx.strokeStyle = "#000000";
+        ctx.lineWidth = isEditingZone ? 3.5 / sc : (isActive ? 3.5 : 2.5);
+      } else if (zone.isShape) {
+        ctx.fillStyle = zone.color + "66"; // translucent fill
+        ctx.fill();
+        ctx.strokeStyle = zone.color + (isActive ? "ff" : "aa");
+        ctx.lineWidth = isEditingZone ? 2.5 / sc : (isActive ? 2.5 : 1.5);
+      } else {
+        // default zone - no fill
+        ctx.strokeStyle = zone.color + (isActive ? "ff" : "aa");
+        ctx.lineWidth = isEditingZone ? 2.5 / sc : (isActive ? 2.5 : 1.5);
+      }
+
+      if (!isActive && !zone.isBoomBarrier) ctx.setLineDash([6, 4]);
       ctx.stroke(); ctx.setLineDash([]);
       zone.polygon.forEach((p, i) => {
         ctx.beginPath(); ctx.arc(p.x, p.y, isEditingZone ? 6 / sc : (isActive ? 4 : 3), 0, Math.PI * 2);
@@ -4252,8 +4354,8 @@ export default function DesignerView({ onBack }) {
   // ── Clear all cameras from the floor (keeps floor plan image) ──────────────
   function clearFloorCameras() {
     showConfirm(
-      "Clear All Cameras",
-      "This will remove all placed cameras from the floor. The floor plan image will be kept. Do you want to proceed?",
+      "Clear Layout",
+      "This will remove all placed cameras AND shapes from the floor. The floor plan image will be kept. Do you want to proceed?",
       () => {
         recordState();
         placedRef.current = [];
@@ -4261,8 +4363,15 @@ export default function DesignerView({ onBack }) {
         setSelectedIdx(null);
         setHighlightedCamId(null);
         highlightedCamIdRef.current = null;
+        // Also clear all shapes and zones
+        const updatedZones = [];
+        zonesRef.current = updatedZones;
+        setZones(updatedZones);
+        setActiveZoneId(null);
+        activeZoneIdRef.current = null;
         draw();
-        apiSaveLayout({ placed: [], zones: zonesRef.current, ppm: ppmRef.current });
+        apiSaveLayout({ placed: [], zones: [], ppm: ppmRef.current });
+        apiSaveZones([]);
       }
     );
   }
@@ -5433,10 +5542,17 @@ function buildExportCanvas(exportMode = "design", company = "mirador", overlayOp
                         if (isDetectingZones) return;
                         setIsDetectingZones(true);
                         try {
+                          const activeSlide = slides.find(s => s.id === activeSlideId);
+                          const currentFloorPlan = activeSlide?.floorPlan || null;
                           const r = await fetch(`${API}/api/designer/detect-zones`, {
                             method: "POST",
                             headers: getAuthHeaders(),
-                            body: JSON.stringify({ map_id: MAP_ID, floor_id: FLOOR_ID, source: "designer" })
+                            body: JSON.stringify({
+                              map_id: MAP_ID,
+                              floor_id: FLOOR_ID,
+                              source: "designer",
+                              floor_plan: currentFloorPlan
+                            })
                           });
                           if (!r.ok) {
                             const errData = await r.json();
@@ -5717,6 +5833,22 @@ function buildExportCanvas(exportMode = "design", company = "mirador", overlayOp
                       </button>
                     </div>
                   )}
+
+                  <hr style={{ border: 0, borderTop: "1px solid rgba(255,255,255,0.1)", margin: "4px 0" }} />
+
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,0.85)", textTransform: "uppercase" }}>Shapes & Obstacles</div>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+                      {["Rectangle", "Circle", "Triangle", "Hexagon", "Diamond", "Star", "Cross", "Arrow", "L-Shape", "T-Shape"].map(shape => (
+                        <button key={shape} className="dv-tbtn" onClick={() => addShapeToCanvas(shape)} style={{ padding: "4px 6px", fontSize: 11, background: "rgba(255,255,255,0.05)", border: '1px solid rgba(255,255,255,0.1)', borderRadius: 4 }} title={`Add ${shape}`}>
+                          + {shape}
+                        </button>
+                      ))}
+                    </div>
+                    <button className="dv-tbtn" onClick={() => addShapeToCanvas("Boom Barrier")} style={{ padding: "6px 8px", width: "100%", justifyContent: "center", background: "#ef444433", border: '1px solid #ef4444', color: "#fca5a5", borderRadius: 4 }} title="Add Boom Barrier (Blocks camera FOV)">
+                      + Boom Barrier
+                    </button>
+                  </div>
 
                   <hr style={{ border: 0, borderTop: "1px solid rgba(255,255,255,0.1)", margin: "4px 0" }} />
 
@@ -6589,10 +6721,10 @@ function buildExportCanvas(exportMode = "design", company = "mirador", overlayOp
             return (
               <div key={`edit_tb_${z.id}`} style={{
                 position: "absolute", left: screenX, top: screenY,
-                transform: "translate(-100%, -100%)", display: "flex", gap: "8px",
-                background: "rgba(15, 20, 28, 0.9)", padding: "6px 10px",
-                borderRadius: "8px", border: `1px solid ${z.color}`,
-                boxShadow: "0 4px 12px rgba(0,0,0,0.5)", zIndex: 90, pointerEvents: "auto",
+                transform: "translate(-100%, -100%)", display: "flex", gap: "2px",
+                background: "rgba(15, 20, 28, 0.9)", padding: "2px 4px",
+                borderRadius: "3px", border: `1px solid ${z.color}`,
+                boxShadow: "0 2px 6px rgba(0,0,0,0.5)", zIndex: 90, pointerEvents: "auto",
                 alignItems: "center"
               }}>
                 <button
@@ -6601,9 +6733,9 @@ function buildExportCanvas(exportMode = "design", company = "mirador", overlayOp
                   title={isEditing ? "Done Editing" : "Edit Zone"}
                 >
                   {isEditing ? (
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                    <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
                   ) : (
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+                    <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
                   )}
                 </button>
                 {isEditing && (
@@ -6637,7 +6769,7 @@ function buildExportCanvas(exportMode = "design", company = "mirador", overlayOp
                       style={{ background: "none", border: "none", color: "#3b82f6", cursor: "ew-resize", display: "flex", alignItems: "center" }}
                       title="Drag to Scale"
                     >
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg>
+                      <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg>
                     </div>
                   </>
                 )}
@@ -7114,13 +7246,35 @@ function buildExportCanvas(exportMode = "design", company = "mirador", overlayOp
           }}
           onClick={e => e.stopPropagation()}
         >
-          <button className="dv-ctx-item" onClick={() => handleAutomateClick(contextMenu.zone)}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14" style={{ marginRight: 6 }}>
-              <circle cx="12" cy="12" r="3" />
-              <path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
-            </svg>
-            Automate Placement
-          </button>
+          {/* Show Remove option for shapes and boom barriers */}
+          {isShapeZone(contextMenu.zone) && (
+            <button
+              className="dv-ctx-item"
+              style={{ color: "#f87171" }}
+              onClick={() => {
+                handleDeleteZone(contextMenu.zone.id);
+                setContextMenu(null);
+              }}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14" style={{ marginRight: 6 }}>
+                <polyline points="3 6 5 6 21 6" />
+                <path d="M19 6l-1 14H6L5 6" />
+                <path d="M10 11v6M14 11v6" />
+                <path d="M9 6V4h6v2" />
+              </svg>
+              Remove Shape
+            </button>
+          )}
+          {/* Show Automate Placement only for real zones (not shapes/boom barriers) */}
+          {!isShapeZone(contextMenu.zone) && (
+            <button className="dv-ctx-item" onClick={() => handleAutomateClick(contextMenu.zone)}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14" style={{ marginRight: 6 }}>
+                <circle cx="12" cy="12" r="3" />
+                <path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
+              </svg>
+              Automate Placement
+            </button>
+          )}
         </div>
       )}
 

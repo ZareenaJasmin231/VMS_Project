@@ -12,6 +12,9 @@
  * drawPlacedCamera in DesignerView is now updated to use the same formula.
  */
 
+import { computeVisibilityPolygon } from "./CctvCalculators";
+
+
 const S              = 0.62;
 const ORIGIN_OFFSET  = 1.5 * S;   // 0.93 — matches MapCanvas and fixed drawPlacedCamera
 
@@ -118,12 +121,27 @@ export function drawHeatmapToContext(
 
   // Pre-cache the containing zone for each marker to maximize performance
   const markerZones = new Map();
+  const markerVisPolys = new Map();
   if (allZones.length > 0) {
     for (const marker of markers) {
       const containedZones = allZones.filter(z => z.polygon?.length >= 3 && pointInPolygon(marker.x, marker.y, z.polygon));
       if (containedZones.length > 0) {
         containedZones.sort((a, b) => getPolygonArea(a.polygon) - getPolygonArea(b.polygon));
-        markerZones.set(marker, containedZones[0]);
+        const mZone = containedZones[0];
+        markerZones.set(marker, mZone);
+
+        const angle = (marker.direction || 0) * (Math.PI / 180);
+        const ox = marker.x + Math.cos(angle) * ORIGIN_OFFSET;
+        const oy = marker.y + Math.sin(angle) * ORIGIN_OFFSET;
+        try {
+          const obstaclesPolys = allZones.filter(z => z.isBoomBarrier).map(z => z.polygon);
+          const visPoly = computeVisibilityPolygon({ x: ox, y: oy }, mZone.polygon, obstaclesPolys);
+          if (visPoly && visPoly.length >= 3) {
+            markerVisPolys.set(marker, visPoly);
+          }
+        } catch (e) {
+          console.error("Heatmap vis poly error", e);
+        }
       }
     }
   }
@@ -148,7 +166,11 @@ export function drawHeatmapToContext(
 
         // Only count coverage if the pixel is in the same zone where the camera is placed
         const mZone = markerZones.get(marker);
-        if (mZone && !pointInPolygon(imgX, imgY, mZone.polygon)) continue;
+        if (mZone) {
+          const visPoly = markerVisPolys.get(marker);
+          const polyToCheck = visPoly || mZone.polygon;
+          if (!pointInPolygon(imgX, imgY, polyToCheck)) continue;
+        }
 
         const cam = cameras.find(c => c.id === marker.camId);
         if (cam?.status === "online") onlineCoverage++;

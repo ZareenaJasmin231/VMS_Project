@@ -633,6 +633,7 @@ function CameraCell({ device, streamMode, onFullscreen, alertCount, onBadgeClick
   // to avoid the initial 400 Bad Request error. The player will handle fallback.
   const baseStreamKey = device.ome_stream || device.stream_key || device.live_stream || (device.ip ? device.ip.replace(/\./g, "_") : "");
   const streamKeyToUse = device.live_codec === "H.265" ? `${baseStreamKey}_h264` : baseStreamKey;
+  const isPtz = device.ptz === true || device.ptz === "Yes" || String(device.ptz).toLowerCase() === "yes";
 
   return (
     <div
@@ -663,18 +664,20 @@ function CameraCell({ device, streamMode, onFullscreen, alertCount, onBadgeClick
           <span className="lv-cell__ip">{device.ip}</span>
 
           {/* PTZ Toggle Button */}
-          <button
-            className={`lv-ptz-toggle-btn ${ptzOpen ? "active" : ""}`}
-            onClick={(e) => { e.stopPropagation(); setPtzOpen((v) => !v); }}
-            title={ptzOpen ? "Hide PTZ Controls" : "Show PTZ Controls"}
-            type="button"
-          >
-            {/* PTZ crosshair icon */}
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="13" height="13">
-              <circle cx="12" cy="12" r="3"/>
-              <path d="M12 2v4M12 18v4M2 12h4M18 12h4"/>
-            </svg>
-          </button>
+          {isPtz && (
+            <button
+              className={`lv-ptz-toggle-btn ${ptzOpen ? "active" : ""}`}
+              onClick={(e) => { e.stopPropagation(); setPtzOpen((v) => !v); }}
+              title={ptzOpen ? "Hide PTZ Controls" : "Show PTZ Controls"}
+              type="button"
+            >
+              {/* PTZ crosshair icon */}
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="13" height="13">
+                <circle cx="12" cy="12" r="3"/>
+                <path d="M12 2v4M12 18v4M2 12h4M18 12h4"/>
+              </svg>
+            </button>
+          )}
 
           <button
             className="lv-cell__fs-btn"
@@ -708,7 +711,7 @@ function CameraCell({ device, streamMode, onFullscreen, alertCount, onBadgeClick
             )}
             <MaskOverlay ip={device.ip} />
             {/* Inline PTZ Panel */}
-            {ptzOpen && (
+            {isPtz && ptzOpen && (
               <PTZControls
                 camera={device}
                 onClose={() => setPtzOpen(false)}
@@ -878,6 +881,7 @@ export default function LiveViewPage() {
   const [fsLive,       setFsLive]       = useState(false);
   const [fsStreamMode, setFsStreamMode] = useState(streamMode);
   const [fsPtzOpen,    setFsPtzOpen]    = useState(false);
+  const isFsPtz = fsDevice?.ptz === true || fsDevice?.ptz === "Yes" || String(fsDevice?.ptz).toLowerCase() === "yes";
 
   useEffect(() => {
     setFsStreamMode(streamMode);
@@ -1571,18 +1575,20 @@ export default function LiveViewPage() {
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                 {/* PTZ toggle in fullscreen */}
-                <button
-                  className={`lv-ptz-toggle-btn ${fsPtzOpen ? "active" : ""}`}
-                  onClick={() => setFsPtzOpen((v) => !v)}
-                  title={fsPtzOpen ? "Hide PTZ Controls" : "PTZ Controls"}
-                  type="button"
-                  style={{ width: 32, height: 32 }}
-                >
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15">
-                    <circle cx="12" cy="12" r="3"/>
-                    <path d="M12 2v4M12 18v4M2 12h4M18 12h4"/>
-                  </svg>
-                </button>
+                {isFsPtz && (
+                  <button
+                    className={`lv-ptz-toggle-btn ${fsPtzOpen ? "active" : ""}`}
+                    onClick={() => setFsPtzOpen((v) => !v)}
+                    title={fsPtzOpen ? "Hide PTZ Controls" : "PTZ Controls"}
+                    type="button"
+                    style={{ width: 32, height: 32 }}
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15">
+                      <circle cx="12" cy="12" r="3"/>
+                      <path d="M12 2v4M12 18v4M2 12h4M18 12h4"/>
+                    </svg>
+                  </button>
+                )}
                 <button
                   className="lv-fullscreen-overlay__exit"
                   onClick={exitFullscreen}
@@ -1613,7 +1619,7 @@ export default function LiveViewPage() {
               )}
               <MaskOverlay ip={fsDevice.ip} />
               {/* PTZ panel in fullscreen */}
-              {fsPtzOpen && (
+              {isFsPtz && fsPtzOpen && (
                 <PTZControls
                   camera={fsDevice}
                   onClose={() => setFsPtzOpen(false)}

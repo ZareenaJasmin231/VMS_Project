@@ -1913,12 +1913,18 @@ export default function MapViewPage() {
                       setModesDropdownOpen(false);
                       if (isDetectingZones) return;
                       const floorId = floors[activeFloor]?.id || "floor_1";
+                      const currentFloorPlan = floors[activeFloor]?.imageDataUrl || null;
                       setIsDetectingZones(true);
                       try {
                         const r = await fetch(`${API}/api/designer/detect-zones`, {
                           method: "POST",
                           headers: getAuthHeaders(),
-                          body: JSON.stringify({ map_id: MAP_ID, floor_id: floorId, source: "map" })
+                          body: JSON.stringify({
+                            map_id: MAP_ID,
+                            floor_id: floorId,
+                            source: "map",
+                            floor_plan: currentFloorPlan
+                          })
                         });
                         if (!r.ok) {
                           const errData = await r.json();

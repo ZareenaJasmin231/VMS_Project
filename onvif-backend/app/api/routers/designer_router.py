@@ -52,9 +52,10 @@ class FloorPlanRequest(BaseModel):
 
 
 class ZoneDetectRequest(BaseModel):
-    map_id:   Optional[str] = "default"
-    floor_id: Optional[str] = "floor_1"
-    source:   Optional[str] = "designer"
+    map_id:     Optional[str] = "default"
+    floor_id:   Optional[str] = "floor_1"
+    source:     Optional[str] = "designer"
+    floor_plan: Optional[str] = None
 
 
 
@@ -350,17 +351,33 @@ def detect_zones(req: ZoneDetectRequest):
     Retrieves the saved floor plan for the given map + floor,
     detects room zones using OpenCV, and returns the list of proposed zones.
     """
-    floor_plan = None
+    floor_plan = req.floor_plan
     
-    if req.source == "designer":
-        doc = designer_col.find_one(
-            {"map_id": req.map_id, "floor_id": req.floor_id},
-            {"_id": 0, "floor_plan": 1}
-        )
-        if doc and doc.get("floor_plan"):
-            floor_plan = doc.get("floor_plan")
-            
-        if not floor_plan:
+    if not floor_plan:
+        if req.source == "designer":
+            doc = designer_col.find_one(
+                {"map_id": req.map_id, "floor_id": req.floor_id},
+                {"_id": 0, "floor_plan": 1}
+            )
+            if doc and doc.get("floor_plan"):
+                floor_plan = doc.get("floor_plan")
+                
+            if not floor_plan:
+                maps_col = _db["map_layouts"]
+                floor_doc = maps_col.find_one(
+                    {"map_id": req.map_id, "doc_type": "floor", "floor_id": req.floor_id},
+                    {"_id": 0, "imageDataUrl": 1}
+                )
+                if floor_doc and floor_doc.get("imageDataUrl"):
+                    floor_plan = floor_doc.get("imageDataUrl")
+                elif req.floor_id == "floor_1":
+                    legacy_doc = maps_col.find_one(
+                        {"map_id": req.map_id},
+                        {"_id": 0, "floor_plan": 1}
+                    )
+                    if legacy_doc and legacy_doc.get("floor_plan"):
+                        floor_plan = legacy_doc.get("floor_plan")
+        else:
             maps_col = _db["map_layouts"]
             floor_doc = maps_col.find_one(
                 {"map_id": req.map_id, "doc_type": "floor", "floor_id": req.floor_id},
@@ -368,42 +385,27 @@ def detect_zones(req: ZoneDetectRequest):
             )
             if floor_doc and floor_doc.get("imageDataUrl"):
                 floor_plan = floor_doc.get("imageDataUrl")
-            else:
+            elif req.floor_id == "floor_1":
                 legacy_doc = maps_col.find_one(
                     {"map_id": req.map_id},
                     {"_id": 0, "floor_plan": 1}
                 )
                 if legacy_doc and legacy_doc.get("floor_plan"):
                     floor_plan = legacy_doc.get("floor_plan")
-    else:
-        maps_col = _db["map_layouts"]
-        floor_doc = maps_col.find_one(
-            {"map_id": req.map_id, "doc_type": "floor", "floor_id": req.floor_id},
-            {"_id": 0, "imageDataUrl": 1}
-        )
-        if floor_doc and floor_doc.get("imageDataUrl"):
-            floor_plan = floor_doc.get("imageDataUrl")
-        else:
-            legacy_doc = maps_col.find_one(
-                {"map_id": req.map_id},
-                {"_id": 0, "floor_plan": 1}
-            )
-            if legacy_doc and legacy_doc.get("floor_plan"):
-                floor_plan = legacy_doc.get("floor_plan")
-                
-        if not floor_plan:
-            doc = designer_col.find_one(
-                {"map_id": req.map_id, "floor_id": req.floor_id},
-                {"_id": 0, "floor_plan": 1}
-            )
-            if doc and doc.get("floor_plan"):
-                floor_plan = doc.get("floor_plan")
+                    
+            if not floor_plan:
+                doc = designer_col.find_one(
+                    {"map_id": req.map_id, "floor_id": req.floor_id},
+                    {"_id": 0, "floor_plan": 1}
+                )
+                if doc and doc.get("floor_plan"):
+                    floor_plan = doc.get("floor_plan")
 
     if not floor_plan:
         raise HTTPException(status_code=400, detail="No floor plan uploaded for this map and floor")
         
     try:
-        from utils.zone_detection import detect_zones_from_base64
+        from app.utils.zone_detection import detect_zones_from_base64
         detected = detect_zones_from_base64(floor_plan)
         return {"success": True, "zones": detected}
     except Exception as e:
