@@ -6402,7 +6402,7 @@ function buildExportCanvas(exportMode = "design", company = "mirador", overlayOp
             top: 0,
             bottom: 0,
             right: inspectorExpanded ? 280 : 48,
-            zIndex: 9,
+            zIndex: 109,
             boxShadow: "-8px 0 24px rgba(0,0,0,0.35)",
             transition: "right 0.3s cubic-bezier(0.4, 0, 0.2, 1)"
           }}>

@@ -1748,7 +1748,7 @@
   background: rgba(22, 28, 40, 0.65);
   backdrop-filter: blur(12px);
   border-left: 1px solid rgba(46, 61, 85, 0.4);
-  z-index: 10;
+  z-index: 110;
   transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   box-shadow: -8px 0 32px rgba(0, 0, 0, 0.4);
   overflow: visible;
@@ -1800,7 +1800,7 @@
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  z-index: 11;
+  z-index: 111;
   box-shadow: -4px 4px 12px rgba(0, 0, 0, 0.3);
   transition: all 0.2s ease;
   padding: 6px 0;
