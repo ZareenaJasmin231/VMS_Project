@@ -53,6 +53,17 @@ async def analytics_poll_loop(ip: str, port: int, username: str, password: str, 
 
     while True:
         try:
+            from app.services.license_manager import license_manager
+            from app.core.database import analytics_subs_col
+
+            # Enforce max analytics modules limit
+            max_analytics = license_manager.get_max_analytics()
+            active_count = analytics_subs_col.count_documents({"enabled": True}) if analytics_subs_col is not None else 0
+            if active_count > max_analytics:
+                print(f"[ANALYTICS] ⚠️ License limit exceeded: active={active_count}, max={max_analytics}. Suspending poll loop for {ip}.")
+                await asyncio.sleep(30)
+                continue
+
             if is_dahua:
                 result = await asyncio.to_thread(
                     pull_dahua_events,
@@ -68,10 +79,17 @@ async def analytics_poll_loop(ip: str, port: int, username: str, password: str, 
 
             if result["success"] and result["events"]:
                 for ev in result["events"]:
+                    event_type = ev.get("event_type", "Object Detection")
+                    
+                    # Enforce is_analytics_enabled limit for this specific type of event
+                    if not license_manager.is_analytics_enabled(event_type):
+                        print(f"[ANALYTICS] ⚠️ Skipped event type: {event_type} on {ip} (not licensed)")
+                        continue
+
                     alert = {
                         "ip": ip,
                         "serial": ip.replace(".", "_"),
-                        "type":        ev.get("event_type", "Object Detection"),
+                        "type":        event_type,
                         "scenario":    ev.get("scenario_name", "Detect Any Object"),
                         "status": "Active",
                         "source": source_name,

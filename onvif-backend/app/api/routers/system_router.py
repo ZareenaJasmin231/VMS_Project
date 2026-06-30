@@ -1,5 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException
-from app.core.security import verify_token
+from fastapi import APIRouter, Depends, HTTPException, File, UploadFile
+from app.core.security import verify_token, require_admin
+from app.services.license_manager import license_manager
 import json
 import asyncio
 from urllib.parse import urlparse
@@ -127,11 +128,25 @@ def health():
     import os
     from monitoring.scheduler import scheduler
     watchdog_active = scheduler.thread.is_alive() if scheduler.thread else False
+    
+    days_left = license_manager.get_days_until_expiry()
+    max_cams = license_manager.get_max_cameras()
+    active_cams = cameras_col.count_documents({"enabled": True}) if cameras_col is not None else len([d for d in devices if d.get("enabled") is True])
+
     return {
         "status": "ok",
         "version": os.environ.get("APP_VERSION", "1.0.0"),
         "watchdog": "Active" if watchdog_active else "Inactive",
-        "startup_id": STARTUP_ID
+        "startup_id": STARTUP_ID,
+        "license": {
+            "valid": license_manager._check_valid() or (not license_manager.validation_enabled or license_manager.dev_mode),
+            "days_remaining": days_left,
+            "expiring_soon": days_left is not None and days_left <= 30
+        },
+        "camera_usage": {
+            "used": active_cams,
+            "licensed": max_cams
+        }
     }
 
 @router.get("/discover-devices", dependencies=[Depends(verify_token)])
@@ -207,11 +222,80 @@ def get_camera_health():
 
 
 @router.get("/license", dependencies=[Depends(verify_token)])
-def get_license():
+def get_license(payload: dict = Depends(verify_token)):
+    is_admin = payload.get("role") == "admin"
+    return license_manager.get_license_info(is_admin=is_admin)
+
+@router.get("/license/info", dependencies=[Depends(verify_token)])
+def get_license_info(payload: dict = Depends(verify_token)):
+    is_admin = payload.get("role") == "admin"
+    return license_manager.get_license_info(is_admin=is_admin)
+
+@router.get("/license/status", dependencies=[Depends(verify_token)])
+def get_license_status():
     return {
-        "status":      "ok",
-        "max_cameras": 9999,
+        "valid": license_manager._check_valid() or (not license_manager.validation_enabled or license_manager.dev_mode),
+        "days_remaining": license_manager.get_days_until_expiry(),
+        "expiring_soon": license_manager.get_days_until_expiry() is not None and license_manager.get_days_until_expiry() <= 30
     }
+
+@router.post("/license/upload", dependencies=[Depends(require_admin)])
+async def upload_license(file: UploadFile = File(...)):
+    content = await file.read()
+    temp_path = license_manager.license_path + ".tmp"
+    backup_path = license_manager.license_path + ".bak"
+    
+    # Write new license to temp file
+    os.makedirs(os.path.dirname(temp_path), exist_ok=True)
+    with open(temp_path, "wb") as f:
+        f.write(content)
+        
+    original_path = license_manager.license_path
+    try:
+        # Swap configuration path to validate the temporary uploaded file
+        license_manager.license_path = temp_path
+        license_manager.initialize(force_revalidate=True)
+        
+        # If successfully validated, backup current license and overwrite it
+        import shutil
+        if os.path.exists(original_path):
+            shutil.copy2(original_path, backup_path)
+            
+        shutil.move(temp_path, original_path)
+        license_manager.license_path = original_path
+        
+        # Finally initialize the manager with the newly moved license
+        license_manager.initialize(force_revalidate=True)
+        return {"success": True, "message": "License uploaded and activated successfully"}
+        
+    except Exception as e:
+        # Restore the manager state to use the original license path
+        license_manager.license_path = original_path
+        try:
+            license_manager.initialize(force_revalidate=True)
+        except Exception:
+            pass
+            
+        # Clean up temp file
+        if os.path.exists(temp_path):
+            try:
+                os.remove(temp_path)
+            except Exception:
+                pass
+                
+        raise HTTPException(status_code=400, detail=f"Invalid license upload: {str(e)}")
+
+@router.post("/license/revalidate", dependencies=[Depends(require_admin)])
+def revalidate_license():
+    try:
+        license_manager.initialize(force_revalidate=True)
+        return {
+            "success": True, 
+            "message": "License revalidated successfully", 
+            "info": license_manager.get_license_info(is_admin=True)
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 # ------------------------------------------------------------------
 # Event Clips — list, play, manual save
 # ------------------------------------------------------------------

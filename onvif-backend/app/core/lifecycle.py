@@ -293,6 +293,16 @@ async def _shutdown_phase_1():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # --- STARTUP ---
+    from app.services.license_manager import license_manager, LicenseValidationError
+    try:
+        license_manager.initialize()
+    except LicenseValidationError as e:
+        import logging
+        logging.getLogger(__name__).critical(f"❌ VMS Startup Blocked: {e}")
+        raise RuntimeError(f"License validation failed: {e}") from e
+
+    app.state.license_manager = license_manager
+
     await _startup_phase_1()
     await _startup_phase_2()
     yield

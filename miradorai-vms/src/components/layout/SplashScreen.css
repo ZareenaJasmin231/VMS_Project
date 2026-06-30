@@ -104,11 +104,11 @@
 
 .splash__letter {
   font-family: 'DM Sans', sans-serif;
-  font-size: 32px;
-  font-weight: 300;
+  font-size: 46px;
+  font-weight: 400;
   color: transparent;
-  letter-spacing: 6px;
-  background: linear-gradient(135deg, #e8eaf0 30%, #00c8a0 100%);
+  letter-spacing: 8px;
+  background: linear-gradient(135deg, #ffffff 30%, #00e5b8 100%);
   -webkit-background-clip: text;
   background-clip: text;
   opacity: 0;
@@ -123,10 +123,10 @@
 /* ── Sub ────────────────────────────────────────── */
 .splash__sub {
   font-family: 'DM Sans', sans-serif;
-  font-size: 10px;
-  font-weight: 400;
-  color: var(--text-muted, #505870);
-  letter-spacing: 4px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #a0aec0;
+  letter-spacing: 5px;
   text-transform: uppercase;
   opacity: 0;
   transform: translateY(6px);
@@ -139,7 +139,7 @@
 
 /* ── Line ───────────────────────────────────────── */
 .splash__line-wrap {
-  width: 200px;
+  width: 360px;
   height: 1px;
   overflow: hidden;
 }
