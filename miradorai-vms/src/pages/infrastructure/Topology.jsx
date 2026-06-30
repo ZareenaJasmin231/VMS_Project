@@ -926,6 +926,7 @@ export default function Topology() {
   const [activeTab, setActiveTab]       = useState('details');
   const [sidebarOpen, setSidebarOpen]   = useState(false);
   const [confirmModal, setConfirmModal] = useState({ isOpen: false });
+  const [activeTemplate, setActiveTemplate] = useState(null);
 
   const [templatesDropdownOpen, setTemplatesDropdownOpen] = useState(false);
   const templatesDropdownRef = useRef(null);
@@ -1092,7 +1093,28 @@ export default function Topology() {
         }
       }));
 
-      setNodes(reactNodes);
+      setNodes(prev => {
+        let arrayChanged = false;
+        if (prev.length !== reactNodes.length) arrayChanged = true;
+        
+        const nextNodes = reactNodes.map(rn => {
+          const p = prev.find(x => x.id === rn.id);
+          if (!p) {
+            arrayChanged = true;
+            return rn;
+          }
+          const posChanged = p.position.x !== rn.position.x || p.position.y !== rn.position.y;
+          const pDataStr = JSON.stringify({ ...p.data, onRemove: null });
+          const rnDataStr = JSON.stringify({ ...rn.data, onRemove: null });
+          if (posChanged || pDataStr !== rnDataStr) {
+            arrayChanged = true;
+            return rn;
+          }
+          return p; // Keep exact reference
+        });
+        
+        return arrayChanged ? nextNodes : prev;
+      });
 
       const edgeSeen = new Set();
       const uniqueEdges = (data.edges || []).filter(e => {
@@ -1102,7 +1124,7 @@ export default function Topology() {
         return true;
       });
 
-      setEdges(uniqueEdges.map((e, idx) => {
+      const reactEdges = uniqueEdges.map((e, idx) => {
         const targetNode = uniqueNodes.find(n => n.id === e.target);
         const targetType = targetNode?.type;
         
@@ -1122,7 +1144,7 @@ export default function Topology() {
         const isCameraTarget = targetType === 'camera';
 
         return {
-          id: `e-${idx}`, 
+          id: `e-${e.source}-${e.target}`, // Use stable ID instead of index
           source: e.source, 
           target: e.target,
           animated: true, // Make ALL lines animated and alive!
@@ -1145,7 +1167,29 @@ export default function Topology() {
             }
           })
         };
-      }));
+      });
+
+      setEdges(prev => {
+        let arrayChanged = false;
+        if (prev.length !== reactEdges.length) arrayChanged = true;
+        
+        const nextEdges = reactEdges.map(re => {
+          const p = prev.find(x => x.id === re.id);
+          if (!p) {
+            arrayChanged = true;
+            return re;
+          }
+          const pStr = JSON.stringify(p);
+          const reStr = JSON.stringify(re);
+          if (pStr !== reStr) {
+            arrayChanged = true;
+            return re;
+          }
+          return p;
+        });
+        
+        return arrayChanged ? nextEdges : prev;
+      });
     } catch (err) { console.error('Topology fetch failed:', err); }
   }, [setNodes, setEdges, removeNodeFromCanvas]);
 
@@ -1358,6 +1402,7 @@ export default function Topology() {
   }, [fetchTopology]);
 
   const applyTopologyTemplate = useCallback(async (templateType) => {
+    setActiveTemplate(templateType);
     setStatusFilter(null);
     setTypeFilter(null);
     let nodesToArrange = nodes.map(n => n.data);
@@ -1876,6 +1921,28 @@ export default function Topology() {
           <Controls />
           <MiniMap nodeStrokeWidth={3} zoomable pannable maskColor="rgba(0,0,0,0.1)" />
 
+          {activeTemplate && (
+            <Panel position="top-center">
+              <div style={{
+                background: 'rgba(17, 24, 39, 0.8)',
+                backdropFilter: 'blur(8px)',
+                padding: '6px 16px',
+                borderRadius: 20,
+                border: '1px solid #374151',
+                color: '#10b981',
+                fontSize: 14,
+                fontWeight: 600,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                boxShadow: '0 4px 12px rgba(0,0,0,0.5)'
+              }}>
+                <Icon type="template" size={14} />
+                Current Layout: {activeTemplate.charAt(0).toUpperCase() + activeTemplate.slice(1)}
+              </div>
+            </Panel>
+          )}
+
           <Panel position="top-left" className="topo-toolbar-unified">
             <div className="unified-toolbar-row">
               <button className="topo-btn topo-btn--primary" onClick={triggerScan} disabled={scanning}>
@@ -1918,6 +1985,7 @@ export default function Topology() {
                   }}>
                     <button
                       className="topo-dropdown-item"
+                      style={{ color: activeTemplate === 'star' ? '#10b981' : undefined }}
                       onClick={() => {
                         applyTopologyTemplate('star');
                         setTemplatesDropdownOpen(false);
@@ -1927,6 +1995,7 @@ export default function Topology() {
                     </button>
                     <button
                       className="topo-dropdown-item"
+                      style={{ color: activeTemplate === 'ring' ? '#10b981' : undefined }}
                       onClick={() => {
                         applyTopologyTemplate('ring');
                         setTemplatesDropdownOpen(false);
@@ -1936,6 +2005,7 @@ export default function Topology() {
                     </button>
                     <button
                       className="topo-dropdown-item"
+                      style={{ color: activeTemplate === 'bus' ? '#10b981' : undefined }}
                       onClick={() => {
                         applyTopologyTemplate('bus');
                         setTemplatesDropdownOpen(false);
@@ -1945,6 +2015,7 @@ export default function Topology() {
                     </button>
                     <button
                       className="topo-dropdown-item"
+                      style={{ color: activeTemplate === 'mesh' ? '#10b981' : undefined }}
                       onClick={() => {
                         applyTopologyTemplate('mesh');
                         setTemplatesDropdownOpen(false);
@@ -1954,6 +2025,7 @@ export default function Topology() {
                     </button>
                     <button
                       className="topo-dropdown-item"
+                      style={{ color: activeTemplate === 'tree' ? '#10b981' : undefined }}
                       onClick={() => {
                         applyTopologyTemplate('tree');
                         setTemplatesDropdownOpen(false);
