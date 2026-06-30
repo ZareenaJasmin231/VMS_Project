@@ -370,10 +370,17 @@ function PremiumPopup({ show, type, title, message, onConfirm, onCancel }) {
 
 // ── Zone Alert Toast ──────────────────────────────────────────────────
 function ZoneAlert({ message, onDismiss }) {
+  const dismissRef = useRef(onDismiss);
   useEffect(() => {
-    const t = setTimeout(onDismiss, 3500);
-    return () => clearTimeout(t);
+    dismissRef.current = onDismiss;
   }, [onDismiss]);
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      dismissRef.current?.();
+    }, 3500);
+    return () => clearTimeout(t);
+  }, [message]);
 
   return (
     <div className="mv-zone-alert">
@@ -382,7 +389,14 @@ function ZoneAlert({ message, onDismiss }) {
         <line x1="12" y1="8" x2="12" y2="12"/>
         <line x1="12" y1="16" x2="12.01" y2="16"/>
       </svg>
-      {message}
+      <span style={{ marginRight: "8px" }}>{message}</span>
+      <button 
+        onClick={onDismiss} 
+        className="mv-zone-alert__close"
+        title="Dismiss warning"
+      >
+        ✕
+      </button>
     </div>
   );
 }

@@ -136,6 +136,7 @@ export default function MediaPlayerPage() {
   }, [imgVals, localSharpness]);
 
   const [camDropdownOpen, setCamDropdownOpen] = useState(false);
+  const [camSearchTerm, setCamSearchTerm] = useState("");
   const [files, setFiles] = useState([]);
   const [loadingFiles, setLoadingFiles] = useState(false);
   const [playingFile, setPlayingFile] = useState(null);
@@ -965,7 +966,35 @@ export default function MediaPlayerPage() {
 
               {camDropdownOpen && (
                 <div className="mp-cam-menu">
-                  {filteredRecordingCameras.map((camId) => {
+                  <div className="mp-cam-search-wrap" style={{ padding: "8px", borderBottom: "1px solid var(--border)", position: "sticky", top: 0, background: "var(--surface)", zIndex: 2 }}>
+                    <input
+                      type="text"
+                      className="mp-cam-search-input"
+                      placeholder="Search cameras..."
+                      value={camSearchTerm}
+                      onChange={(e) => setCamSearchTerm(e.target.value)}
+                      style={{
+                        width: "100%",
+                        padding: "6px 10px",
+                        background: "rgba(0, 0, 0, 0.2)",
+                        border: "1px solid var(--border)",
+                        borderRadius: "4px",
+                        color: "var(--text)",
+                        fontSize: "0.85rem",
+                        outline: "none"
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                      onKeyDown={(e) => e.stopPropagation()}
+                    />
+                  </div>
+                  {filteredRecordingCameras
+                    .filter(camId => {
+                      if (!camSearchTerm) return true;
+                      const info = getCameraInfo(camId);
+                      const term = camSearchTerm.toLowerCase();
+                      return info.name.toLowerCase().includes(term) || info.ip.toLowerCase().includes(term);
+                    })
+                    .map((camId) => {
                     const info = getCameraInfo(camId);
                     return (
                       <div

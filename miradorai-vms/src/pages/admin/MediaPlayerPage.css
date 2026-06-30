@@ -120,6 +120,9 @@
 
 /* ── Section Labels ──────────────────────────── */
 .mp-cam-section {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   padding: 12px 16px 6px;
   font-family: var(--font-display);
   font-size: 16px;
@@ -127,6 +130,37 @@
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--text-primary);
+}
+
+.mp-cam-filter-toggle {
+  display: flex;
+  background: var(--bg-deep);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 2px;
+  gap: 2px;
+}
+
+.mp-cam-filter-btn {
+  background: transparent;
+  border: none;
+  border-radius: calc(var(--radius-sm) - 1px);
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 600;
+  padding: 4px 8px;
+  cursor: pointer;
+  text-transform: uppercase;
+  transition: all var(--transition);
+}
+
+.mp-cam-filter-btn:hover {
+  color: var(--text-primary);
+}
+
+.mp-cam-filter-btn.active {
+  background: var(--amber-glow);
+  color: var(--amber);
 }
 
 /* ── Button Row (Browse + Export side by side) ── */
@@ -285,6 +319,33 @@
 .mp-cam-menu::-webkit-scrollbar-thumb {
   background: var(--bg-active);
   border-radius: 4px;
+}
+
+.mp-cam-search-wrapper {
+  padding: 8px;
+  border-bottom: 1px solid var(--border-subtle);
+  position: sticky;
+  top: 0;
+  background: var(--bg-raised);
+  z-index: 2;
+}
+
+.mp-cam-search-input {
+  width: 100%;
+  background: var(--bg-deep);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  font-size: 14px;
+  padding: 8px 10px;
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color var(--transition);
+}
+
+.mp-cam-search-input:focus {
+  border-color: var(--amber-dim);
 }
 
 .mp-cam-menu-item {

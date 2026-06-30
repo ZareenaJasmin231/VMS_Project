@@ -1002,6 +1002,26 @@
   box-shadow: 0 6px 24px rgba(0,0,0,0.5);
   animation: mv-alert-in 0.2s ease;
 }
+.mv-zone-alert__close {
+  background: transparent;
+  border: none;
+  color: #f87171;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 2px 6px;
+  margin-left: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.85;
+  transition: opacity 0.15s, transform 0.15s;
+  border-radius: 4px;
+}
+.mv-zone-alert__close:hover {
+  opacity: 1;
+  background: rgba(248, 113, 113, 0.15);
+  transform: scale(1.08);
+}
 @keyframes mv-alert-in {
   from { opacity: 0; transform: translateX(-50%) translateY(-8px); }
   to   { opacity: 1; transform: translateX(-50%) translateY(0); }

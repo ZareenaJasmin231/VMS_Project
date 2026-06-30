@@ -124,6 +124,68 @@ const TYPE_COLORS = {
 };
 const ZONE_COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#ec4899", "#8b5cf6", "#f97316", "#06b6d4"];
 const SHAPE_NAMES = new Set(["Rectangle","Circle","Triangle","Hexagon","Diamond","Star","Cross","Arrow","L-Shape","T-Shape","U-Shape","Boom Barrier"]);
+const SHAPE_ICONS = {
+  Rectangle: (
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="5" width="18" height="14" rx="2" />
+    </svg>
+  ),
+  Circle: (
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="8" />
+    </svg>
+  ),
+  Triangle: (
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polygon points="12,3 2,21 22,21" />
+    </svg>
+  ),
+  Hexagon: (
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polygon points="12,2 21,7 21,17 12,22 3,17 3,7" />
+    </svg>
+  ),
+  Diamond: (
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polygon points="12,2 22,12 12,22 2,12" />
+    </svg>
+  ),
+  Star: (
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polygon points="12,2 15,9 22,9 17,14 19,21 12,17 5,21 7,14 2,9 9,9" />
+    </svg>
+  ),
+  Cross: (
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M10 3h4v7h7v4h-7v7h-4v-7H3v-4h7V3z" />
+    </svg>
+  ),
+  Arrow: (
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 2l8 8h-5v12h-6V10H4l8-8z" />
+    </svg>
+  ),
+  "L-Shape": (
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polygon points="6,3 12,3 12,14 18,14 18,20 6,20" />
+    </svg>
+  ),
+  "T-Shape": (
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polygon points="4,4 20,4 20,10 14,10 14,20 10,20 10,10 4,10" />
+    </svg>
+  ),
+  "U-Shape": (
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polygon points="4,4 8,4 8,14 16,14 16,4 20,4 20,20 4,20" />
+    </svg>
+  ),
+  "Boom Barrier": (
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 18v-6h4v6M8 14h12M18 12l2 2m-6-2l2 2m-6-2l2 2" />
+    </svg>
+  )
+};
 function isShapeZone(zone) { return !!(zone.isShape || zone.isBoomBarrier || SHAPE_NAMES.has(zone.name)); }
 
 // ── Point-in-polygon helper ───────────────────────────────────────────────────
@@ -1893,10 +1955,11 @@ export default function DesignerView({ onBack }) {
   const [editingVersionId, setEditingVersionId] = useState(null);
   const [editingVersionName, setEditingVersionName] = useState("");
 
-  const recordState = useCallback((p = placedRef.current, z = zonesRef.current) => {
+  const recordState = useCallback((p = placedRef.current, z = zonesRef.current, t = textNodesRef.current) => {
     const snapshot = {
       placed: JSON.parse(JSON.stringify(p)),
-      zones: JSON.parse(JSON.stringify(z))
+      zones: JSON.parse(JSON.stringify(z)),
+      textNodes: JSON.parse(JSON.stringify(t))
     };
     setUndoStack(prev => [...prev, snapshot]);
     setRedoStack([]);
@@ -1988,6 +2051,7 @@ export default function DesignerView({ onBack }) {
   }, []);
 
   const addShapeToCanvas = (shapeType) => {
+    recordState();
     const cx = ((canvasRef.current?.width || 800) / 2 - offsetRef.current.x) / scaleRef.current;
     const cy = ((canvasRef.current?.height || 600) / 2 - offsetRef.current.y) / scaleRef.current;
     const S = 50; // Size factor
@@ -2356,8 +2420,6 @@ export default function DesignerView({ onBack }) {
         ctx.strokeStyle = "#000000";
         ctx.lineWidth = isEditingZone ? 3.5 / sc : (isActive ? 3.5 : 2.5);
       } else if (zone.isShape) {
-        ctx.fillStyle = zone.color + "66"; // translucent fill
-        ctx.fill();
         ctx.strokeStyle = zone.color + (isActive ? "ff" : "aa");
         ctx.lineWidth = isEditingZone ? 2.5 / sc : (isActive ? 2.5 : 1.5);
       } else {
@@ -2366,7 +2428,7 @@ export default function DesignerView({ onBack }) {
         ctx.lineWidth = isEditingZone ? 2.5 / sc : (isActive ? 2.5 : 1.5);
       }
 
-      if (!isActive && !zone.isBoomBarrier) ctx.setLineDash([6, 4]);
+      if (!isActive && !isShapeZone(zone)) ctx.setLineDash([6, 4]);
       ctx.stroke(); ctx.setLineDash([]);
       zone.polygon.forEach((p, i) => {
         ctx.beginPath(); ctx.arc(p.x, p.y, isEditingZone ? 6 / sc : (isActive ? 4 : 3), 0, Math.PI * 2);
@@ -2547,23 +2609,25 @@ export default function DesignerView({ onBack }) {
         ctx.setLineDash([]);
       }
      
-      const cx = node.x + w + 10 / sc;
-      const cy = node.y - 4 / sc;
-      const r = 8 / sc;
-     
-      ctx.beginPath();
-      ctx.arc(cx, cy, r, 0, Math.PI * 2);
-      ctx.fillStyle = "#ef4444";
-      ctx.fill();
-     
-      ctx.strokeStyle = "#ffffff";
-      ctx.lineWidth = 1.5 / sc;
-      ctx.beginPath();
-      ctx.moveTo(cx - 3/sc, cy - 3/sc);
-      ctx.lineTo(cx + 3/sc, cy + 3/sc);
-      ctx.moveTo(cx + 3/sc, cy - 3/sc);
-      ctx.lineTo(cx - 3/sc, cy + 3/sc);
-      ctx.stroke();
+      if (isSelected || isEditing) {
+        const cx = node.x + w + 10 / sc;
+        const cy = node.y - 4 / sc;
+        const r = 8 / sc;
+       
+        ctx.beginPath();
+        ctx.arc(cx, cy, r, 0, Math.PI * 2);
+        ctx.fillStyle = "#ef4444";
+        ctx.fill();
+       
+        ctx.strokeStyle = "#ffffff";
+        ctx.lineWidth = 1.5 / sc;
+        ctx.beginPath();
+        ctx.moveTo(cx - 3/sc, cy - 3/sc);
+        ctx.lineTo(cx + 3/sc, cy + 3/sc);
+        ctx.moveTo(cx + 3/sc, cy - 3/sc);
+        ctx.lineTo(cx - 3/sc, cy + 3/sc);
+        ctx.stroke();
+      }
 
       if (draggingTextNodeIdRef.current === node.id) {
         ctx.strokeStyle = "rgba(255, 255, 255, 0.5)";
@@ -2581,7 +2645,8 @@ export default function DesignerView({ onBack }) {
     if (undoStack.length === 0) return;
     const currentState = {
       placed: JSON.parse(JSON.stringify(placedRef.current)),
-      zones: JSON.parse(JSON.stringify(zonesRef.current))
+      zones: JSON.parse(JSON.stringify(zonesRef.current)),
+      textNodes: JSON.parse(JSON.stringify(textNodesRef.current))
     };
     setRedoStack(prev => [...prev, currentState]);
     const previousState = undoStack[undoStack.length - 1];
@@ -2590,6 +2655,8 @@ export default function DesignerView({ onBack }) {
     setPlaced(previousState.placed);
     zonesRef.current = previousState.zones;
     setZones(previousState.zones);
+    textNodesRef.current = previousState.textNodes || [];
+    setTextNodes(previousState.textNodes || []);
     setSelectedIdx(null);
     setActiveZoneId(null);
     activeZoneIdRef.current = null;
@@ -2601,7 +2668,8 @@ export default function DesignerView({ onBack }) {
     if (redoStack.length === 0) return;
     const currentState = {
       placed: JSON.parse(JSON.stringify(placedRef.current)),
-      zones: JSON.parse(JSON.stringify(zonesRef.current))
+      zones: JSON.parse(JSON.stringify(zonesRef.current)),
+      textNodes: JSON.parse(JSON.stringify(textNodesRef.current))
     };
     setUndoStack(prev => [...prev, currentState]);
     const nextState = redoStack[redoStack.length - 1];
@@ -2610,6 +2678,8 @@ export default function DesignerView({ onBack }) {
     setPlaced(nextState.placed);
     zonesRef.current = nextState.zones;
     setZones(nextState.zones);
+    textNodesRef.current = nextState.textNodes || [];
+    setTextNodes(nextState.textNodes || []);
     setSelectedIdx(null);
     setActiveZoneId(null);
     activeZoneIdRef.current = null;
@@ -3692,8 +3762,10 @@ export default function DesignerView({ onBack }) {
         const cy = node.y - 4 / sc;
         const r = 10 / sc; // slight padding for click target
 
-        if (Math.hypot(p.x - cx, p.y - cy) <= r) {
+        const isSelectedOrEditing = selectedTextNodeRef.current === node.id || editingTextNodeRef.current === node.id;
+        if (isSelectedOrEditing && Math.hypot(p.x - cx, p.y - cy) <= r) {
           // Clicked close button
+          recordState();
           const updated = textNodesRef.current.filter(n => n.id !== node.id);
           textNodesRef.current = updated;
           setTextNodes(updated);
@@ -3703,6 +3775,7 @@ export default function DesignerView({ onBack }) {
 
         // Text is drawn with textBaseline="top"
         if (p.x >= node.x && p.x <= node.x + w && p.y >= node.y && p.y <= node.y + h) {
+          recordState();
           draggingTextNodeIdRef.current = node.id;
           draggingTextStartRef.current = { offsetX: p.x - node.x, offsetY: p.y - node.y };
           setSelectedTextNode(node.id);
@@ -3773,6 +3846,7 @@ export default function DesignerView({ onBack }) {
         for (let i = 0; i < zone.polygon.length; i++) {
           const pt = zone.polygon[i];
           if (Math.hypot(p.x - pt.x, p.y - pt.y) < grabRadius) {
+            recordState();
             draggingVertexRef.current = { zoneId: zone.id, index: i };
             return;
           }
@@ -3780,6 +3854,7 @@ export default function DesignerView({ onBack }) {
         
         // If not a vertex, check if clicked inside the zone to move it entirely
         if (pointInPolygon(p.x, p.y, zone.polygon)) {
+          recordState();
           draggingZoneRef.current = { id: zone.id, startX: p.x, startY: p.y, initialPolygon: JSON.parse(JSON.stringify(zone.polygon)) };
           return;
         }
@@ -4997,6 +5072,13 @@ function buildExportCanvas(exportMode = "design", company = "mirador", overlayOp
         drawingPointsRef.current = []; setDrawingPoints([]); setMode("place"); draw();
       }
 
+      // Delete Zone / Shape via Keyboard
+      if (e.key === "Delete" || e.key === "Backspace") {
+        if (activeZoneIdRef.current) {
+          handleDeleteZone(activeZoneIdRef.current);
+        }
+      }
+
       // Copy (Ctrl+C)
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c') {
         const sIdx = selectedIdxRef.current;
@@ -5010,7 +5092,7 @@ function buildExportCanvas(exportMode = "design", company = "mirador", overlayOp
         if (copiedCameraRef.current) {
           recordState();
           const p = copiedCameraRef.current;
-         
+          
           const pasteX = mouseMapPosRef.current ? mouseMapPosRef.current.x : p.x + 20;
           const pasteY = mouseMapPosRef.current ? mouseMapPosRef.current.y : p.y + 20;
 
@@ -5020,7 +5102,7 @@ function buildExportCanvas(exportMode = "design", company = "mirador", overlayOp
             x: pasteX,
             y: pasteY
           };
-         
+          
           const updated = [...placedRef.current, newEntry];
           placedRef.current = updated;
           setPlaced(updated);
@@ -5032,7 +5114,7 @@ function buildExportCanvas(exportMode = "design", company = "mirador", overlayOp
     };
     window.addEventListener("keydown", h);
     return () => window.removeEventListener("keydown", h);
-  }, [draw, recordState, apiSaveLayout]);
+  }, [draw, recordState, apiSaveLayout, handleDeleteZone]);
 
   const selectedPlaced = selectedIdx !== null ? placed[selectedIdx] : null;
   const activeZone = zones.find(z => z.id === activeZoneId) || null;
@@ -5673,7 +5755,6 @@ function buildExportCanvas(exportMode = "design", company = "mirador", overlayOp
             <div className="dv-toolbar-divider" />
 
             {/* ── Undo / Redo ── */}
-            {/* ── Undo / Redo ── */}
             <button className="dv-tbtn" onClick={handleUndo} disabled={undoStack.length === 0} title="Undo last action" style={{ padding: "4px 8px" }}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="13" height="13">
                 <path d="M3 7v6h6M21 17a9 9 0 00-9-9 9 9 0 00-6 2.3L3 13" />
@@ -5838,16 +5919,29 @@ function buildExportCanvas(exportMode = "design", company = "mirador", overlayOp
 
                   <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                     <div style={{ fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,0.85)", textTransform: "uppercase" }}>Shapes & Obstacles</div>
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-                      {["Rectangle", "Circle", "Triangle", "Hexagon", "Diamond", "Star", "Cross", "Arrow", "L-Shape", "T-Shape"].map(shape => (
-                        <button key={shape} className="dv-tbtn" onClick={() => addShapeToCanvas(shape)} style={{ padding: "4px 6px", fontSize: 11, background: "rgba(255,255,255,0.05)", border: '1px solid rgba(255,255,255,0.1)', borderRadius: 4 }} title={`Add ${shape}`}>
-                          + {shape}
-                        </button>
-                      ))}
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 6 }}>
+                      {["Rectangle", "Circle", "Triangle", "Hexagon", "Diamond", "Star", "Cross", "Arrow", "L-Shape", "T-Shape", "U-Shape", "Boom Barrier"].map(shape => {
+                        const isBoom = shape === "Boom Barrier";
+                        return (
+                          <button
+                            key={shape}
+                            className="dv-tbtn"
+                            onClick={() => addShapeToCanvas(shape)}
+                            style={{
+                              padding: "6px 0",
+                              justifyContent: "center",
+                              background: isBoom ? "#ef444422" : "rgba(255,255,255,0.05)",
+                              border: isBoom ? '1px solid #ef4444' : '1px solid rgba(255,255,255,0.1)',
+                              color: isBoom ? "#fca5a5" : "#c9d6e3",
+                              borderRadius: 4
+                            }}
+                            title={`Add ${shape}${isBoom ? " (Blocks camera FOV)" : ""}`}
+                          >
+                            {SHAPE_ICONS[shape]}
+                          </button>
+                        );
+                      })}
                     </div>
-                    <button className="dv-tbtn" onClick={() => addShapeToCanvas("Boom Barrier")} style={{ padding: "6px 8px", width: "100%", justifyContent: "center", background: "#ef444433", border: '1px solid #ef4444', color: "#fca5a5", borderRadius: 4 }} title="Add Boom Barrier (Blocks camera FOV)">
-                      + Boom Barrier
-                    </button>
                   </div>
 
                   <hr style={{ border: 0, borderTop: "1px solid rgba(255,255,255,0.1)", margin: "4px 0" }} />
@@ -5861,6 +5955,7 @@ function buildExportCanvas(exportMode = "design", company = "mirador", overlayOp
                         setTbFontColor(val);
                         const activeId = editingTextNodeRef.current || selectedTextNodeRef.current;
                         if (activeId) {
+                          recordState();
                           const updated = textNodesRef.current.map(n => n.id === activeId ? { ...n, color: val } : n);
                           textNodesRef.current = updated;
                           setTextNodes(updated);
@@ -5874,6 +5969,7 @@ function buildExportCanvas(exportMode = "design", company = "mirador", overlayOp
                           setTbFontSize(val);
                           const activeId = editingTextNodeRef.current || selectedTextNodeRef.current;
                           if (activeId) {
+                            recordState();
                             const updated = textNodesRef.current.map(n => n.id === activeId ? { ...n, size: val } : n);
                             textNodesRef.current = updated;
                             setTextNodes(updated);
@@ -5889,6 +5985,7 @@ function buildExportCanvas(exportMode = "design", company = "mirador", overlayOp
                       setTbFontStyle(val);
                       const activeId = editingTextNodeRef.current || selectedTextNodeRef.current;
                       if (activeId) {
+                        recordState();
                         const updated = textNodesRef.current.map(n => n.id === activeId ? { ...n, font: val } : n);
                         textNodesRef.current = updated;
                         setTextNodes(updated);
@@ -5907,6 +6004,7 @@ function buildExportCanvas(exportMode = "design", company = "mirador", overlayOp
                         const canvasHeight = canvasRef.current?.height || 600;
                         const cx = ((canvasWidth / 2) - offsetRef.current.x) / scaleRef.current;
                         const cy = ((canvasHeight / 2) - offsetRef.current.y) / scaleRef.current;
+                        recordState();
                         const newNodes = [...textNodesRef.current, { id: "text_" + Date.now(), text: "Double-click to edit", x: cx, y: cy, color: tbFontColor, size: tbFontSize, font: tbFontStyle }];
                         setTextNodes(newNodes);
                         textNodesRef.current = newNodes;
@@ -6834,6 +6932,10 @@ function buildExportCanvas(exportMode = "design", company = "mirador", overlayOp
                 onKeyDown={e => {
                   if (e.key === 'Enter') {
                     const val = e.target.value;
+                    const originalText = node.text === "Double-click to edit" ? "" : node.text;
+                    if (val !== originalText) {
+                      recordState();
+                    }
                     if (val.trim() === "") {
                       const updated = textNodesRef.current.filter(n => n.id !== editingTextNode);
                       textNodesRef.current = updated;
@@ -6853,6 +6955,10 @@ function buildExportCanvas(exportMode = "design", company = "mirador", overlayOp
                 }}
                 onBlur={(e) => {
                   const val = e.target.value;
+                  const originalText = node.text === "Double-click to edit" ? "" : node.text;
+                  if (val !== originalText) {
+                    recordState();
+                  }
                   if (val.trim() === "") {
                     const updated = textNodesRef.current.filter(n => n.id !== editingTextNode);
                     textNodesRef.current = updated;

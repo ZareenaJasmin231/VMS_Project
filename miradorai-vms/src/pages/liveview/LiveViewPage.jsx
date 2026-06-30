@@ -423,7 +423,7 @@ function AlertPopup({ ip, alerts, onClose }) {
 }
 
 // ── AlertsPanel ───────────────────────────────────────────────────
-function AlertsPanel({ onAlertCountUpdate, onTotalAlertCountChange, isOpen }) {
+function AlertsPanel({ activeCams = [], liveStatus = {}, onAlertCountUpdate, onTotalAlertCountChange, isOpen }) {
   const [alerts,  setAlerts]  = useState([]);
   const [loading, setLoading] = useState(true);
   const [zoomedImage, setZoomedImage] = useState(null);
@@ -446,7 +446,17 @@ function AlertsPanel({ onAlertCountUpdate, onTotalAlertCountChange, isOpen }) {
            const s = (a.scenario || "").toLowerCase();
            return !t.includes("motion") && !s.includes("motion") && t !== "unknown" && t !== "" && !t.includes("tns1:");
         })
-        .filter(isAlertAllowed);
+        .filter(isAlertAllowed)
+        .filter((a) => {
+          const alertIpNorm = normalizeIp(a.ip);
+          const cam = activeCams.find(c => {
+            const camIpNorm = normalizeIp(c.ip);
+            return camIpNorm === alertIpNorm || (c.serial && c.serial === a.serial) || String(c.id) === String(a.ip);
+          });
+          if (!cam) return false;
+          const isLive = liveStatus[cam.ip] || liveStatus[normalizeIp(cam.ip)];
+          return !!isLive;
+        });
       const perCamCounts = {};
       const finalAlerts = [];
       filtered.forEach((alert) => {
@@ -476,7 +486,7 @@ function AlertsPanel({ onAlertCountUpdate, onTotalAlertCountChange, isOpen }) {
     } finally {
       setLoading(false);
     }
-  }, [onAlertCountUpdate]);
+  }, [onAlertCountUpdate, activeCams, liveStatus]);
 
   useEffect(() => {
     fetchAlerts();
@@ -1747,6 +1757,8 @@ export default function LiveViewPage() {
 
         {/* ── Alerts panel ── */}
         <AlertsPanel
+          activeCams={activeCams}
+          liveStatus={liveStatus}
           onAlertCountUpdate={setAlertCounts}
           onTotalAlertCountChange={setTotalAlertsCount}
           isOpen={alertsPanelOpen}

@@ -1,4 +1,6 @@
 import { useEffect, useRef, useCallback, forwardRef, useImperativeHandle } from "react";
+import { computeVisibilityPolygon } from "./CctvCalculators";
+
 
 /**
  * MapCanvas — professional VMS canvas renderer
@@ -190,8 +192,35 @@ const MapCanvas = forwardRef(function MapCanvas(
         const zone = getMarkerZone(m);
 
         ctx.save();
-        // Hard clip to zone — light cannot escape zone boundary
-        if (zone) buildZoneClip(ctx, zone);
+        const boomBarriers = (zones || []).filter(z => z.isBoomBarrier);
+        if ((zone && zone.polygon?.length >= 3) || boomBarriers.length > 0) {
+          ctx.beginPath();
+          let basePoly = zone?.polygon;
+          if (!basePoly) {
+            basePoly = [];
+            const R = fovLen + 10;
+            for (let i = 0; i <= 16; i++) {
+              const a = angle - halfRad + (2 * halfRad * (i / 16));
+              basePoly.push({ x: originX + Math.cos(a) * R, y: originY + Math.sin(a) * R });
+            }
+            basePoly.push({ x: originX, y: originY });
+          }
+          let polyToClip = basePoly;
+          try {
+            const obstaclesPolys = boomBarriers.map(z => z.polygon);
+            const visPoly = computeVisibilityPolygon({ x: originX, y: originY }, basePoly, obstaclesPolys);
+            if (visPoly && visPoly.length >= 3) {
+              polyToClip = visPoly;
+            }
+          } catch (e) {
+            console.error("Visibility clip error:", e);
+          }
+          polyToClip.forEach((pt, i) => {
+            if (i === 0) ctx.moveTo(pt.x, pt.y); else ctx.lineTo(pt.x, pt.y);
+          });
+          ctx.closePath();
+          ctx.clip();
+        }
 
         ctx.globalCompositeOperation = "destination-out";
         const g = ctx.createRadialGradient(originX, originY, 0, originX, originY, fovLen);
@@ -226,7 +255,35 @@ const MapCanvas = forwardRef(function MapCanvas(
         const zone = getMarkerZone(m);
 
         ctx.save();
-        if (zone) buildZoneClip(ctx, zone);
+        const boomBarriers = (zones || []).filter(z => z.isBoomBarrier);
+        if ((zone && zone.polygon?.length >= 3) || boomBarriers.length > 0) {
+          ctx.beginPath();
+          let basePoly = zone?.polygon;
+          if (!basePoly) {
+            basePoly = [];
+            const R = fovLen + 10;
+            for (let i = 0; i <= 16; i++) {
+              const a = angle - halfRad + (2 * halfRad * (i / 16));
+              basePoly.push({ x: originX + Math.cos(a) * R, y: originY + Math.sin(a) * R });
+            }
+            basePoly.push({ x: originX, y: originY });
+          }
+          let polyToClip = basePoly;
+          try {
+            const obstaclesPolys = boomBarriers.map(z => z.polygon);
+            const visPoly = computeVisibilityPolygon({ x: originX, y: originY }, basePoly, obstaclesPolys);
+            if (visPoly && visPoly.length >= 3) {
+              polyToClip = visPoly;
+            }
+          } catch (e) {
+            console.error("Visibility clip error:", e);
+          }
+          polyToClip.forEach((pt, i) => {
+            if (i === 0) ctx.moveTo(pt.x, pt.y); else ctx.lineTo(pt.x, pt.y);
+          });
+          ctx.closePath();
+          ctx.clip();
+        }
         ctx.globalCompositeOperation = "source-over";
 
         const camType = getCamType(cam);

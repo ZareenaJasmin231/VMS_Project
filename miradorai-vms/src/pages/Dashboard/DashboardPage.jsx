@@ -1082,8 +1082,6 @@ const DashboardPage = () => {
   if (storagePercent > 90) storageStatus = "critical";
   else if (storagePercent > 80) storageStatus = "warning";
 
-  if (loading) return <div className="dashboard-loading">Loading Dashboard...</div>;
-
   return (
     <div className="dashboard">
       <div className="dashboard-header">

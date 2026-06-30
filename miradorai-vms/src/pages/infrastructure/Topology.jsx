@@ -48,15 +48,214 @@ function autoLayout(nodes) {
 }
 
 // ─── Icons ───────────────────────────────────────────────────────────────────
-const Icon = ({ type, size = 20 }) => {
+const Icon = ({ type, size = 20, model = '', subtype = '' }) => {
   const s = { viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: '2.5', width: size, height: size };
   switch (type) {
-    case 'camera':      return <svg {...s}><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>;
-    case 'switch':      return <svg {...s}><rect x="2" y="7" width="20" height="10" rx="2"/><path d="M6 12h.01M10 12h.01M14 12h.01M18 12h.01"/></svg>;
-    case 'core-switch': return <svg {...s}><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M6 11h.01M10 11h.01M14 11h.01M18 11h.01M6 15h.01M10 15h.01"/></svg>;
-    case 'poe-switch':  return <svg {...s}><rect x="2" y="7" width="20" height="10" rx="2"/><path d="M6 12h.01M10 12h.01M14 12h.01"/><path d="M18 9v6" strokeWidth="2"/><path d="M16 11l2-2 2 2"/></svg>;
-    case 'nvr':         return <svg {...s}><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><circle cx="19" cy="6" r="1" fill="currentColor"/><circle cx="19" cy="18" r="1" fill="currentColor"/></svg>;
-    case 'server':      return <svg {...s}><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" y1="6" x2="6" y2="6"/><line x1="6" y1="18" x2="6" y2="18"/></svg>;
+    case 'camera': {
+      const isDome = (subtype || '').toLowerCase().includes('dome') || (model || '').toLowerCase().includes('dome');
+      const isPtz = (subtype || '').toLowerCase().includes('ptz') || (model || '').toLowerCase().includes('ptz');
+      
+      if (isDome) {
+        return (
+          <svg viewBox="0 0 100 100" width={size} height={size} style={{ filter: 'drop-shadow(0px 8px 12px rgba(0,0,0,0.6))' }}>
+            <defs>
+              <linearGradient id="domeMount" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#e5e7eb"/><stop offset="100%" stopColor="#9ca3af"/></linearGradient>
+              <radialGradient id="domeGlass" cx="0.5" cy="0.5" r="0.5"><stop offset="0%" stopColor="#ffffff" stopOpacity="0.4"/><stop offset="80%" stopColor="#64748b" stopOpacity="0.8"/><stop offset="100%" stopColor="#0f172a" stopOpacity="0.9"/></radialGradient>
+              <radialGradient id="domeLens" cx="0.5" cy="0.5" r="0.5"><stop offset="0%" stopColor="#3b82f6"/><stop offset="40%" stopColor="#1e3a8a"/><stop offset="100%" stopColor="#020617"/></radialGradient>
+            </defs>
+            
+            {/* Mount base (top) */}
+            <path d="M 20,30 L 80,30 C 85,30 85,40 80,40 L 20,40 C 15,40 15,30 20,30 Z" fill="url(#domeMount)" stroke="#6b7280" strokeWidth="1"/>
+            
+            {/* Glass Dome */}
+            <path d="M 25,40 A 25 25 0 0 0 75 40 Z" fill="url(#domeGlass)" stroke="#334155" strokeWidth="1"/>
+            
+            {/* Inner Camera unit (tilted slightly) */}
+            <g transform="rotate(20, 50, 40)">
+              <ellipse cx="50" cy="55" rx="12" ry="12" fill="#1f2937"/>
+              <ellipse cx="50" cy="55" rx="7" ry="7" fill="url(#domeLens)"/>
+              <ellipse cx="48" cy="53" rx="2" ry="2" fill="#fff" opacity="0.6"/>
+              {/* LED */}
+              <circle cx="50" cy="45" r="1.5" fill="#ef4444" filter="drop-shadow(0 0 2px #ef4444)"/>
+            </g>
+          </svg>
+        );
+      } else if (isPtz) {
+        return (
+          <svg viewBox="0 0 100 100" width={size} height={size} style={{ filter: 'drop-shadow(0px 8px 12px rgba(0,0,0,0.6))' }}>
+            <defs>
+              <linearGradient id="ptzMount" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#ffffff"/><stop offset="100%" stopColor="#d1d5db"/></linearGradient>
+              <linearGradient id="ptzBody" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stopColor="#f3f4f6"/><stop offset="50%" stopColor="#ffffff"/><stop offset="100%" stopColor="#d1d5db"/></linearGradient>
+              <radialGradient id="ptzLens" cx="0.5" cy="0.5" r="0.5"><stop offset="0%" stopColor="#60a5fa"/><stop offset="50%" stopColor="#1e3a8a"/><stop offset="100%" stopColor="#020617"/></radialGradient>
+            </defs>
+            
+            {/* Wall Mount bracket (left side) */}
+            <path d="M 15,20 L 25,20 L 25,60 L 15,60 Z" fill="url(#ptzMount)" stroke="#9ca3af" strokeWidth="1"/>
+            {/* Arm extending from bracket */}
+            <path d="M 25,25 L 60,25 C 65,25 70,30 70,35 L 70,40 L 40,40 L 40,35 C 40,30 45,25 50,25 Z" fill="url(#ptzMount)" stroke="#9ca3af" strokeWidth="1"/>
+            
+            {/* PTZ Rotating Base */}
+            <path d="M 42,40 L 68,40 L 70,55 L 40,55 Z" fill="url(#ptzBody)" stroke="#9ca3af" strokeWidth="1"/>
+            
+            {/* PTZ Spherical/Cylindrical Camera Head */}
+            <circle cx="55" cy="65" r="16" fill="url(#ptzBody)" stroke="#9ca3af" strokeWidth="1"/>
+            
+            {/* Lens Area */}
+            <g transform="rotate(15, 55, 65)">
+              <ellipse cx="68" cy="65" rx="4" ry="10" fill="#111827"/>
+              <ellipse cx="69" cy="65" rx="2" ry="8" fill="url(#ptzLens)"/>
+              <circle cx="68" cy="58" r="1.5" fill="#ef4444" filter="drop-shadow(0 0 2px #ef4444)"/>
+            </g>
+          </svg>
+        );
+      }
+
+      // Default Bullet Camera
+      return (
+        <svg viewBox="0 0 100 100" width={size} height={size} style={{ filter: 'drop-shadow(0px 8px 12px rgba(0,0,0,0.6))' }}>
+          <defs>
+            <linearGradient id="camMount" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stopColor="#d1d5db"/><stop offset="100%" stopColor="#6b7280"/></linearGradient>
+            <linearGradient id="camBody" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#ffffff"/><stop offset="40%" stopColor="#e5e7eb"/><stop offset="100%" stopColor="#9ca3af"/></linearGradient>
+            <linearGradient id="camVisor" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#ffffff"/><stop offset="100%" stopColor="#d1d5db"/></linearGradient>
+            <radialGradient id="camFront" cx="0.5" cy="0.5" r="0.5"><stop offset="0%" stopColor="#4b5563"/><stop offset="100%" stopColor="#1f2937"/></radialGradient>
+            <radialGradient id="camLens" cx="0.4" cy="0.4" r="0.6"><stop offset="0%" stopColor="#60a5fa"/><stop offset="40%" stopColor="#1e3a8a"/><stop offset="100%" stopColor="#020617"/></radialGradient>
+          </defs>
+          
+          {/* Mount Bracket (Left side) */}
+          <ellipse cx="15" cy="70" rx="6" ry="18" fill="url(#camMount)" stroke="#4b5563" strokeWidth="1"/>
+          
+          {/* Arm connecting bracket to body pivot */}
+          <path d="M15,70 L25,70 L35,50" fill="none" stroke="url(#camMount)" strokeWidth="8" strokeLinecap="round" strokeLinejoin="round"/>
+          
+          {/* Camera Assembly (pivots at 35,50, rotated down slightly) */}
+          <g transform="rotate(15, 35, 50)">
+            {/* Hinge Joint */}
+            <circle cx="35" cy="50" r="6" fill="#4b5563"/>
+            
+            {/* Main Body (Cylinder pointing right) */}
+            <path d="M 35,34 L 75,34 L 75,66 L 35,66 A 12 16 0 0 1 35 34 Z" fill="url(#camBody)" stroke="#9ca3af" strokeWidth="1"/>
+            
+            {/* Visor/Sun Shield (Solid hood overhanging on the right) */}
+            <path d="M 40,34 L 75,34 C 85,34 90,38 90,46 C 88,32 75,28 40,29 Z" fill="url(#camVisor)" stroke="#d1d5db" strokeWidth="1"/>
+            
+            {/* Front Face (Facing Viewer to the right) */}
+            <ellipse cx="75" cy="50" rx="12" ry="16" fill="url(#camFront)"/>
+            <ellipse cx="75" cy="50" rx="11" ry="15" fill="none" stroke="#111827" strokeWidth="1"/>
+            
+            {/* Inner Lens Housing */}
+            <ellipse cx="75" cy="50" rx="7" ry="9" fill="#111827"/>
+            
+            {/* Glass Lens */}
+            <ellipse cx="75" cy="50" rx="5" ry="7" fill="url(#camLens)"/>
+            <ellipse cx="73.5" cy="48" rx="1.5" ry="2" fill="#fff" opacity="0.7"/>
+            
+            {/* IR LEDs Ring */}
+            <g fill="#e5e7eb" opacity="0.9">
+              <circle cx="75" cy="62.5" r="0.8"/>
+              <circle cx="65.5" cy="50" r="0.8"/>
+              <circle cx="84.5" cy="50" r="0.8"/>
+              <circle cx="68.3" cy="41.2" r="0.8"/>
+              <circle cx="81.7" cy="41.2" r="0.8"/>
+              <circle cx="68.3" cy="58.8" r="0.8"/>
+              <circle cx="81.7" cy="58.8" r="0.8"/>
+            </g>
+            {/* Red Glowing Status / IR LED at the top */}
+            <circle cx="75" cy="37.5" r="1.5" fill="#ef4444" filter="drop-shadow(0 0 2px #ef4444)"/>
+          </g>
+        </svg>
+      );
+    }
+    case 'switch': return (
+      <svg viewBox="0 0 100 50" width={size} height={size} style={{ filter: 'drop-shadow(0px 8px 8px rgba(0,0,0,0.6))' }}>
+        <rect x="5" y="15" width="90" height="30" rx="2" fill="#ffffff" stroke="#000" strokeWidth="4"/>
+        <polygon points="5,15 15,5 85,5 95,15" fill="#e5e7eb" stroke="#000" strokeWidth="4" strokeLinejoin="round"/>
+        {/* Row 1 Ports */}
+        {[10, 22, 34, 46, 58].map(x => <path key={`r1-${x}`} d={`M${x},20 v5 h3 v2 h2 v-2 h3 v-5 z`} fill="#000"/>)}
+        {/* Row 2 Ports */}
+        {[10, 22, 34, 46, 58].map(x => <path key={`r2-${x}`} d={`M${x},32 v5 h3 v2 h2 v-2 h3 v-5 z`} fill="#000"/>)}
+        {/* Vents */}
+        <line x1="72" y1="20" x2="72" y2="40" stroke="#000" strokeWidth="2"/><line x1="76" y1="20" x2="76" y2="40" stroke="#000" strokeWidth="2"/><line x1="80" y1="20" x2="80" y2="40" stroke="#000" strokeWidth="2"/>
+        <circle cx="88" cy="25" r="2" fill="#000"/><circle cx="88" cy="35" r="2" fill="#000"/>
+      </svg>
+    );
+    case 'core-switch': return (
+      <svg viewBox="0 0 100 50" width={size} height={size} style={{ filter: 'drop-shadow(0px 8px 8px rgba(0,0,0,0.6))' }}>
+        <rect x="5" y="10" width="90" height="35" rx="2" fill="#ffffff" stroke="#000" strokeWidth="4"/>
+        <polygon points="5,10 15,2 85,2 95,10" fill="#e5e7eb" stroke="#000" strokeWidth="4" strokeLinejoin="round"/>
+        {/* Top Ports */}
+        {[10, 22, 34, 46, 58].map(x => <path key={`r1-${x}`} d={`M${x},15 v4 h3 v2 h2 v-2 h3 v-4 z`} fill="#000"/>)}
+        {/* Middle Ports */}
+        {[10, 22, 34, 46, 58].map(x => <path key={`r2-${x}`} d={`M${x},25 v4 h3 v2 h2 v-2 h3 v-4 z`} fill="#000"/>)}
+        {/* Bottom Ports */}
+        {[10, 22, 34, 46, 58].map(x => <path key={`r3-${x}`} d={`M${x},35 v4 h3 v2 h2 v-2 h3 v-4 z`} fill="#000"/>)}
+        <line x1="72" y1="15" x2="72" y2="40" stroke="#000" strokeWidth="2"/><line x1="76" y1="15" x2="76" y2="40" stroke="#000" strokeWidth="2"/><line x1="80" y1="15" x2="80" y2="40" stroke="#000" strokeWidth="2"/>
+        <circle cx="88" cy="20" r="2" fill="#000"/><circle cx="88" cy="30" r="2" fill="#000"/>
+      </svg>
+    );
+    case 'poe-switch': return (
+      <svg viewBox="0 0 100 50" width={size} height={size} style={{ filter: 'drop-shadow(0px 8px 8px rgba(0,0,0,0.6))' }}>
+        <rect x="5" y="15" width="90" height="30" rx="2" fill="#ffffff" stroke="#000" strokeWidth="4"/>
+        <polygon points="5,15 15,5 85,5 95,15" fill="#e5e7eb" stroke="#000" strokeWidth="4" strokeLinejoin="round"/>
+        {/* Lightning Bolt */}
+        <polygon points="45,2 35,10 42,10 40,18 52,8 45,8" fill="#f59e0b" stroke="#000" strokeWidth="1"/>
+        {[10, 22, 34, 46, 58].map(x => <path key={`r1-${x}`} d={`M${x},20 v5 h3 v2 h2 v-2 h3 v-5 z`} fill="#f59e0b"/>)}
+        {[10, 22, 34, 46, 58].map(x => <path key={`r2-${x}`} d={`M${x},32 v5 h3 v2 h2 v-2 h3 v-5 z`} fill="#f59e0b"/>)}
+        <line x1="72" y1="20" x2="72" y2="40" stroke="#000" strokeWidth="2"/><line x1="76" y1="20" x2="76" y2="40" stroke="#000" strokeWidth="2"/><line x1="80" y1="20" x2="80" y2="40" stroke="#000" strokeWidth="2"/>
+        <circle cx="88" cy="25" r="2" fill="#f59e0b"/><circle cx="88" cy="35" r="2" fill="#f59e0b"/>
+      </svg>
+    );
+    case 'server': return (
+      <svg viewBox="0 0 100 100" width={size} height={size} style={{ filter: 'drop-shadow(0px 10px 15px rgba(0,0,0,0.7))' }}>
+        <defs>
+          <linearGradient id="srvTop" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stopColor="#4b5563"/><stop offset="100%" stopColor="#374151"/></linearGradient>
+          <linearGradient id="srvSide" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#374151"/><stop offset="100%" stopColor="#1f2937"/></linearGradient>
+          <linearGradient id="srvFront" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#1f2937"/><stop offset="100%" stopColor="#111827"/></linearGradient>
+        </defs>
+        {[55, 30, 5].map((y, i) => (
+          <g key={i} transform={`translate(0, ${y})`}>
+            <polygon points="10,25 50,45 90,25 90,32 50,52 10,32" fill="#000" opacity="0.4"/>
+            <polygon points="50,10 90,25 50,40 10,25" fill="url(#srvTop)" stroke="#6b7280" strokeWidth="1.5" strokeLinejoin="round"/>
+            <polygon points="10,25 50,40 50,55 10,40" fill="url(#srvSide)" stroke="#6b7280" strokeWidth="1.5" strokeLinejoin="round"/>
+            <polygon points="50,40 90,25 90,40 50,55" fill="url(#srvFront)" stroke="#6b7280" strokeWidth="1.5" strokeLinejoin="round"/>
+            {/* Rack Mount Rails */}
+            <line x1="12" y1="28" x2="12" y2="38" stroke="#111" strokeWidth="1.5"/>
+            <line x1="88" y1="28" x2="88" y2="38" stroke="#111" strokeWidth="1.5"/>
+            
+            {/* Front drive bays */}
+            <polygon points="55,42 85,31 85,36 55,47" fill="#030712" opacity="0.8"/>
+            <line x1="60" y1="40" x2="60" y2="45" stroke="#374151" strokeWidth="1"/>
+            <line x1="65" y1="38" x2="65" y2="43" stroke="#374151" strokeWidth="1"/>
+            <line x1="70" y1="36" x2="70" y2="41" stroke="#374151" strokeWidth="1"/>
+            <line x1="75" y1="34" x2="75" y2="39" stroke="#374151" strokeWidth="1"/>
+            <line x1="80" y1="32" x2="80" y2="37" stroke="#374151" strokeWidth="1"/>
+            
+            {/* Status LEDs */}
+            <circle cx="52" cy="45" r="1.5" fill="#3b82f6" filter="drop-shadow(0 0 3px #3b82f6)"/>
+            <circle cx="56" cy="47" r="1" fill="#10b981" filter="drop-shadow(0 0 2px #10b981)"/>
+          </g>
+        ))}
+      </svg>
+    );
+    case 'nvr': return (
+      <svg viewBox="0 0 100 100" width={size} height={size} style={{ filter: 'drop-shadow(0px 10px 15px rgba(0,0,0,0.7))' }}>
+        <defs>
+          <linearGradient id="nvrTop" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stopColor="#1e293b"/><stop offset="100%" stopColor="#0f172a"/></linearGradient>
+          <linearGradient id="nvrSide" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#475569"/><stop offset="100%" stopColor="#334155"/></linearGradient>
+          <linearGradient id="nvrFront" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#1e293b"/><stop offset="100%" stopColor="#020617"/></linearGradient>
+        </defs>
+        <g transform="translate(0, 30)">
+          <polygon points="10,25 50,45 90,25 90,32 50,52 10,32" fill="#000" opacity="0.4"/>
+          <polygon points="50,10 90,25 50,40 10,25" fill="url(#nvrTop)" stroke="#64748b" strokeWidth="2" strokeLinejoin="round"/>
+          <polygon points="10,25 50,40 50,55 10,40" fill="url(#nvrSide)" stroke="#64748b" strokeWidth="2" strokeLinejoin="round"/>
+          <polygon points="50,40 90,25 90,40 50,55" fill="url(#nvrFront)" stroke="#64748b" strokeWidth="2" strokeLinejoin="round"/>
+          <polygon points="53,42 63,38 63,48 53,52" fill="#000"/>
+          <polygon points="65,37 75,33 75,43 65,47" fill="#000"/>
+          <polygon points="77,32 87,28 87,38 77,42" fill="#000"/>
+          <circle cx="55" cy="48" r="1.5" fill="#ef4444" filter="drop-shadow(0 0 2px #ef4444)"/>
+          <circle cx="58" cy="47" r="1.5" fill="#10b981" filter="drop-shadow(0 0 2px #10b981)"/>
+        </g>
+      </svg>
+    );
     case 'alert':       return <svg {...s}><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>;
     case 'bell':        return <svg {...s}><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>;
     case 'wifi':        return <svg {...s}><path d="M1.42 9a16 16 0 0121.16 0"/><path d="M5 12.55a11 11 0 0114.08 0"/><path d="M8.53 16.11a6 6 0 016.95 0"/><circle cx="12" cy="20" r="1"/></svg>;
@@ -88,67 +287,119 @@ const deviceTypeLabel = (type) => ({
 }[type] || type || 'Device');
 
 // ─── Custom Topology Node ─────────────────────────────────────────────────────
-const CustomNode = ({ data }) => (
-  <div className={`topo-node topo-node--${data.status} topo-node-type--${data.type}`}
-       style={{ borderColor: statusColor(data.status), position: 'relative' }}>
-    <Handle type="target" position={Position.Top} style={{ background: '#555' }} />
-    
-    {/* Remove button */}
-    {data.onRemove && (
-      <button 
-        onClick={(e) => {
-          e.stopPropagation(); // Prevent opening node sidebar details
-          data.onRemove();
-        }}
-        style={{
-          position: 'absolute',
-          top: -7,
-          right: -7,
-          background: '#ef4444',
-          border: '1px solid #7f1d1d',
-          color: '#fff',
-          borderRadius: '50%',
-          width: 17,
-          height: 17,
-          fontSize: 14,
-          fontWeight: 700,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          cursor: 'pointer',
-          boxShadow: '0 2px 4px rgba(0,0,0,0.3)',
-          zIndex: 1000,
-          transition: 'all 0.1s'
-        }}
-        title="Remove from Canvas"
-      >
-        ×
-      </button>
-    )}
+const CustomNode = ({ data }) => {
+  const isIconMode = ['switch', 'camera', 'server', 'core-switch', 'poe-switch', 'nvr'].includes(data.type);
 
-    <div className="topo-node__pulse" style={{ backgroundColor: statusColor(data.status), marginRight: data.onRemove ? 10 : 0 }} />
-    <div className="topo-node__header">
-      <div className="topo-node__icon-wrapper"><Icon type={data.type} /></div>
-      <div className="topo-node__title">
-        <span className="topo-node__ip">{data.ip}</span>
-        <span className="topo-node__label">{deviceTypeLabel(data.type)}</span>
+  if (isIconMode) {
+    return (
+      <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+        <Handle type="target" position={Position.Top} style={{ background: '#555', border: 'none' }} />
+        {data.onRemove && (
+          <button 
+            onClick={(e) => {
+              e.stopPropagation();
+              data.onRemove();
+            }}
+            style={{
+              position: 'absolute',
+              top: -5,
+              right: -25,
+              background: '#ef4444',
+              border: '1px solid #7f1d1d',
+              color: '#fff',
+              borderRadius: '50%',
+              width: 18,
+              height: 18,
+              fontSize: 14,
+              fontWeight: 700,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              boxShadow: '0 2px 4px rgba(0,0,0,0.3)',
+              zIndex: 1000,
+              transition: 'all 0.1s'
+            }}
+            title="Remove from Canvas"
+          >
+            ×
+          </button>
+        )}
+        <div style={{ position: 'relative', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+          <div className="topo-node__pulse" style={{ backgroundColor: statusColor(data.status), position: 'absolute', top: -10, right: -10, width: 14, height: 14, borderRadius: '50%', boxShadow: `0 0 10px ${statusColor(data.status)}`, zIndex: 10 }} />
+          <Icon type={data.type} size={80} model={data.model} subtype={data.camera_type} />
+        </div>
+        <div style={{ marginTop: 8, textAlign: 'center', background: 'rgba(17, 24, 39, 0.7)', padding: '2px 8px', borderRadius: 12, backdropFilter: 'blur(4px)' }}>
+          <div style={{ fontSize: 13, fontWeight: 'bold', color: '#e5e7eb' }}>{data.ip}</div>
+          <div style={{ fontSize: 11, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{deviceTypeLabel(data.type)}</div>
+        </div>
+        <Handle type="source" position={Position.Bottom} style={{ background: '#555', border: 'none' }} />
       </div>
-    </div>
-    <div className="topo-node__body">
-      <span className="topo-node__model">{data.model || 'Device'}</span>
-      {data.latency != null && <span className="topo-node__latency">{Math.round(data.latency)}ms</span>}
-    </div>
-    {data.poe_power && (
-      <div className="topo-node__poe">
-        <Icon type="zap" size={10}/> {data.poe_power.used}W / {data.poe_power.total}W
+    );
+  }
+
+  return (
+    <div className={`topo-node topo-node--${data.status} topo-node-type--${data.type}`}
+         style={{ borderColor: statusColor(data.status), position: 'relative' }}>
+      <Handle type="target" position={Position.Top} style={{ background: '#555' }} />
+      
+      {/* Remove button */}
+      {data.onRemove && (
+        <button 
+          onClick={(e) => {
+            e.stopPropagation(); // Prevent opening node sidebar details
+            data.onRemove();
+          }}
+          style={{
+            position: 'absolute',
+            top: -7,
+            right: -7,
+            background: '#ef4444',
+            border: '1px solid #7f1d1d',
+            color: '#fff',
+            borderRadius: '50%',
+            width: 17,
+            height: 17,
+            fontSize: 14,
+            fontWeight: 700,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            boxShadow: '0 2px 4px rgba(0,0,0,0.3)',
+            zIndex: 1000,
+            transition: 'all 0.1s'
+          }}
+          title="Remove from Canvas"
+        >
+          ×
+        </button>
+      )}
+
+      <div className="topo-node__pulse" style={{ backgroundColor: statusColor(data.status), marginRight: data.onRemove ? 10 : 0 }} />
+      <div className="topo-node__header">
+        <div className="topo-node__icon-wrapper"><Icon type={data.type} model={data.model} subtype={data.camera_type} /></div>
+        <div className="topo-node__title">
+          <span className="topo-node__ip">{data.ip}</span>
+          <span className="topo-node__label">{deviceTypeLabel(data.type)}</span>
+        </div>
       </div>
-    )}
-    {data.stream_bitrate_mbps != null && (
-      <div className="topo-node__stream">{data.stream_bitrate_mbps} Mbps</div>
-    )}
-    <Handle type="source" position={Position.Bottom} style={{ background: '#555' }} />
-  </div>
-);
+      <div className="topo-node__body">
+        <span className="topo-node__model">{data.model || 'Device'}</span>
+        {data.latency != null && <span className="topo-node__latency">{Math.round(data.latency)}ms</span>}
+      </div>
+      {data.poe_power && (
+        <div className="topo-node__poe">
+          <Icon type="zap" size={10}/> {data.poe_power.used}W / {data.poe_power.total}W
+        </div>
+      )}
+      {data.stream_bitrate_mbps != null && (
+        <div className="topo-node__stream">{data.stream_bitrate_mbps} Mbps</div>
+      )}
+      <Handle type="source" position={Position.Bottom} style={{ background: '#555' }} />
+    </div>
+  );
+};
 
 const nodeTypes = { custom: CustomNode };
 
@@ -1238,32 +1489,82 @@ export default function Topology() {
         }
       }
 
-      await fetch(`${API_BASE}/edges/clear`, { method: 'POST' });
+      // Optimistic UI Update for instant feedback
+      setNodes(nds => nds.map(n => newPositions[n.id] ? { ...n, position: newPositions[n.id] } : n));
+      setScannedNodes(snd => snd.map(n => newPositions[n.id] ? { ...n, position: newPositions[n.id] } : n));
 
-      await Promise.all(
-        Object.entries(newPositions).map(([id, pos]) =>
-          fetch(`${API_BASE}/nodes/${id}`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ position: pos })
+      const reactEdges = newEdges.map((e, idx) => {
+        const targetNode = nodesToArrange.find(n => n.id === e.target);
+        const targetType = targetNode?.type;
+        
+        let strokeColor = '#818cf8';
+        let strokeWidth = 2;
+        
+        if (targetType === 'camera') {
+          strokeColor = '#10b981';
+        } else if (targetType === 'server' || targetType === 'nvr') {
+          strokeColor = '#3b82f6';
+          strokeWidth = 2.5;
+        } else if (targetType === 'switch' || targetType === 'poe-switch' || targetType === 'core-switch') {
+          strokeColor = '#f59e0b';
+          strokeWidth = 2.5;
+        }
+
+        const isCameraTarget = targetType === 'camera';
+
+        return {
+          id: `e-temp-${Date.now()}-${idx}`, 
+          source: e.source, 
+          target: e.target,
+          animated: true,
+          type: 'smoothstep',
+          style: { 
+            stroke: strokeColor, 
+            strokeWidth: strokeWidth,
+            filter: `drop-shadow(0px 0px 3px ${strokeColor}66)`
+          },
+          ...(isCameraTarget ? {
+            markerStart: { type: MarkerType.ArrowClosed, color: strokeColor }
+          } : {
+            markerEnd: { type: MarkerType.ArrowClosed, color: strokeColor }
           })
-        )
-      );
+        };
+      });
+      setEdges(reactEdges);
+      setScanning(false); // unlock UI immediately
 
-      await Promise.all(
-        newEdges.map(edge =>
-          fetch(`${API_BASE}/edges`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ source: edge.source, target: edge.target, inferred: edge.inferred })
-          })
-        )
-      );
+      // Background persistence
+      (async () => {
+        try {
+          await fetch(`${API_BASE}/edges/clear`, { method: 'POST' });
 
-      await fetchTopology();
+          await Promise.all(
+            Object.entries(newPositions).map(([id, pos]) =>
+              fetch(`${API_BASE}/nodes/${id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ position: pos })
+              })
+            )
+          );
+
+          await Promise.all(
+            newEdges.map(edge =>
+              fetch(`${API_BASE}/edges`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ source: edge.source, target: edge.target, inferred: edge.inferred })
+              })
+            )
+          );
+
+          await fetchTopology();
+        } catch (err) {
+          console.error("Failed to persist topology template:", err);
+        }
+      })();
     } catch (err) {
       console.error("Failed to generate topology template:", err);
-    } finally {
       setScanning(false);
     }
   }, [nodes, scannedNodes, fetchTopology]);
@@ -1348,7 +1649,7 @@ export default function Topology() {
           transition: 'all 0.15s'
         }}
       >
-        <div className="item-icon"><Icon type={node.type} /></div>
+        <div className="item-icon"><Icon type={node.type} model={node.model} subtype={node.camera_type} /></div>
         <div className="item-info">
           <span className="item-ip">{node.ip}</span>
           <span className="item-mdl" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
