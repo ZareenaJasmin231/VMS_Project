@@ -1,4 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import JSONResponse
+from app.services.license_manager import license_manager
 import json
 from app.core.database import cameras_col, db as _db
 from app.core.security import verify_token
@@ -46,7 +48,7 @@ from app.managers.health_manager import analytics_poll_loop as _analytics_poll_l
 from app.core.database import analytics_col, analytics_subs_col
 from app.managers.stream_manager import load_devices, save_camera_to_db, _watchdog_failures
 
-OME_HOST_IP = os.environ.get("OME_HOST_IP", "192.168.126.200")
+OME_HOST_IP = os.environ.get("OME_HOST_IP", "192.168.126.36")
 
 router = APIRouter(prefix="/api", tags=["cameras"])
 features_router = APIRouter(prefix="/api/camera", tags=["camera-features"], dependencies=[Depends(verify_token)])
@@ -61,6 +63,22 @@ async def enable_camera_by_ip(ip: str):
     matched = get_devices_by_ip(ip)
     if not matched:
         raise HTTPException(status_code=404, detail=f"No camera found with IP {ip}")
+    
+    to_enable_count = sum(1 for d in matched if not d.get("enabled", False))
+    if to_enable_count > 0:
+        max_cameras = license_manager.get_max_cameras()
+        active_count = cameras_col.count_documents({"enabled": True}) if cameras_col is not None else len([d for d in devices if d.get("enabled") is True])
+        if active_count + to_enable_count > max_cameras:
+            return JSONResponse(
+                status_code=409,
+                content={
+                    "success": False,
+                    "message": "Camera license limit reached.",
+                    "licensed": max_cameras,
+                    "current": active_count
+                }
+            )
+
     started = []
     for device in matched:
         stream_name = device.get("ome_stream")
@@ -259,6 +277,21 @@ async def onvif_probe(req: ProbeRequest):
 
  
         if not existing or not stream_exists(stream_name):
+            is_currently_active = existing.get("enabled", False) if existing else False
+            if not is_currently_active:
+                max_cameras = license_manager.get_max_cameras()
+                active_count = cameras_col.count_documents({"enabled": True}) if cameras_col is not None else len([d for d in devices if d.get("enabled") is True])
+                if active_count >= max_cameras:
+                    return JSONResponse(
+                        status_code=409,
+                        content={
+                            "success": False,
+                            "message": "Camera license limit reached.",
+                            "licensed": max_cameras,
+                            "current": active_count
+                        }
+                    )
+
             print(f"[ONVIF] Registering stream in OME: {stream_name}")
             ome_response = register_stream(stream_name, rtsp)
             print("MEDIAMTX RESPONSE:", ome_response)
@@ -381,7 +414,21 @@ async def register_rtsp_stream(req: StreamRegisterRequest):
             "status":     "streaming",
             "rtsp_url":   rtsp,
         }
- 
+    is_currently_active = existing.get("enabled", False) if existing else False
+    if not is_currently_active:
+        max_cameras = license_manager.get_max_cameras()
+        active_count = cameras_col.count_documents({"enabled": True}) if cameras_col is not None else len([d for d in devices if d.get("enabled") is True])
+        if active_count >= max_cameras:
+            return JSONResponse(
+                status_code=409,
+                content={
+                    "success": False,
+                    "message": "Camera license limit reached.",
+                    "licensed": max_cameras,
+                    "current": active_count
+                }
+            )
+
     try:
         ome_response = register_stream(stream_name, rtsp)
         print(f"[RTSP] OME response: {ome_response}")

@@ -81,7 +81,7 @@ class CameraMotionDetector(threading.Thread):
         return rtsp_url
 
     def run(self):
-        from app.services.storage import rtsp_recorder as recorder
+        from recorder import rtsp_recorder as recorder
         sub_rtsp = self.get_sub_stream_url()
         print(f"[MOTION DETECT] ▶ Starting motion detector for {self.stream_name} on sub-stream: {sub_rtsp}")
         
@@ -117,6 +117,20 @@ class CameraMotionDetector(threading.Thread):
                 last_process_time = now
                 ret, frame = cap.retrieve()
                 if ret and frame is not None:
+                    from app.services.license_manager import license_manager
+
+                    # Check if MotionDetection is licensed
+                    if not license_manager.is_analytics_enabled("MotionDetection"):
+                        time.sleep(1)
+                        continue
+
+                    # Check active analytics limit
+                    max_analytics = license_manager.get_max_analytics()
+                    active_detectors_count = len([t for t in threading.enumerate() if t.name.startswith("motion-detector-")])
+                    if active_detectors_count > max_analytics:
+                        time.sleep(1)
+                        continue
+
                     try:
                         # Resize to 240x180 for better spatial accuracy
                         small_frame = cv2.resize(frame, (240, 180))
@@ -156,7 +170,11 @@ class CameraMotionDetector(threading.Thread):
                                 scale_h = 480 / h_orig
                                 face_detect_frame = cv2.resize(frame, (640, 480))
                                 gray_face = cv2.cvtColor(face_detect_frame, cv2.COLOR_BGR2GRAY)
-                                faces = face_cascade.detectMultiScale(gray_face, scaleFactor=1.1, minNeighbors=3, minSize=(30, 30))
+                                
+                                if not license_manager.is_analytics_enabled("FaceDetection"):
+                                    faces = []
+                                else:
+                                    faces = face_cascade.detectMultiScale(gray_face, scaleFactor=1.1, minNeighbors=3, minSize=(30, 30))
                                 
                                 if len(faces) > 0:
                                     # Found face! Crop first match from original frame
