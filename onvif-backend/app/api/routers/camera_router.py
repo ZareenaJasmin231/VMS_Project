@@ -94,7 +94,7 @@ async def enable_camera_by_ip(ip: str):
         print(f"[ENABLE] ✅ {stream_name} enabled. Recording will be started by the assigned worker process.")
     save_devices(devices)
     if cameras_col is not None:
-        cameras_col.update_one({"ip": ip}, {"$set": {"enabled": True}})
+        cameras_col.update_many({"ip": ip}, {"$set": {"enabled": True}})
     return {"success": True, "ip": ip, "streams_started": started}
 
 
@@ -111,10 +111,15 @@ async def disable_camera_by_ip(ip: str):
             continue
         device["enabled"] = False
         stopped.append(stream_name)
+        try:
+            remove_stream(stream_name)
+            print(f"[DISABLE] MediaMTX unregister {stream_name}")
+        except Exception as e:
+            print(f"[DISABLE] MediaMTX unregister failed for {stream_name} (non-fatal): {e}")
         print(f"[DISABLE] ⏹ {stream_name} disabled. Recording will be stopped by the assigned worker process.")
     save_devices(devices)
     if cameras_col is not None:
-        cameras_col.update_one({"ip": ip}, {"$set": {"enabled": False}})
+        cameras_col.update_many({"ip": ip}, {"$set": {"enabled": False}})
     return {"success": True, "ip": ip, "streams_stopped": stopped}
 
 

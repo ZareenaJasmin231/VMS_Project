@@ -603,27 +603,53 @@ def event_snapshot(ip: str, time: str):
         print(f"Snapshot Seek: offset={offset:.1f}s")
 
         # ── 7. Decrypt & Extract frame with ffmpeg ────────────────────
-        output_path = tempfile.mktemp(suffix=".jpg")
-        ffmpeg_cmd = [
-            "ffmpeg", "-y",
-            "-i",      "pipe:0",
-            "-ss",     str(offset),
-            "-vframes", "1",
-            "-f",      "image2",
-            output_path,
-        ]
-
+        dec_tmp_path = None
         try:
-            from app.utils.ffmpeg_utils import stream_to_ffmpeg_sync
-            success, stderr_data = stream_to_ffmpeg_sync(ffmpeg_cmd, encrypt_service.decrypt_file_stream(enc_path))
+            dec_tmp_path = encrypt_service.decrypt_to_temp_file(enc_path, suffix=".mp4")
         except Exception as dec_err:
-            print(f"[SNAPSHOT] Decryption/extraction failed: {dec_err}")
-            return Response(
-                content=f'{{"error":"Extraction failed: {str(dec_err)}"}}'.encode(),
-                status_code=500,
-                media_type="application/json",
-                headers={"Access-Control-Allow-Origin": "*"},
-            )
+            print(f"[SNAPSHOT] Decryption to temp file failed: {dec_err}")
+
+        output_path = tempfile.mktemp(suffix=".jpg")
+        success = False
+
+        if dec_tmp_path and os.path.exists(dec_tmp_path):
+            # Seekable local file allows extremely fast and accurate seek
+            ffmpeg_cmd = [
+                "ffmpeg", "-y",
+                "-ss",     str(offset),
+                "-i",      dec_tmp_path,
+                "-vframes", "1",
+                "-f",      "image2",
+                output_path,
+            ]
+            try:
+                import subprocess
+                res = subprocess.run(ffmpeg_cmd, capture_output=True)
+                success = res.returncode == 0
+            except Exception as run_err:
+                print(f"[SNAPSHOT] ffmpeg on seekable temp file failed: {run_err}")
+                success = False
+            finally:
+                try:
+                    os.remove(dec_tmp_path)
+                except Exception:
+                    pass
+        else:
+            # Fallback to streaming pipe decryption
+            ffmpeg_cmd = [
+                "ffmpeg", "-y",
+                "-i",      "pipe:0",
+                "-ss",     str(offset),
+                "-vframes", "1",
+                "-f",      "image2",
+                output_path,
+            ]
+            try:
+                from app.utils.ffmpeg_utils import stream_to_ffmpeg_sync
+                success, stderr_data = stream_to_ffmpeg_sync(ffmpeg_cmd, encrypt_service.decrypt_file_stream(enc_path))
+            except Exception as dec_err:
+                print(f"[SNAPSHOT] Decryption/extraction fallback failed: {dec_err}")
+                success = False
 
         if not success or not os.path.exists(output_path) or os.path.getsize(output_path) < 100:
             print("[SNAPSHOT] Retrying ffmpeg at beginning (offset=0)")
@@ -635,6 +661,7 @@ def event_snapshot(ip: str, time: str):
                 output_path,
             ]
             try:
+                from app.utils.ffmpeg_utils import stream_to_ffmpeg_sync
                 stream_to_ffmpeg_sync(ffmpeg_cmd2, encrypt_service.decrypt_file_stream(enc_path))
             except Exception:
                 pass

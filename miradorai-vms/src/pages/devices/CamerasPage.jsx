@@ -104,13 +104,34 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
   const toggleGroupEnabled = (groupId) => {
     const groupCams = cameras.filter(c => (c.group_id || "default") === groupId);
     const allEnabled = groupCams.every(c => c.enabled !== false);
+    const willBeEnabled = !allEnabled;
     const updated = cameras.map(c =>
       (c.group_id || "default") === groupId
-        ? { ...c, enabled: !allEnabled }
+        ? { ...c, enabled: willBeEnabled }
         : c
     );
     setCameras(updated);
     saveDevices(updated);
+
+    // Call camera action on backend for each camera in the group
+    groupCams.forEach(cam => {
+      if ((cam.enabled !== false) !== willBeEnabled) {
+        callCameraAction(cam, willBeEnabled ? "enable" : "disable");
+        logAction(
+          willBeEnabled ? "Camera enabled" : "Camera disabled",
+          "camera",
+          { ip: cam.ip }
+        );
+      }
+    });
+
+    // Also update selectedGroup state if it matches this group
+    if (selectedGroup && selectedGroup.group_id === groupId) {
+      setSelectedGroup((sg) => ({
+        ...sg,
+        cameras: sg.cameras.map((c) => ({ ...c, enabled: willBeEnabled })),
+      }));
+    }
   };
 
   const openGroupPanel = (group) => {

@@ -574,7 +574,7 @@ function AlertsPanel({ onAlertCountUpdate, onTotalAlertCountChange, isOpen, live
                     </div>
                   </div>
 
-                  {/* <div
+                  <div
                     className="lv-alert-card__thumbnail-container"
                     onClick={() => setZoomedImage({
                       url: `${API}/api/event-playback/snapshot?ip=${encodeURIComponent(alert.ip)}&time=${encodeURIComponent(alert.time || alert.received_at)}`,
@@ -590,7 +590,7 @@ function AlertsPanel({ onAlertCountUpdate, onTotalAlertCountChange, isOpen, live
                       className="lv-alert-card__thumbnail"
                       loading="lazy"
                     />
-                  </div> */}
+                  </div>
                 </div>
               </div>
             );

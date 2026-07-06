@@ -966,23 +966,13 @@ export default function MediaPlayerPage() {
 
               {camDropdownOpen && (
                 <div className="mp-cam-menu">
-                  <div className="mp-cam-search-wrap" style={{ padding: "8px", borderBottom: "1px solid var(--border)", position: "sticky", top: 0, background: "var(--surface)", zIndex: 2 }}>
+                  <div className="mp-cam-search-wrapper">
                     <input
                       type="text"
                       className="mp-cam-search-input"
                       placeholder="Search cameras..."
                       value={camSearchTerm}
                       onChange={(e) => setCamSearchTerm(e.target.value)}
-                      style={{
-                        width: "100%",
-                        padding: "6px 10px",
-                        background: "rgba(0, 0, 0, 0.2)",
-                        border: "1px solid var(--border)",
-                        borderRadius: "4px",
-                        color: "var(--text)",
-                        fontSize: "0.85rem",
-                        outline: "none"
-                      }}
                       onClick={(e) => e.stopPropagation()}
                       onKeyDown={(e) => e.stopPropagation()}
                     />
@@ -1187,7 +1177,9 @@ export default function MediaPlayerPage() {
                     playsInline
                     style={{
                       filter: customCssFilter || 'none',
-                      transform: `${cssTransform || 'none'} ${zoomTransform}`,
+                      transform: `${cssTransform && cssTransform !== "none" ? cssTransform : ""} ${
+                        zoomTransform && zoomTransform !== "none" ? zoomTransform : ""
+                      }`.trim() || "none",
                       transition: "filter 0.1s ease, transform 0.2s ease"
                     }}
                   />
