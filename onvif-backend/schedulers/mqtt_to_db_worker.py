@@ -6,7 +6,7 @@ from app.core.database import mongo_client
 from datetime import datetime, timezone, timedelta
 
 # ── Config ─────────────────────────────────────────────────────────
-MQTT_BROKER =  "192.168.126.200"
+MQTT_BROKER =  "192.168.126.36"
 MQTT_PORT   = int(os.environ.get("MQTT_PORT", 1883))
 MQTT_TOPIC  = "axis/#"
 

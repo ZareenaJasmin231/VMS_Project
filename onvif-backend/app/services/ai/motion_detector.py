@@ -201,6 +201,15 @@ class CameraMotionDetector(threading.Thread):
                                         cv2.imwrite(face_filepath, face_crop)
                                         face_file_url = f"/api/faces/{face_filename}"
                                         print(f"[MOTION DETECT] 👤 Face detected and cropped: {face_filename}")
+                                else:
+                                    # Fallback: Save the 640x480 frame for the UI
+                                    faces_dir = os.path.join(os.path.dirname(__file__), "static", "faces")
+                                    os.makedirs(faces_dir, exist_ok=True)
+                                    import uuid
+                                    face_filename = f"motion_{self.stream_name}_{int(time.time())}_{uuid.uuid4().hex[:6]}.jpg"
+                                    face_filepath = os.path.join(faces_dir, face_filename)
+                                    cv2.imwrite(face_filepath, face_detect_frame)
+                                    face_file_url = f"/api/faces/{face_filename}"
                             except Exception as fe:
                                 print(f"[MOTION DETECT] ❌ Face detection error: {fe}")
 

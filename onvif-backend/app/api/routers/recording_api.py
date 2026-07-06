@@ -49,6 +49,17 @@ from app.managers.stream_manager import stop_worker_pool
 MONGO_URI = os.environ.get("MONGO_URI", "mongodb://mongo:27017/")
 KEY_FILE  = os.environ.get("VIDEO_KEY_FILE", "/app/data/video.key")
 
+if os.name == 'nt' and KEY_FILE == "/app/data/video.key":
+    sibling_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "devices_data", "video.key"))
+    if os.path.exists(sibling_path):
+        KEY_FILE = sibling_path
+    else:
+        hardcoded_path = "c:/Users/miradorwin/Documents/GitHub/VMS_Project/devices_data/video.key"
+        if os.path.exists(hardcoded_path):
+            KEY_FILE = hardcoded_path
+        else:
+            KEY_FILE = sibling_path
+
 # ── Startup sanity check: warn loudly if the key file is missing ──────────────
 # Both this module and encrypt_service.py MUST use the same KEY_FILE path.
 # They both default to /app/data/video.key, controlled by VIDEO_KEY_FILE env var.

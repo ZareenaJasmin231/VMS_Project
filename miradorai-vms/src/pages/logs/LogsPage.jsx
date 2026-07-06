@@ -6,7 +6,7 @@ import 'jspdf-autotable';
 import html2canvas from 'html2canvas';
 import "./LogsPage.css";
 
-const API_BASE = import.meta.env.VITE_API_URL;
+const API_BASE = import.meta.env.VITE_API_URL || "";
 function getAuthHeaders() {
   const token = localStorage.getItem("miradorai_token") || localStorage.getItem("token") || localStorage.getItem("authToken");
   return token ? { Authorization: `Bearer ${token}` } : {};
@@ -435,7 +435,7 @@ export default function LogsPage() {
                     <>
                       <th>Role</th>
                       {activeTab === "ui" && <th>Category</th>}
-                      {(activeTab === "recordings" || category === "recording") && <th>Camera</th>}
+                      <th>Camera</th>
                       <th>Action</th>
                       <th>{(activeTab === "recordings" || category === "recording") ? "Face / Details" : "Details"}</th>
                     </>
@@ -461,14 +461,16 @@ export default function LogsPage() {
                           </span>
                         </td>
                         {activeTab === "ui" && <td>{log.category?.toUpperCase()}</td>}
-                        {(activeTab === "recordings" || category === "recording") && (
-                          <td>
+                        <td>
+                          {log.details?.camera_id ? (
                             <div className="log-camera-cell">
-                              <span className="log-camera-name">{getCameraName(log.details?.camera_id)}</span>
-                              <span className="log-camera-ip">{log.details?.camera_id?.replace(/_/g, ".")}</span>
+                              <span className="log-camera-name">{getCameraName(log.details.camera_id)}</span>
+                              <span className="log-camera-ip">{log.details.camera_id.replace(/_/g, ".")}</span>
                             </div>
-                          </td>
-                        )}
+                          ) : (
+                            "-"
+                          )}
+                        </td>
                         <td>
                           <span style={{ fontWeight: 500 }}>{formatActionText(log.action)}</span>
                         </td>

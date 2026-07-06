@@ -84,28 +84,6 @@ def get_ui_logs(
         cursor = ui_logs_col.find(query, {"_id": 0}).sort("timestamp", -1).limit(limit)
         logs = list(cursor)
         
-        # When viewing the Recordings tab (category=recording), only keep
-        # logs for cameras that currently have motion_only enabled.
-        # For all other views, return every log unfiltered.
-        if category == "recording":
-            cameras_col = db["cameras"]
-            motion_only_cameras = set(
-                doc["ome_stream"] for doc in cameras_col.find(
-                    {"motion_only": True},
-                    {"ome_stream": 1}
-                )
-            )
-            
-            filtered = []
-            for log in logs:
-                details = log.get("details")
-                if details and isinstance(details, dict) and "camera_id" in details:
-                    cam_id = details["camera_id"]
-                    if cam_id not in motion_only_cameras:
-                        continue
-                filtered.append(log)
-            logs = filtered
-            
         return {"success": True, "logs": logs}
     except Exception as e:
         return {"success": False, "error": str(e), "logs": []}

@@ -101,7 +101,8 @@ input, select, button, textarea { font-family: var(--font-ui); }
 .page-shell {
   display: flex;
   flex-direction: column;
-  height: 100%;
+  flex: 1;
+  min-height: 0;
   overflow: hidden;
   animation: pageFadeIn 0.3s ease-out;
 }
@@ -144,6 +145,8 @@ input, select, button, textarea { font-family: var(--font-ui); }
 
 .app-content {
   flex: 1;
+  display: flex;
+  flex-direction: column;
   overflow-y: auto;
   padding: 0 8px 20px;
 }

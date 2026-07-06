@@ -51,6 +51,102 @@ _schedules = _db["schedules"] if _db is not None else None
 
 def trigger_motion(stream_name: str, face_url: str | None = None):
     """Trigger a motion recording chunk for the given stream_name."""
+    # 1. Save log to ui_logs collection so it appears on the Logs page ALWAYS
+    if _db is not None:
+        try:
+            from datetime import timedelta
+            ui_logs_col = _db["ui_logs"]
+            
+            now = time.time()
+            last_log_time = _last_trigger_log_times.get(stream_name, 0)
+            local_time_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            
+            # If face_url is present, check if we logged a trigger in the last 15 seconds without a face_url, and update it
+            if face_url:
+                recent_log = ui_logs_col.find_one(
+                    {
+                        "category": "recording",
+                        "details.camera_id": stream_name,
+                        "details.event": "motion_trigger",
+                        "details.face_url": None,
+                        "timestamp": {"$gte": (datetime.utcnow() - timedelta(seconds=15)).isoformat() + "Z"}
+                    },
+                    sort=[("timestamp", -1)]
+                )
+                if recent_log:
+                    ui_logs_col.update_one(
+                        {"_id": recent_log["_id"]},
+                        {"$set": {"details.face_url": face_url}}
+                    )
+                    print(f"[RECORDER] Attached face_url {face_url} to recent motion log.")
+                    # Also update cameras collection so the worker gets the face_url
+                    _db["cameras"].update_one(
+                        {"ome_stream": stream_name},
+                        {"$set": {"last_face_url": face_url}}
+                    )
+                    return
+            
+            # Debounce writing new logs: 15 seconds per camera
+            if now - last_log_time >= 15:
+                _last_trigger_log_times[stream_name] = now
+                ui_logs_col.insert_one({
+                    "user_email": "system",
+                    "user_role": "system",
+                    "action": f"[RECORDER] [{local_time_str}] 💥 Motion trigger received for {stream_name} (Motion is detected).",
+                    "category": "recording",
+                    "details": {
+                        "camera_id": stream_name, 
+                        "event": "motion_trigger",
+                        "face_url": face_url
+                    },
+                    "timestamp": datetime.utcnow().isoformat() + "Z"
+                })
+        except Exception as e:
+            print(f"[RECORDER] Failed to log motion trigger to DB: {e}")
+
+    # 2. Check if motion_only is set
+    motion_only = False
+    if _db is not None:
+        try:
+            cam = _db["cameras"].find_one({"ome_stream": stream_name})
+            if cam:
+                motion_only = cam.get("motion_only", False)
+        except Exception as e:
+            print(f"[RECORDER] DB lookup error in trigger_motion: {e}")
+
+    meta = _camera_data.get(stream_name, {})
+    if not motion_only and not meta.get("motion_only", False):
+        return
+
+    # Update database trigger timestamp so the worker process sees it
+    if _db is not None:
+        try:
+            _db["cameras"].update_one(
+                {"ome_stream": stream_name},
+                {"$set": {
+                    "last_motion_trigger": time.time(),
+                    "last_face_url": face_url
+                }}
+            )
+        except Exception as e:
+            print(f"[RECORDER] Failed to update last_motion_trigger in DB: {e}")
+
+    _last_motion_trigger_times[stream_name] = time.time()
+
+    if stream_name not in _motion_events:
+        _motion_events[stream_name] = threading.Event()
+    _motion_events[stream_name].set()
+    
+    local_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    print(f"[RECORDER] [{local_time}] 💥 Motion trigger processed for {stream_name} (face_url: {face_url})")
+    
+    if face_url:
+        _latest_face_urls[stream_name] = face_url
+    else:
+        _latest_face_urls.pop(stream_name, None)
+
+def trigger_motion_local(stream_name: str, face_url: str | None = None):
+    """Trigger a motion recording chunk locally on the worker."""
     meta = _camera_data.get(stream_name, {})
     if not meta.get("motion_only", False):
         return
@@ -61,62 +157,10 @@ def trigger_motion(stream_name: str, face_url: str | None = None):
         _motion_events[stream_name] = threading.Event()
     _motion_events[stream_name].set()
     
-    local_time_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    print(f"[RECORDER] [{local_time_str}] 💥 Motion trigger received for {stream_name} (face_url: {face_url})")
-    
     if face_url:
         _latest_face_urls[stream_name] = face_url
     else:
         _latest_face_urls.pop(stream_name, None)
-        
-    # Save log to ui_logs collection so it appears on the Logs page
-    try:
-        from datetime import timedelta
-        ui_logs_col = _db["ui_logs"]
-        
-        now = time.time()
-        last_log_time = _last_trigger_log_times.get(stream_name, 0)
-        
-        # If face_url is present, check if we logged a trigger in the last 15 seconds without a face_url, and update it
-        if face_url:
-            recent_log = ui_logs_col.find_one(
-                {
-                    "category": "recording",
-                    "details.camera_id": stream_name,
-                    "details.event": "motion_trigger",
-                    "details.face_url": None,
-                    "timestamp": {"$gte": (datetime.utcnow() - timedelta(seconds=15)).isoformat() + "Z"}
-                },
-                sort=[("timestamp", -1)]
-            )
-            if recent_log:
-                ui_logs_col.update_one(
-                    {"_id": recent_log["_id"]},
-                    {"$set": {"details.face_url": face_url}}
-                )
-                print(f"[RECORDER] Attached face_url {face_url} to recent motion log.")
-                return
-        
-        # Debounce writing new logs: 15 seconds per camera
-        if now - last_log_time < 15:
-            return
-            
-        _last_trigger_log_times[stream_name] = now
-        
-        ui_logs_col.insert_one({
-            "user_email": "system",
-            "user_role": "system",
-            "action": f"[RECORDER] [{local_time_str}] 💥 Motion trigger received for {stream_name} (Motion is detected).",
-            "category": "recording",
-            "details": {
-                "camera_id": stream_name, 
-                "event": "motion_trigger",
-                "face_url": face_url
-            },
-            "timestamp": datetime.utcnow().isoformat() + "Z"
-        })
-    except Exception as e:
-        print(f"[RECORDER] Failed to log motion trigger to DB: {e}")
 
 
 def is_schedule_on(schedule_id: str | int | None, now: datetime) -> bool:
@@ -301,13 +345,13 @@ class CameraRecorder:
                     print(f"[RECORDER] [{local_time}] ⏹ No motion detected for 30s buffer. Stopping recording early for {self.stream_name}.")
                     self._stop_ffmpeg()
                     return
-                if elapsed_total >= 300.0:
+                if elapsed_total >= getattr(self, "current_chunk_duration", CHUNK_SECONDS):
                     local_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                    print(f"[RECORDER] [{local_time}] ⏹ Reached 5-minute max recording limit. Stopping recording for {self.stream_name}.")
+                    print(f"[RECORDER] [{local_time}] ⏹ Reached chunk limit. Stopping recording for {self.stream_name}.")
                     self._stop_ffmpeg()
                     return
             else:
-                if elapsed_total >= CHUNK_SECONDS:
+                if elapsed_total >= getattr(self, "current_chunk_duration", CHUNK_SECONDS):
                     self._stop_ffmpeg()
                     return
 
@@ -315,12 +359,26 @@ class CameraRecorder:
             self._check_termination()
 
     def _start_ffmpeg(self, now, motion_only):
-        date_str  = now.strftime("%Y-%m-%d")
-        self.time_str  = now.strftime("%H-%M-%S")
-        timestamp = f"{date_str}_{self.time_str}"
         if motion_only:
+            date_str = now.strftime("%Y-%m-%d")
+            self.time_str = now.strftime("%H-%M-%S")
+            timestamp = f"{date_str}_{self.time_str}"
+            self.current_chunk_duration = 3600
+            segment_start = 0
             self.filename = f"{timestamp}_motion_based.mp4"
         else:
+            # Align chunks to exactly 5-minute intervals (e.g. 00, 05, 10...)
+            minute = (now.minute // 5) * 5
+            rounded_now = now.replace(minute=minute, second=0, microsecond=0)
+            
+            date_str  = rounded_now.strftime("%Y-%m-%d")
+            self.time_str  = rounded_now.strftime("%H-%M-%S")
+            timestamp = f"{date_str}_{self.time_str}"
+            
+            # Adjust chunk duration so it stops exactly at the next 5-minute mark
+            elapsed_in_slot = (now - rounded_now).total_seconds()
+            self.current_chunk_duration = max(10, int(CHUNK_SECONDS - elapsed_in_slot))
+            segment_start = int(elapsed_in_slot // 10)
             self.filename = f"{timestamp}.mp4"
 
         recordings_dir = get_recordings_dir()
@@ -332,19 +390,19 @@ class CameraRecorder:
 
         if motion_only:
             face_url = _latest_face_urls.pop(self.stream_name, None)
-            print(f"[RECORDER] [{local_time_str}] 🏃 Motion triggered for {self.stream_name}! Starting 5-minute recording (File: {self.filename}, Face: {face_url})...")
+            print(f"[RECORDER] [{local_time_str}] 🏃 Motion triggered for {self.stream_name}! Started recording (File: {self.filename}, Face: {face_url})...")
             
             try:
                 if _db is not None:
                     _db["ui_logs"].insert_one({
                         "user_email": "system",
                         "user_role": "system",
-                        "action": f"[RECORDER] [{local_time_str}] 🏃 Motion triggered for {self.stream_name}! Starting 5-minute recording (File: {self.filename})...",
+                        "action": f"Started Recording",
                         "category": "recording",
                         "details": {
                             "camera_id": self.stream_name, 
                             "event": "recording_started", 
-                            "duration": CHUNK_SECONDS,
+                            "duration": self.current_chunk_duration,
                             "file_name": self.filename,
                             "face_url": face_url
                         },

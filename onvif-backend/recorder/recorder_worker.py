@@ -138,7 +138,15 @@ def main():
                 
                 # Start or update any assigned recorders
                 for stream_name, cam_info in assigned_map.items():
-                    is_running = stream_name in recorder._recorders and recorder._recorders[stream_name].is_alive()
+                    is_running = stream_name in recorder._recorders
+                    
+                    if is_running:
+                        recorder.update_camera_data(stream_name, cam_info["device_data"])
+                        # Check for database motion triggers to forward to the recorder
+                        last_trigger = cam_info["device_data"].get("last_motion_trigger")
+                        if last_trigger and (time.time() - last_trigger < 15):
+                            face_url = cam_info["device_data"].get("last_face_url")
+                            recorder.trigger_motion_local(stream_name, face_url)
                     
                     # Check if the RTSP URL of the running recorder differs from the assigned one
                     current_recorded_rtsp = recorder._camera_data.get(stream_name, {}).get("recording_rtsp") or recorder._camera_data.get(stream_name, {}).get("rtsp_url")

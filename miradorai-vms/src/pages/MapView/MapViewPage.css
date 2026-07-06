@@ -3,7 +3,6 @@
 .mv-page {
   display: flex;
   flex-direction: column;
-  height: 100%;
   background: var(--color-background-primary, #0d1117);
   color: var(--color-text-primary, #e8edf5);
   font-family: var(--font-sans, 'Inter', sans-serif);

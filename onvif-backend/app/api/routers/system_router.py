@@ -126,17 +126,74 @@ router = APIRouter(prefix="/api", tags=["system"])
 @router.get("/health")
 def health():
     import os
+    import socket
     from monitoring.scheduler import scheduler
+    from app.core.database import mongo_client
+    import urllib.request
+    
     watchdog_active = scheduler.thread.is_alive() if scheduler.thread else False
     
+    # 1. MongoDB Check
+    mongodb_ok = False
+    try:
+        if mongo_client:
+            mongo_client.admin.command('ping')
+            mongodb_ok = True
+    except Exception:
+        pass
+
+    # 2. Mosquitto Check
+    mosquitto_ok = False
+    try:
+        mqtt_host = os.environ.get("MQTT_BROKER", "127.0.0.1")
+        mqtt_port = int(os.environ.get("MQTT_PORT", 1883))
+        with socket.create_connection((mqtt_host, mqtt_port), timeout=1):
+            mosquitto_ok = True
+    except Exception:
+        pass
+
+    # 3. MinIO Check
+    minio_ok = False
+    try:
+        minio_endpoint = os.environ.get("MINIO_ENDPOINT", "127.0.0.1:9000")
+        m_host = minio_endpoint.split(":")[0] if ":" in minio_endpoint else minio_endpoint
+        m_port = int(minio_endpoint.split(":")[1]) if ":" in minio_endpoint else 9000
+        with socket.create_connection((m_host, m_port), timeout=1):
+            minio_ok = True
+    except Exception:
+        pass
+
+    # 4. MediaMTX Check
+    mediamtx_ok = False
+    try:
+        mtx_url = os.environ.get("MEDIAMTX_API_URL", "http://127.0.0.1:9997/v3/paths/list")
+        if "host.docker.internal" in mtx_url:
+            mtx_url = mtx_url.replace("host.docker.internal", "127.0.0.1")
+        req = urllib.request.Request(mtx_url, method="GET")
+        with urllib.request.urlopen(req, timeout=1) as response:
+            if response.status == 200:
+                mediamtx_ok = True
+    except Exception:
+        pass
+
     days_left = license_manager.get_days_until_expiry()
     max_cams = license_manager.get_max_cameras()
     active_cams = cameras_col.count_documents({"enabled": True}) if cameras_col is not None else len([d for d in devices if d.get("enabled") is True])
 
-    return {
-        "status": "ok",
+    is_healthy = mongodb_ok and mosquitto_ok and minio_ok and mediamtx_ok and watchdog_active
+
+    from fastapi.responses import JSONResponse
+    status_code = 200 if is_healthy else 503
+
+    return JSONResponse(status_code=status_code, content={
+        "status": "ok" if is_healthy else "error",
+        "mongodb": mongodb_ok,
+        "minio": minio_ok,
+        "mediamtx": mediamtx_ok,
+        "mosquitto": mosquitto_ok,
+        "stream_manager": True, # Placeholder for explicit stream manager process check
+        "scheduler": watchdog_active,
         "version": os.environ.get("APP_VERSION", "1.0.0"),
-        "watchdog": "Active" if watchdog_active else "Inactive",
         "startup_id": STARTUP_ID,
         "license": {
             "valid": license_manager._check_valid() or (not license_manager.validation_enabled or license_manager.dev_mode),
@@ -147,7 +204,7 @@ def health():
             "used": active_cams,
             "licensed": max_cams
         }
-    }
+    })
 
 @router.get("/discover-devices", dependencies=[Depends(verify_token)])
 async def discover_devices():
