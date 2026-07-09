@@ -126,7 +126,7 @@ const MAP = {
 };
 
 // Pages that require supervisor unlock for CLIENT role
-const CLIENT_SUPERVISOR_PAGES = ["media-player", "backup", "masking"];
+const CLIENT_SUPERVISOR_PAGES = ["backup", "masking"];
 
 // Pages the OPERATOR role is allowed to access
 const OPERATOR_ALLOWED_PAGES = ["designer-view"];

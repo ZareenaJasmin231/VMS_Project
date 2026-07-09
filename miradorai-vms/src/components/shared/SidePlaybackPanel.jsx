@@ -114,6 +114,11 @@ export default function SidePlaybackPanel({ camera, onClose }) {
              const s = (a.scenario || "").toLowerCase();
              return !t.includes("motion") && !s.includes("motion") && t !== "unknown" && t !== "" && !t.includes("tns1:");
           })
+          .sort((a, b) => {
+            const tA = new Date(a.time || a.received_at).getTime() || 0;
+            const tB = new Date(b.time || b.received_at).getTime() || 0;
+            return tB - tA;
+          })
           .slice(0, 99);
         setAlerts(filtered);
       }
@@ -488,14 +493,38 @@ export default function SidePlaybackPanel({ camera, onClose }) {
   };
 
   const handleDownloadVideo = async () => {
-    if (!playingFile) {
-      showToast("Segment download only in continuous archive mode", "error");
+    if (!playingFile && !playingAlert) {
+      showToast("Select a file or alert to download", "error");
+      return;
+    }
+
+    if (playingAlert) {
+      if (!videoUrl) return;
+      try {
+        const response = await fetch(videoUrl, { headers: getAuthHeaders() });
+        if (!response.ok) throw new Error(`Server returned ${response.status}`);
+        const blob = await response.blob();
+        
+        const blobUrl = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = blobUrl;
+        const timeStr = playingAlert.time || playingAlert.received_at || "alert";
+        const safeTime = timeStr.replace(/[:\/]/g, "-");
+        a.download = `Alert_${camera?.name || cameraIp}_${safeTime}.mp4`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 5000);
+        showToast("Download started!");
+      } catch (err) {
+        console.error("Alert download error:", err);
+        showToast("Download failed: " + err.message, "error");
+      }
       return;
     }
 
     const safeTime = playingFile.start_time.replace(/[:\/]/g, "-");
     const safeDate = playingFile.date.replace(/[:\/]/g, "-");
-    // const filename = `${playingFile.camera_id}_${safeDate}_${safeTime}.mp4`;
     const filename = `${playingFile.camera_id}_${safeDate}_${safeTime}.zip`;
     const url = `${API}/api/recordings/download`
       + `?camera_id=${encodeURIComponent(playingFile.camera_id)}`
@@ -556,11 +585,22 @@ export default function SidePlaybackPanel({ camera, onClose }) {
 
   // ── Group files by hour ─────────────────────────────────────────
   const groupedFiles = useMemo(() => {
-    return files.reduce((acc, f) => {
+    const groups = files.reduce((acc, f) => {
       const h = String(extractHour(f)).padStart(2, "0");
       (acc[h] = acc[h] || []).push(f);
       return acc;
     }, {});
+    
+    // Sort files within each hour descending
+    Object.values(groups).forEach(arr => {
+      arr.sort((a, b) => {
+        const timeA = a.start_time || a.name || "";
+        const timeB = b.start_time || b.name || "";
+        return timeB.localeCompare(timeA);
+      });
+    });
+    
+    return groups;
   }, [files]);
 
   return (
@@ -730,7 +770,7 @@ export default function SidePlaybackPanel({ camera, onClose }) {
               </svg>
             </button>
 
-            <button className="side-playback-btn" onClick={handleDownloadVideo} disabled={!playingFile} title="Download File Segment">
+            <button className="side-playback-btn" onClick={handleDownloadVideo} disabled={!playingFile && !playingAlert} title="Download File or Alert Segment">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="13" height="13">
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
               </svg>
@@ -816,7 +856,7 @@ export default function SidePlaybackPanel({ camera, onClose }) {
               )}
 
               <div style={{ flex: 1, overflowY: "auto" }}>
-                {Object.entries(groupedFiles).sort().map(([hour, hourFiles]) => {
+                {Object.entries(groupedFiles).sort((a, b) => Number(b[0]) - Number(a[0])).map(([hour, hourFiles]) => {
                   const isOpen = expandedHours.has(hour);
                   return (
                     <div key={hour} className="side-playback-hour-group">

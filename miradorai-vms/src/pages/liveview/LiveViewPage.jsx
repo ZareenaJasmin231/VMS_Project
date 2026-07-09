@@ -137,7 +137,7 @@ function MaskOverlay({ ip }) {
 }
 
 // ── AlertPopup ────────────────────────────────────────────────────
-function AlertPopup({ ip, alerts, onClose }) {
+export function AlertPopup({ ip, alerts, onClose }) {
   const [playingAlert, setPlayingAlert] = useState(null);
   const [videoUrl,     setVideoUrl]     = useState(null);
   const [videoLoading, setVideoLoading] = useState(false);
@@ -282,7 +282,7 @@ function AlertPopup({ ip, alerts, onClose }) {
   return (
     <div className="alp-overlay" onClick={onClose}>
       <div className="alp-modal" onClick={(e) => e.stopPropagation()}>
-
+a
         <div className="alp-header">
           <div className="alp-header__left">
             {playingAlert && (
@@ -465,6 +465,12 @@ function AlertsPanel({ onAlertCountUpdate, onTotalAlertCountChange, isOpen, live
         }
       });
       
+      finalAlerts.sort((a, b) => {
+        const tA = new Date(a.time || a.received_at).getTime() || 0;
+        const tB = new Date(b.time || b.received_at).getTime() || 0;
+        return tB - tA;
+      });
+
       setAlerts(finalAlerts);
 
       const counts = {};
@@ -1107,6 +1113,13 @@ export default function LiveViewPage() {
         })
         .filter(isAlertAllowed)
         .filter((a) => (a.ip || "").replace(/_/g, ".") === normIp);
+      
+      filtered.sort((a, b) => {
+        const tA = new Date(a.time || a.received_at).getTime() || 0;
+        const tB = new Date(b.time || b.received_at).getTime() || 0;
+        return tB - tA;
+      });
+
       setPopupAlerts(filtered);
       setPopupIp(ip);
     } catch (e) {

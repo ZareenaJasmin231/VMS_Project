@@ -10,6 +10,8 @@ import VirtualMapView from "./VirtualMapView";
 import { drawHeatmapToContext, drawHeatmapLegendToCanvas } from "./HeatmapLogic";
 import { drawCamera, getCamTypeFromName, renderMapViewSnapshot } from "./MapDrawingUtils";
 import WebRTCPlayer_MediaMTX from "../../components/shared/WebRTCPlayer_MediaMTX";
+import { AlertPopup } from "../LiveView/LiveViewPage";
+import "../LiveView/LiveViewPage.css";
 
 const API = import.meta.env.VITE_API_URL;
 const MAP_ID = "default";
@@ -159,6 +161,18 @@ function polygonBounds(polygon) {
   };
 }
 
+function getPolygonArea(polygon) {
+  if (!polygon || polygon.length < 3) return 0;
+  let area = 0;
+  const n = polygon.length;
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    area += polygon[i].x * polygon[j].y;
+    area -= polygon[j].x * polygon[i].y;
+  }
+  return Math.abs(area) / 2;
+}
+
 // Bright distinct zone colors
 const ZONE_COLORS = [
   "#3B82F6", "#10B981", "#F59E0B", "#EF4444",
@@ -169,11 +183,16 @@ const ZONE_COLORS = [
 const StreamModal = React.memo(function StreamModal({ cam, onClose }) {
   const ref = useRef(cam);
   const [tab,    setTab]   = useState("stream");
-  const [alerts, setAlerts] = useState({ motion: [], lineCrossing: [], idle: [] });
+  const [alertsList, setAlertsList] = useState([]);
   const [loading, setLoad]  = useState(false);
 
   useEffect(() => {
     if (tab !== "alerts") return;
+    if (ref.current.isDeleted) {
+      setAlertsList([]);
+      setLoad(false);
+      return;
+    }
     setLoad(true);
     fetch(`${API}/api/alerts?camera_ip=${ref.current.ip}&limit=50`, {
       headers: getAuthHeaders(),
@@ -182,11 +201,12 @@ const StreamModal = React.memo(function StreamModal({ cam, onClose }) {
       .then(d => {
         if (!d) return;
         const all = d.alerts || [];
-        setAlerts({
-          motion:       all.filter(a => (a.type || a.scenario || "").toLowerCase().includes("motion")),
-          lineCrossing: all.filter(a => (a.type || a.scenario || "").toLowerCase().includes("line")),
-          idle:         all.filter(a => (a.type || a.scenario || "").toLowerCase().includes("idle")),
+        const filtered = all.filter(a => {
+           const t = (a.type || "").toLowerCase();
+           const s = (a.scenario || "").toLowerCase();
+           return !t.includes("motion") && !s.includes("motion") && t !== "unknown" && t !== "" && !t.includes("tns1:");
         });
+        setAlertsList(filtered);
       })
       .catch(() => {})
       .finally(() => setLoad(false));
@@ -201,10 +221,10 @@ const StreamModal = React.memo(function StreamModal({ cam, onClose }) {
             <div className="mv-stream-sub">
               {ref.current.ip}
               <span
-                className={`mv-modal__badge mv-modal__badge--${ref.current.status}`}
+                className={`mv-modal__badge mv-modal__badge--${ref.current.isDeleted ? "offline" : ref.current.status}`}
                 style={{ marginLeft: 8 }}
               >
-                {ref.current.status === "online" ? "● Online" : "○ Offline"}
+                {ref.current.isDeleted ? "○ Deleted" : (ref.current.status === "online" ? "● Online" : "○ Offline")}
               </span>
             </div>
           </div>
@@ -222,12 +242,20 @@ const StreamModal = React.memo(function StreamModal({ cam, onClose }) {
         </div>
         {tab === "stream" ? (
           <div className="mv-stream-body">
-            {ref.current.status === "online" ? (
+            {ref.current.status === "online" && !ref.current.isDeleted ? (
               <WebRTCPlayer_MediaMTX
                 key={ref.current.id}
                 streamKey={ref.current.id}
                 cameraId={ref.current.id}
               />
+            ) : ref.current.isDeleted ? (
+              <div className="mv-stream-offline">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" width="52" height="52" style={{ opacity: 0.5 }}>
+                  <path d="M23 7l-7 5 7 5V7z"/>
+                  <rect x="1" y="5" width="15" height="14" rx="2"/>
+                </svg>
+                <div style={{ marginTop: 8, color: "rgba(255, 255, 255, 0.5)" }}>Stream not registered</div>
+              </div>
             ) : (
               <div className="mv-stream-offline">
                 <div style={{ fontSize: 52 }}>📷</div>
@@ -240,14 +268,11 @@ const StreamModal = React.memo(function StreamModal({ cam, onClose }) {
             {loading ? (
               <div className="mv-alerts-loading">Loading alerts…</div>
             ) : (
-              <>
-                <AlertSection label="🏃 Motion"       items={alerts.motion} />
-                <AlertSection label="⚡ Line Crossing" items={alerts.lineCrossing} />
-                <AlertSection label="💤 Idle"          items={alerts.idle} />
-                {!alerts.motion.length && !alerts.lineCrossing.length && !alerts.idle.length && (
-                  <div className="mv-alerts-empty">No recent alerts</div>
-                )}
-              </>
+              <AlertPopup 
+                ip={ref.current.ip} 
+                alerts={alertsList} 
+                onClose={() => setTab("stream")} 
+              />
             )}
           </div>
         )}
@@ -407,6 +432,7 @@ function ZoneCameraItem({ marker, cameras, isHighlighted, onHighlight, onRemove,
     name:   marker.camName || marker.camId,
     ip:     marker.camIp || "",
     status: "offline",
+    isDeleted: true,
   };
 
   return (
@@ -759,6 +785,8 @@ export default function MapViewPage() {
   }, []);
 
   const [alertCounts, setAlertCounts] = useState({});
+  const camerasRef = useRef(cameras);
+  useEffect(() => { camerasRef.current = cameras; }, [cameras]);
 
   // Fetch active alert counts periodically (replaces websocket)
   useEffect(() => {
@@ -769,12 +797,22 @@ export default function MapViewPage() {
         });
         const data = await res.json();
         const counts = {};
+        
+        const validIps = new Set(camerasRef.current.map(c => (c.ip || "").replace(/_/g, ".")));
+
         (data.alerts || [])
+          .filter((a) => {
+             const t = (a.type || "").toLowerCase();
+             const s = (a.scenario || "").toLowerCase();
+             return !t.includes("motion") && !s.includes("motion") && t !== "unknown" && t !== "" && !t.includes("tns1:");
+          })
           .filter((a) => a.status === "Active")
           .filter(isAlertAllowed)
           .forEach((alert) => {
             const ip = (alert.ip || "").replace(/_/g, ".");
-            if (ip) counts[ip] = (counts[ip] || 0) + 1;
+            if (ip && validIps.has(ip)) {
+              counts[ip] = (counts[ip] || 0) + 1;
+            }
           });
         setAlertCounts(counts);
       } catch (e) {
@@ -1159,9 +1197,11 @@ export default function MapViewPage() {
     if (idx >= 0) {
       const m   = markersRef.current[idx];
       const cam = cameras.find(c => c.id === m.camId) || {
-        name:   m.camId,
-        ip:     "",
+        id:     m.camId,
+        name:   m.camName || m.camId,
+        ip:     m.camIp || "",
         status: "offline",
+        isDeleted: true
       };
       setTooltip({
         visible: true,
@@ -1226,9 +1266,15 @@ export default function MapViewPage() {
       setSelectedIdx(idx);
       draggingRef.current = idx;
       const cam = markersRef.current[idx];
-      draggingCamZoneRef.current = zonesRef.current.find(
-        z => z.polygon?.length >= 3 && pointInPolygon(cam.x, cam.y, z.polygon)
-      ) || null;
+      const containedZones = zonesRef.current.filter(
+        z => z.floorIndex === activeFloor && z.polygon?.length >= 3 && pointInPolygon(cam.x, cam.y, z.polygon)
+      );
+      if (containedZones.length > 0) {
+        containedZones.sort((a, b) => getPolygonArea(a.polygon) - getPolygonArea(b.polygon));
+        draggingCamZoneRef.current = containedZones[0];
+      } else {
+        draggingCamZoneRef.current = null;
+      }
       return;
     }
     setSelectedIdx(null);
@@ -1312,6 +1358,7 @@ export default function MapViewPage() {
         name:   m.camName || m.camId,
         ip:     m.camIp || "",
         status: "offline",
+        isDeleted: true
       };
       setStreamCam(null);
       setTimeout(() => setStreamCam(cam), 50);
