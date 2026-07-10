@@ -1,9 +1,12 @@
 import os
+os.environ["OPENCV_OPENCL_RUNTIME"] = ""
+os.environ["OPENCV_OPENCL_DEVICE"] = "disabled"
 os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = "rtsp_transport;tcp|stimeout;2000000"
 
 import threading
 import time
 import cv2
+cv2.ocl.setUseOpenCL(False)
 import numpy as np
 from app.core.database import mongo_client
 

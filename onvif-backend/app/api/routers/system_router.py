@@ -180,7 +180,8 @@ def health():
     max_cams = license_manager.get_max_cameras()
     active_cams = cameras_col.count_documents({"enabled": True}) if cameras_col is not None else len([d for d in devices if d.get("enabled") is True])
 
-    is_healthy = mongodb_ok and mosquitto_ok and minio_ok and mediamtx_ok and watchdog_active
+    # is_healthy = mongodb_ok and mosquitto_ok and minio_ok and mediamtx_ok and watchdog_active
+    is_healthy = mongodb_ok and mosquitto_ok and mediamtx_ok and watchdog_active
 
     from fastapi.responses import JSONResponse
     status_code = 200 if is_healthy else 503

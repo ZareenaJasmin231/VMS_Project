@@ -85,6 +85,7 @@ def get_indexer_status() -> dict:
 # ── Optional ML deps ──────────────────────────────────────────────────────────
 try:
     import cv2
+    cv2.ocl.setUseOpenCL(False)
     import numpy as np
     HAS_CV2 = True
 except ImportError:
@@ -92,12 +93,13 @@ except ImportError:
     print("[FORENSIC INDEXER] ⚠ opencv-python not found — install it for real indexing.")
 
 try:
-    from ultralytics import YOLO
-    import torch
-    import torchvision.models as models
-    import torchvision.transforms as T
-    HAS_ML = True
-    print("[FORENSIC INDEXER] ✅ YOLOv8 (ultralytics) + OpenCV + Torchvision available.")
+    # from ultralytics import YOLO
+    # import torch
+    # import torchvision.models as models
+    # import torchvision.transforms as T
+    # HAS_ML = True
+    # print("[FORENSIC INDEXER] ✅ YOLOv8 (ultralytics) + OpenCV + Torchvision available.")
+    raise ImportError("ML Disabled to prevent GPU crash")
 except ImportError:
     HAS_ML = False
     print("[FORENSIC INDEXER] ⚠ ultralytics/torchvision not found.")

@@ -310,8 +310,9 @@ def get_object_track(request: TrackRequest):
 @forensic_router.get("/index-status")
 def get_indexer_status_endpoint():
     try:
-        import torch
-        device_mode = "GPU (CUDA)" if torch.cuda.is_available() else "CPU Only"
+        # import torch
+        # device_mode = "GPU (CUDA)" if torch.cuda.is_available() else "CPU Only"
+        raise Exception("Disabled")
     except Exception:
         device_mode = "CPU Only"
 

@@ -173,6 +173,7 @@ export default function MediaPlayerPage() {
   const [verifyResult, setVerifyResult] = useState(null); // { valid, message }
   const [snapshotFlash, setSnapshotFlash] = useState(false);
   const [isVideoLoading, setIsVideoLoading] = useState(false);
+  const [isBrowseDecrypting, setIsBrowseDecrypting] = useState(false);
   const [toast, setToast] = useState(null); // { msg, type: 'success'|'error' }
 
   // Ref to track blob URL created from uploaded .enc so we can revoke it later
@@ -271,11 +272,25 @@ export default function MediaPlayerPage() {
     if (!v) return;
     const onTime = () => setCurrentTime(v.currentTime);
     const onMeta = () => setDuration(v.duration);
-    const onPlay = () => setPlaying(true);
+    const onPlay = () => { setPlaying(true); setIsVideoLoading(false); };
     const onPause = () => setPlaying(false);
     const onEnded = () => setPlaying(false);
     const onLoadStart = () => setIsVideoLoading(true);
     const onCanPlay = () => setIsVideoLoading(false);
+    const onLoadedData = () => setIsVideoLoading(false);
+    const onError = () => {
+      setIsVideoLoading(false);
+      if (v && v.error) {
+        let msg = "Unsupported media format or decryption error";
+        if (v.error.code === 1) msg = "Playback aborted";
+        else if (v.error.code === 2) msg = "Network error while loading video";
+        else if (v.error.code === 3) msg = "Video decoding failed (corrupted file)";
+        else if (v.error.code === 4) msg = "Unsupported video format or decryption key mismatch";
+        showToast(msg, "error");
+      } else {
+        showToast("An error occurred during video playback", "error");
+      }
+    };
     v.addEventListener("timeupdate", onTime);
     v.addEventListener("loadedmetadata", onMeta);
     v.addEventListener("play", onPlay);
@@ -283,6 +298,8 @@ export default function MediaPlayerPage() {
     v.addEventListener("ended", onEnded);
     v.addEventListener("loadstart", onLoadStart);
     v.addEventListener("canplay", onCanPlay);
+    v.addEventListener("loadeddata", onLoadedData);
+    v.addEventListener("error", onError);
     return () => {
       v.removeEventListener("timeupdate", onTime);
       v.removeEventListener("loadedmetadata", onMeta);
@@ -291,6 +308,8 @@ export default function MediaPlayerPage() {
       v.removeEventListener("ended", onEnded);
       v.removeEventListener("loadstart", onLoadStart);
       v.removeEventListener("canplay", onCanPlay);
+      v.removeEventListener("loadeddata", onLoadedData);
+      v.removeEventListener("error", onError);
     };
   }, [playingFile]);
 
@@ -487,66 +506,106 @@ export default function MediaPlayerPage() {
     if (!file) return;
 
     if (!file.name.endsWith(".enc")) {
-      alert("Please select a valid .enc file");
+      try {
+        setIsBrowseDecrypting(false);
+        setIsVideoLoading(true);
+        setPlayingFile(null);
+
+        // Revoke any previous uploaded blob URL
+        if (uploadedBlobUrl.current) {
+          URL.revokeObjectURL(uploadedBlobUrl.current);
+          uploadedBlobUrl.current = null;
+        }
+
+        const blobUrl = URL.createObjectURL(file);
+        uploadedBlobUrl.current = blobUrl;
+
+        setPlayingFile({
+          camera_id: "Uploaded File",
+          date: "—",
+          start_time: file.name,
+        });
+        setCurrentTime(0);
+        setDuration(0);
+
+        requestAnimationFrame(() => {
+          const v = videoRef.current;
+          if (!v) { setIsVideoLoading(false); return; }
+          v.crossOrigin = "anonymous";
+          v.src = blobUrl;
+          v.load();
+          v.play().catch(() => { });
+        });
+      } catch (err) {
+        console.error("Local playback error:", err);
+        showToast("Failed to play local file: " + err.message, "error");
+        setIsVideoLoading(false);
+      }
       return;
     }
 
     try {
+      setIsBrowseDecrypting(true);
       setIsVideoLoading(true);
+      setPlayingFile(null);
 
-      // Revoke any previous uploaded blob URL before creating a new one
+      // Revoke any previous uploaded blob URL
       if (uploadedBlobUrl.current) {
         URL.revokeObjectURL(uploadedBlobUrl.current);
         uploadedBlobUrl.current = null;
       }
 
+      // Step 1: Upload .enc file to server temp storage (fast — just saves to disk)
       const formData = new FormData();
       formData.append("file", file);
 
-      const res = await fetch(`${STREAM_API}/api/recordings/decrypt-file`, {
+      const uploadRes = await fetch(`${STREAM_API}/api/recordings/upload-temp`, {
         method: "POST",
         headers: authHeaders(),
         body: formData,
       });
 
-      if (!res.ok) {
-        let errorDetail = `Decryption failed (${res.status})`;
+      if (!uploadRes.ok) {
+        let errorDetail = `Upload failed (${uploadRes.status})`;
         try {
-          const errJson = await res.json();
-          if (errJson && errJson.detail) {
-            errorDetail = errJson.detail;
-          }
+          const errJson = await uploadRes.json();
+          if (errJson && errJson.detail) errorDetail = errJson.detail;
         } catch (_) {}
         throw new Error(errorDetail);
       }
 
-      const blob = await res.blob();
-      const videoURL = URL.createObjectURL(blob);
-      uploadedBlobUrl.current = videoURL;
+      const { temp_id } = await uploadRes.json();
 
+      // Step 2: Set video src to streaming URL — same method as normal playback
+      // Server decrypts on-the-fly with range support, plays instantly
+      setIsBrowseDecrypting(false);
       setPlayingFile({
         camera_id: "Uploaded File",
         date: "—",
         start_time: file.name,
       });
-      setPlaying(false);
       setCurrentTime(0);
       setDuration(0);
 
-      setTimeout(() => {
+      const tk = getToken();
+      const streamUrl = `${STREAM_API}/api/recordings/play-uploaded`
+        + `?temp_id=${encodeURIComponent(temp_id)}`
+        + `&_cb=${Date.now()}`
+        + (tk ? `&token=${encodeURIComponent(tk)}` : "");
+
+      requestAnimationFrame(() => {
         const v = videoRef.current;
-        if (!v) return;
-        // No crossOrigin needed for blob URLs
-        v.removeAttribute("crossorigin");
-        v.src = videoURL;
+        if (!v) { setIsVideoLoading(false); return; }
+        v.crossOrigin = "anonymous";
+        v.src = streamUrl;
         v.load();
         v.play().catch(() => { });
-      }, 50);
+      });
 
     } catch (err) {
       console.error("Browse decrypt error:", err);
-      alert("Failed to decrypt file: " + err.message);
-    } finally {
+      showToast("Failed to play file: " + err.message, "error");
+      setIsBrowseDecrypting(false);
       setIsVideoLoading(false);
     }
   };
@@ -1035,16 +1094,14 @@ export default function MediaPlayerPage() {
               <input
                 ref={browseInputRef}
                 type="file"
-                accept=".enc"
+                accept=".enc,.mp4,.mkv,.avi,.webm,.mov"
                 id="mp-browse-input"
                 style={{ display: "none" }}
                 onChange={handleBrowseFile}
               />
               <label htmlFor="mp-browse-input" className="mp-action-btn mp-browse-btn">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" width="13" height="13">
-                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                  <polyline points="17 8 12 3 7 8" />
-                  <line x1="12" y1="3" x2="12" y2="15" />
+                  <path d="M8 5v14l11-7z" />
                 </svg>
                 Play
               </label>
@@ -1151,7 +1208,12 @@ export default function MediaPlayerPage() {
             >
               {snapshotFlash && <div className="mp-snapshot-flash" />}
 
-              {!playingFile ? (
+              {isBrowseDecrypting && !playingFile ? (
+                <div className="mp-player-empty">
+                  <div className="mp-spinner"></div>
+                  <p>Decrypting uploaded file…</p>
+                </div>
+              ) : !playingFile ? (
                 <div className="mp-player-empty">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" width="56" height="56">
                     <rect x="2" y="3" width="20" height="14" rx="2" />
@@ -1186,7 +1248,7 @@ export default function MediaPlayerPage() {
                   {isVideoLoading && (
                     <div className="mp-loading-overlay">
                       <div className="mp-spinner"></div>
-                      <p>Loading and decrypting video...</p>
+                      <p>{isBrowseDecrypting ? "Decrypting uploaded file…" : "Loading video…"}</p>
                     </div>
                   )}
                 </>
@@ -1230,17 +1292,17 @@ export default function MediaPlayerPage() {
                 </button>
 
                 <button
-                  className="mp-ctrl-btn mp-play-btn"
+                  className="mp-ctrl-btn"
                   onClick={togglePlay}
                   disabled={!playingFile}
-                  title="Play/Pause (Space)"
+                  title={playing ? "Pause (Space)" : "Play (Space)"}
                 >
                   {playing ? (
-                    <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18">
+                    <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
                       <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
                     </svg>
                   ) : (
-                    <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18">
+                    <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
                       <path d="M8 5v14l11-7z" />
                     </svg>
                   )}

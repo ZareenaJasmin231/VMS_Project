@@ -1,4 +1,15 @@
 import os
+# Disable OpenCV OpenCL globally to prevent Intel igdfcl64.dll crashes
+os.environ["OPENCV_OPENCL_RUNTIME"] = "disabled"
+os.environ["OPENCV_OPENCL_DEVICE"] = "disabled"
+
+try:
+    import cv2
+    cv2.ocl.setUseOpenCL(False)
+except ImportError:
+    pass
+
+import os
 from pathlib import Path
 
 # Load .env file from parent directory (VMS_Project/.env)

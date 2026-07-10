@@ -276,7 +276,6 @@ function WebRTCPlayer_MediaMTX({ streamKey, cameraId, onConnectChange, onError }
       )}
       {status === "offline" && (
         <div style={centreStyle}>
-          <span style={{ color: "#64748b", fontSize: 20 }}>📷</span>
           <span style={{ color: "#64748b", fontSize: 11 }}>
             {errorMsg || "Stream unavailable"}
           </span>

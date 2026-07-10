@@ -199,6 +199,33 @@
   color: var(--amber);
 }
 
+.mp-browse-loading {
+  border-color: var(--amber-dim) !important;
+  background: var(--amber-subtle) !important;
+  color: var(--amber) !important;
+  animation: mp-browse-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes mp-browse-pulse {
+  0%, 100% { opacity: 0.7; }
+  50% { opacity: 1; }
+}
+
+.mp-btn-spinner {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border: 2px solid rgba(245, 166, 35, 0.3);
+  border-top-color: var(--amber);
+  border-radius: 50%;
+  animation: mp-btn-spin 0.6s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes mp-btn-spin {
+  to { transform: rotate(360deg); }
+}
+
 .mp-export-btn-side {
   background: var(--amber-subtle);
   border: 1px solid rgba(245, 166, 35, 0.3);

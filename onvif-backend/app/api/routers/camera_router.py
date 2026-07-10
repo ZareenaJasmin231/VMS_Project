@@ -48,7 +48,7 @@ from app.managers.health_manager import analytics_poll_loop as _analytics_poll_l
 from app.core.database import analytics_col, analytics_subs_col
 from app.managers.stream_manager import load_devices, save_camera_to_db, _watchdog_failures
 
-OME_HOST_IP = os.environ.get("OME_HOST_IP", "192.168.126.36")
+OME_HOST_IP = os.environ.get("OME_HOST_IP", "192.168.126.200")
 
 router = APIRouter(prefix="/api", tags=["cameras"])
 features_router = APIRouter(prefix="/api/camera", tags=["camera-features"], dependencies=[Depends(verify_token)])
@@ -366,6 +366,7 @@ async def onvif_probe(req: ProbeRequest):
         result["ome_response"] = ome_response
         live_key = live_stream if live_stream else stream_name
         result["ws_url"]       = f"http://host.docker.internal:8889/{live_key}"
+        # result["ws_url"] = f"http://localhost:8889/{live_key}"
         result["stream_key"]   = live_key
         result["status"]       = "streaming"
         result["rtsp_url"]     = rtsp
@@ -415,6 +416,9 @@ async def register_rtsp_stream(req: StreamRegisterRequest):
             "success":    True,
             "ome_stream": stream_name,
             "ws_url":     f"http://host.docker.internal:8889/{live_key}",
+            # "ws_url":     f"http://localhost:8889/{live_key}",
+            
+            
             "stream_key": live_key,
             "status":     "streaming",
             "rtsp_url":   rtsp,
@@ -508,6 +512,7 @@ async def register_rtsp_stream(req: StreamRegisterRequest):
         "success":    True,
         "ome_stream": stream_name,
         "ws_url":     f"http://host.docker.internal:8889/{live_key}",
+        # "ws_url":     f"http://localhost:8889/{live_key}",
         "stream_key": live_key,
         "status":     "streaming",
         "rtsp_url":   rtsp,

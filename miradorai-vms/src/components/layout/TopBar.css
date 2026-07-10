@@ -1,7 +1,7 @@
 /* ── Topbar ──────────────────────────────────────── */
 .topbar {
   position: relative;
-  z-index: 100;
+  z-index: 999999;
   height: 52px;
   background: var(--bg-surface);
   border-bottom: 1px solid var(--border);
