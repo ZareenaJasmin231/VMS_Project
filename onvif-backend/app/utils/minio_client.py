@@ -1,6 +1,8 @@
 import os
+import io
 from minio import Minio
 from minio.error import S3Error
+from minio.commonconfig import ComposeSource
 
 # Load MinIO configuration from environment variables
 MINIO_ENDPOINT = os.environ.get("MINIO_ENDPOINT", "192.168.1.100:9000")
@@ -90,3 +92,85 @@ def delete_object(object_name: str) -> bool:
     except S3Error as e:
         print(f"[MINIO] ❌ Delete object failed for {object_name}: {e}")
         return False
+
+def upload_bytes(object_name: str, data: bytes) -> bool:
+    """Uploads bytes directly to MinIO."""
+    if not minio_client:
+        print("[MINIO] Client not initialized. Cannot upload.")
+        return False
+    try:
+        data_stream = io.BytesIO(data)
+        minio_client.put_object(
+            MINIO_BUCKET,
+            object_name,
+            data_stream,
+            length=len(data)
+        )
+        print(f"[MINIO] ✅ Uploaded bytes to {object_name}")
+        return True
+    except S3Error as e:
+        print(f"[MINIO] ❌ Upload bytes failed for {object_name}: {e}")
+        return False
+    except Exception as e:
+        print(f"[MINIO] ❌ Unexpected error uploading bytes for {object_name}: {e}")
+        return False
+
+def compose_object(destination: str, sources: list[str]) -> bool:
+    """Composes multiple MinIO objects into a single object."""
+    if not minio_client:
+        return False
+    try:
+        compose_sources = [ComposeSource(MINIO_BUCKET, src) for src in sources]
+        minio_client.compose_object(MINIO_BUCKET, destination, compose_sources)
+        print(f"[MINIO] ✅ Composed {len(sources)} parts into {destination}")
+        return True
+    except Exception as e:
+        print(f"[MINIO] ❌ Compose failed for {destination}: {e}")
+        raise
+
+def object_exists(object_name: str) -> bool:
+    """Checks if an object exists in MinIO."""
+    if not minio_client:
+        return False
+    try:
+        minio_client.stat_object(MINIO_BUCKET, object_name)
+        return True
+    except S3Error as e:
+        if e.code in ("NoSuchKey", "NoSuchObject"):
+            return False
+        print(f"[MINIO] ⚠ Stat object error for {object_name}: {e}")
+        return False
+    except Exception as e:
+        print(f"[MINIO] ⚠ Stat object unexpected error for {object_name}: {e}")
+        return False
+
+# Centrally managed worker-to-shard mapping
+WORKER_TO_SHARD_MAP = {
+    "worker-1": "shard1",
+    "worker-2": "shard2",
+    "worker-3": "shard3",
+    "worker-4": "shard4",
+    "worker-5": "shard5",
+    "worker-standby-1": "shard_worker-standby-1",
+    "worker-standby-2": "shard_worker-standby-2",
+}
+
+def get_shard_prefix(worker_id: str) -> str:
+    """Authority for mapping worker_id to logical shard prefix."""
+    if not worker_id:
+        return "shard1"
+    if worker_id in WORKER_TO_SHARD_MAP:
+        return WORKER_TO_SHARD_MAP[worker_id]
+    if "standby" in worker_id:
+        return f"shard_{worker_id}"
+    try:
+        idx = worker_id.split("-")[-1]
+        int(idx) # verify it's numeric
+        return f"shard{idx}"
+    except:
+        return f"shard_{worker_id}"
+
+def build_recording_path(shard_prefix: str, camera_id: str, date_str: str, filename: str) -> str:
+    """Consistent format for MinIO object paths."""
+    return f"{shard_prefix}/{camera_id}/{date_str}/{filename}"
+

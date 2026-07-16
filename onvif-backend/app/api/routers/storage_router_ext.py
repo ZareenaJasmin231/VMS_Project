@@ -84,44 +84,51 @@ def storage_selection():
         return []
     docs   = list(cameras_col.find({}, {"_id": 0}))
     result = []
+    
+    recordings_col = _db["recordings"] if _db is not None else None
+    from datetime import datetime
+    
     for cam in docs:
-        stream         = cam.get("ome_stream", "")
-        recordings_dir = recorder.get_recordings_dir()
+        stream = cam.get("ome_stream", "")
         
-        # Check sharded path first
-        cam_dir = None
-        if os.path.exists(recordings_dir):
-            try:
-                for entry in os.listdir(recordings_dir):
-                    if entry.startswith("shard"):
-                        test_path = os.path.join(recordings_dir, entry, stream)
-                        if os.path.exists(test_path):
-                            cam_dir = test_path
-                            break
-            except Exception as e:
-                print(f"[STORAGE] Error scanning recordings dir for shards: {e}")
-        if not cam_dir:
-            cam_dir = os.path.join(recordings_dir, stream)
         used_bytes = 0
         oldest     = None
-        if os.path.exists(cam_dir):
-            for root, dirs, files in os.walk(cam_dir):
-                for f in files:
-                    fp = os.path.join(root, f)
-                    try:
-                        used_bytes += os.path.getsize(fp)
-                        mtime = os.path.getmtime(fp)
-                        if oldest is None or mtime < oldest:
-                            oldest = mtime
-                    except:
-                        pass
+        
+        try:
+            if recordings_col is not None:
+                # Aggregate total file size of completed recordings
+                pipeline = [
+                    {"$match": {"camera_id": stream, "status": "COMPLETE"}},
+                    {"$group": {"_id": None, "total_size": {"$sum": "$file_size"}}}
+                ]
+                agg = list(recordings_col.aggregate(pipeline))
+                if agg:
+                    used_bytes = agg[0].get("total_size", 0)
+                
+                # Retrieve the oldest complete recording
+                oldest_rec = recordings_col.find_one(
+                    {"camera_id": stream, "status": "COMPLETE"},
+                    sort=[("created_at", 1)]
+                )
+                if oldest_rec:
+                    created_at = oldest_rec.get("created_at")
+                    if isinstance(created_at, datetime):
+                        oldest = created_at.timestamp()
+                    elif isinstance(created_at, str):
+                        try:
+                            oldest = datetime.fromisoformat(created_at.replace("Z", "+00:00")).timestamp()
+                        except:
+                            pass
+        except Exception as e:
+            print(f"[STORAGE] DB size query failed for {stream}: {e}")
+            
         used_gb    = round(used_bytes / (1024 ** 3), 2)
         oldest_str = datetime.fromtimestamp(oldest).strftime("%d-%m-%Y %H:%M:%S") if oldest else "N/A"
         result.append({
             "device":           f"{cam.get('manufacturer', '')} {cam.get('model', '')}".strip() or cam.get("ip"),
             "ip":               cam.get("ip"),
             "used_storage":     f"{used_gb} GB",
-            "location":         recordings_dir,
+            "location":         "minio",
             "retention":        cam.get("retention_days", 70),
             "oldest_recording": oldest_str,
             "failover":         cam.get("failover", False),

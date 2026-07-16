@@ -137,7 +137,7 @@ export default function SidePlaybackPanel({ camera, onClose }) {
 
   // ── Fetch Files for this Camera & Date ─────────────────────────
   useEffect(() => {
-    const streamKey = camera?.ome_stream || camera?.stream_key || camera?.id;
+    const streamKey = camera?.stream_key || camera?.stream_key || camera?.id;
     if (!streamKey || activeTab !== "archive") return;
 
     let cancelled = false;
@@ -501,14 +501,17 @@ export default function SidePlaybackPanel({ camera, onClose }) {
     if (playingAlert) {
       if (!videoUrl) return;
       try {
-        const response = await fetch(videoUrl, { headers: getAuthHeaders() });
+        const time = playingAlert.time || playingAlert.received_at;
+        if (!time) throw new Error("Alert has no timestamp");
+        const downloadUrl = `${API}/api/event-playback?ip=${encodeURIComponent(cameraIp)}&time=${encodeURIComponent(time)}&stream=1`;
+        const response = await fetch(downloadUrl, { headers: getAuthHeaders() });
         if (!response.ok) throw new Error(`Server returned ${response.status}`);
         const blob = await response.blob();
         
         const blobUrl = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = blobUrl;
-        const timeStr = playingAlert.time || playingAlert.received_at || "alert";
+        const timeStr = time || "alert";
         const safeTime = timeStr.replace(/[:\/]/g, "-");
         a.download = `Alert_${camera?.name || cameraIp}_${safeTime}.mp4`;
         document.body.appendChild(a);

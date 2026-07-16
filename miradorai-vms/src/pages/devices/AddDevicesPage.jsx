@@ -336,6 +336,40 @@ export default function AddDevicesPage({ onNavigate }) {
   const [selectedGroupId, setSelectedGroupId] = useState("default");
   const { logAction } = useActivityLogger();
 
+  useEffect(() => {
+    const fetchLatestDevices = async () => {
+      try {
+        const res = await fetch(`${STREAM_API}/api/cameras`, {
+          headers: getAuthHeaders(),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const backendDevices = Array.isArray(data) ? data : (data.devices || []);
+          
+          setDevices((prev) => {
+            const updated = prev.map((localCam) => {
+              const match = backendDevices.find((b) => b.ip === localCam.ip);
+              if (match) {
+                return {
+                  ...localCam,
+                  ...match,
+                  group_id: localCam.group_id && localCam.group_id !== "default" ? localCam.group_id : (match.group_id || "default"),
+                };
+              }
+              return localCam;
+            });
+            
+            const backendOnly = backendDevices.filter((b) => !prev.some((localCam) => localCam.ip === b.ip));
+            return [...updated, ...backendOnly];
+          });
+        }
+      } catch (err) {
+        console.error("Failed to fetch latest devices/shards from backend:", err);
+      }
+    };
+    fetchLatestDevices();
+  }, []);
+
   // Capture snapshot when live preview plays
   useEffect(() => {
     if (!previewDevice || !previewDevice.ws_url) return;
@@ -891,7 +925,7 @@ export default function AddDevicesPage({ onNavigate }) {
               <thead>
                 <tr>
                   <th style={{ width: 60, color: "rgba(255, 255, 255, 0.5)" }}></th>
-                  {["Device Name", "IP Address", "MAC Address", "Status", "Manufacturer", "Model"].map((c) => (
+                  {["Device Name", "IP Address", "MAC Address", "Status", "Manufacturer", "Model", "Shard"].map((c) => (
                     <th key={c} style={{ color: "rgba(255, 255, 255, 0.5)" }}>{c}</th>
                   ))}
                   <th style={{ color: "rgba(255, 255, 255, 0.5)" }}>Group</th>
@@ -954,6 +988,26 @@ export default function AddDevicesPage({ onNavigate }) {
                       <td><StatusBadge status={d.status} /></td>
                       <td>{d.manufacturer}</td>
                       <td>{d.model}</td>
+                      <td>
+                        <span className="add-dev__shard-tag" style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "4px",
+                          padding: "3px 8px",
+                          borderRadius: "4px",
+                          fontSize: "11px",
+                          fontWeight: "500",
+                          background: "rgba(74, 106, 153, 0.15)",
+                          color: "#4a6a99",
+                          border: "1px solid rgba(74, 106, 153, 0.25)"
+                        }}>
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="11" height="11">
+                            <rect x="3" y="3" width="18" height="18" rx="2" />
+                            <path d="M9 3v18M15 3v18M3 9h18M3 15h18" />
+                          </svg>
+                          {d.shard_prefix || "shard1"}
+                        </span>
+                      </td>
                       <td>
                         <span className="add-dev__group-tag">
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="11" height="11">

@@ -98,6 +98,8 @@ def load_devices():
                     "assigned_schedule_id": d.get("assigned_schedule_id", "Always"),
                     "motion_only":          d.get("motion_only", False),
                     "live_codec":           d.get("live_codec", "H.264"),
+                    "shard_prefix":         d.get("shard_prefix"),
+                    "assigned_worker":      d.get("assigned_worker"),
                 } for d in deduped if d.get("ip") and d.get("rtsp_url")]
                 
                 save_devices(final_list)
@@ -164,9 +166,21 @@ _promoted_standbys = set()
 
 def get_configured_workers():
     try:
-        active_count = int(os.environ.get("VMS_WORKER_COUNT", "2"))
-    except:
+        # Check environment variable first for manual override
+        active_env = os.environ.get("VMS_WORKER_COUNT")
+        if active_env is not None and active_env.strip() != "":
+            active_count = int(active_env)
+        else:
+            # Auto-scale: 1 worker per 5 cameras, with a minimum of 2 workers for redundancy
+            if cameras_col is not None:
+                enabled_count = cameras_col.count_documents({"enabled": {"$ne": False}})
+            else:
+                enabled_count = 0
+            active_count = max(2, (enabled_count + 4) // 5)
+    except Exception as e:
+        print(f"[STREAM MANAGER] Error calculating active worker count: {e}")
         active_count = 2
+        
     try:
         standby_count = int(os.environ.get("VMS_STANDBY_COUNT", "0"))
     except:
@@ -184,91 +198,194 @@ def get_configured_workers():
             
     return active_workers, standby_workers
 
+def get_camera_weight(cam: dict) -> float:
+    # Estimate weight based on resolution and fps
+    profiles = cam.get("stream_profiles")
+    primary = {}
+    if isinstance(profiles, dict):
+        primary = profiles.get("primary") or {}
+    
+    res_str = primary.get("resolution") or cam.get("live_codec", "1920x1080")
+    fps = 15.0
+    try:
+        fps_val = primary.get("fps")
+        if fps_val is not None:
+            fps = float(fps_val)
+    except:
+        pass
+        
+    # Standardize resolution string parsing
+    try:
+        if "x" in str(res_str).lower():
+            width, height = map(int, str(res_str).lower().split("x"))
+        else:
+            width, height = 1920, 1080
+    except:
+        width, height = 1920, 1080
+        
+    # Scale relative to baseline 1080p@15fps (weight 1.0)
+    pixels_sec = width * height * fps
+    weight = pixels_sec / (1920 * 1080 * 15.0)
+    return max(0.1, weight)
+
 async def rebalance_sharding():
-    if cameras_col is None:
+    if cameras_col is None or _db is None:
         return
     
     try:
-        active_workers, standby_workers = get_configured_workers()
-        # Fetch all enabled cameras
+        # Load configurable balancing factors
+        CAMERA_WEIGHT_FACTOR = float(os.environ.get("CAMERA_WEIGHT_FACTOR", "0.50"))
+        CPU_FACTOR           = float(os.environ.get("CPU_FACTOR", "0.25"))
+        NETWORK_FACTOR       = float(os.environ.get("NETWORK_FACTOR", "0.15"))
+        MEMORY_FACTOR        = float(os.environ.get("MEMORY_FACTOR", "0.10"))
+        REBALANCE_THRESHOLD  = float(os.environ.get("REBALANCE_THRESHOLD", "0.15"))
+        
+        # 1. Discover workers dynamically from MongoDB worker_heartbeats
+        from datetime import timedelta
+        cutoff = datetime.utcnow() - timedelta(seconds=45)
+        heartbeats = list(_db["worker_heartbeats"].find({"last_seen": {"$gte": cutoff}}))
+        
+        # Filter active workers
+        active_hbs = [hb for hb in heartbeats if hb.get("status") == "active"]
+        if not active_hbs:
+            # Fallback to get_configured_workers if no heartbeats found yet
+            active_ids, _ = get_configured_workers()
+            active_hbs = [{"worker_id": w, "cpu_percent": 0.0, "memory_percent": 0.0, "network_mbps": 0.0, "last_seen": datetime.utcnow()} for w in active_ids]
+            
+        # Get active cameras
         all_cameras = list(cameras_col.find({"enabled": {"$ne": False}}))
         if not all_cameras:
             return
-        
-        # Filter active workers to only those that have NOT crashed persistently (> 3 retries)
-        healthy_workers = []
-        for w_id in active_workers:
-            if _worker_retries.get(w_id, 0) > 3:
-                # Check if it's marked dead in heartbeats collection as well
-                try:
-                    hb_doc = _db["worker_heartbeats"].find_one({"worker_id": w_id})
-                    if hb_doc and hb_doc.get("status") == "dead":
-                        continue
-                except:
-                    pass
-                continue
-            healthy_workers.append(w_id)
+            
+        # For each worker, calculate static score from system stats + heartbeat age penalty
+        worker_base_scores = {}
+        for hb in active_hbs:
+            w_id = hb["worker_id"]
+            cpu = float(hb.get("cpu_percent", 0.0))
+            mem = float(hb.get("memory_percent", 0.0))
+            net_mbps = float(hb.get("network_mbps", 0.0))
+            net_pct = min(100.0, net_mbps)
+            
+            # Base resource score
+            res_score = (CPU_FACTOR * cpu) + (NETWORK_FACTOR * net_pct) + (MEMORY_FACTOR * mem)
+            
+            # Age penalty
+            last_seen = hb.get("last_seen", datetime.utcnow())
+            age = (datetime.utcnow() - last_seen).total_seconds()
+            if age > 15.0:
+                res_score += (age - 15.0) * 5.0 # Progressive penalty
                 
-        if not healthy_workers:
-            healthy_workers = active_workers # Fallback to all if none running
-            
-        print(f"[STREAM MANAGER] Sharding {len(all_cameras)} cameras across {len(healthy_workers)} healthy workers...")
+            worker_base_scores[w_id] = res_score
+
+        # Calculate camera weight sum for each worker
+        worker_camera_weights = {w_id: 0.0 for w_id in worker_base_scores}
+        for cam in all_cameras:
+            w_id = cam.get("assigned_worker")
+            if w_id in worker_base_scores:
+                worker_camera_weights[w_id] += get_camera_weight(cam)
+                
+        # Centralized mapping imports
+        from app.utils.minio_client import get_shard_prefix
         
-        # Distribute cameras
-        base_dir = recorder.get_recordings_dir()
-        for idx, cam in enumerate(all_cameras):
-            worker_id = healthy_workers[idx % len(healthy_workers)]
+        # Distribute cameras with hysteresis
+        for cam in all_cameras:
+            cam_weight = get_camera_weight(cam)
+            current_worker = cam.get("assigned_worker")
             
-            # Determine shard path (standby workers use their own shard directories)
-            if "standby" in worker_id:
-                shard_path = os.path.join(base_dir, f"shard_{worker_id}")
+            # Calculate total load scores for all workers as if this camera was NOT assigned to them
+            worker_scores = {}
+            for w_id in worker_base_scores:
+                w_cam_weight = worker_camera_weights[w_id]
+                # subtract camera's weight if it is currently assigned to this worker
+                if w_id == current_worker:
+                    w_cam_weight = max(0.0, w_cam_weight - cam_weight)
+                
+                worker_scores[w_id] = worker_base_scores[w_id] + (CAMERA_WEIGHT_FACTOR * w_cam_weight)
+            
+            # Choose destination worker (lowest score)
+            dest_worker = min(worker_scores.keys(), key=lambda w: worker_scores[w])
+            
+            # Determine assignment:
+            # Keep the camera on its current worker as long as that worker is healthy/active (Sticky Sharding)
+            if current_worker in worker_scores:
+                target_worker = current_worker
             else:
-                idx_val = worker_id.split("-")[-1]
-                shard_path = os.path.join(base_dir, f"shard{idx_val}")
+                target_worker = dest_worker
+                
+            # Update local tracking
+            if current_worker in worker_camera_weights and current_worker != target_worker:
+                worker_camera_weights[current_worker] = max(0.0, worker_camera_weights[current_worker] - cam_weight)
+            worker_camera_weights[target_worker] += cam_weight
             
-            # Check if already assigned to this worker to avoid unnecessary updates
-            if cam.get("assigned_worker") != worker_id or cam.get("assigned_disk") != shard_path:
+            # Update DB with shard_prefix mapping
+            shard_pref = get_shard_prefix(target_worker)
+            if cam.get("assigned_worker") != target_worker or cam.get("shard_prefix") != shard_pref:
                 cameras_col.update_one(
                     {"_id": cam["_id"]},
                     {
                         "$set": {
-                            "assigned_worker": worker_id,
-                            "assigned_disk": shard_path,
+                            "assigned_worker": target_worker,
+                            "shard_prefix": shard_pref,
                             "assigned_at": datetime.utcnow()
+                        },
+                        "$unset": {
+                            "assigned_disk": ""  # Clean up old assigned_disk field!
                         }
                     }
                 )
-                print(f"[STREAM MANAGER] Assigned camera {cam.get('ome_stream')} to {worker_id} (Disk: {shard_path})")
+                print(f"[STREAM MANAGER] Rebalanced camera {cam.get('ome_stream')} to {target_worker} (Shard: {shard_pref}, Load Score: {worker_scores[target_worker]:.2f})")
+                
+                # Invalidate segment receiver cache
+                try:
+                    # Invalidate local cache dynamically in process
+                    from recorder.segment_receiver import _camera_shard_cache
+                    _camera_shard_cache.pop(cam.get("ome_stream"), None)
+                except:
+                    pass
     except Exception as e:
         print(f"[STREAM MANAGER] Error during camera sharding: {e}")
 
 async def start_worker_pool():
     async with _worker_pool_lock:
-        base_dir = recorder.get_recordings_dir()
         active_workers, standby_workers = get_configured_workers()
+        
+        # Scale down: Terminate any running worker subprocesses no longer in configuration
+        all_configured = set(active_workers) | set(standby_workers)
+        for w_id in list(_worker_processes.keys()):
+            if w_id not in all_configured:
+                print(f"[STREAM MANAGER] Scaling down: Stopping decommissioned worker {w_id}...")
+                info = _worker_processes.pop(w_id, None)
+                if info:
+                    proc = info["process"]
+                    try:
+                        import psutil
+                        parent = psutil.Process(proc.pid)
+                        for child in parent.children(recursive=True):
+                            child.kill()
+                        parent.kill()
+                    except Exception:
+                        try:
+                            proc.kill()
+                        except:
+                            pass
+                    try:
+                        if _db is not None:
+                            _db["worker_heartbeats"].delete_one({"worker_id": w_id})
+                    except Exception as db_err:
+                        print(f"[STREAM MANAGER] Failed to delete heartbeat during worker shutdown: {db_err}")
         
         # 1. Spawn primary / active workers
         for w_id in active_workers:
-            idx_val = w_id.split("-")[-1]
-            # Handle shard directory for promoted standby vs standard active worker
-            if "standby" in w_id:
-                shard_path = os.path.join(base_dir, f"shard_{w_id}")
-            else:
-                shard_path = os.path.join(base_dir, f"shard{idx_val}")
-                
-            os.makedirs(shard_path, exist_ok=True)
-            
             if w_id not in _worker_processes or _worker_processes[w_id]["process"].poll() is not None:
                 cmd = [
                     sys.executable,
                     os.path.join(os.path.dirname(__file__), "..", "..", "recorder", "recorder_worker.py"),
-                    "--worker-id", w_id,
-                    "--shard-path", shard_path
+                    "--worker-id", w_id
                 ]
-                print(f"[STREAM MANAGER] Spawning active worker {w_id} on path {shard_path}...")
+                print(f"[STREAM MANAGER] Spawning active worker {w_id}...")
                 
                 worker_env = os.environ.copy()
-                worker_env["SQLITE_QUEUE_DB"] = os.path.join(shard_path, "local_metadata_queue.db")
+                worker_env.pop("SQLITE_QUEUE_DB", None)
                 creation_flags = 0
                 if sys.platform == "win32":
                     creation_flags = subprocess.CREATE_NO_WINDOW
@@ -283,7 +400,6 @@ async def start_worker_pool():
                 
                 _worker_processes[w_id] = {
                     "process": proc,
-                    "shard_path": shard_path,
                     "standby": False
                 }
                 
@@ -305,21 +421,17 @@ async def start_worker_pool():
 
         # 2. Spawn standby workers
         for s_id in standby_workers:
-            shard_path = os.path.join(base_dir, f"shard_{s_id}")
-            os.makedirs(shard_path, exist_ok=True)
-            
             if s_id not in _worker_processes or _worker_processes[s_id]["process"].poll() is not None:
                 cmd = [
                     sys.executable,
                     os.path.join(os.path.dirname(__file__), "..", "..", "recorder", "recorder_worker.py"),
                     "--worker-id", s_id,
-                    "--shard-path", shard_path,
                     "--standby"
                 ]
-                print(f"[STREAM MANAGER] Spawning standby worker {s_id} on path {shard_path}...")
+                print(f"[STREAM MANAGER] Spawning standby worker {s_id}...")
                 
                 worker_env = os.environ.copy()
-                worker_env["SQLITE_QUEUE_DB"] = os.path.join(shard_path, "local_metadata_queue.db")
+                worker_env.pop("SQLITE_QUEUE_DB", None)
                 creation_flags = 0
                 if sys.platform == "win32":
                     creation_flags = subprocess.CREATE_NO_WINDOW
@@ -334,7 +446,6 @@ async def start_worker_pool():
                 
                 _worker_processes[s_id] = {
                     "process": proc,
-                    "shard_path": shard_path,
                     "standby": True
                 }
                 

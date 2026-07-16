@@ -11,11 +11,10 @@ const API = (import.meta.env.VITE_API_URL || "") + "/api/backup";
 const CAM_API = (import.meta.env.VITE_API_URL || "") + "/api/cameras";
 
 // ── Destination options ───────────────────────────────────────────────────────
-const DEST_OPTIONS = [
-  { key: 'D',      label: 'D: drive',     sub: 'D:\\Backup',  path: 'D:\\Backup' },
-  { key: 'C',      label: 'C: drive',     sub: 'C:\\Backup',  path: 'C:\\Backup' },
-  { key: 'Z',      label: 'Z: drive',     sub: 'Mapped laptop (Z:\\)', path: 'Z:\\' },
-  { key: 'custom', label: 'Custom / USB', sub: 'Type any path or USB', path: '' },
+const DEST_TYPES = [
+  { key: 'network', label: 'Network Backup', sub: 'MinIO to remote network share (configured under Network Storage)', icon: <FaServer /> },
+  { key: 'external', label: 'External Drive', sub: 'MinIO to connected USB / External drive (provide drive path)', icon: <FaUsb /> },
+  { key: 'local', label: 'Local Disk / Same Device', sub: 'MinIO to local drive (multiple disks on this machine)', icon: <FaHdd /> },
 ];
 
 // ── Toggle switch ─────────────────────────────────────────────────────────────
@@ -47,55 +46,127 @@ const SectionCard = ({ icon, title, enabled, onToggle, badge, children }) => (
 
 // ── Destination picker modal ──────────────────────────────────────────────────
 const DestinationModal = ({ onConfirm, onCancel }) => {
-  const [selected, setSelected]   = useState('D');
+  const [exportType, setExportType] = useState('network'); // 'network', 'external', 'local'
+  const [drivePath, setDrivePath] = useState('');
+  const [localDrive, setLocalDrive] = useState('D'); // D: drive, C: drive, custom
   const [customPath, setCustomPath] = useState('');
 
   const confirm = () => {
-    let path = DEST_OPTIONS.find(d => d.key === selected)?.path || '';
-    if (selected === 'custom') {
-      path = customPath.trim();
+    let path = '';
+    if (exportType === 'network') {
+      path = ''; // Empty string triggers NETWORK_BASE_DIR on backend
+    } else if (exportType === 'external') {
+      path = drivePath.trim();
       if (!path) return;
+    } else if (exportType === 'local') {
+      if (localDrive === 'custom') {
+        path = customPath.trim();
+        if (!path) return;
+      } else {
+        path = `${localDrive}:\\Backup`;
+      }
     }
     onConfirm(path);
   };
 
   return (
     <div className="modal-overlay">
-      <div className="modal-content">
-        <h2 style={{ fontSize: 22, fontWeight: 700, margin: '0 0 8px' }}>
-          Select Destination
+      <div className="modal-content" style={{ maxWidth: '580px' }}>
+        <h2 style={{ fontSize: 22, fontWeight: 700, margin: '0 0 8px', display: 'flex', alignItems: 'center', gap: 10 }}>
+          <FaDownload style={{ color: 'var(--teal)' }} /> Select Export Destination
         </h2>
-        <p style={{ fontSize: 17, color: 'var(--text-secondary)', margin: '0 0 20px' }}>
-          Choose where to save the recordings (.enc + .meta files).
+        <p style={{ fontSize: 16, color: 'var(--text-secondary)', margin: '0 0 20px' }}>
+          Choose where to export your recordings from MinIO.
         </p>
 
-        <div className="dest-options">
-          {DEST_OPTIONS.map(opt => (
+        <div className="dest-options" style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 20 }}>
+          {DEST_TYPES.map(opt => (
             <div 
               key={opt.key} 
-              className={`dest-card ${selected === opt.key ? 'active' : ''}`}
-              onClick={() => setSelected(opt.key)}
+              className={`dest-card ${exportType === opt.key ? 'active' : ''}`}
+              onClick={() => setExportType(opt.key)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 16,
+                padding: '14px 18px',
+                border: '1px solid var(--border-color)',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+                backgroundColor: exportType === opt.key ? 'rgba(20, 184, 166, 0.05)' : 'transparent',
+                borderColor: exportType === opt.key ? 'var(--teal)' : 'var(--border-color)'
+              }}
             >
-              <div className="dest-label">{opt.label}</div>
-              <div className="dest-sub">{opt.sub}</div>
+              <span style={{ fontSize: 24, color: exportType === opt.key ? 'var(--teal)' : 'var(--text-muted)' }}>{opt.icon}</span>
+              <div style={{ textAlign: 'left' }}>
+                <div className="dest-label" style={{ fontWeight: 600, fontSize: 16, color: 'var(--text-primary)' }}>{opt.label}</div>
+                <div className="dest-sub" style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 2 }}>{opt.sub}</div>
+              </div>
             </div>
           ))}
         </div>
 
-        {selected === 'custom' && (
+        {exportType === 'network' && (
+          <div className="help-box info" style={{ marginBottom: 20, padding: '12px 16px', background: 'rgba(20, 184, 166, 0.06)', borderLeft: '4px solid var(--teal)', borderRadius: 4, fontSize: 14, color: 'var(--text-primary)' }}>
+            Files will be transferred from MinIO to the configured network storage path.
+          </div>
+        )}
+
+        {exportType === 'external' && (
           <div style={{ marginBottom: 20 }}>
-            <label style={{ fontSize: 16, color: 'var(--text-secondary)', display: 'block', marginBottom: 6 }}>
-              Custom Path (e.g. E:\Backup or \\server\share)
+            <label style={{ fontSize: 15, color: 'var(--text-secondary)', display: 'block', marginBottom: 6 }}>
+              External Drive Path (e.g. E:\Backup or F:\)
             </label>
             <input
               type="text"
               className="backup-input"
               style={{ width: '100%' }}
               placeholder="E:\Backup"
-              value={customPath}
-              onChange={e => setCustomPath(e.target.value)}
+              value={drivePath}
+              onChange={e => setDrivePath(e.target.value)}
               autoFocus
             />
+          </div>
+        )}
+
+        {exportType === 'local' && (
+          <div style={{ marginBottom: 20, display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <label style={{ fontSize: 15, color: 'var(--text-secondary)', display: 'block' }}>
+              Select Local Drive/Disk Path
+            </label>
+            <div style={{ display: 'flex', gap: 10 }}>
+              {['C', 'D', 'custom'].map(drive => (
+                <button
+                  key={drive}
+                  type="button"
+                  className={`btn-secondary ${localDrive === drive ? 'active' : ''}`}
+                  style={{
+                    flex: 1,
+                    background: localDrive === drive ? 'var(--teal)' : 'transparent',
+                    color: localDrive === drive ? '#fff' : 'var(--text-primary)',
+                    borderColor: localDrive === drive ? 'var(--teal)' : 'var(--border-color)',
+                  }}
+                  onClick={() => setLocalDrive(drive)}
+                >
+                  {drive === 'custom' ? 'Custom Path' : `${drive}: drive`}
+                </button>
+              ))}
+            </div>
+
+            {localDrive === 'custom' && (
+              <div style={{ marginTop: 8 }}>
+                <input
+                  type="text"
+                  className="backup-input"
+                  style={{ width: '100%' }}
+                  placeholder="Enter path (e.g. C:\MyRecordings)"
+                  value={customPath}
+                  onChange={e => setCustomPath(e.target.value)}
+                  autoFocus
+                />
+              </div>
+            )}
           </div>
         )}
 
@@ -104,7 +175,7 @@ const DestinationModal = ({ onConfirm, onCancel }) => {
             Cancel
           </button>
           <button className="btn-primary" style={{ flex: 2 }} onClick={confirm}>
-            <FaPlayCircle /> Start Backup
+            <FaPlayCircle /> Export Records
           </button>
         </div>
       </div>
@@ -123,6 +194,7 @@ export default function BackupPage() {
   const [notification, setNotification] = useState(null);
   const [loading, setLoading]           = useState({});
   const [networkSaved, setNetworkSaved] = useState(false);
+  const [prevStatus, setPrevStatus] = useState('Idle');
 
   const [manualEnabled, setManualEnabled] = useState(false);
   const [autoEnabled, setAutoEnabled]     = useState(false);
@@ -234,6 +306,18 @@ export default function BackupPage() {
       clearInterval(logPoll);
     };
   }, []);
+
+  useEffect(() => {
+    if (status.status === prevStatus) return;
+    if (prevStatus === 'Processing') {
+      if (status.status === 'Completed') {
+        notify('success', 'Manual backup completed successfully!');
+      } else if (status.status === 'Failed') {
+        notify('error', 'Manual backup failed. Please check the logs.');
+      }
+    }
+    setPrevStatus(status.status);
+  }, [status.status, prevStatus]);
 
   const handleTestConnection = async () => {
     if (!network.path.trim()) return notify('error', 'Enter path.');

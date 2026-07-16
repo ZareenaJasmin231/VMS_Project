@@ -174,6 +174,24 @@ def _apply_persisted_path_on_startup():
 # Apply persisted path as soon as this module is imported
 _apply_persisted_path_on_startup()
 
+def _normalize_enc_path(path: str) -> str:
+    if not path:
+        return path
+    normalized = path.replace("\\", "/")
+    if not normalized.endswith(".enc"):
+        if normalized.startswith("minio:"):
+            from app.utils.minio_client import object_exists
+            minio_key = normalized.replace("minio:", "")
+            try:
+                if object_exists(minio_key + ".enc"):
+                    return normalized + ".enc"
+            except:
+                pass
+        else:
+            if os.path.exists(normalized + ".enc"):
+                return normalized + ".enc"
+    return normalized
+
 
 # ------------------------------------------------------------------
 # AES key + decrypt helpers
@@ -264,46 +282,42 @@ def decrypt_bytes(raw: bytes) -> io.BytesIO:
         _validate_mp4(data)   # ← catch wrong-key silently-corrupt output early
     return io.BytesIO(data)
 
-def get_local_fallback_path(recordings_dir: str, object_key: str) -> str | None:
-    """Find local file path by checking direct and sharded paths under recordings_dir."""
-    if not object_key:
-        return None
-    direct_path = os.path.join(recordings_dir, object_key)
-    if os.path.exists(direct_path):
-        return direct_path
-    if os.path.exists(recordings_dir):
-        try:
-            for entry in os.listdir(recordings_dir):
-                if entry.startswith("shard"):
-                    sharded_path = os.path.join(recordings_dir, entry, object_key)
-                    if os.path.exists(sharded_path):
-                        return sharded_path
-        except Exception as e:
-            print(f"[DECRYPT] Error listing recordings dir: {e}")
-    return None
+
 
 def _decrypt(file_path: str) -> io.BytesIO:
     """Decrypt a .enc file on disk or MinIO and return BytesIO of the MP4 payload."""
     is_minio = file_path.startswith("minio:")
-    if is_minio:
-        try:
-            object_key = file_path.replace("minio:", "")
-            rec_dir = recorder.get_recordings_dir()
-            local_path = get_local_fallback_path(rec_dir, object_key)
-            if local_path and os.path.exists(local_path):
-                file_path = local_path
-                is_minio = False
-        except Exception as fallback_err:
-            print(f"[DECRYPT] Local fallback check failed: {fallback_err}")
+    pass
 
     if is_minio:
         try:
             from app.utils.minio_client import minio_client, MINIO_BUCKET
+            from minio.error import S3Error
             object_key = file_path.replace("minio:", "")
-            response = minio_client.get_object(MINIO_BUCKET, object_key)
-            raw = response.read()
-            response.close()
-            response.release_conn()
+            try:
+                response = minio_client.get_object(MINIO_BUCKET, object_key)
+                raw = response.read()
+                response.close()
+                response.release_conn()
+            except S3Error as err:
+                if err.code in ("NoSuchKey", "NoSuchObject"):
+                    raw_segments = []
+                    idx = 0
+                    while True:
+                        try:
+                            seg_key = f"{object_key.replace('.enc', '')}_{idx:03d}.enc"
+                            res = minio_client.get_object(MINIO_BUCKET, seg_key)
+                            raw_segments.append(res.read())
+                            res.close()
+                            res.release_conn()
+                            idx += 1
+                        except S3Error:
+                            break
+                    if not raw_segments:
+                        raise RuntimeError(f"MinIO object and segments missing for {object_key}")
+                    raw = b''.join(raw_segments)
+                else:
+                    raise err
         except Exception as e:
             raise RuntimeError(f"MinIO read failed: {e}")
     else:
@@ -792,22 +806,21 @@ def list_recordings(
 @recording_router.get("/cameras")
 def list_recordings_cameras():
     """
-    Return the names of folders (camera IPs/IDs) found ONLY on disk storage paths.
-    This matches the "File Explorer" view requested by the user.
+    Return the names of folders (camera IPs/IDs) found in storage or database.
     """
     results = set()
     
-    # Scan configured storage locations for folder names
-    locs = list(locations_collection.find())
-    scan_paths = [l["container_path"] for l in locs]
-    rec_dir = recorder.get_recordings_dir()
-    if rec_dir not in scan_paths:
-        scan_paths.append(rec_dir)
+    # 1. Scan configured storage locations for folder names (local disk fallback)
+    try:
+        locs = list(locations_collection.find())
+        scan_paths = [l["container_path"] for l in locs]
+        rec_dir = recorder.get_recordings_dir()
+        if rec_dir not in scan_paths:
+            scan_paths.append(rec_dir)
 
-    for path in scan_paths:
-        if not os.path.exists(path):
-            continue
-        try:
+        for path in scan_paths:
+            if not os.path.exists(path):
+                continue
             for entry in os.listdir(path):
                 full_path = os.path.join(path, entry)
                 if os.path.isdir(full_path):
@@ -822,8 +835,29 @@ def list_recordings_cameras():
                             pass
                     elif entry not in ("Non-indexed Files", "lost+found", "Config"):
                         results.add(entry)
-        except:
-            pass
+    except:
+        pass
+
+    # 2. Add cameras that have completed recordings in MongoDB
+    try:
+        db_cams = _collection.distinct("camera_id")
+        for cam in db_cams:
+            results.add(cam)
+            if "_" in cam:
+                results.add(cam.replace("_", "."))
+    except Exception as e:
+        print(f"[API] Error fetching distinct cameras from recordings: {e}")
+
+    # 3. Add all configured cameras from the cameras collection as fallback
+    try:
+        all_cams = list(_db["cameras"].find({}, {"ome_stream": 1, "ip": 1}))
+        for cam in all_cams:
+            if cam.get("ome_stream"):
+                results.add(cam["ome_stream"])
+            if cam.get("ip"):
+                results.add(cam["ip"])
+    except:
+        pass
 
     return sorted(list(results))
 
@@ -913,23 +947,10 @@ def play_recording(
     if not doc:
         raise HTTPException(status_code=404, detail="Recording not found in database")
 
-    enc_path = doc.get("file_path", "")
+    enc_path = _normalize_enc_path(doc.get("file_path", ""))
     is_minio = enc_path.startswith("minio:")
     object_key = enc_path.replace("minio:", "") if is_minio else None
 
-    # Check local fallback
-    if is_minio:
-        try:
-            rec_dir = recorder.get_recordings_dir()
-            local_path = get_local_fallback_path(rec_dir, object_key)
-            if local_path and os.path.exists(local_path):
-                print(f"[PLAY] Found local fallback for MinIO file: {local_path}")
-                enc_path = local_path
-                is_minio = False
-                object_key = None
-        except Exception as fallback_err:
-            print(f"[PLAY] Local fallback check failed: {fallback_err}")
-    
     if not is_minio and not os.path.exists(enc_path):
         raise HTTPException(status_code=404, detail=f"Encrypted file missing: {enc_path}")
 
@@ -945,13 +966,22 @@ def play_recording(
         # Determine if it's CTR or CBC
         if is_minio:
             from app.utils.minio_client import minio_client, MINIO_BUCKET
+            from minio.error import S3Error
             try:
                 response = minio_client.get_object(MINIO_BUCKET, object_key, offset=0, length=4)
                 header = response.read(4)
                 response.close()
                 response.release_conn()
-            except Exception as e:
-                raise HTTPException(status_code=404, detail=f"MinIO file missing: {e}")
+            except S3Error as e:
+                if e.code in ("NoSuchKey", "NoSuchObject"):
+                    seg0 = f"{object_key.replace('.enc', '')}_000.enc"
+                    response = minio_client.get_object(MINIO_BUCKET, seg0, offset=0, length=4)
+                    header = response.read(4)
+                    response.close()
+                    response.release_conn()
+                    object_key = seg0  # use seg0 for the IV read below
+                else:
+                    raise HTTPException(status_code=404, detail=f"MinIO file missing: {e}")
         else:
             with open(enc_path, "rb") as f:
                 header = f.read(4)
@@ -1156,7 +1186,7 @@ def download_recording(
     if not doc:
         raise HTTPException(status_code=404, detail="Recording not found in database")
 
-    enc_path = doc.get("file_path", "")
+    enc_path = _normalize_enc_path(doc.get("file_path", ""))
     is_minio = enc_path.startswith("minio:")
     
     if not is_minio and not os.path.exists(enc_path):

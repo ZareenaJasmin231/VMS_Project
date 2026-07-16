@@ -7,6 +7,8 @@ import httpx
 from pathlib import Path
 from datetime import datetime, timedelta
 from . import rtsp_recorder as recorder
+from app.core.database import recordings_col
+from app.utils.minio_client import minio_client, MINIO_BUCKET
 
 backup_router = APIRouter(prefix="/api/backup", tags=["backup"], dependencies=[Depends(verify_token)])
 HOST_AGENT = "http://host.docker.internal:9500"
@@ -61,9 +63,18 @@ def save_config(data: dict):
 def get_local_path() -> Path:
     return Path(recorder.get_recordings_dir())
 
+def get_network_dir() -> Path:
+    if os.name == 'nt':
+        cfg = load_config()
+        path = cfg.get("network", {}).get("path", "")
+        if path:
+            return Path(path)
+    return NETWORK_BASE_DIR
+
 def is_network_available() -> bool:
     try:
-        return NETWORK_BASE_DIR.exists()
+        net_dir = get_network_dir()
+        return net_dir.exists()
     except Exception:
         return False
 
@@ -71,7 +82,8 @@ def get_storage_usage() -> int:
     try:
         if not is_network_available():
             return 0
-        usage = shutil.disk_usage(NETWORK_BASE_DIR)
+        net_dir = get_network_dir()
+        usage = shutil.disk_usage(net_dir)
         return int((usage.used / usage.total) * 100)
     except Exception:
         return 0
@@ -367,7 +379,7 @@ def stop_auto_watcher():
 async def get_config():
     cfg = load_config()
     cfg["local_path"]        = str(get_local_path())
-    cfg["network_path"]      = str(NETWORK_BASE_DIR)
+    cfg["network_path"]      = str(get_network_dir())
     cfg["network_available"] = is_network_available()
     return cfg
 
@@ -379,14 +391,18 @@ async def test_network_connection(config: NetworkConfig):
     save_config(cfg)
     if is_network_available():
         append_log("Connection test passed", "Success")
+        net_dir = get_network_dir()
         return {
             "status":  "success",
-            "message": (
-                "✅ /network_backup accessible! "
-                "Flow: /recordings → /network_backup (C:\\vmsrecording_backup) "
-                "→ Robocopy → laptop share"
-            ),
+            "message": f"✅ Backup path is accessible! Path: {net_dir}",
         }
+    
+    path_display = config.path if config.path else str(NETWORK_BASE_DIR)
+    if os.name == 'nt':
+        raise HTTPException(
+            status_code=400,
+            detail=f"❌ Backup path '{path_display}' is not accessible. Please check connectivity, folder sharing, or permissions.",
+        )
     raise HTTPException(
         status_code=400,
         detail=(
@@ -415,6 +431,12 @@ async def save_network_settings(config: NetworkConfig):
 @backup_router.post("/auto/config")
 async def update_auto_config(req: AutoConfigRequest):
     if req.enabled and not is_network_available():
+        path_display = get_network_dir()
+        if os.name == 'nt':
+            raise HTTPException(
+                status_code=400,
+                detail=f"❌ Backup path '{path_display}' is not accessible. Check network connectivity or path permissions.",
+            )
         raise HTTPException(
             status_code=400,
             detail="❌ /network_backup not accessible. Check C:/vmsrecording_backup volume in docker-compose.",
@@ -447,6 +469,10 @@ def windows_path_to_container(windows_path: str) -> Path:
     if len(stripped) < 2 or stripped[1] != ':':
         return Path(stripped) if stripped else NETWORK_BASE_DIR
 
+    # If running natively on Windows (not in a Linux container), keep Windows path!
+    if os.name == 'nt':
+        return Path(stripped)
+
     drive_letter = stripped[0].lower()          # "d"
     rest         = stripped[2:].lstrip("\\/")   # "Backup" or "" or "MyUSB\\clips"
     rest_linux   = rest.replace("\\", "/")      # "Backup" or "" or "MyUSB/clips"
@@ -464,7 +490,7 @@ async def run_manual_backup(req: ManualBackupRequest):
     backup_state.update({"status": "Processing", "progress": 0})
 
     # Resolve destination
-    dest_base = windows_path_to_container(req.destination_path) if req.destination_path.strip() else NETWORK_BASE_DIR
+    dest_base = windows_path_to_container(req.destination_path) if req.destination_path.strip() else get_network_dir()
     append_log(
         f"Manual backup started — {len(req.cameras)} camera(s), "
         f"{req.start_date} → {req.end_date}, dest: {dest_base}",
@@ -473,9 +499,7 @@ async def run_manual_backup(req: ManualBackupRequest):
 
     try:
         local    = get_local_path()
-        start_dt = datetime.strptime(req.start_date, "%Y-%m-%d").date()
-        end_dt   = datetime.strptime(req.end_date,   "%Y-%m-%d").date()
-
+        
         # Create destination
         try:
             dest_base.mkdir(parents=True, exist_ok=True)
@@ -484,53 +508,86 @@ async def run_manual_backup(req: ManualBackupRequest):
             append_log(f"Cannot create destination {dest_base}: {e}", "Error")
             return
 
-        # Verify source exists
-        if not local.exists():
-            backup_state["status"] = "Failed"
-            append_log(f"Source recordings folder not found: {local}", "Error")
-            return
-
-        print(f"[BACKUP] Source: {local}")
         print(f"[BACKUP] Destination: {dest_base}")
-        print(f"[BACKUP] Date range: {start_dt} → {end_dt}")
+        print(f"[BACKUP] Date range: {req.start_date} → {req.end_date}")
         print(f"[BACKUP] Cameras: {req.cameras}")
 
-        # Collect all matching .enc and .meta files
-        all_files: list[Path] = []
-        for camera in req.cameras:
-            cam_ip_norm = camera.replace(".", "_")
-            print(f"[BACKUP] Looking for camera folder matching: {cam_ip_norm}")
-            found = collect_files_in_range(local, cam_ip_norm, start_dt, end_dt)
-            print(f"[BACKUP] Found {len(found)} files for camera {camera}")
-            all_files.extend(found)
+        # Query MongoDB recordings collection
+        camera_ids_norm = [cam.replace(".", "_") for cam in req.cameras]
+        query = {
+            "camera_id": {"$in": camera_ids_norm},
+            "date": {"$gte": req.start_date, "$lte": req.end_date}
+        }
+        docs = list(recordings_col.find(query)) if recordings_col is not None else []
 
-        total = len(all_files)
-        chunks = total // 2  # each recording = 1 .enc + 1 .meta
-        print(f"[BACKUP] Total: {total} files ({chunks} recording chunks) to copy → {dest_base}")
+        backup_items = []
+        for doc in docs:
+            file_path = doc.get("file_path", "")
+            if not file_path:
+                continue
+            if file_path.startswith("minio:"):
+                obj_name = file_path.split("minio:")[-1]
+                parts = obj_name.split("/")
+                if len(parts) > 3 and parts[0].startswith("shard"):
+                    rel_path = "/".join(parts[1:])
+                else:
+                    rel_path = obj_name
+                backup_items.append({
+                    "type": "minio",
+                    "source": obj_name,
+                    "rel_path": rel_path
+                })
+            else:
+                p = Path(file_path)
+                try:
+                    rel_path = p.relative_to(local)
+                except ValueError:
+                    rel_path = p.name
+                backup_items.append({
+                    "type": "local",
+                    "source": p,
+                    "rel_path": rel_path
+                })
+
+        total = len(backup_items)
+        print(f"[BACKUP] Total: {total} files to copy → {dest_base}")
 
         if total == 0:
             backup_state.update({"status": "Completed", "progress": 100})
             append_log(
-                f"Manual backup: no .enc/.meta files found for {req.cameras} "
-                f"between {req.start_date} and {req.end_date}. "
-                f"Check that recordings exist in {local}",
+                f"Manual backup: no recordings found in MinIO/local for {req.cameras} "
+                f"between {req.start_date} and {req.end_date}.",
                 "Warning"
             )
             return
 
         copied = 0
         failed = 0
-        for i, f in enumerate(all_files):
+        for i, item in enumerate(backup_items):
             try:
-                rel  = f.relative_to(local)
-                dest = dest_base / rel
+                dest = dest_base / item["rel_path"]
                 dest.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(f, dest)
-                copied += 1
-                print(f"[BACKUP] ✓ ({i+1}/{total}) {rel}")
+
+                if item["type"] == "minio":
+                    if minio_client is not None:
+                        await asyncio.to_thread(
+                            minio_client.fget_object,
+                            MINIO_BUCKET,
+                            item["source"],
+                            str(dest)
+                        )
+                        copied += 1
+                        print(f"[BACKUP] ✓ ({i+1}/{total}) minio:{item['source']} → {dest}")
+                    else:
+                        raise RuntimeError("MinIO client not initialized")
+                else:
+                    shutil.copy2(item["source"], dest)
+                    copied += 1
+                    print(f"[BACKUP] ✓ ({i+1}/{total}) local:{item['source']} → {dest}")
+
             except Exception as e:
                 failed += 1
-                print(f"[BACKUP] ✗ ({i+1}/{total}) {f.name}: {e}")
+                print(f"[BACKUP] ✗ ({i+1}/{total}) {item['rel_path']}: {e}")
 
             backup_state["progress"] = int(((i + 1) / total) * 100)
             await asyncio.sleep(0.01)
@@ -566,7 +623,7 @@ async def start_manual_backup(req: ManualBackupRequest, background_tasks: Backgr
         )
 
     background_tasks.add_task(run_manual_backup, req)
-    dest_display = dest if dest else str(NETWORK_BASE_DIR)
+    dest_display = dest if dest else str(get_network_dir())
     return {"status": "success", "message": f"Manual backup started → {dest_display}"}
 
 
@@ -863,7 +920,7 @@ async def tag_recording_health(camera: str, timestamp: str, status: str):
 async def get_backup_status():
     backup_state["storage_usage"]     = get_storage_usage()
     backup_state["local_path"]        = str(get_local_path())
-    backup_state["network_path"]      = str(NETWORK_BASE_DIR)
+    backup_state["network_path"]      = str(get_network_dir())
     backup_state["network_available"] = is_network_available()
     backup_state["auto_active"]       = auto_watcher_active
     return backup_state

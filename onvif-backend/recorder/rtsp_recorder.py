@@ -399,10 +399,8 @@ class CameraRecorder:
             segment_start = int(elapsed_in_slot // 10)
             self.filename = f"{timestamp}.mp4"
 
-        recordings_dir = get_recordings_dir()
-        self.out_dir  = os.path.join(recordings_dir, self.stream_name, date_str)
-        os.makedirs(self.out_dir, exist_ok=True)
-        self.out_file = os.path.join(self.out_dir, self.filename)
+        self.out_dir  = ""
+        self.out_file = ""
 
         local_time_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
@@ -490,13 +488,18 @@ class CameraRecorder:
                 "-crf",            "23",
             ])
             if is_bosch:
-                cmd.extend(["-an"])
+                cmd.extend([
+                    "-an",
+                    "-map", "0:v"
+                ])
             else:
                 cmd.extend([
                     "-c:a",            "aac",
                     "-map",            "0:v",
                     "-map",            "0:a?",
                 ])
+            backend_port = os.environ.get("BACKEND_PORT", 8000)
+            http_url = f"http://127.0.0.1:{backend_port}/_seg/{self.stream_name}/{date_str}/{self.time_str}/%03d"
             cmd.extend([
                 "-f",              "segment",
                 "-segment_time",   "10",
@@ -504,8 +507,12 @@ class CameraRecorder:
                 "-segment_format", "mpegts",
                 "-movflags", "+faststart",
                 "-avoid_negative_ts", "make_zero",
-                "-y",
-                os.path.join(self.out_dir, f"{self.time_str}_%03d.ts")
+                "-method", "PUT",
+                "-http_persistent", "1",
+                "-reconnect", "1",
+                "-reconnect_streamed", "1",
+                "-reconnect_delay_max", "5",
+                http_url
             ])
         else:
             cmd = [
@@ -520,13 +527,18 @@ class CameraRecorder:
                 "-c:v",            "copy"
             ]
             if is_bosch:
-                cmd.extend(["-an"])
+                cmd.extend([
+                    "-an",
+                    "-map", "0:v"
+                ])
             else:
                 cmd.extend([
                     "-c:a",            "aac",
                     "-map",            "0:v",
                     "-map",            "0:a?",
                 ])
+            backend_port = os.environ.get("BACKEND_PORT", 8000)
+            http_url = f"http://127.0.0.1:{backend_port}/_seg/{self.stream_name}/{date_str}/{self.time_str}/%03d"
             cmd.extend([
                 "-f",              "segment",
                 "-segment_time",   "10",
@@ -534,8 +546,12 @@ class CameraRecorder:
                 "-segment_format", "mpegts",
                 "-movflags", "+faststart",
                 "-avoid_negative_ts", "make_zero",
-                "-y",
-                os.path.join(self.out_dir, f"{self.time_str}_%03d.ts")
+                "-method", "PUT",
+                "-http_persistent", "1",
+                "-reconnect", "1",
+                "-reconnect_streamed", "1",
+                "-reconnect_delay_max", "5",
+                http_url
             ])
 
         _actively_recording_streams.add(self.stream_name)
@@ -608,7 +624,7 @@ class CameraRecorder:
             meta = _camera_data.get(self.stream_name, self.camera_data)
             motion_only = meta.get("motion_only", False)
             if motion_only:
-                print(f"[RECORDER] [{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] ✅ Chunk saved: {self.out_file}")
+                print(f"[RECORDER] [{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] ✅ Chunk saved: {self.filename}")
 
         _actively_recording_streams.discard(self.stream_name)
         self.proc = None

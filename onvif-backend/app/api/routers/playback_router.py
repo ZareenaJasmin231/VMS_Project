@@ -9,6 +9,24 @@ from recorder import encrypt_service
 
 router = APIRouter(tags=["playback"])
 
+def _normalize_enc_path(path: str) -> str:
+    if not path:
+        return path
+    normalized = path.replace("\\", "/")
+    if not normalized.endswith(".enc"):
+        if normalized.startswith("minio:"):
+            from app.utils.minio_client import object_exists
+            minio_key = normalized.replace("minio:", "")
+            try:
+                if object_exists(minio_key + ".enc"):
+                    return normalized + ".enc"
+            except:
+                pass
+        else:
+            if os.path.exists(normalized + ".enc"):
+                return normalized + ".enc"
+    return normalized
+
 def _find_local_fallback_file(rec_dir: str, ip_prefix: str, alert_local_date: str, alert_local_secs: int, CHUNK_SECONDS: int) -> str | None:
     best_file = None
     best_diff = None
@@ -123,7 +141,7 @@ def event_playback(ip: str, time: str, request: Request = None, stream: int = 0)
                 if request:
                     base_url = str(request.base_url).rstrip("/")
                 else:
-                    base_url = "http://192.168.126.200"
+                    base_url = "http://192.168.126.36"
                 encoded_time = urllib.parse.quote(time)
                 clipUrl = f"{base_url}/api/event-playback/hls/{ip}/{encoded_time}/index.m3u8"
                 return Response(
@@ -147,13 +165,14 @@ def event_playback(ip: str, time: str, request: Request = None, stream: int = 0)
 
         # ── 3. Find the best chunk in DB ──────────────────────────────
         def find_best_chunk_db(date_str, hms_str):
+            query_hms = hms_str.replace("-", ":")
             best = None
             for cam_id in all_cam_ids:
                 candidate = recordings_col.find_one(
                     {
                         "camera_id":  cam_id,
                         "date":       date_str,
-                        "start_time": {"$lte": hms_str},
+                        "start_time": {"$lte": query_hms},
                     },
                     sort=[("start_time", -1)],
                 )
@@ -188,7 +207,7 @@ def event_playback(ip: str, time: str, request: Request = None, stream: int = 0)
                 actual_duration = float(doc.get("duration_seconds", CHUNK_SECONDS))
 
                 if elapsed <= actual_duration + 2:
-                    enc_path = doc.get("file_path", "").replace("\\", "/")
+                    enc_path = _normalize_enc_path(doc.get("file_path", ""))
                     print(f"DB chunk OK : {enc_path}")
                 else:
                     print(f"DB chunk too old ({elapsed:.0f}s > {CHUNK_SECONDS}s) — scanning filesystem")
@@ -210,7 +229,21 @@ def event_playback(ip: str, time: str, request: Request = None, stream: int = 0)
             # Then try MinIO
             if not best_file:
                 from app.utils import minio_client
-                prefix = f"{ip_prefix}/{alert_local_date}/"
+                shard = "shard1"
+                try:
+                    cameras_col = _db["cameras"]
+                    cam_doc = cameras_col.find_one({"ome_stream": ip_prefix})
+                    if cam_doc and cam_doc.get("assigned_worker"):
+                        worker_id = cam_doc["assigned_worker"]
+                        if "standby" in worker_id:
+                            shard = f"shard_{worker_id}"
+                        else:
+                            idx_val = worker_id.split("-")[-1]
+                            shard = f"shard{idx_val}"
+                except Exception as ex:
+                    print(f"Error resolving camera shard: {ex}")
+
+                prefix = f"{shard}/{ip_prefix}/{alert_local_date}/"
                 try:
                     objects = minio_client.list_objects(prefix)
                     for obj in objects:
@@ -284,8 +317,18 @@ def event_playback(ip: str, time: str, request: Request = None, stream: int = 0)
         ]
 
         try:
-            from app.utils.ffmpeg_utils import stream_to_ffmpeg_sync
-            success, stderr_data = stream_to_ffmpeg_sync(ffmpeg_cmd, encrypt_service.decrypt_file_stream(enc_path))
+            if enc_path.startswith("minio:"):
+                from app.utils import minio_client
+                object_key = enc_path.replace("minio:", "")
+                stream = minio_client.get_file_stream(object_key)
+                raw_bytes = stream.read()
+                stream.close()
+                stream.release_conn()
+            else:
+                with open(enc_path, "rb") as f:
+                    raw_bytes = f.read()
+
+            decrypted_data = encrypt_service.decrypt_bytes_to_io(raw_bytes).getvalue()
         except Exception as dec_err:
             print(f"[PLAYBACK] Decryption failed: {dec_err}")
             return Response(
@@ -294,6 +337,14 @@ def event_playback(ip: str, time: str, request: Request = None, stream: int = 0)
                 media_type="application/json",
                 headers={"Access-Control-Allow-Origin": "*"},
             )
+
+        try:
+            from app.utils.ffmpeg_utils import run_ffmpeg_sync
+            success, _, stderr_data = run_ffmpeg_sync(ffmpeg_cmd, timeout=30, input_data=decrypted_data)
+        except Exception as ffmpeg_err:
+            print(f"[PLAYBACK] ffmpeg run failed: {ffmpeg_err}")
+            success = False
+            stderr_data = str(ffmpeg_err).encode()
 
         if not success:
             print(f"[PLAYBACK] ffmpeg rc error: "
@@ -311,7 +362,7 @@ def event_playback(ip: str, time: str, request: Request = None, stream: int = 0)
                 output_path,
             ]
             try:
-                stream_to_ffmpeg_sync(ffmpeg_cmd2, encrypt_service.decrypt_file_stream(enc_path))
+                run_ffmpeg_sync(ffmpeg_cmd2, timeout=30, input_data=decrypted_data)
             except Exception:
                 pass
 
@@ -402,7 +453,7 @@ def event_playback(ip: str, time: str, request: Request = None, stream: int = 0)
                     "Access-Control-Allow-Methods":  "GET, OPTIONS",
                     "Access-Control-Allow-Headers":  "*",
                     "Access-Control-Expose-Headers": "Content-Length, Content-Type, X-Server-IP, X-Camera-IP",
-                    "X-Server-IP": "192.168.126.200",
+                    "X-Server-IP": "192.168.126.36",
                     "X-Camera-IP": ip,
                 },
             )
@@ -417,7 +468,7 @@ def event_playback(ip: str, time: str, request: Request = None, stream: int = 0)
         if request:
             base_url = str(request.base_url).rstrip("/")
         else:
-            base_url = "http://192.168.126.200"
+            base_url = "http://192.168.126.36"
 
         encoded_time = urllib.parse.quote(time)
         clipUrl = f"{base_url}/api/event-playback/hls/{ip}/{encoded_time}/index.m3u8"
@@ -498,13 +549,14 @@ def event_snapshot(ip: str, time: str):
 
         # ── 3. Find the best chunk in DB ──────────────────────────────
         def find_best_chunk_db(date_str, hms_str):
+            query_hms = hms_str.replace("-", ":")
             best = None
             for cam_id in all_cam_ids:
                 candidate = recordings_col.find_one(
                     {
                         "camera_id":  cam_id,
                         "date":       date_str,
-                        "start_time": {"$lte": hms_str},
+                        "start_time": {"$lte": query_hms},
                     },
                     sort=[("start_time", -1)],
                 )
@@ -537,7 +589,7 @@ def event_snapshot(ip: str, time: str):
                 actual_duration = float(doc.get("duration_seconds", CHUNK_SECONDS))
 
                 if elapsed <= actual_duration + 2:
-                    enc_path = doc.get("file_path", "").replace("\\", "/")
+                    enc_path = _normalize_enc_path(doc.get("file_path", ""))
                 else:
                     doc = None
             except Exception as e:
@@ -553,7 +605,21 @@ def event_snapshot(ip: str, time: str):
             
             if not best_file:
                 from app.utils import minio_client
-                prefix = f"{ip_prefix}/{alert_local_date}/"
+                shard = "shard1"
+                try:
+                    cameras_col = _db["cameras"]
+                    cam_doc = cameras_col.find_one({"ome_stream": ip_prefix})
+                    if cam_doc and cam_doc.get("assigned_worker"):
+                        worker_id = cam_doc["assigned_worker"]
+                        if "standby" in worker_id:
+                            shard = f"shard_{worker_id}"
+                        else:
+                            idx_val = worker_id.split("-")[-1]
+                            shard = f"shard{idx_val}"
+                except Exception as ex:
+                    print(f"Error resolving camera shard in snapshot: {ex}")
+
+                prefix = f"{shard}/{ip_prefix}/{alert_local_date}/"
                 try:
                     objects = minio_client.list_objects(prefix)
                     for obj in objects:
@@ -767,13 +833,14 @@ def event_playback_hls(ip: str, time_str: str, filename: str):
                 all_cam_ids = [ip_prefix, ip.strip()]
 
             def find_best_chunk_db(date_str, hms_str):
+                query_hms = hms_str.replace("-", ":")
                 best = None
                 for cam_id in all_cam_ids:
                     candidate = recordings_col.find_one(
                         {
                             "camera_id":  cam_id,
                             "date":       date_str,
-                            "start_time": {"$lte": hms_str},
+                            "start_time": {"$lte": query_hms},
                         },
                         sort=[("start_time", -1)],
                     )
@@ -805,7 +872,7 @@ def event_playback_hls(ip: str, time_str: str, filename: str):
                     actual_duration = float(doc.get("duration_seconds", CHUNK_SECONDS))
 
                     if elapsed <= actual_duration + 2:
-                        enc_path = doc.get("file_path", "").replace("\\", "/")
+                        enc_path = _normalize_enc_path(doc.get("file_path", ""))
                 except Exception:
                     pass
 
@@ -820,7 +887,21 @@ def event_playback_hls(ip: str, time_str: str, filename: str):
                 # Then try MinIO
                 if not best_file:
                     from app.utils import minio_client
-                    prefix = f"{ip_prefix}/{alert_local_date}/"
+                    shard = "shard1"
+                    try:
+                        cameras_col = _db["cameras"]
+                        cam_doc = cameras_col.find_one({"ome_stream": ip_prefix})
+                        if cam_doc and cam_doc.get("assigned_worker"):
+                            worker_id = cam_doc["assigned_worker"]
+                            if "standby" in worker_id:
+                                shard = f"shard_{worker_id}"
+                            else:
+                                idx_val = worker_id.split("-")[-1]
+                                shard = f"shard{idx_val}"
+                    except Exception as ex:
+                        print(f"Error resolving camera shard in HLS: {ex}")
+
+                    prefix = f"{shard}/{ip_prefix}/{alert_local_date}/"
                     try:
                         objects = minio_client.list_objects(prefix)
                         for obj in objects:

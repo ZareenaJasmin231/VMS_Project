@@ -38,6 +38,7 @@ from app.api.routers.dashboard_diagnostics_router import router as dashboard_dia
 # Existing routers from other files that were already separate
 from app.api.routers.recording_api import recording_router, storage_router
 from app.api.routers.masks_router import router as masks_router
+from recorder.segment_receiver import segment_router, recover_on_startup
 from recorder.backup_service import backup_router
 from app.api.routers.logs_router import router as logs_router
 from app.api.routers.brand_control import brand_router
@@ -62,6 +63,11 @@ sys.stdout = LoggerWrapper()
 
 app = FastAPI(title="MIRADOR ONVIF Backend", lifespan=lifespan)
 
+@app.on_event("startup")
+async def _startup_segment_recovery():
+    print("[STARTUP] Running segment receiver recovery...")
+    await recover_on_startup()
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -84,6 +90,7 @@ app.include_router(system_router)
 app.include_router(storage_router_ext)
 app.include_router(dashboard_diagnostics_router)
 
+app.include_router(segment_router)
 app.include_router(recording_router)
 app.include_router(storage_router)
 app.include_router(masks_router)
