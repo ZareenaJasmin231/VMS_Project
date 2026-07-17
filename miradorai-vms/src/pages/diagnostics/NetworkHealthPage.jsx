@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import "./NetworkHealthPage.css";
 
-const API_BASE = "http://localhost:80";
+const API_BASE = "http://localhost:8000";
 
 const NetworkHealthPage = () => {
   const [data, setData] = useState({ devices: [], bandwidth: { sent_kbps: 0, recv_kbps: 0 } });

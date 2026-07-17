@@ -6,6 +6,9 @@ import atexit
 from typing import Iterator, Tuple
 
 FFMPEG_BIN = os.environ.get("FFMPEG_BIN", "ffmpeg")
+_ffmpeg_dir = os.path.dirname(FFMPEG_BIN) if FFMPEG_BIN != "ffmpeg" else ""
+_ffprobe_name = "ffprobe.exe" if FFMPEG_BIN.lower().endswith(".exe") else "ffprobe"
+FFPROBE_BIN = os.path.join(_ffmpeg_dir, _ffprobe_name) if _ffmpeg_dir else _ffprobe_name
 FFMPEG_ASYNC_LIMIT = int(os.environ.get("FFMPEG_ASYNC_LIMIT", "4"))
 
 _async_semaphore = None

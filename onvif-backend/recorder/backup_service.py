@@ -51,6 +51,7 @@ def load_config() -> dict:
         "auto":           {"enabled": False},
         "retention_days": 7,
         "retention_enabled": False,
+        "safe_retention_enabled": True,
     }
 
 def save_config(data: dict):
@@ -196,6 +197,8 @@ class ManualBackupRequest(BaseModel):
     cameras:          list[str]
     start_date:       str
     end_date:         str
+    start_time:       str = "00:00:00"
+    end_time:         str = "23:59:59"
     format:           str = "ENC"
     destination_path: str = ""   # D:\, C:\, Z:\, custom path — empty = NETWORK_BASE_DIR
 
@@ -207,6 +210,8 @@ class RetentionRequest(BaseModel):
     retention_days: Optional[int] = 7
     camera_configs: Optional[list[CameraRetentionItem]] = None
     retention_enabled: Optional[bool] = None
+    safe_retention_enabled: Optional[bool] = True
+    backup_first: Optional[bool] = False
 
 class RestoreRequest(BaseModel):
     cameras:           list[str]
@@ -275,67 +280,93 @@ async def auto_retention_polling():
                 await asyncio.sleep(5)
                 continue
 
-            if is_network_available():
-                retention_days = cfg.get("retention_days", 7)
-                camera_configs = cfg.get("camera_configs", [])
+            default_days = cfg.get("retention_days", 7)
+            camera_configs = cfg.get("camera_configs", [])
+            safe_enabled = cfg.get("safe_retention_enabled", True)
 
-                camera_map = {}
-                for item in camera_configs:
-                    norm_ip = item.get("ip", "").replace(".", "_")
-                    if norm_ip:
-                        camera_map[norm_ip] = item.get("days", retention_days)
+            camera_map = {}
+            for item in camera_configs:
+                norm_ip = item.get("ip", "").replace(".", "_")
+                if norm_ip:
+                    camera_map[norm_ip] = item.get("days", default_days)
 
-                local = get_local_path()
-                moved, failed = 0, 0
-
-                for f in local.rglob("*"):
-                    if not f.is_file() or f.suffix.lower() not in RECORDING_EXTENSIONS:
+            # Query all COMPLETE recordings
+            query = {"status": "COMPLETE"}
+            docs = list(recordings_col.find(query)) if recordings_col is not None else []
+            
+            moved, failed = 0, 0
+            from app.utils.minio_client import delete_object, object_exists
+            
+            for doc in docs:
+                camera_id = doc.get("camera_id", "")
+                created_at = doc.get("created_at")
+                file_path = doc.get("file_path", "")
+                
+                if not file_path or not isinstance(created_at, datetime):
+                    continue
+                    
+                days = camera_map.get(camera_id, default_days)
+                cutoff = datetime.utcnow() - timedelta(minutes=days)
+                
+                if created_at < cutoff:
+                    # Expired! Check if backed up
+                    backed_up = False
+                    rel_path = ""
+                    if file_path.startswith("minio:"):
+                        obj_name = file_path.split("minio:")[-1]
+                        parts = obj_name.split("/")
+                        if len(parts) > 3 and parts[0].startswith("shard"):
+                            rel_path = "/".join(parts[1:])
+                        else:
+                            rel_path = obj_name
+                    else:
+                        rel_path = file_path
+                    
+                    try:
+                        dest = get_network_dir() / rel_path
+                        backed_up = dest.is_file()
+                    except Exception:
+                        pass
+                    
+                    # If Safe Mode is enabled, verify it's backed up before deleting
+                    if safe_enabled and not backed_up:
                         continue
                     
-                    parts = f.parts
-                    camera_folder = parts[-3] if len(parts) >= 3 else "unknown"
-
-                    days = retention_days
-                    if camera_folder in camera_map:
-                        days = camera_map[camera_folder]
-                    elif camera_folder != "unknown":
-                        for norm_ip, c_days in camera_map.items():
-                            if norm_ip in camera_folder:
-                                days = c_days
-                                break
-
-                    cutoff = datetime.now() - timedelta(minutes=days)
-                    if datetime.fromtimestamp(f.stat().st_mtime) < cutoff:
-                        # Safety pre-check: Is the file already backed up on network?
-                        backed_up = False
-                        try:
-                            rel = f.relative_to(local)
-                            dest = NETWORK_BASE_DIR / rel
-                            backed_up = dest.is_file()
-                        except Exception:
-                            pass
-
-                        if backed_up:
-                            f.unlink()
-                            moved += 1
+                    # Safe to delete!
+                    try:
+                        if file_path.startswith("minio:"):
+                            obj_name = file_path.split("minio:")[-1]
+                            if object_exists(obj_name):
+                                if delete_object(obj_name):
+                                    recordings_col.delete_one({"_id": doc["_id"]})
+                                    moved += 1
+                                else:
+                                    failed += 1
+                            else:
+                                # Not in MinIO, delete doc
+                                recordings_col.delete_one({"_id": doc["_id"]})
+                                moved += 1
                         else:
-                            # Not in backup yet. Try to back it up first, and only delete if successful!
-                            if copy_file_to_network(f):
-                                f.unlink()
+                            p = Path(file_path)
+                            if p.is_file():
+                                p.unlink()
+                                recordings_col.delete_one({"_id": doc["_id"]})
                                 moved += 1
                             else:
                                 failed += 1
+                    except Exception:
+                        failed += 1
 
-                if moved > 0:
-                    print(f"[AutoRetention] Swept and archived {moved} expired recording(s) locally.")
-                    append_log(
-                        f"Auto-Retention (Sweep) — automatically archived and purged {moved} expired file(s) locally.",
-                        "Success" if failed == 0 else "Warning"
-                    )
+            if moved > 0:
+                print(f"[AutoRetention] Swept and purged {moved} expired recording(s) from MinIO.")
+                append_log(
+                    f"Auto-Retention (Sweep) — automatically purged {moved} expired file(s) from MinIO.",
+                    "Success" if failed == 0 else "Warning"
+                )
         except Exception as e:
             print(f"[AutoRetention] Automated retention loop error: {e}")
 
-        # Sleep for 60 seconds between sweeps with high-responsiveness interrupt
+        # Sleep for 60 seconds with responsive exit
         for _ in range(60):
             if not auto_watcher_active:
                 break
@@ -509,8 +540,15 @@ async def run_manual_backup(req: ManualBackupRequest):
             return
 
         print(f"[BACKUP] Destination: {dest_base}")
-        print(f"[BACKUP] Date range: {req.start_date} → {req.end_date}")
+        print(f"[BACKUP] Date range: {req.start_date} ({req.start_time}) → {req.end_date} ({req.end_time})")
         print(f"[BACKUP] Cameras: {req.cameras}")
+
+        # Normalize request times (convert HH:MM:SS or HH:MM to HH-MM-SS format)
+        def clean_time(t_str: str) -> str:
+            return t_str.replace(":", "-").strip()
+
+        req_start_t = clean_time(req.start_time)
+        req_end_t = clean_time(req.end_time)
 
         # Query MongoDB recordings collection
         camera_ids_norm = [cam.replace(".", "_") for cam in req.cameras]
@@ -522,6 +560,15 @@ async def run_manual_backup(req: ManualBackupRequest):
 
         backup_items = []
         for doc in docs:
+            doc_date = doc.get("date", "")
+            doc_time = clean_time(doc.get("start_time", ""))
+
+            # Filter by date and time range
+            if doc_date == req.start_date and doc_time < req_start_t:
+                continue
+            if doc_date == req.end_date and doc_time > req_end_t:
+                continue
+
             file_path = doc.get("file_path", "")
             if not file_path:
                 continue
@@ -659,48 +706,64 @@ async def preview_retention_post(req: RetentionRequest):
             norm_ip = item.ip.replace(".", "_")
             camera_map[norm_ip] = item.days
 
-    local = get_local_path()
+    default_days = req.retention_days or 7
+    safe_enabled = req.safe_retention_enabled if req.safe_retention_enabled is not None else load_config().get("safe_retention_enabled", True)
+
     files = []
     missing_in_backup_count = 0
     missing_files = []
     try:
-        for f in local.rglob("*"):
-            if not f.is_file() or f.suffix.lower() not in RECORDING_EXTENSIONS:
+        query = {"status": "COMPLETE"}
+        docs = list(recordings_col.find(query)) if recordings_col is not None else []
+        
+        for doc in docs:
+            camera_id = doc.get("camera_id", "")
+            created_at = doc.get("created_at")
+            file_path = doc.get("file_path", "")
+            
+            if not file_path or not isinstance(created_at, datetime):
                 continue
+                
+            days = camera_map.get(camera_id, default_days)
+            cutoff = datetime.utcnow() - timedelta(minutes=days)
             
-            parts = f.parts
-            camera_folder = parts[-3] if len(parts) >= 3 else "unknown"
-            
-            days = req.retention_days
-            if camera_folder in camera_map:
-                days = camera_map[camera_folder]
-            elif camera_folder != "unknown":
-                for norm_ip, c_days in camera_map.items():
-                    if norm_ip in camera_folder:
-                        days = c_days
-                        break
-            
-            cutoff = datetime.now() - timedelta(minutes=days)
-            mtime = datetime.fromtimestamp(f.stat().st_mtime)
-            if mtime < cutoff:
-                # Check if it exists in the network backup
+            if created_at < cutoff:
                 backed_up = False
+                rel_path = ""
+                if file_path.startswith("minio:"):
+                    obj_name = file_path.split("minio:")[-1]
+                    parts = obj_name.split("/")
+                    if len(parts) > 3 and parts[0].startswith("shard"):
+                        rel_path = "/".join(parts[1:])
+                    else:
+                        rel_path = obj_name
+                else:
+                    rel_path = file_path
+                
                 try:
-                    rel = f.relative_to(local)
-                    dest = NETWORK_BASE_DIR / rel
+                    dest = get_network_dir() / rel_path
                     backed_up = dest.is_file()
                 except Exception:
                     pass
-
+                
+                from app.utils.minio_client import object_exists
+                obj_exists_minio = False
+                if file_path.startswith("minio:"):
+                    obj_name = file_path.split("minio:")[-1]
+                    obj_exists_minio = object_exists(obj_name)
+                
+                if file_path.startswith("minio:") and not obj_exists_minio:
+                    continue
+                    
                 files.append({
-                    "file":     f.name,
-                    "camera":   camera_folder,
-                    "modified": mtime.strftime("%Y-%m-%d %H:%M"),
+                    "file":     os.path.basename(rel_path),
+                    "camera":   camera_id,
+                    "modified": created_at.strftime("%Y-%m-%d %H:%M"),
                     "backed_up": backed_up
                 })
                 if not backed_up:
                     missing_in_backup_count += 1
-                    missing_files.append(f"{camera_folder}/{f.name}")
+                    missing_files.append(f"{camera_id}/{doc.get('date', '')}/{os.path.basename(rel_path)}")
     except Exception as e:
         print(f"[BACKUP] Preview error: {e}")
     return {
@@ -711,57 +774,233 @@ async def preview_retention_post(req: RetentionRequest):
     }
 
 
-@backup_router.post("/retention/enforce")
-async def enforce_retention(req: RetentionRequest):
-    if not is_network_available():
-        raise HTTPException(status_code=400, detail="Network storage not accessible.")
+def run_enforce_retention_bg(req: RetentionRequest):
+    global backup_state
+    backup_state.update({"status": "Processing", "progress": 0})
+    append_log("Retention Enforcement task started in background", "Info")
     
+    try:
+        camera_map = {}
+        if req.camera_configs:
+            for item in req.camera_configs:
+                norm_ip = item.ip.replace(".", "_")
+                camera_map[norm_ip] = item.days
+
+        default_days = req.retention_days or 7
+        safe_enabled = req.safe_retention_enabled if req.safe_retention_enabled is not None else load_config().get("safe_retention_enabled", True)
+
+        expired_docs = []
+        missing_files = []
+        docs = list(recordings_col.find({"status": "COMPLETE"})) if recordings_col is not None else []
+        
+        # 1. First Pass: Scan for expired files and missing backups
+        for doc in docs:
+            camera_id = doc.get("camera_id", "")
+            created_at = doc.get("created_at")
+            file_path = doc.get("file_path", "")
+            
+            if not file_path or not isinstance(created_at, datetime):
+                continue
+                
+            days = camera_map.get(camera_id, default_days)
+            cutoff = datetime.utcnow() - timedelta(minutes=days)
+            
+            if created_at < cutoff:
+                backed_up = False
+                rel_path = ""
+                if file_path.startswith("minio:"):
+                    obj_name = file_path.split("minio:")[-1]
+                    parts = obj_name.split("/")
+                    if len(parts) > 3 and parts[0].startswith("shard"):
+                        rel_path = "/".join(parts[1:])
+                    else:
+                        rel_path = obj_name
+                else:
+                    rel_path = file_path
+                
+                try:
+                    dest = get_network_dir() / rel_path
+                    backed_up = dest.is_file()
+                except Exception:
+                    pass
+                
+                from app.utils.minio_client import object_exists
+                obj_exists_minio = False
+                if file_path.startswith("minio:"):
+                    obj_name = file_path.split("minio:")[-1]
+                    obj_exists_minio = object_exists(obj_name)
+                
+                if file_path.startswith("minio:") and not obj_exists_minio:
+                    continue
+                
+                if safe_enabled and not backed_up:
+                    missing_files.append((doc, rel_path))
+                else:
+                    expired_docs.append(doc)
+
+        # 2. If backup_first is enabled, back up the missing files
+        if safe_enabled and missing_files:
+            if req.backup_first:
+                total_missing = len(missing_files)
+                append_log(f"Auto-backing up {total_missing} missing files before purging...", "Info")
+                
+                for idx, (doc, rel_path) in enumerate(missing_files):
+                    file_path = doc.get("file_path", "")
+                    try:
+                        dest_file = get_network_dir() / rel_path
+                        dest_file.parent.mkdir(parents=True, exist_ok=True)
+                        if file_path.startswith("minio:"):
+                            from app.utils.minio_client import minio_client, MINIO_BUCKET
+                            obj_name = file_path.split("minio:")[-1]
+                            minio_client.fget_object(MINIO_BUCKET, obj_name, str(dest_file))
+                        else:
+                            shutil.copy2(file_path, dest_file)
+                            
+                        # Backup succeeded! Add to expired_docs to be purged
+                        expired_docs.append(doc)
+                    except Exception as e:
+                        append_log(f"Failed to back up {rel_path}: {e}", "Error")
+                    
+                    # Update progress bar
+                    progress_pct = int(((idx + 1) / total_missing) * 90)  # Reserve last 10% for the delete phase
+                    backup_state["progress"] = progress_pct
+            else:
+                append_log(f"Retention halted — {len(missing_files)} file(s) are missing from network backup.", "Error")
+                backup_state["status"] = "Failed"
+                return
+
+        # 3. Purge expired files (verified or just backed up) from MinIO
+        total_to_purge = len(expired_docs)
+        moved = 0
+        failed = 0
+        from app.utils.minio_client import delete_object
+        
+        for idx, doc in enumerate(expired_docs):
+            file_path = doc.get("file_path", "")
+            try:
+                if file_path.startswith("minio:"):
+                    obj_name = file_path.split("minio:")[-1]
+                    if delete_object(obj_name):
+                        recordings_col.delete_one({"_id": doc["_id"]})
+                        moved += 1
+                    else:
+                        failed += 1
+                else:
+                    p = Path(file_path)
+                    if p.is_file():
+                        p.unlink()
+                        recordings_col.delete_one({"_id": doc["_id"]})
+                        moved += 1
+                    else:
+                        failed += 1
+            except Exception:
+                failed += 1
+            
+            # Update progress for delete phase
+            if total_to_purge > 0:
+                del_pct = int((moved / total_to_purge) * 10)
+                backup_state["progress"] = 90 + del_pct
+
+        cfg = load_config()
+        cfg["retention_days"] = req.retention_days
+        if req.camera_configs:
+            cfg["camera_configs"] = [item.dict() for item in req.camera_configs]
+        cfg["safe_retention_enabled"] = safe_enabled
+        save_config(cfg)
+        
+        append_log(
+            f"Retention Enforce complete — MinIO files purged: {moved}, failed: {failed}",
+            "Success" if failed == 0 else "Warning",
+        )
+        backup_state.update({
+            "status": "Completed",
+            "progress": 100,
+        })
+        
+    except Exception as e:
+        print(f"[RETENTION] Background run crashed: {e}")
+        append_log(f"Retention sweep crashed: {e}", "Error")
+        backup_state["status"] = "Failed"
+
+
+@backup_router.post("/retention/enforce")
+async def enforce_retention(req: RetentionRequest, background_tasks: BackgroundTasks):
+    if backup_state["status"] == "Processing":
+        raise HTTPException(status_code=400, detail="A backup or retention sweep is already running.")
+
+    if req.backup_first:
+        background_tasks.add_task(run_enforce_retention_bg, req)
+        return {"status": "success", "message": "Auto-backup and retention sweep started in background."}
+
     camera_map = {}
     if req.camera_configs:
         for item in req.camera_configs:
             norm_ip = item.ip.replace(".", "_")
             camera_map[norm_ip] = item.days
 
-    local = get_local_path()
-    expired_files = []
+    default_days = req.retention_days or 7
+    safe_enabled = req.safe_retention_enabled if req.safe_retention_enabled is not None else load_config().get("safe_retention_enabled", True)
+
+    if safe_enabled and not is_network_available():
+        raise HTTPException(status_code=400, detail="Network storage not accessible in Safe Mode.")
+    
+    expired_docs = []
     missing_files = []
+    docs = []
     
     try:
-        for f in local.rglob("*"):
-            if not f.is_file() or f.suffix.lower() not in RECORDING_EXTENSIONS:
+        query = {"status": "COMPLETE"}
+        docs = list(recordings_col.find(query)) if recordings_col is not None else []
+        
+        for doc in docs:
+            camera_id = doc.get("camera_id", "")
+            created_at = doc.get("created_at")
+            file_path = doc.get("file_path", "")
+            
+            if not file_path or not isinstance(created_at, datetime):
                 continue
+                
+            days = camera_map.get(camera_id, default_days)
+            cutoff = datetime.utcnow() - timedelta(minutes=days)
             
-            parts = f.parts
-            camera_folder = parts[-3] if len(parts) >= 3 else "unknown"
-            
-            days = req.retention_days
-            if camera_folder in camera_map:
-                days = camera_map[camera_folder]
-            elif camera_folder != "unknown":
-                for norm_ip, c_days in camera_map.items():
-                    if norm_ip in camera_folder:
-                        days = c_days
-                        break
-
-            cutoff = datetime.now() - timedelta(minutes=days)
-            if datetime.fromtimestamp(f.stat().st_mtime) < cutoff:
-                # Check if it exists in the network backup
+            if created_at < cutoff:
                 backed_up = False
+                rel_path = ""
+                if file_path.startswith("minio:"):
+                    obj_name = file_path.split("minio:")[-1]
+                    parts = obj_name.split("/")
+                    if len(parts) > 3 and parts[0].startswith("shard"):
+                        rel_path = "/".join(parts[1:])
+                    else:
+                        rel_path = obj_name
+                else:
+                    rel_path = file_path
+                
                 try:
-                    rel = f.relative_to(local)
-                    dest = NETWORK_BASE_DIR / rel
+                    dest = get_network_dir() / rel_path
                     backed_up = dest.is_file()
                 except Exception:
                     pass
                 
-                expired_files.append(f)
-                if not backed_up:
-                    missing_files.append(f"{camera_folder}/{f.name}")
+                from app.utils.minio_client import object_exists
+                obj_exists_minio = False
+                if file_path.startswith("minio:"):
+                    obj_name = file_path.split("minio:")[-1]
+                    obj_exists_minio = object_exists(obj_name)
+                
+                if file_path.startswith("minio:") and not obj_exists_minio:
+                    continue
+                
+                if safe_enabled and not backed_up:
+                    missing_files.append(f"{camera_id}/{doc.get('date', '')}/{os.path.basename(rel_path)}")
+                else:
+                    expired_docs.append(doc)
     except Exception as e:
         print(f"[BACKUP] Scan error: {e}")
+        raise HTTPException(status_code=500, detail=f"Database or scan error: {str(e)}")
 
-    # Safety Halt: If any expired files are NOT stored in the backup, cancel retention!
-    if missing_files:
+    # Safety Halt: If Safe Mode is ON and any expired files are NOT stored in the backup, cancel retention!
+    if safe_enabled and missing_files:
         append_log(
             f"Retention halted — {len(missing_files)} file(s) are missing from network backup.",
             "Error"
@@ -773,40 +1012,47 @@ async def enforce_retention(req: RetentionRequest):
             "missing_files": missing_files[:10]
         }
 
-    # Second Pass: Safely purge the local recordings (since they are fully backed up)
+    # Second Pass: Safely purge MinIO objects or local files
     moved = 0
     failed = 0
-    try:
-        for f in expired_files:
-            try:
-                # Double-check existence in backup one last time before unlinking
-                rel = f.relative_to(local)
-                dest = NETWORK_BASE_DIR / rel
-                if dest.is_file():
-                    f.unlink()
+    from app.utils.minio_client import delete_object
+    for doc in expired_docs:
+        file_path = doc.get("file_path", "")
+        try:
+            if file_path.startswith("minio:"):
+                obj_name = file_path.split("minio:")[-1]
+                if delete_object(obj_name):
+                    recordings_col.delete_one({"_id": doc["_id"]})
                     moved += 1
                 else:
                     failed += 1
-            except Exception:
-                failed += 1
-    except Exception as e:
-        print(f"[BACKUP] Purge error: {e}")
+            else:
+                p = Path(file_path)
+                if p.is_file():
+                    p.unlink()
+                    recordings_col.delete_one({"_id": doc["_id"]})
+                    moved += 1
+                else:
+                    failed += 1
+        except Exception:
+            failed += 1
 
     cfg = load_config()
     cfg["retention_days"] = req.retention_days
     if req.camera_configs:
         cfg["camera_configs"] = [item.dict() for item in req.camera_configs]
+    cfg["safe_retention_enabled"] = safe_enabled
     save_config(cfg)
     
     append_log(
-        f"Retention enforced — local files purged: {moved}, failed: {failed}",
+        f"Retention enforced — MinIO files purged: {moved}, failed: {failed}",
         "Success" if failed == 0 else "Warning",
     )
     return {
         "status":  "success",
         "moved":   moved,
         "failed":  failed,
-        "message": f"Enforced retention rules successfully. Purged {moved} expired file(s) already verified in network storage.",
+        "message": f"Enforced retention rules successfully. Purged {moved} expired file(s) from MinIO.",
     }
 
 
@@ -819,6 +1065,8 @@ async def save_retention_settings(req: RetentionRequest):
         cfg["camera_configs"] = [item.dict() for item in req.camera_configs]
     if req.retention_enabled is not None:
         cfg["retention_enabled"] = req.retention_enabled
+    if req.safe_retention_enabled is not None:
+        cfg["safe_retention_enabled"] = req.safe_retention_enabled
     save_config(cfg)
     
     status_msg = "enabled" if cfg.get("retention_enabled", False) else "disabled"

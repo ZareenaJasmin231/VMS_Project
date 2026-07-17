@@ -630,11 +630,13 @@ def decrypt_bytes_to_io(raw_bytes: bytes) -> io.BytesIO:
         unpadder    = padding.PKCS7(128).unpadder()
         data        = unpadder.update(padded_data) + unpadder.finalize()
         
-    if len(data) < 12 or data[4:8] not in (b'ftyp', b'moov', b'mdat', b'free', b'skip', b'wide'):
-        raise ValueError(
-            f"Decrypted output is not a valid MP4 (bytes[4:8]={data[4:8]!r}). "
-            "Key mismatch between encrypt_service and recording_api?"
-        )
+    is_ts = len(data) > 0 and data[0] == 0x47
+    if not is_ts:
+        if len(data) < 12 or data[4:8] not in (b'ftyp', b'moov', b'mdat', b'free', b'skip', b'wide'):
+            raise ValueError(
+                f"Decrypted output is not a valid MP4 or TS (bytes[0]={data[0] if data else None!r}, bytes[4:8]={data[4:8] if len(data)>=8 else None!r}). "
+                "Key mismatch between encrypt_service and recording_api?"
+            )
     return io.BytesIO(data)
 
 def decrypt_file(input_path: str, output_path: str) -> bool:

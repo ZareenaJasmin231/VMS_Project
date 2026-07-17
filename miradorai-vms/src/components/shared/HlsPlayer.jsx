@@ -21,9 +21,11 @@ function HlsPlayer({ streamKey, streamUrl, muted = true, autoplay = true, classN
   const HLS_BASE_URL = import.meta.env.VITE_HLS_BASE_URL || `${window.location.protocol}//${window.location.hostname}:8888`;
 
   const [activeStreamKey, setActiveStreamKey] = useState(streamKey);
+  const [hasFallenBack, setHasFallenBack] = useState(false);
 
   useEffect(() => {
     setActiveStreamKey(streamKey);
+    setHasFallenBack(false);
   }, [streamKey]);
 
   useEffect(() => {
@@ -61,9 +63,15 @@ function HlsPlayer({ streamKey, streamUrl, muted = true, autoplay = true, classN
           switch (data.type) {
             case Hls.ErrorTypes.NETWORK_ERROR:
               // Stream not yet available — wait and retry
+              if (data.response?.code === 404 && !hasFallenBack) {
+                console.log("HLS 404, falling back to _h264 stream");
+                setHasFallenBack(true);
+                setActiveStreamKey(prev => prev.endsWith("_h264") ? prev.replace("_h264", "") : `${prev}_h264`);
+                return;
+              }
               setStatus("reconnecting");
               setTimeout(() => {
-                if (hls) hls.startLoad();
+                if (hlsRef.current) hlsRef.current.startLoad();
               }, 5000);
               break;
             case Hls.ErrorTypes.MEDIA_ERROR:
@@ -87,6 +95,12 @@ function HlsPlayer({ streamKey, streamUrl, muted = true, autoplay = true, classN
         if (autoplay) video.play().catch(() => {});
       });
       video.addEventListener("error", () => {
+        if (!hasFallenBack) {
+          console.log("HLS error, falling back to _h264 stream");
+          setHasFallenBack(true);
+          setActiveStreamKey(prev => prev.endsWith("_h264") ? prev.replace("_h264", "") : `${prev}_h264`);
+          return;
+        }
         setStatus("failed");
         setErrorMsg("Stream failed");
         onConnectChange?.(false);

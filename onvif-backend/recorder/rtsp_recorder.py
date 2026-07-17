@@ -29,7 +29,7 @@ _recordings_dir_lock    = threading.Lock()
 _recordings_dir_override: str | None = None   # set by set_recordings_dir()
 
 CHUNK_SECONDS = int(os.environ.get("CHUNK_SECONDS", "300"))
-FFMPEG_BIN    = os.environ.get("FFMPEG_BIN", "ffmpeg")
+from app.utils.ffmpeg_utils import FFMPEG_BIN, FFPROBE_BIN
 
 _recorders:  dict[str, threading.Thread] = {}
 _stop_flags: dict[str, threading.Event]  = {}
@@ -312,7 +312,7 @@ class CameraRecorder:
 
         if self.stream_name == "192_168_126_230" and not os.path.exists(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "devices_data", "probe_dump.txt"))):
             try:
-                out = subprocess.check_output(["ffprobe", "-i", self.rtsp_url], stderr=subprocess.STDOUT, timeout=10)
+                out = subprocess.check_output([FFPROBE_BIN, "-i", self.rtsp_url], stderr=subprocess.STDOUT, timeout=10)
                 dump_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "devices_data", "probe_dump.txt"))
                 with open(dump_path, "wb") as f:
                     f.write(out)
@@ -448,7 +448,7 @@ class CameraRecorder:
         if not codec:
             try:
                 probe_cmd = [
-                    "ffprobe", "-v", "warning", "-select_streams", "v:0",
+                    FFPROBE_BIN, "-v", "warning", "-select_streams", "v:0",
                     "-show_entries", "stream=codec_name", "-of",
                     "default=noprint_wrappers=1:nokey=1", safe_url
                 ]
@@ -461,7 +461,7 @@ class CameraRecorder:
                 codec = "unknown"
         
         if codec in ["hevc", "h265"]:
-            needs_transcode = True
+            needs_transcode = False
 
         is_bosch = meta and meta.get("manufacturer", "").lower() == "bosch"
         if self.stream_name == "192_168_126_230":

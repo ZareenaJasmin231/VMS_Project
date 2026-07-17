@@ -6,6 +6,8 @@ from app.core.security import verify_token
 from app.core.database import db as _db
 from recorder import rtsp_recorder as recorder
 from recorder import encrypt_service
+from app.utils.ffmpeg_utils import FFMPEG_BIN
+
 
 router = APIRouter(tags=["playback"])
 
@@ -141,7 +143,7 @@ def event_playback(ip: str, time: str, request: Request = None, stream: int = 0)
                 if request:
                     base_url = str(request.base_url).rstrip("/")
                 else:
-                    base_url = "http://192.168.126.36"
+                    base_url = "http://192.168.126.200"
                 encoded_time = urllib.parse.quote(time)
                 clipUrl = f"{base_url}/api/event-playback/hls/{ip}/{encoded_time}/index.m3u8"
                 return Response(
@@ -306,7 +308,7 @@ def event_playback(ip: str, time: str, request: Request = None, stream: int = 0)
         # ── 7 & 8. Decrypt & Extract clip with ffmpeg ─────────────────
         output_path = tempfile.mktemp(suffix=".mp4")
         ffmpeg_cmd = [
-            "ffmpeg", "-y",
+            FFMPEG_BIN, "-y",
             "-i",      "pipe:0",
             "-ss",     str(offset),
             "-t",      str(duration),
@@ -353,7 +355,7 @@ def event_playback(ip: str, time: str, request: Request = None, stream: int = 0)
         if not os.path.exists(output_path) or os.path.getsize(output_path) < 500:
             print("[PLAYBACK] Retrying ffmpeg with offset=0")
             ffmpeg_cmd2 = [
-                "ffmpeg", "-y",
+                FFMPEG_BIN, "-y",
                 "-i",      "pipe:0",
                 "-t",      str(duration),
                 "-c",      "copy",
@@ -453,7 +455,7 @@ def event_playback(ip: str, time: str, request: Request = None, stream: int = 0)
                     "Access-Control-Allow-Methods":  "GET, OPTIONS",
                     "Access-Control-Allow-Headers":  "*",
                     "Access-Control-Expose-Headers": "Content-Length, Content-Type, X-Server-IP, X-Camera-IP",
-                    "X-Server-IP": "192.168.126.36",
+                    "X-Server-IP": "192.168.126.200",
                     "X-Camera-IP": ip,
                 },
             )
@@ -468,7 +470,7 @@ def event_playback(ip: str, time: str, request: Request = None, stream: int = 0)
         if request:
             base_url = str(request.base_url).rstrip("/")
         else:
-            base_url = "http://192.168.126.36"
+            base_url = "http://192.168.126.200"
 
         encoded_time = urllib.parse.quote(time)
         clipUrl = f"{base_url}/api/event-playback/hls/{ip}/{encoded_time}/index.m3u8"
@@ -681,7 +683,7 @@ def event_snapshot(ip: str, time: str):
         if dec_tmp_path and os.path.exists(dec_tmp_path):
             # Seekable local file allows extremely fast and accurate seek
             ffmpeg_cmd = [
-                "ffmpeg", "-y",
+                FFMPEG_BIN, "-y",
                 "-ss",     str(offset),
                 "-i",      dec_tmp_path,
                 "-vframes", "1",
@@ -703,7 +705,7 @@ def event_snapshot(ip: str, time: str):
         else:
             # Fallback to streaming pipe decryption
             ffmpeg_cmd = [
-                "ffmpeg", "-y",
+                FFMPEG_BIN, "-y",
                 "-i",      "pipe:0",
                 "-ss",     str(offset),
                 "-vframes", "1",
@@ -720,7 +722,7 @@ def event_snapshot(ip: str, time: str):
         if not success or not os.path.exists(output_path) or os.path.getsize(output_path) < 100:
             print("[SNAPSHOT] Retrying ffmpeg at beginning (offset=0)")
             ffmpeg_cmd2 = [
-                "ffmpeg", "-y",
+                FFMPEG_BIN, "-y",
                 "-i",      "pipe:0",
                 "-vframes", "1",
                 "-f",      "image2",
@@ -955,7 +957,7 @@ def event_playback_hls(ip: str, time_str: str, filename: str):
             # Extract 20s clip to temporary MP4
             output_path = tempfile.mktemp(suffix=".mp4")
             ffmpeg_cmd = [
-                "ffmpeg", "-y",
+                FFMPEG_BIN, "-y",
                 "-i",      "pipe:0",
                 "-ss",     str(offset),
                 "-t",      str(duration),
@@ -979,7 +981,7 @@ def event_playback_hls(ip: str, time_str: str, filename: str):
             if not os.path.exists(output_path) or os.path.getsize(output_path) < 500:
                 # Retry with offset=0
                 ffmpeg_cmd2 = [
-                    "ffmpeg", "-y",
+                    FFMPEG_BIN, "-y",
                     "-i",      "pipe:0",
                     "-t",      str(duration),
                     "-c",      "copy",
@@ -1003,7 +1005,7 @@ def event_playback_hls(ip: str, time_str: str, filename: str):
             # Segment MP4 into HLS format inside hls_dir
             os.makedirs(hls_dir, exist_ok=True)
             ffmpeg_hls = [
-                "ffmpeg", "-y",
+                FFMPEG_BIN, "-y",
                 "-i", output_path,
                 "-codec", "copy",
                 "-start_number", "0",

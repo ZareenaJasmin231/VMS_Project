@@ -580,6 +580,7 @@ function AlertsPanel({ onAlertCountUpdate, onTotalAlertCountChange, isOpen, live
                     </div>
                   </div>
 
+                  {/*
                   <div
                     className="lv-alert-card__thumbnail-container"
                     onClick={() => setZoomedImage({
@@ -597,6 +598,7 @@ function AlertsPanel({ onAlertCountUpdate, onTotalAlertCountChange, isOpen, live
                       loading="lazy"
                     />
                   </div>
+                  */}
                 </div>
               </div>
             );
@@ -642,7 +644,9 @@ function CameraCell({ device, streamMode, onFullscreen, alertCount, onBadgeClick
   // If the camera is known to be H.265, we default to the transcoder path (_h264)
   // to avoid the initial 400 Bad Request error. The player will handle fallback.
   const baseStreamKey = device.ome_stream || device.stream_key || device.live_stream || (device.ip ? device.ip.replace(/\./g, "_") : "");
-  const streamKeyToUse = device.live_codec === "H.265" ? `${baseStreamKey}_h264` : baseStreamKey;
+  const activeCodec = String(device.live_codec || device.codec || "").toUpperCase();
+  const isH265 = ["H.265", "H265", "HEVC"].includes(activeCodec);
+  const streamKeyToUse = isH265 ? `${baseStreamKey}_h264` : baseStreamKey;
 
   return (
     <div
@@ -903,7 +907,7 @@ export default function LiveViewPage() {
   const [popupIp,      setPopupIp]      = useState(null);
   const [popupAlerts,  setPopupAlerts]  = useState([]);
   const [activeRecorders, setActiveRecorders] = useState([]);
-  const [alertsPanelOpen, setAlertsPanelOpen] = useState(true);
+  const [alertsPanelOpen, setAlertsPanelOpen] = useState(false);
   const [totalAlertsCount, setTotalAlertsCount] = useState(0);
   const [sidePlaybackCam, setSidePlaybackCam] = useState(null);
 

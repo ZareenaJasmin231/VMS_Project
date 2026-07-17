@@ -42,7 +42,7 @@ def normalize_stream_name(ip: str, suffix: str = None) -> str:
 
 def save_camera_to_db(data: dict):
     if cameras_col is None:
-        print("[MONGO] ❌ No connection")
+        print("[MONGO] ERROR: No connection")
         return False
  
     existing = cameras_col.find_one({"ome_stream": data["ome_stream"]})
@@ -56,10 +56,10 @@ def save_camera_to_db(data: dict):
             {"$set": data},
             upsert=True
         )
-        print("✅ Camera saved")
+        print("[MONGO] OK: Camera saved")
         return True
     except Exception as e:
-        print("❌ Save failed:", e)
+        print("[MONGO] ERROR: Save failed:", e)
         return False
 
 def load_devices():
@@ -98,6 +98,8 @@ def load_devices():
                     "assigned_schedule_id": d.get("assigned_schedule_id", "Always"),
                     "motion_only":          d.get("motion_only", False),
                     "live_codec":           d.get("live_codec", "H.264"),
+                    "codec":                d.get("codec"),
+
                     "shard_prefix":         d.get("shard_prefix"),
                     "assigned_worker":      d.get("assigned_worker"),
                 } for d in deduped if d.get("ip") and d.get("rtsp_url")]
@@ -109,7 +111,7 @@ def load_devices():
                 save_devices([])
                 return []
         except Exception as e:
-            print(f"[STARTUP] MongoDB load failed: {e} — falling back to devices.json")
+            print(f"[STARTUP] MongoDB load failed: {e} - falling back to devices.json")
 
     try:
         if os.path.exists(DEVICES_FILE):
@@ -134,9 +136,9 @@ def save_devices(devs):
 
         with open(DEVICES_FILE, "w") as f:
             json.dump(devs, f, default=serialize, indent=2)
-        print("[DEVICES] ✅ Saved successfully")
+        print("[DEVICES] OK: Saved successfully")
     except Exception as e:
-        print(f"[DEVICES] ⚠ Could not save devices.json: {e}")
+        print(f"[DEVICES] WARN: Could not save devices.json: {e}")
 
 def stream_exists_in_mediamtx(stream_name: str) -> bool:
     try:
@@ -609,49 +611,86 @@ async def stream_watchdog():
     global _watchdog_cycle, _watchdog_failures, devices
     await asyncio.sleep(5)
     while True:
-        _watchdog_cycle += 1
-        
-        # Reload devices dynamically to capture edits
-        devices = load_devices()
-        
-        # Dynamically distribute camera workloads across worker processes
-        await rebalance_sharding()
-        
-        for device in list(devices):
-            stream_name = device.get("ome_stream")
-            rtsp_url    = device.get("rtsp_url")
-            if not stream_name or not rtsp_url:
-                continue
-
-            if device.get("enabled") is False:
-                continue
-
-            fail_count = _watchdog_failures.get(stream_name, 0)
-            if fail_count >= WATCHDOG_MAX_RETRIES:
-                if _watchdog_cycle % WATCHDOG_BACKOFF_RESET == 0:
-                    print(f"[WATCHDOG] 🔄 Resetting backoff for {stream_name}")
-                    _watchdog_failures[stream_name] = 0
-                else:
+        try:
+            _watchdog_cycle += 1
+            
+            # Reload devices dynamically to capture edits
+            devices = load_devices()
+            
+            for device in list(devices):
+                stream_name = device.get("ome_stream")
+                rtsp_url    = device.get("rtsp_url")
+                if not stream_name or not rtsp_url:
                     continue
 
-            if not stream_exists_in_mediamtx(stream_name):
-                print(f"[WATCHDOG] ⚠️  Stream {stream_name} is down — re-registering...")
-                try:
-                    result      = register_stream(stream_name, rtsp_url)
-                    status_code = result.get("statusCode", 0) if isinstance(result, dict) else 0
-                    if status_code in (200, 201):
-                        print(f"[WATCHDOG] ✅ Re-registered {stream_name}")
+                if device.get("enabled") is False:
+                    continue
+
+                fail_count = _watchdog_failures.get(stream_name, 0)
+                if fail_count >= WATCHDOG_MAX_RETRIES:
+                    if _watchdog_cycle % WATCHDOG_BACKOFF_RESET == 0:
+                        print(f"[WATCHDOG] 🔄 Resetting backoff for {stream_name}")
                         _watchdog_failures[stream_name] = 0
                     else:
+                        continue
+
+                # Get dynamic codec using MediaMTX API which is instant and avoids ffprobe timeouts
+                from app.services.camera.mediamtx_service import get_stream_info
+                
+                actual_codec = device.get("live_codec", "H.264")
+                stream_info = get_stream_info(stream_name)
+                
+                if stream_info and stream_info.get("tracks"):
+                    tracks = stream_info["tracks"]
+                    if any("H265" in str(t).upper() or "HEVC" in str(t).upper() for t in tracks):
+                        actual_codec = "H.265"
+                    elif any("H264" in str(t).upper() for t in tracks):
+                        actual_codec = "H.264"
+                
+                # Save it back to device if it changed so rebalance_sharding sees it next cycle
+                if device.get("codec") != actual_codec or device.get("live_codec") != actual_codec:
+                    print(f"[WATCHDOG] UPDATING detected codec for {stream_name} to {actual_codec}")
+                    device["live_codec"] = actual_codec
+                    device["codec"] = actual_codec
+                    save_devices(devices)
+                    if cameras_col is not None:
+                        cameras_col.update_one({"ome_stream": stream_name}, {"$set": {"live_codec": actual_codec, "codec": actual_codec}})
+
+                needs_h264_path = actual_codec == "H.265"
+                base_exists = stream_exists_in_mediamtx(stream_name)
+                h264_exists = stream_exists_in_mediamtx(f"{stream_name}_h264") if needs_h264_path else True
+
+                if not base_exists or (needs_h264_path and not h264_exists):
+                    if not base_exists:
+                        print(f"[WATCHDOG] WARN: Stream {stream_name} base is down - re-registering...")
+                    else:
+                        print(f"[WATCHDOG] WARN: Stream {stream_name}_h264 path is missing - re-registering...")
+                    
+                    try:
+                        from app.services.camera.mediamtx_service import register_stream
+                        result      = register_stream(stream_name, rtsp_url, codec=actual_codec)
+                        status_code = result.get("statusCode", 0) if isinstance(result, dict) else 0
+                        if status_code in (200, 201):
+                            print(f"[WATCHDOG] OK: Re-registered {stream_name} with codec {actual_codec}")
+                            _watchdog_failures[stream_name] = 0
+                        else:
+                            _watchdog_failures[stream_name] = fail_count + 1
+                            print(f"[WATCHDOG] ERROR: Re-register failed for {stream_name}: {result}")
+                    except Exception as e:
                         _watchdog_failures[stream_name] = fail_count + 1
-                        print(f"[WATCHDOG] ❌ Re-register failed for {stream_name}: {result}")
-                except Exception as e:
-                    _watchdog_failures[stream_name] = fail_count + 1
-                    print(f"[WATCHDOG] ❌ Exception for {stream_name}: {e}")
-            else:
-                if _watchdog_failures.get(stream_name, 0) > 0:
-                    print(f"[WATCHDOG] ✅ {stream_name} recovered")
-                _watchdog_failures[stream_name] = 0
+                        print(f"[WATCHDOG] ERROR: Exception for {stream_name}: {e}")
+                else:
+                    if _watchdog_failures.get(stream_name, 0) > 0:
+                        print(f"[WATCHDOG] OK: {stream_name} recovered")
+                    _watchdog_failures[stream_name] = 0
+
+            # Dynamically distribute camera workloads across worker processes NOW that codecs are detected and saved
+            await rebalance_sharding()
+            
+        except Exception as e:
+            import traceback
+            print(f"[WATCHDOG] FATAL ERROR CRASH: {e}")
+            traceback.print_exc()
 
         await asyncio.sleep(WATCHDOG_INTERVAL)
 

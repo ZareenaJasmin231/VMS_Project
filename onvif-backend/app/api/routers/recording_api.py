@@ -28,6 +28,7 @@ import json
 import shutil
 import tempfile
 import zipfile
+from app.utils.ffmpeg_utils import FFMPEG_BIN
 from datetime import datetime, timedelta
 from pathlib import Path
 from fastapi import APIRouter, HTTPException, Query, UploadFile, File, BackgroundTasks, Depends, Request
@@ -50,15 +51,19 @@ MONGO_URI = os.environ.get("MONGO_URI", "mongodb://mongo:27017/")
 KEY_FILE  = os.environ.get("VIDEO_KEY_FILE", "/app/data/video.key")
 
 if os.name == 'nt' and KEY_FILE == "/app/data/video.key":
-    sibling_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "devices_data", "video.key"))
-    if os.path.exists(sibling_path):
-        KEY_FILE = sibling_path
+    player_path = "c:/Users/miradorwin/Documents/GitHub/VMS_Project/onvif-backend/player/video.key"
+    if os.path.exists(player_path):
+        KEY_FILE = player_path
     else:
-        hardcoded_path = "c:/Users/miradorwin/Documents/GitHub/VMS_Project/devices_data/video.key"
-        if os.path.exists(hardcoded_path):
-            KEY_FILE = hardcoded_path
-        else:
+        sibling_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "devices_data", "video.key"))
+        if os.path.exists(sibling_path):
             KEY_FILE = sibling_path
+        else:
+            hardcoded_path = "c:/Users/miradorwin/Documents/GitHub/VMS_Project/devices_data/video.key"
+            if os.path.exists(hardcoded_path):
+                KEY_FILE = hardcoded_path
+            else:
+                KEY_FILE = sibling_path
 
 # ── Startup sanity check: warn loudly if the key file is missing ──────────────
 # Both this module and encrypt_service.py MUST use the same KEY_FILE path.
@@ -336,7 +341,7 @@ def remux_ts_to_mp4(ts_data: bytes) -> bytes:
     from app.utils.ffmpeg_utils import run_ffmpeg_sync
     if len(ts_data) > 0 and ts_data[0] == 0x47:
         try:
-            cmd = ["ffmpeg", "-y", "-loglevel", "quiet", "-i", "pipe:0", "-c", "copy", "-f", "mp4", "-movflags", "frag_keyframe+empty_moov+default_base_moof", "pipe:1"]
+            cmd = [FFMPEG_BIN, "-y", "-loglevel", "quiet", "-i", "pipe:0", "-c", "copy", "-f", "mp4", "-movflags", "frag_keyframe+empty_moov+default_base_moof", "pipe:1"]
             success, stdout_data, stderr_data = run_ffmpeg_sync(cmd, timeout=30, input_data=ts_data, capture_stdout=True)
             if success and len(stdout_data) > 0:
                 return stdout_data
@@ -359,11 +364,11 @@ def convert_video_format(video_data: bytes, output_format: str) -> bytes:
     is_ts = len(video_data) > 0 and video_data[0] == 0x47
     
     if is_ts and output_format == "mp4":
-        cmd = ["ffmpeg", "-y", "-loglevel", "quiet", "-i", "pipe:0", "-c", "copy", "-f", "mp4", "-movflags", "frag_keyframe+empty_moov+default_base_moof", "pipe:1"]
+        cmd = [FFMPEG_BIN, "-y", "-loglevel", "quiet", "-i", "pipe:0", "-c", "copy", "-f", "mp4", "-movflags", "frag_keyframe+empty_moov+default_base_moof", "pipe:1"]
     elif output_format == "avi":
-        cmd = ["ffmpeg", "-y", "-loglevel", "quiet", "-i", "pipe:0", "-c", "copy", "-f", "avi", "pipe:1"]
+        cmd = [FFMPEG_BIN, "-y", "-loglevel", "quiet", "-i", "pipe:0", "-c", "copy", "-f", "avi", "pipe:1"]
     elif output_format == "asf":
-        cmd = ["ffmpeg", "-y", "-loglevel", "quiet", "-i", "pipe:0", "-c", "copy", "-f", "asf", "pipe:1"]
+        cmd = [FFMPEG_BIN, "-y", "-loglevel", "quiet", "-i", "pipe:0", "-c", "copy", "-f", "asf", "pipe:1"]
     else:
         # Already MP4 and requested MP4
         return video_data
@@ -1022,7 +1027,7 @@ def play_recording(
                 
                 try:
                     from app.utils.ffmpeg_utils import run_ffmpeg_sync
-                    cmd = ["ffmpeg", "-y", "-loglevel", "quiet", "-i", "pipe:0", "-c", "copy", "-movflags", "+faststart", "-f", "mp4", temp_mp4_path]
+                    cmd = [FFMPEG_BIN, "-y", "-loglevel", "quiet", "-i", "pipe:0", "-c", "copy", "-movflags", "+faststart", "-f", "mp4", temp_mp4_path]
                     success, _, stderr = run_ffmpeg_sync(cmd, timeout=30, input_data=ts_data)
                     if not success:
                         raise Exception(stderr.decode(errors='replace'))
@@ -1135,13 +1140,14 @@ def play_recording(
             chunk_size = end_byte - start_byte + 1
             
             headers = {
-                "Content-Range": f"bytes {start_byte}-{end_byte}/{real_file_size}",
                 "Accept-Ranges": "bytes",
                 "Content-Length": str(chunk_size),
                 "Content-Type": "video/mp4",
                 "Cache-Control": "no-store",
                 **_CORS_HEADERS
             }
+            if range_header:
+                headers["Content-Range"] = f"bytes {start_byte}-{end_byte}/{real_file_size}"
             status_code = 206 if range_header else 200
             return Response(
                 content=data[start_byte:end_byte + 1],
@@ -1241,6 +1247,165 @@ def download_recording(
         if 'zip_path' in locals() and os.path.exists(zip_path):
             os.unlink(zip_path)
         raise HTTPException(status_code=500, detail=f"Failed to create secure zip: {e}")
+
+@recording_router.post("/upload-temp")
+async def upload_temp(file: UploadFile = File(...)):
+    try:
+        import uuid
+        temp_id = str(uuid.uuid4())
+        temp_dir = tempfile.gettempdir()
+        temp_path = os.path.join(temp_dir, f"upload_{temp_id}.enc")
+        with open(temp_path, "wb") as f:
+            f.write(await file.read())
+        return {"temp_id": temp_id}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to upload temporary file: {e}")
+
+
+@recording_router.get("/play-uploaded")
+def play_uploaded(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    temp_id: str = Query(...),
+    _cb: str = Query(None),
+):
+    import re
+    if not re.match(r'^[a-zA-Z0-9\-]+$', temp_id):
+        raise HTTPException(status_code=400, detail="Invalid temp_id format")
+
+    temp_dir = tempfile.gettempdir()
+    enc_path = os.path.join(temp_dir, f"upload_{temp_id}.enc")
+    if not os.path.exists(enc_path):
+        raise HTTPException(status_code=404, detail="Uploaded file not found or expired")
+
+    file_size_on_disk = os.path.getsize(enc_path)
+    if file_size_on_disk < 100:
+        raise HTTPException(status_code=415, detail="Recording is empty or corrupted")
+
+    try:
+        key = _load_key()
+        
+        with open(enc_path, "rb") as f:
+            header = f.read(4)
+        is_ctr = header == b'CTR\x00'
+
+        if is_ctr:
+            with open(enc_path, "rb") as f:
+                f.seek(4)
+                iv = f.read(16)
+                f.seek(20)
+                first_block = f.read(16)
+            
+            is_ts = False
+            if len(first_block) > 0:
+                cipher = Cipher(algorithms.AES(key), modes.CTR(iv), backend=default_backend())
+                decryptor = cipher.decryptor()
+                decrypted_block = decryptor.update(first_block) + decryptor.finalize()
+                is_ts = len(decrypted_block) > 0 and decrypted_block[0] == 0x47
+
+            if is_ts:
+                decrypted_stream = _decrypt(enc_path)
+                ts_data = decrypted_stream.getvalue()
+                
+                temp_mp4 = tempfile.NamedTemporaryFile(suffix=".mp4", delete=False)
+                temp_mp4_path = temp_mp4.name
+                temp_mp4.close()
+                
+                try:
+                    from app.utils.ffmpeg_utils import run_ffmpeg_sync
+                    cmd = [FFMPEG_BIN, "-y", "-loglevel", "quiet", "-i", "pipe:0", "-c", "copy", "-movflags", "+faststart", "-f", "mp4", temp_mp4_path]
+                    success, _, stderr = run_ffmpeg_sync(cmd, timeout=30, input_data=ts_data)
+                    if not success:
+                        raise Exception(stderr.decode(errors='replace'))
+                except Exception as remux_err:
+                    print(f"[PLAY-UPLOADED] Error remuxing TS to MP4: {remux_err}")
+                    if os.path.exists(temp_mp4_path):
+                        os.unlink(temp_mp4_path)
+                    raise HTTPException(status_code=415, detail=f"Failed to remux TS segment: {remux_err}")
+                
+                background_tasks.add_task(os.unlink, temp_mp4_path)
+                
+                headers = {
+                    "Cache-Control": "no-store",
+                    **_CORS_HEADERS
+                }
+                return FileResponse(temp_mp4_path, media_type="video/mp4", headers=headers)
+
+            real_file_size = file_size_on_disk - 20
+            range_header = request.headers.get("range")
+            start_byte, end_byte = _parse_range_header(range_header, real_file_size)
+            chunk_size = end_byte - start_byte + 1
+
+            def stream_ctr():
+                with open(enc_path, "rb") as f:
+                    f.seek(4)
+                    iv = f.read(16)
+                    block_index = start_byte // 16
+                    new_iv_int = int.from_bytes(iv, 'big') + block_index
+                    new_iv = new_iv_int.to_bytes(16, 'big')
+                    cipher = Cipher(algorithms.AES(key), modes.CTR(new_iv), backend=default_backend())
+                    decryptor = cipher.decryptor()
+
+                    offset_in_block = start_byte % 16
+                    if offset_in_block != 0:
+                        f.seek(20 + start_byte - offset_in_block)
+                        discard_chunk = f.read(offset_in_block)
+                        decryptor.update(discard_chunk)
+
+                    f.seek(20 + start_byte)
+                    bytes_remaining = chunk_size
+                    while bytes_remaining > 0:
+                        to_read = min(128 * 1024, bytes_remaining)
+                        chunk = f.read(to_read)
+                        if not chunk:
+                            break
+                        yield decryptor.update(chunk)
+                        bytes_remaining -= len(chunk)
+
+            headers = {
+                "Accept-Ranges": "bytes",
+                "Content-Length": str(chunk_size),
+                "Content-Type": "video/mp4",
+                "Cache-Control": "no-store",
+                **_CORS_HEADERS
+            }
+            if range_header:
+                headers["Content-Range"] = f"bytes {start_byte}-{end_byte}/{real_file_size}"
+                
+            status_code = 206 if range_header else 200
+            return StreamingResponse(stream_ctr(), status_code=status_code, headers=headers)
+
+        else:
+            try:
+                stream = _decrypt(enc_path)
+            except RuntimeError as e:
+                raise HTTPException(status_code=415, detail=str(e))
+            data = stream.getvalue()
+            real_file_size = len(data)
+
+            range_header = request.headers.get("range")
+            start_byte, end_byte = _parse_range_header(range_header, real_file_size)
+            chunk_size = end_byte - start_byte + 1
+
+            headers = {
+                "Accept-Ranges": "bytes",
+                "Content-Length": str(chunk_size),
+                "Content-Type": "video/mp4",
+                "Cache-Control": "no-store",
+                **_CORS_HEADERS
+            }
+            if range_header:
+                headers["Content-Range"] = f"bytes {start_byte}-{end_byte}/{real_file_size}"
+                
+            status_code = 206 if range_header else 200
+            return Response(
+                content=data[start_byte:end_byte + 1],
+                status_code=status_code,
+                headers=headers
+            )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Playback failed: {e}")
+
 
 @recording_router.get("/{camera_id_or_path}")
 def list_camera_recordings(camera_id_or_path: str, date: str = Query(None)):
@@ -1555,4 +1720,6 @@ def export_device(request: ExportDeviceRequest, background_tasks: BackgroundTask
         "exported_files": exported_files,
         "errors": export_errors
     }
+
+
 

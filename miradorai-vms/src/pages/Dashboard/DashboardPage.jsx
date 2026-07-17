@@ -904,10 +904,10 @@ const DashboardPage = () => {
           fetch(`${API_BASE}/api/camera-health`, { headers: getAuthHeaders() }).catch(() => null)
         ]);
 
-        const sumData = await sumRes.json();
-        const storData = await storRes.json();
-        const eventData = await eventRes.json();
-        const camData = await camRes.json();
+        const sumData = sumRes.ok ? await sumRes.json() : {};
+        const storData = storRes.ok ? await storRes.json() : [];
+        const eventData = eventRes.ok ? await eventRes.json() : [];
+        const camData = camRes.ok ? await camRes.json() : [];
 
         if (statusRes && statusRes.ok) {
           const statusData = await statusRes.json();
@@ -926,7 +926,7 @@ const DashboardPage = () => {
 
         if (camHealthRes && camHealthRes.ok) {
           const camHealthData = await camHealthRes.json();
-          setCameraHealth(camHealthData);
+          setCameraHealth(Array.isArray(camHealthData) ? camHealthData : []);
         }
 
         // Fetch history for the VMS host
@@ -966,15 +966,15 @@ const DashboardPage = () => {
 
             const cpuHist = prevCpu.length > 0
               ? [...prevCpu, sumData.cpu]
-              : Array.from({ length: 15 }, () => Math.max(5, Math.min(95, sumData.cpu + Math.floor((Math.random() - 0.5) * 10))));
+              : Array.from({ length: 15 }, () => Math.max(5, Math.min(95, (sumData.cpu || 0) + Math.floor((Math.random() - 0.5) * 10))));
 
             const ramHist = prevRam.length > 0
               ? [...prevRam, sumData.ram]
-              : Array.from({ length: 15 }, () => Math.max(5, Math.min(95, sumData.ram + Math.floor((Math.random() - 0.5) * 10))));
+              : Array.from({ length: 15 }, () => Math.max(5, Math.min(95, (sumData.ram || 0) + Math.floor((Math.random() - 0.5) * 10))));
 
             const diskHist = prevDisk.length > 0
               ? [...prevDisk, sumData.disk]
-              : Array.from({ length: 15 }, () => Math.max(1, Math.min(99, sumData.disk + Math.floor((Math.random() - 0.5) * 2))));
+              : Array.from({ length: 15 }, () => Math.max(1, Math.min(99, (sumData.disk || 0) + Math.floor((Math.random() - 0.5) * 2))));
 
             history = {
               cpu: cpuHist.slice(-20),
@@ -987,9 +987,9 @@ const DashboardPage = () => {
             history
           };
         });
-        if (storData && storData.length > 0) setStorage(storData[0]);
-        setEvents(eventData);
-        setCameras(camData);
+        if (storData && Array.isArray(storData) && storData.length > 0) setStorage(storData[0]);
+        setEvents(Array.isArray(eventData) ? eventData : []);
+        setCameras(Array.isArray(camData) ? camData : []);
       } catch (err) {
         console.error("Dashboard fetch error:", err);
       } finally {

@@ -525,17 +525,19 @@ export default function MediaPlayerPage() {
           date: "—",
           start_time: file.name,
         });
+        setPlaying(false);
         setCurrentTime(0);
         setDuration(0);
+        setIsVideoLoading(true);
 
-        requestAnimationFrame(() => {
+        setTimeout(() => {
           const v = videoRef.current;
           if (!v) { setIsVideoLoading(false); return; }
           v.crossOrigin = "anonymous";
           v.src = blobUrl;
           v.load();
           v.play().catch(() => { });
-        });
+        }, 50);
       } catch (err) {
         console.error("Local playback error:", err);
         showToast("Failed to play local file: " + err.message, "error");
@@ -584,8 +586,10 @@ export default function MediaPlayerPage() {
         date: "—",
         start_time: file.name,
       });
+      setPlaying(false);
       setCurrentTime(0);
       setDuration(0);
+      setIsVideoLoading(true);
 
       const tk = getToken();
       const streamUrl = `${STREAM_API}/api/recordings/play-uploaded`
@@ -593,14 +597,14 @@ export default function MediaPlayerPage() {
         + `&_cb=${Date.now()}`
         + (tk ? `&token=${encodeURIComponent(tk)}` : "");
 
-      requestAnimationFrame(() => {
+      setTimeout(() => {
         const v = videoRef.current;
         if (!v) { setIsVideoLoading(false); return; }
         v.crossOrigin = "anonymous";
         v.src = streamUrl;
         v.load();
         v.play().catch(() => { });
-      });
+      }, 50);
 
     } catch (err) {
       console.error("Browse decrypt error:", err);

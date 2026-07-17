@@ -36,6 +36,9 @@ from app.schemas.camera import (
 )
 
 
+import hashlib
+import time
+from app.services.camera.codec_detector import detect_codec_async
 import asyncio
 import re
 import os
@@ -142,7 +145,6 @@ async def delete_camera_by_ip(ip: str):
         stopped.append(stream_name)
         print(f"[DELETE] ⏹ Stopped recorder for {stream_name}")
 
-        # print(f"[DELETE] ⏹ Camera {stream_name} removed from DB. Assigned worker will stop its recorder within 3 seconds.")
         try:
             remove_stream(stream_name)
             print(f"[DELETE] MediaMTX unregister {stream_name}")
@@ -166,25 +168,16 @@ async def delete_camera_by_stream(stream_name: str):
     """
     global devices
     stopped = []
-       # Stop recorder and OME stream
     recorder.stop_camera(stream_name)
-    # ── BUG FIX: Do NOT call recorder.stop_camera() from the API process ──
-    # The API process has its own separate in-process recorder dict (not the workers').
-    # Calling stop_camera() here was creating stale folder paths in the default shard dir.
-    # The assigned worker detects on its next 3-second DB poll that this stream is gone
-    # and stops recording cleanly.
     stopped.append(stream_name)
-    # print(f"[DELETE-STREAM] ⏹ Camera {stream_name} removed from DB. Assigned worker will stop its recorder within 3 seconds.")
     try:
         remove_stream(stream_name)
         print(f"[DELETE-STREAM] MediaMTX unregister {stream_name}")
     except Exception as e:
         print(f"[DELETE-STREAM] OME unregister failed for {stream_name} (non-fatal): {e}")
     _watchdog_failures.pop(stream_name, None)
-    # Remove from in-memory devices
     devices = [d for d in devices if d.get("ome_stream") != stream_name]
     save_devices(devices)
-    # Remove from MongoDB by ome_stream name
     if cameras_col is not None:
         result = cameras_col.delete_many({"ome_stream": stream_name})
         print(f"[DELETE-STREAM] 🗑 MongoDB: removed {result.deleted_count} doc(s) for stream '{stream_name}'")
@@ -196,14 +189,12 @@ async def update_camera_by_ip(ip: str, request: Request):
     data = await request.json()
     
     if cameras_col is not None:
-        # Only update allowed fields
         allowed_keys = {"name", "device_name", "mac", "manufacturer", "model", "rtsp_url", "group_id"}
         update_data = {k: v for k, v in data.items() if k in allowed_keys}
         if update_data:
             cameras_col.update_many({"ip": ip}, {"$set": update_data})
             print(f"[UPDATE] ✏️ MongoDB: updated document(s) for IP {ip}")
 
-    # Update in-memory devices
     global devices
     for d in devices:
         if d.get("ip") == ip:
@@ -225,12 +216,9 @@ async def onvif_probe(req: ProbeRequest):
         probe_camera, req.ip, req.port, req.username, req.password, req.channel
     )
 
- 
     if result["success"]:
         print(f"[ONVIF] ✅ {result['manufacturer']} {result['model']} "
               f"— {result.get('stream_count', '?')} stream(s)")
-        # Use the first profile's rtsp_url (reflects the selected channel from the UI)
-        # Fallback to stream_uri for backward compatibility
         profiles_list = result.get("profiles") or result.get("all_profiles") or []
         if profiles_list and profiles_list[0].get("rtsp_url"):
             rtsp = profiles_list[0]["rtsp_url"]
@@ -272,15 +260,11 @@ async def onvif_probe(req: ProbeRequest):
                     rtsp += "?transport=tcp"
 
         print("FINAL RTSP:", rtsp)
-        # changes ends
-        # Generate a unique stream name based on IP and a hash of the RTSP URL
-        # Use channel-based suffix for stable, unique stream names on multi-channel devices
         suffix = f"cam{req.channel}" if req.channel > 0 else None
         stream_name = normalize_stream_name(req.ip, suffix)
         
         existing    = next((d for d in devices if d.get("ome_stream") == stream_name), None)
 
- 
         if not existing or not stream_exists(stream_name):
             is_currently_active = existing.get("enabled", False) if existing else False
             if not is_currently_active:
@@ -298,7 +282,11 @@ async def onvif_probe(req: ProbeRequest):
                     )
 
             print(f"[ONVIF] Registering stream in OME: {stream_name}")
-            ome_response = register_stream(stream_name, rtsp)
+            detected_codec = await detect_codec_async(rtsp, stream_name)
+            if detected_codec in ["hevc", "h265"]:
+                live_codec = "H.265"
+            
+            ome_response = register_stream(stream_name, rtsp, codec=live_codec)
             print("MEDIAMTX RESPONSE:", ome_response)
             print(f"[ONVIF] OME response: {ome_response}")
  
@@ -317,6 +305,7 @@ async def onvif_probe(req: ProbeRequest):
                     "recording_profile":  "MAIN_STREAM",
                     "enabled":        True,
                     "live_codec":     live_codec,
+                    "codec":          detected_codec,
                 }
                 devices.append(new_device)
                 save_devices(devices)
@@ -329,6 +318,7 @@ async def onvif_probe(req: ProbeRequest):
                 existing["username"]       = req.username
                 existing["password"]       = req.password
                 existing["live_codec"]     = live_codec
+                existing["codec"]          = detected_codec
                 save_devices(devices)
  
             save_camera_to_db({
@@ -354,6 +344,7 @@ async def onvif_probe(req: ProbeRequest):
                 "group_id":        req.group_id,
                 "device_name":     req.device_name,
                 "live_codec":      live_codec,
+                "codec":           detected_codec,
             })
             print(f"[ONVIF] 🎥 Recording will be started by the assigned worker process for {stream_name}")
  
@@ -366,7 +357,6 @@ async def onvif_probe(req: ProbeRequest):
         result["ome_response"] = ome_response
         live_key = live_stream if live_stream else stream_name
         result["ws_url"]       = f"http://host.docker.internal:8889/{live_key}"
-        # result["ws_url"] = f"http://localhost:8889/{live_key}"
         result["stream_key"]   = live_key
         result["status"]       = "streaming"
         result["rtsp_url"]     = rtsp
@@ -385,22 +375,22 @@ async def register_rtsp_stream(req: StreamRegisterRequest):
  
     rtsp = req.rtsp_url.strip()
     print(f"[RTSP] Registering stream: {rtsp}")
- 
-    import hashlib
-    rtsp_hash = hashlib.md5(rtsp.encode()).hexdigest()[:6]
 
     if req.ip:
-        host        = req.ip
-        stream_name = normalize_stream_name(host, rtsp_hash)
+        host = req.ip
     else:
         try:
             from urllib.parse import urlparse
-            parsed      = urlparse(rtsp)
-            host        = parsed.hostname or "unknown"
-            stream_name = normalize_stream_name(host, rtsp_hash)
+            parsed = urlparse(rtsp)
+            host = parsed.hostname or "unknown"
         except Exception:
-            host        = "unknown"
-            stream_name = normalize_stream_name("unknown", rtsp_hash)
+            host = "unknown"
+
+    # Derive the stream name purely from the host IP, not the RTSP URL —
+    # cloud/NVR-hosted cameras like this one issue a fresh, single-use
+    # token in the RTSP path on every fetch, so hashing the URL would
+    # mint a new stream name every time.
+    stream_name = normalize_stream_name(host)
 
     existing = next(
         (d for d in devices if d.get("ome_stream") == stream_name),
@@ -416,9 +406,6 @@ async def register_rtsp_stream(req: StreamRegisterRequest):
             "success":    True,
             "ome_stream": stream_name,
             "ws_url":     f"http://host.docker.internal:8889/{live_key}",
-            # "ws_url":     f"http://localhost:8889/{live_key}",
-            
-            
             "stream_key": live_key,
             "status":     "streaming",
             "rtsp_url":   rtsp,
@@ -439,7 +426,12 @@ async def register_rtsp_stream(req: StreamRegisterRequest):
             )
 
     try:
-        ome_response = register_stream(stream_name, rtsp)
+        detected_codec = await detect_codec_async(rtsp, stream_name)
+        live_codec = req.live_codec
+        if detected_codec in ["hevc", "h265"]:
+            live_codec = "H.265"
+            
+        ome_response = register_stream(stream_name, rtsp, codec=live_codec)
         print(f"[RTSP] OME response: {ome_response}")
     except Exception as e:
         print(f"[RTSP] ❌ OME registration failed: {e}")
@@ -465,7 +457,8 @@ async def register_rtsp_stream(req: StreamRegisterRequest):
             "active_rec_profile": "MAIN_STREAM",
             "recording_profile":  "MAIN_STREAM",
             "enabled":        True,
-            "live_codec":     req.live_codec,
+            "live_codec":     live_codec,
+            "codec":          detected_codec,
         }
         devices.append(new_device)
     else:
@@ -476,7 +469,8 @@ async def register_rtsp_stream(req: StreamRegisterRequest):
         existing["port"]           = req.port
         existing["username"]       = req.username
         existing["password"]       = req.password
-        existing["live_codec"]     = req.live_codec
+        existing["live_codec"]     = live_codec
+        existing["codec"]          = detected_codec
         new_device = existing
     save_devices(devices)
  
@@ -500,7 +494,8 @@ async def register_rtsp_stream(req: StreamRegisterRequest):
         "enabled":        True,
         "source":         "rtsp",
         "group_id":       req.group_id,
-        "live_codec":     req.live_codec,
+        "live_codec":     live_codec,
+        "codec":          detected_codec,
     })
  
  
@@ -512,7 +507,6 @@ async def register_rtsp_stream(req: StreamRegisterRequest):
         "success":    True,
         "ome_stream": stream_name,
         "ws_url":     f"http://host.docker.internal:8889/{live_key}",
-        # "ws_url":     f"http://localhost:8889/{live_key}",
         "stream_key": live_key,
         "status":     "streaming",
         "rtsp_url":   rtsp,
@@ -528,18 +522,12 @@ async def assign_streams(req: StreamAssignRequest):
     import time
 
     host        = req.ip.strip()
-    # For assignment, we need to find which camera we are talking about.
-    # We'll use the IP and look for the one with matching profiles if possible, 
-    # but the safest way is to look for the one that has the live_rtsp or recording_rtsp.
-    # However, since we don't have the ID, we'll try to find by IP and manufacturer for now
-    # or just use the first match for this IP.
     stream_name = normalize_stream_name(host) 
 
     print(f"[ASSIGN] {host}: live={req.live_profile!r}  rec={req.recording_profile!r}")
     print(f"[ASSIGN] live_rtsp={req.live_rtsp!r}")
     print(f"[ASSIGN] rec_rtsp={req.recording_rtsp!r}")
 
-    # ── 1. Update OME only if live RTSP actually changed ──────────────
     existing = next(
         (d for d in devices if d.get("ip") == host and (d.get("rtsp_url") == req.live_rtsp or d.get("recording_rtsp") == req.recording_rtsp)),
         next((d for d in devices if d.get("ip") == host), None)
@@ -550,7 +538,6 @@ async def assign_streams(req: StreamAssignRequest):
     if live_rtsp_changed or not stream_exists(stream_name):
         print(f"[ASSIGN] Live RTSP changed or stream missing — re-registering OME")
         try:
-            # Delete existing first to avoid 409
             try:
                 remove_stream(stream_name)
             except:
@@ -567,7 +554,6 @@ async def assign_streams(req: StreamAssignRequest):
     else:
         print(f"[ASSIGN] Live RTSP unchanged and stream exists — skipping OME re-register")
 
-    # ── 2. Always update device entry ────────────────────────────────
     if existing:
         existing["rtsp_url"]            = req.live_rtsp
         existing["recording_rtsp"]      = req.recording_rtsp
@@ -594,7 +580,6 @@ async def assign_streams(req: StreamAssignRequest):
 
     save_devices(devices)
 
-    # ── 3. Persist to MongoDB ─────────────────────────────────────────
     save_camera_to_db({
     "ip":                   host,
     "ome_stream":           stream_name,
@@ -606,22 +591,15 @@ async def assign_streams(req: StreamAssignRequest):
     "device_name":          req.device_name or f"Camera @ {host}",
     "port":                 req.port,
     "username":             req.username,
-
-    # 🔥 THIS IS THE MISSING FIX
     "active_live_profile":  req.live_profile,
     "active_rec_profile":   req.recording_profile,
     "recording_profile":    req.recording_profile,
     "live_codec":           req.live_codec,
-
     "updated_at":           datetime.utcnow(),
 })
 
-    # ── 4. Recording profile updated ──────────────────────────────────
-    # The assigned worker process will automatically detect the change
-    # and restart its recorder with the new profile RTSP URL.
     print(f"[ASSIGN] ✅ Recording profile updated for {stream_name} to: {req.recording_rtsp}")
 
-    # ── 5. Reset watchdog so the stream is not blacklisted ───────────
     _watchdog_failures[stream_name] = 0
 
     live_key = existing.get("live_stream") if existing else stream_name
@@ -661,7 +639,6 @@ async def get_encoder_options(ip: str, port: int = 80, username: str = "", passw
     if not profile_token:
         raise HTTPException(status_code=400, detail="Missing profile_token")
 
-    # Step 1: Try to get accurate per-stream data from MongoDB (populated during probe)
     db_encodings = None
     db_resolutions = None
     if cameras_col is not None:
@@ -673,14 +650,12 @@ async def get_encoder_options(ip: str, port: int = 80, username: str = "", passw
                     db_resolutions = prof.get("supported_resolutions")
                     break
 
-    # Step 2: Always get ONVIF data for fps_range, config_token, etc.
     result = await asyncio.to_thread(
         get_video_encoder_options, ip, port, username, password, profile_token
     )
     if not result.get("success"):
         raise HTTPException(status_code=400, detail=result.get("error", "Failed to get encoder options"))
 
-    # Step 3: Override ONVIF encodings with accurate DB data if available
     if db_encodings:
         result["supported_encodings"] = db_encodings
     if db_resolutions:
@@ -876,7 +851,6 @@ async def get_analytics_events(ip: str, limit: int = 50):
 @router.post("/devices/", dependencies=[Depends(verify_token)])
 async def add_device(device: dict):
     print("DEVICE REGISTERED:", device)
-    # Use ome_stream or IP as the unique key
     stream_id = device.get("ome_stream") or device.get("ip_address")
     if not stream_id:
         return {"success": False, "error": "Missing identifier"}
@@ -925,6 +899,22 @@ async def onvif_ptz_move(req: PTZMoveRequest):
     return result
 
 
+@router.get("/cameras/transcoder-status", dependencies=[Depends(verify_token)])
+async def get_transcoder_status():
+    try:
+        if cameras_col is None:
+            return {"status": "error", "message": "DB not initialized"}
+        
+        status_doc = await _db["system_status"].find_one({"type": "transcoder_status"})
+        active = status_doc.get("active_transcoders", []) if status_doc else []
+        
+        return {
+            "status": "ok", 
+            "active_transcoders": active,
+            "timestamp": status_doc.get("timestamp") if status_doc else None
+        }
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
 # ------------------------------------------------------------------
 # Dashboard
 # ------------------------------------------------------------------

@@ -1,8 +1,24 @@
 import os
+from pathlib import Path
 from pymongo import MongoClient
 
-MONGO_URI = os.environ.get("MONGO_URI", "mongodb://mongo:27017/")
-MONGO_DB_NAME = os.environ.get("MONGO_DB_NAME", "vms_database")
+# Load .env directly here so this module never depends on import order
+# or on whichever entry-point script happened to parse .env first.
+# Walk up from this file until we find a .env (handles being called from
+# any depth in the project).
+_here = Path(__file__).resolve()
+for _parent in [_here.parent, *_here.parents]:
+    _candidate = _parent / ".env"
+    if _candidate.exists():
+        for _line in _candidate.read_text(encoding="utf-8").splitlines():
+            _line = _line.strip()
+            if _line and not _line.startswith("#") and "=" in _line:
+                _key, _val = _line.split("=", 1)
+                os.environ.setdefault(_key.strip(), _val.strip().strip("'\""))
+        break
+
+MONGO_URI = os.environ.get("MONGO_URI", "mongodb://localhost:27017/")
+MONGO_DB_NAME = os.environ.get("MONGO_DB_NAME", "vms_db")
 
 try:
     mongo_client = MongoClient(

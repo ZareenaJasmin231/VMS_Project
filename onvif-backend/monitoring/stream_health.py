@@ -367,6 +367,21 @@ async def run_stream_health_loop():
                             fields = await probe_camera_stream(node)
                             node_id = node["id"]
 
+                            # Check transcoder status if it's H.265
+                            codec = fields.get("codec")
+                            if codec and codec.lower() in ["hevc", "h.265", "h265"]:
+                                status_doc = await _db["system_status"].find_one({"type": "transcoder_status"}) if _db is not None else None
+                                active_transcoders = status_doc.get("active_transcoders", []) if status_doc else []
+                                
+                                # try to get ome_stream
+                                cam_doc = await _db["cameras"].find_one({"ip": node.get("ip")}) if _db is not None else None
+                                stream_name = cam_doc.get("ome_stream") if cam_doc else None
+                                
+                                if stream_name and stream_name in active_transcoders:
+                                    fields["transcoder_status"] = "running"
+                                else:
+                                    fields["transcoder_status"] = "stopped"
+
                             # Write to MongoDB
                             nodes_col.update_one(
                                 {"id": node_id},

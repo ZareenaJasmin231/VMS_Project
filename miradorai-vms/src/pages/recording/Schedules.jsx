@@ -87,7 +87,7 @@ const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"
 const TOTAL_SLOTS = 24 * 12; // 5-min intervals
 
 const API_HOST = window.location.hostname;
-const BACKEND = `http://${API_HOST}:80`;
+const BACKEND = `http://${API_HOST}:8000`;
 
 function getAuthHeaders() {
   const token = localStorage.getItem("miradorai_token");

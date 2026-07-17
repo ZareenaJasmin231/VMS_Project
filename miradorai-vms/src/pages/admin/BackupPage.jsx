@@ -206,8 +206,9 @@ export default function BackupPage() {
   });
 
   const [manual, setManual] = useState({
-    cameras: [], start_date: '', end_date: '', format: 'ENC'
+    cameras: [], start_date: '', end_date: '', start_time: '00:00:00', end_time: '23:59:59', format: 'ENC'
   });
+  const [safeRetentionEnabled, setSafeRetentionEnabled] = useState(true);
 
   const [groups, setGroups] = useState(() => {
     try {
@@ -277,6 +278,7 @@ export default function BackupPage() {
           }
           if (cfg.auto)           setAutoEnabled(cfg.auto.enabled ?? false);
           if (cfg.retention_days) setDefaultRetention(cfg.retention_days);
+          if (cfg.safe_retention_enabled !== undefined) setSafeRetentionEnabled(cfg.safe_retention_enabled);
         }
       } catch { notify('error', 'Connection failed.'); }
     };
@@ -395,7 +397,8 @@ export default function BackupPage() {
     // Updated silently, wait for "Apply" button to save and notify
   };
 
-  const handleApplyRetention = async () => {
+  const handleApplyRetention = async (backupFirst = false) => {
+    const isBackupFirst = backupFirst === true;
     if (!networkSaved) return notify('error', 'Save network first.');
     setLoad('saveRetain', true);
     setRetentionAlert(null);
@@ -408,7 +411,9 @@ export default function BackupPage() {
         body: JSON.stringify({
           retention_days: defaultRetention,
           camera_configs: cameraConfigs,
-          retention_enabled: true // Always treat it as enabled when applying
+          retention_enabled: true, // Always treat it as enabled when applying
+          safe_retention_enabled: safeRetentionEnabled,
+          backup_first: isBackupFirst
         })
       });
       
@@ -425,7 +430,9 @@ export default function BackupPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           retention_days: defaultRetention,
-          camera_configs: cameraConfigs
+          camera_configs: cameraConfigs,
+          safe_retention_enabled: safeRetentionEnabled,
+          backup_first: isBackupFirst
         })
       });
       const d = await enforceRes.json();
@@ -440,30 +447,35 @@ export default function BackupPage() {
           missing: d.missing_files || []
         });
       }
-    } catch {
-      notify('error', 'Failed to apply retention rules.');
+    } catch (err) {
+      notify('error', 'Failed to apply: ' + err.message);
     } finally {
       setLoad('saveRetain', false);
     }
   };
 
   const getCameraConfigs = () => {
+    if (!Array.isArray(cameras)) return [];
+    const devs = Array.isArray(devices) ? devices : [];
+    const grps = Array.isArray(groups) ? groups : [];
+
     return cameras.map(cam => {
-      const matchedDevice = devices.find(d => d.ip === cam.ip || d.name === cam.name);
+      if (!cam) return null;
+      const matchedDevice = devs.find(d => d && (d.ip === cam.ip || d.name === cam.name));
       const groupId = matchedDevice?.group_id || 'default';
       let days = defaultRetention;
       
       if (matchedDevice && matchedDevice.retention_days !== undefined && matchedDevice.retention_days !== "inherit") {
         days = parseInt(matchedDevice.retention_days, 10);
       } else if (groupId !== 'default') {
-        const groupObj = groups.find(g => g.id === groupId);
+        const groupObj = grps.find(g => g && g.id === groupId);
         if (groupObj && groupObj.retention_days !== undefined) {
           days = parseInt(groupObj.retention_days, 10);
         }
       }
       
-      return { ip: cam.ip, days };
-    });
+      return { ip: cam.ip || "", days };
+    }).filter(Boolean);
   };
 
   const handleRetentionPreview = async () => {
@@ -476,7 +488,8 @@ export default function BackupPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           retention_days: defaultRetention,
-          camera_configs: cameraConfigs
+          camera_configs: cameraConfigs,
+          safe_retention_enabled: safeRetentionEnabled
         })
       });
       const data = await res.json();
@@ -487,7 +500,7 @@ export default function BackupPage() {
           missing: data.missing_files || []
         });
       }
-    } catch { notify('error', 'Preview failed.'); }
+    } catch (err) { notify('error', 'Preview failed: ' + err.message); }
     finally { setLoad('retPrev', false); }
   };
 
@@ -611,15 +624,7 @@ export default function BackupPage() {
             </div>
           </SectionCard>
 
-          {/* 3. Automatic Backup */}
-          <SectionCard icon={<FaDatabase />} title="Automated Mirroring" enabled={autoEnabled} onToggle={handleAutoToggle} badge={status.auto_active ? 'Streaming' : null}>
-            <div style={{ color: 'var(--text-secondary)', fontSize: '15px' }}>
-              Enabling this will automatically stream and mirror recordings to the network storage destination.
-            </div>
-          </SectionCard>
-        </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
           {/* 2. Manual Backup */}
           <SectionCard icon={<FaHistory />} title="Data Export">
               <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -634,14 +639,22 @@ export default function BackupPage() {
                     ))}
                   </div>
                 </div>
-                <div className="form-grid">
+                <div className="form-grid" style={{ gridTemplateColumns: 'repeat(2, 1fr)', gap: '15px' }}>
                   <div className="input-group">
-                    <label>Start</label>
+                    <label>Start Date</label>
                     <input type="date" className="backup-input" value={manual.start_date} onChange={e => setManual(m => ({ ...m, start_date: e.target.value }))} />
                   </div>
                   <div className="input-group">
-                    <label>End</label>
+                    <label>Start Time</label>
+                    <input type="time" className="backup-input" step="1" value={manual.start_time} onChange={e => setManual(m => ({ ...m, start_time: e.target.value }))} />
+                  </div>
+                  <div className="input-group">
+                    <label>End Date</label>
                     <input type="date" className="backup-input" value={manual.end_date} onChange={e => setManual(m => ({ ...m, end_date: e.target.value }))} />
+                  </div>
+                  <div className="input-group">
+                    <label>End Time</label>
+                    <input type="time" className="backup-input" step="1" value={manual.end_time} onChange={e => setManual(m => ({ ...m, end_time: e.target.value }))} />
                   </div>
                 </div>
                 {status.status === 'Processing' && (
@@ -660,9 +673,19 @@ export default function BackupPage() {
                 </button>
               </div>
           </SectionCard>
+        </div>
 
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
           {/* 4. Retention */}
           <SectionCard icon={<FaHistory />} title="Retention Policy">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.03)', padding: '12px 16px', borderRadius: '8px', border: '1px solid var(--border-color)', marginBottom: '20px' }}>
+              <div>
+                <strong style={{ display: 'block', fontSize: '15px', color: 'var(--text-primary)' }}>Safe Retention Mode</strong>
+                <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Verify recording exists in backup storage before deleting from MinIO</span>
+              </div>
+              <Toggle checked={safeRetentionEnabled} onChange={checked => setSafeRetentionEnabled(checked)} />
+            </div>
+
             <div className="input-group">
               <label style={{ fontSize: '17px', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '8px' }}>
                 Group-Level Retention Rules
@@ -691,12 +714,12 @@ export default function BackupPage() {
                           value={defaultRetention} 
                           onChange={e => updateGroupRetention('default', parseInt(e.target.value, 10))}
                         >
-                          <option value={5}>5 Days</option>
-                          <option value={10}>10 Days</option>
-                          <option value={15}>15 Days</option>
-                          <option value={30}>30 Days</option>
-                          <option value={60}>60 Days</option>
-                          <option value={120}>120 Days</option>
+                          <option value={2}>2 Mins</option>
+                          <option value={5}>5 Mins</option>
+                          <option value={10}>10 Mins</option>
+                          <option value={15}>15 Mins</option>
+                          <option value={30}>30 Mins</option>
+                          <option value={60}>60 Mins</option>
                         </select>
                       </td>
                     </tr>
@@ -717,12 +740,12 @@ export default function BackupPage() {
                               value={g.retention_days ?? 5} 
                               onChange={e => updateGroupRetention(g.id, parseInt(e.target.value, 10))}
                             >
-                              <option value={5}>5 Days</option>
-                              <option value={10}>10 Days</option>
-                              <option value={15}>15 Days</option>
-                              <option value={30}>30 Days</option>
-                              <option value={60}>60 Days</option>
-                              <option value={120}>120 Days</option>
+                              <option value={2}>2 Mins</option>
+                              <option value={5}>5 Mins</option>
+                              <option value={10}>10 Mins</option>
+                              <option value={15}>15 Mins</option>
+                              <option value={30}>30 Mins</option>
+                              <option value={60}>60 Mins</option>
                             </select>
                           </td>
                         </tr>
@@ -754,24 +777,46 @@ export default function BackupPage() {
             )}
 
             {retentionAlert && (
-              <div className="help-box error" style={{ marginTop: 14, background: 'rgba(239, 68, 68, 0.08)', borderColor: 'var(--red)' }}>
-                <strong style={{ color: 'var(--red)', display: 'block', marginBottom: '4px' }}>⚠️ Retention Halted:</strong>
-                <span style={{ fontSize: '16px', color: 'var(--text-secondary)' }}>{retentionAlert.message}</span>
-                {retentionAlert.missing && retentionAlert.missing.length > 0 && (
-                  <div style={{ marginTop: 8 }}>
-                    <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '4px' }}>Files missing from network backup:</div>
-                    <ul style={{ margin: '0 0 0 16px', padding: 0, fontSize: '15px', color: 'var(--text-secondary)' }}>
-                      {retentionAlert.missing.map((f, idx) => (
-                        <li key={idx} style={{ color: 'var(--text-secondary)' }}>{f}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
+              <div className="help-box error" style={{ marginTop: 14, background: 'rgba(239, 68, 68, 0.08)', borderColor: 'var(--red)', display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <div>
+                  <strong style={{ color: 'var(--red)', display: 'block', marginBottom: '4px' }}>⚠️ Retention Halted:</strong>
+                  <span style={{ fontSize: '16px', color: 'var(--text-secondary)' }}>{retentionAlert.message}</span>
+                  {retentionAlert.missing && retentionAlert.missing.length > 0 && (
+                    <div style={{ marginTop: 8 }}>
+                      <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '4px' }}>Files missing from network backup:</div>
+                      <ul style={{ margin: '0 0 0 16px', padding: 0, fontSize: '15px', color: 'var(--text-secondary)' }}>
+                        {retentionAlert.missing.map((f, idx) => (
+                          <li key={idx} style={{ color: 'var(--text-secondary)' }}>{f}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+                <button 
+                  className="btn-primary" 
+                  style={{ background: 'var(--teal)', borderColor: 'var(--teal)', alignSelf: 'flex-start', padding: '6px 14px', fontSize: '14px', marginTop: 4 }}
+                  onClick={() => handleApplyRetention(true)}
+                  disabled={loading.saveRetain}
+                >
+                  {loading.saveRetain ? 'Processing...' : 'Backup Missing & Enforce Retention'}
+                </button>
+              </div>
+            )}
+
+            {status.status === 'Processing' && (
+              <div className="progress-container" style={{ marginTop: 14 }}>
+                <div className="progress-header">
+                  <span>Processing Retention & Backup...</span>
+                  <span>{status.progress}%</span>
+                </div>
+                <div className="progress-bar-bg">
+                  <div className="progress-bar-fill" style={{ width: `${status.progress}%` }} />
+                </div>
               </div>
             )}
 
             <div style={{ display: 'flex', gap: 12, marginTop: 20, justifyContent: 'flex-end' }}>
-              <button className="btn-primary" style={{ padding: '6px 14px', fontSize: '15px', width: 'max-content' }} onClick={handleApplyRetention} disabled={loading.saveRetain}>Apply Retention Rules</button>
+              <button className="btn-primary" style={{ padding: '6px 14px', fontSize: '15px', width: 'max-content' }} onClick={handleApplyRetention} disabled={loading.saveRetain || status.status === 'Processing'}>Apply Retention Rules</button>
             </div>
           </SectionCard>
         </div>

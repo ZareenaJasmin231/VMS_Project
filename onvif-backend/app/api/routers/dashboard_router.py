@@ -1,3 +1,4 @@
+from app.utils.ffmpeg_utils import FFMPEG_BIN
 from fastapi import APIRouter, Depends, Response, HTTPException, Request
 import json
 from app.core.database import db as _db, analytics_col, watch_collection, cameras_col
@@ -422,7 +423,7 @@ def get_alert_thumbnail(ip: str, time: str, crop: int = 1, request: Request = No
             vf_filters.append("scale=320:-1")
 
         ffmpeg_cmd = [
-            "ffmpeg", "-y",
+            FFMPEG_BIN, "-y",
             "-ss", str(max(0, elapsed)),
             "-i", "pipe:0",
             "-vframes", "1",
@@ -457,7 +458,7 @@ def get_alert_thumbnail(ip: str, time: str, crop: int = 1, request: Request = No
             )
         else:
             ffmpeg_cmd_retry = [
-                "ffmpeg", "-y",
+                FFMPEG_BIN, "-y",
                 "-i", "pipe:0",
                 "-vframes", "1",
                 "-vf", ",".join(vf_filters),
