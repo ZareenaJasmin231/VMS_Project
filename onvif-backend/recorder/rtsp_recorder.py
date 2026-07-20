@@ -442,8 +442,11 @@ class CameraRecorder:
         # --- Detect Codec for H.265 fallback ---
         needs_transcode = False
         codec = _codec_cache.get(self.stream_name)
-        
         safe_url = self.rtsp_url.replace("&transport=tcp", "")
+        
+        # Pull from MediaMTX instead of the raw camera to prevent exceeding camera connection limits
+        # mediamtx_port = os.environ.get("RTSP_PORT", "8554")
+        # safe_url = f"rtsp://127.0.0.1:{mediamtx_port}/{self.stream_name}"
         
         if not codec:
             try:

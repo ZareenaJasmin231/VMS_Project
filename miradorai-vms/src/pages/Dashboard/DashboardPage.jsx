@@ -545,6 +545,8 @@ const DashboardPage = () => {
   const [cameras, setCameras] = useState([]);
   const [activeRecorders, setActiveRecorders] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [showFailedCamerasPopup, setShowFailedCamerasPopup] = useState(false);
+  const [recordingSchedules, setRecordingSchedules] = useState([]);
 
   // Enhanced Widget States
   const [serverMetrics, setServerMetrics] = useState({ uptime: "—", last_reboot: "—" });
@@ -901,7 +903,8 @@ const DashboardPage = () => {
           fetch(`${API_BASE}/api/recordings/status`, { headers: getAuthHeaders() }).catch(() => null),
           fetch(`${API_BASE}/api/health`, { headers: getAuthHeaders() }).catch(() => null),
           fetch(`${API_BASE}/api/infrastructure/metrics`, { headers: getAuthHeaders() }).catch(() => null),
-          fetch(`${API_BASE}/api/camera-health`, { headers: getAuthHeaders() }).catch(() => null)
+          fetch(`${API_BASE}/api/camera-health`, { headers: getAuthHeaders() }).catch(() => null),
+          fetch(`${API_BASE}/api/storage/schedules`, { headers: getAuthHeaders() }).catch(() => null)
         ]);
 
         const sumData = sumRes.ok ? await sumRes.json() : {};
@@ -990,6 +993,14 @@ const DashboardPage = () => {
         if (storData && Array.isArray(storData) && storData.length > 0) setStorage(storData[0]);
         setEvents(Array.isArray(eventData) ? eventData : []);
         setCameras(Array.isArray(camData) ? camData : []);
+        // Also fetch recording schedules for the failure reason check
+        try {
+          const schedRes = await fetch(`${API_BASE}/api/storage/schedules`, { headers: getAuthHeaders() });
+          if (schedRes.ok) {
+            const schedData = await schedRes.json();
+            setRecordingSchedules(Array.isArray(schedData) ? schedData : []);
+          }
+        } catch (_) {}
       } catch (err) {
         console.error("Dashboard fetch error:", err);
       } finally {
@@ -1148,12 +1159,48 @@ const DashboardPage = () => {
             </span>
           </div>
 
-          {/* Disk — Donut chart */}
-          <div className="health-box health-box--centered">
+          {/* Disk — Sleek Progress Gauge */}
+          <div className="health-box">
             <div className="health-box-header">
-              <div className="health-box-label"><HardDrive size={14} /> <p>Disk</p></div>
+              <div className="health-box-label"><HardDrive size={14} /><p>Disk</p></div>
+              <h2>{Math.round(storagePercent)}%</h2>
             </div>
-            <DiskDonut value={storagePercent} used={storage.used} total={storage.total} />
+            
+            {/* Sleek Segmented Disk Bar */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', margin: '4px 0' }}>
+              <div style={{
+                height: '16px',
+                width: '100%',
+                background: 'rgba(255,255,255,0.03)',
+                borderRadius: '6px',
+                border: '1px solid rgba(255, 255, 255, 0.06)',
+                position: 'relative',
+                overflow: 'hidden'
+              }}>
+                <div style={{
+                  position: 'absolute',
+                  left: 0,
+                  top: 0,
+                  height: '100%',
+                  width: `${storagePercent}%`,
+                  background: `linear-gradient(90deg, ${storagePercent > 90 ? '#ef4444' : storagePercent > 75 ? '#faad14' : '#52c41a'}cc, ${storagePercent > 90 ? '#ef4444' : storagePercent > 75 ? '#faad14' : '#52c41a'})`,
+                  borderRadius: '5px 0 0 5px',
+                  transition: 'width 0.6s ease'
+                }} />
+                {/* Horizontal segments to make it look premium */}
+                <div style={{
+                  position: 'absolute',
+                  inset: 0,
+                  backgroundImage: 'repeating-linear-gradient(90deg, transparent, transparent 15px, rgba(0, 0, 0, 0.35) 15px, rgba(0, 0, 0, 0.35) 17px)',
+                  pointerEvents: 'none'
+                }} />
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', color: '#ffffff', fontWeight: '600' }}>
+                <span>Used: {storage.used} GB</span>
+                <span>Free: {(storage.total - storage.used).toFixed(1)} GB</span>
+              </div>
+            </div>
+
             <span className={storagePercent > 90 ? "bad" : storagePercent > 75 ? "warn" : "good"}>
               {storagePercent > 90 ? "Full" : storagePercent > 75 ? "Filling" : "Healthy"}
             </span>
@@ -1243,8 +1290,13 @@ const DashboardPage = () => {
                 <span className="widget-item-label">Recording Cameras</span>
                 <span className="widget-item-value">{recordingCount} / {enabledCount}</span>
               </div>
-              <div className="widget-item-row">
-                <span className="widget-item-label">Failed Recordings</span>
+              <div 
+                className="widget-item-row" 
+                onClick={() => setShowFailedCamerasPopup(true)} 
+                style={{ cursor: "pointer" }}
+                title="Click to view failed recordings"
+              >
+                <span className="widget-item-label" style={{ textDecoration: "underline" }}>Failed Recordings</span>
                 <span className={`widget-item-value ${cameras.filter(cam => cam.enabled !== false && !activeRecorders.includes(cam.ome_stream) && !activeRecorders.includes(cam.stream_key)).length > 0 ? "unhealthy" : "healthy"}`}>
                   {cameras.filter(cam => cam.enabled !== false && !activeRecorders.includes(cam.ome_stream) && !activeRecorders.includes(cam.stream_key)).length}
                 </span>
@@ -1816,6 +1868,157 @@ const DashboardPage = () => {
         )}
         </div>
       </div>
+
+      {/* Failed Cameras Popup */}
+      {showFailedCamerasPopup && (
+        <div className="modal-overlay" onClick={() => setShowFailedCamerasPopup(false)} style={{
+          position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: "rgba(0, 0, 0, 0.7)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999
+        }}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ 
+            maxWidth: '750px', width: '100%', backgroundColor: 'var(--bg-card)', 
+            padding: '20px', borderRadius: '8px', border: '1px solid var(--border-color)',
+            boxShadow: '0 10px 25px rgba(0,0,0,0.5)'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+              <h3 style={{ margin: 0, color: 'var(--text-primary)', fontSize: '18px' }}>Failed Recording Cameras</h3>
+              <button 
+                onClick={() => setShowFailedCamerasPopup(false)}
+                style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '24px', lineHeight: 1 }}
+              >
+                &times;
+              </button>
+            </div>
+            
+            <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
+              {(() => {
+                const failedCamerasList = cameras.filter(cam => cam.enabled !== false && !activeRecorders.includes(cam.ome_stream) && !activeRecorders.includes(cam.stream_key));
+                
+                const handleRestartCamera = async (cam) => {
+                  if (!cam.ip && !cam.ip_address) return;
+                  const ip = encodeURIComponent(cam.ip || cam.ip_address);
+                  const headers = { ...getAuthHeaders(), "Content-Type": "application/json" };
+                  
+                  try {
+                    // Disable then Enable to simulate a full restart
+                    await fetch(`${API_BASE}/api/cameras/by-ip/${ip}/disable`, { method: "POST", headers });
+                    await new Promise(resolve => setTimeout(resolve, 1500));
+                    await fetch(`${API_BASE}/api/cameras/by-ip/${ip}/enable`, { method: "POST", headers });
+                    alert(`Restart sequence sent for ${cam.name || cam.ip}`);
+                  } catch (err) {
+                    console.error("Failed to restart camera:", err);
+                    alert("Failed to restart camera. Check console for details.");
+                  }
+                };
+
+                if (failedCamerasList.length === 0) {
+                  return <div style={{ color: 'var(--text-muted)', padding: '20px', textAlign: 'center' }}>No failed recordings.</div>;
+                }
+                return (
+                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '14px' }}>
+                    <thead>
+                      <tr style={{ borderBottom: '1px solid var(--border-color)', color: 'var(--text-muted)' }}>
+                        <th style={{ padding: '10px 8px', fontWeight: 600 }}>Camera Name</th>
+                        <th style={{ padding: '10px 8px', fontWeight: 600 }}>IP Address</th>
+                        <th style={{ padding: '10px 8px', fontWeight: 600 }}>Status</th>
+                        <th style={{ padding: '10px 8px', fontWeight: 600 }}>Reason</th>
+                        <th style={{ padding: '10px 8px', fontWeight: 600, textAlign: 'right' }}>Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {failedCamerasList.map((cam, idx) => {
+                        // --- Accurate reason logic ---
+                        const getRecordingFailureReason = (camera) => {
+                          // 1. Camera hardware offline?
+                          if (camera.status === "error" || camera.status === "offline") {
+                            return "Camera Offline";
+                          }
+                          // 2. Check if a recording schedule is assigned and currently inactive
+                          const schedId = camera.assigned_schedule_id;
+                          if (schedId && String(schedId).toLowerCase() !== "always") {
+                            const sch = recordingSchedules.find(s => String(s.id) === String(schedId));
+                            if (sch) {
+                              const now = new Date();
+                              const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+                              const dayName = dayNames[now.getDay()];
+                              // Check exceptions (off-days)
+                              const exceptions = sch.exceptions || [];
+                              const dateIso = now.toISOString().slice(0, 10);
+                              if (exceptions.some(e => String(e).startsWith(dateIso))) {
+                                return "Recording Schedule Inactive (Exception Day)";
+                              }
+                              // Check exact time ranges if present
+                              const ranges = (sch.ranges || {})[dayName];
+                              if (ranges && ranges !== "Always Off") {
+                                const currentTime = now.toTimeString().slice(0, 5);
+                                const inRange = ranges.split(", ").some(r => {
+                                  const parts = r.split(" - ");
+                                  return parts.length === 2 && parts[0] <= currentTime && currentTime < parts[1];
+                                });
+                                if (!inRange) return "Recording Schedule Inactive";
+                              } else {
+                                // Use 5-min bitmask
+                                const weekData = sch.week || {};
+                                const dayMask = weekData[dayName];
+                                if (Array.isArray(dayMask)) {
+                                  const minuteOfDay = now.getHours() * 60 + now.getMinutes();
+                                  const slotIndex = Math.floor(minuteOfDay / 5);
+                                  if (slotIndex >= 0 && slotIndex < dayMask.length && !dayMask[slotIndex]) {
+                                    return "Recording Schedule Inactive";
+                                  }
+                                }
+                              }
+                            } else {
+                              // Schedule assigned but not found — could be deleted
+                              return "Recording Schedule Not Found";
+                            }
+                          }
+                          // 3. Stream FPS checks
+                          if (camera.fps === 0 || !camera.fps) {
+                            return "Stream Disconnected (0 FPS)";
+                          }
+                          if (camera.fps < 10) {
+                            return "Unstable Stream (Low FPS)";
+                          }
+                          return "Recording Service Down";
+                        };
+                        let reason = getRecordingFailureReason(cam);
+
+                        const isScheduleReason = reason.includes("Schedule");
+                        const reasonColor = isScheduleReason ? '#f59e0b' : reason === 'Camera Offline' ? '#ef4444' : 'var(--text-muted)';
+                        const statusLabel = isScheduleReason ? 'Paused' : 'Failed';
+                        const statusColor = isScheduleReason ? '#f59e0b' : '#ef4444';
+
+                        return (
+                          <tr key={cam.id || idx} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                            <td style={{ padding: '10px 8px', color: 'var(--text-primary)' }}>{cam.name || cam.stream || 'Unknown'}</td>
+                            <td style={{ padding: '10px 8px', color: 'var(--text-primary)' }}>{cam.ip || cam.ip_address || 'Unknown'}</td>
+                            <td style={{ padding: '10px 8px', color: statusColor, fontWeight: 600 }}>{statusLabel}</td>
+                            <td style={{ padding: '10px 8px', color: reasonColor, fontWeight: isScheduleReason ? 500 : 400 }}>{reason}</td>
+                            <td style={{ padding: '10px 8px', textAlign: 'right' }}>
+                              <button 
+                                onClick={() => handleRestartCamera(cam)}
+                                style={{
+                                  background: 'var(--teal)', color: '#fff', border: 'none',
+                                  padding: '6px 12px', borderRadius: '4px', cursor: 'pointer',
+                                  fontSize: '12px', fontWeight: 'bold'
+                                }}
+                              >
+                                Restart
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                );
+              })()}
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };
