@@ -16,6 +16,15 @@ QUEUE_PUT_TIMEOUT = float(os.environ.get("QUEUE_PUT_TIMEOUT", "2.0"))
 
 segment_router = APIRouter(prefix="/_seg")
 
+def _parse_key_parts(key: str):
+    """Extract (camera_id, date_str, time_str) from the last 3 segments of a key.
+    Works regardless of parent folder prefix depth.
+    e.g. 'Recordings/shard1/192_168_126_235/2026-07-20/14-40-00' -> ('192_168_126_235', '2026-07-20', '14-40-00')
+    e.g. 'shard1/192_168_126_235/2026-07-20/14-40-00' -> ('192_168_126_235', '2026-07-20', '14-40-00')
+    """
+    parts = key.split("/")
+    return parts[-3], parts[-2], parts[-1]
+
 _semaphore = asyncio.Semaphore(MAX_CONCURRENT_UPLOADS)
 
 _recording_state: dict[str, dict] = {}
@@ -70,7 +79,7 @@ def _encrypt_segment(key: str, raw_bytes: bytes) -> bytes:
 async def mongodb_checkpoint(key: str, state: dict):
     if recordings_col is None:
         return
-    camera_id, date_str, time_str = key.split("/")[1:]
+    camera_id, date_str, time_str = _parse_key_parts(key)
     
     await asyncio.to_thread(
         recordings_col.update_one,
@@ -86,11 +95,11 @@ async def mongodb_checkpoint(key: str, state: dict):
                 "segment_count": state["segment_count"],
                 "bytes_written": state["bytes_written"],
                 "last_updated": datetime.utcnow(),
-                "file_size": state["bytes_written"]
+                "file_size": state["bytes_written"],
+                "duration_seconds": float(state["segment_count"] * 10.0)
             },
             "$setOnInsert": {
                 "created_at": datetime.utcnow(),
-                "duration_seconds": 300.0,
                 "end_time": time_str.replace("-", ":"),
                 "file_path": f"minio:{key}"
             }
@@ -116,7 +125,7 @@ async def _cleanup_temp_parts(key: str, sources: list[str] = None):
 async def mongodb_set_status(key: str, status: str, missing_segments=None):
     if recordings_col is None:
         return
-    camera_id, date_str, time_str = key.split("/")[1:]
+    camera_id, date_str, time_str = _parse_key_parts(key)
     update = {"status": status, "last_updated": datetime.utcnow()}
     if missing_segments is not None:
         update["missing_segments"] = missing_segments
@@ -130,10 +139,17 @@ async def mongodb_set_status(key: str, status: str, missing_segments=None):
         {"$set": update}
     )
 
-async def mongodb_set_complete(key: str, dest: str):
+async def mongodb_set_complete(key: str, dest: str, duration_seconds: float = None):
     if recordings_col is None:
         return
-    camera_id, date_str, time_str = key.split("/")[1:]
+    camera_id, date_str, time_str = _parse_key_parts(key)
+    update_data = {
+        "status": "COMPLETE",
+        "file_path": f"minio:{dest}",
+        "last_updated": datetime.utcnow()
+    }
+    if duration_seconds is not None:
+        update_data["duration_seconds"] = duration_seconds
     await asyncio.to_thread(
         recordings_col.update_one,
         {
@@ -141,11 +157,7 @@ async def mongodb_set_complete(key: str, dest: str):
             "date": date_str,
             "start_time": time_str.replace("-", ":")
         },
-        {"$set": {
-            "status": "COMPLETE",
-            "file_path": f"minio:{dest}",
-            "last_updated": datetime.utcnow()
-        }}
+        {"$set": update_data}
     )
 
 class SegmentStreamReader(io.RawIOBase):
@@ -183,10 +195,13 @@ class SegmentStreamReader(io.RawIOBase):
 async def _compose_and_finalize(key: str):
     dest = f"{key}.enc"
     
+    state = _recording_state.get(key)
+    duration = float(state["segment_count"] * 10.0) if state else None
+
     if await asyncio.to_thread(object_exists, dest):
         print(f"[RECEIVER] ℹ {dest} already exists — skipping compose")
         await _cleanup_temp_parts(key)
-        await mongodb_set_complete(key, dest)
+        await mongodb_set_complete(key, dest, duration)
         return
         
     await mongodb_set_status(key, "COMPOSING")
@@ -213,7 +228,7 @@ async def _compose_and_finalize(key: str):
             
         await asyncio.to_thread(_upload_stream)
         await _cleanup_temp_parts(key, sources)
-        await mongodb_set_complete(key, dest)
+        await mongodb_set_complete(key, dest, duration)
     except Exception as e:
         print(f"[RECEIVER] ❌ Compose (Stream) failed for {key}: {e}")
         await mongodb_set_status(key, "FAILED")
@@ -322,6 +337,7 @@ async def receive_segment(camera_id: str, date: str, time_str: str, index: int, 
                     "bytes_written": 0,
                     "last_updated": datetime.utcnow(),
                     "expected_segments": 30,
+                    "duration_seconds": 0.0,
                     "type": "segmented",
                     "created_at": datetime.utcnow()
                 }

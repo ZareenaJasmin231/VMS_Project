@@ -389,14 +389,14 @@ class CameraRecorder:
             minute = (now.minute // 5) * 5
             rounded_now = now.replace(minute=minute, second=0, microsecond=0)
             
-            date_str  = rounded_now.strftime("%Y-%m-%d")
-            self.time_str  = rounded_now.strftime("%H-%M-%S")
+            date_str  = now.strftime("%Y-%m-%d")
+            self.time_str  = now.strftime("%H-%M-%S")
             timestamp = f"{date_str}_{self.time_str}"
             
             # Adjust chunk duration so it stops exactly at the next 5-minute mark
             elapsed_in_slot = (now - rounded_now).total_seconds()
             self.current_chunk_duration = max(10, int(CHUNK_SECONDS - elapsed_in_slot))
-            segment_start = int(elapsed_in_slot // 10)
+            segment_start = 0
             self.filename = f"{timestamp}.mp4"
 
         self.out_dir  = ""

@@ -811,23 +811,36 @@ def list_recordings(
 @recording_router.get("/cameras")
 def list_recordings_cameras():
     """
-    Return the names of folders (camera IPs/IDs) found in storage or database.
+    Return the names of folders (camera IPs/IDs) found in storage or database
+    that are inside the active parent folder.
+    Returns only the canonical underscore format (e.g. 192_168_126_235).
+    The frontend normalizes these for display.
     """
     results = set()
+    from app.utils.minio_client import get_parent_folder
+    import re
     
-    # 1. Scan configured storage locations for folder names (local disk fallback)
+    parent = get_parent_folder()
+    
+    # 1. Add cameras that have completed recordings in MongoDB under the parent folder
     try:
-        locs = list(locations_collection.find())
-        scan_paths = [l["container_path"] for l in locs]
-        rec_dir = recorder.get_recordings_dir()
-        if rec_dir not in scan_paths:
-            scan_paths.append(rec_dir)
+        query = {}
+        if parent:
+            escaped_parent = re.escape(parent)
+            query["file_path"] = {"$regex": f"^minio:{escaped_parent}/"}
+        
+        db_cams = _collection.distinct("camera_id", query)
+        for cam in db_cams:
+            results.add(cam)
+    except Exception as e:
+        print(f"[API] Error fetching distinct cameras from recordings: {e}")
 
-        for path in scan_paths:
-            if not os.path.exists(path):
-                continue
-            for entry in os.listdir(path):
-                full_path = os.path.join(path, entry)
+    # 2. Also support scanning local filesystem path for the active parent folder
+    try:
+        rec_dir = recorder.get_recordings_dir()
+        if os.path.exists(rec_dir):
+            for entry in os.listdir(rec_dir):
+                full_path = os.path.join(rec_dir, entry)
                 if os.path.isdir(full_path):
                     if entry.startswith("shard"):
                         try:
@@ -840,31 +853,12 @@ def list_recordings_cameras():
                             pass
                     elif entry not in ("Non-indexed Files", "lost+found", "Config"):
                         results.add(entry)
-    except:
-        pass
-
-    # 2. Add cameras that have completed recordings in MongoDB
-    try:
-        db_cams = _collection.distinct("camera_id")
-        for cam in db_cams:
-            results.add(cam)
-            if "_" in cam:
-                results.add(cam.replace("_", "."))
     except Exception as e:
-        print(f"[API] Error fetching distinct cameras from recordings: {e}")
-
-    # 3. Add all configured cameras from the cameras collection as fallback
-    try:
-        all_cams = list(_db["cameras"].find({}, {"ome_stream": 1, "ip": 1}))
-        for cam in all_cams:
-            if cam.get("ome_stream"):
-                results.add(cam["ome_stream"])
-            if cam.get("ip"):
-                results.add(cam["ip"])
-    except:
-        pass
+        print(f"[API] Error scanning local directory for cameras: {e}")
 
     return sorted(list(results))
+
+
 
 @recording_router.get("/status")
 def recorder_status():

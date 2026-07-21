@@ -33,6 +33,9 @@
   --blue:          #3b82f6;
   --purple:        #8b5cf6;
 
+  /* -- Theme Invert Settings -- */
+  --calendar-invert: 1;
+
   /* ── Tokens ── */
   --radius-sm:     6px;
   --radius-md:     10px;
@@ -50,6 +53,35 @@
   --font-size-content: 16px;
 
   --transition:    0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ── Light Mode Overrides ── */
+[data-theme='light'] {
+  --bg-base:       #f8fafc;
+  --bg-surface:    #ffffff;
+  --bg-elevated:   #f1f5f9;
+  --bg-hover:      #e2e8f0;
+  --bg-active:     #cbd5e1;
+
+  --teal:          #059669;
+  --teal-dim:      #10b981;
+  --teal-glow:     rgba(5, 150, 105, 0.15);
+  --teal-subtle:   rgba(5, 150, 105, 0.08);
+
+  --border:        #e2e8f0;
+  --border-light:  #cbd5e1;
+  --border-dim:    rgba(0,0,0,0.06);
+
+  --text-primary:  #0f172a;
+  --text-secondary:#334155;
+  --text-muted:    #64748b;
+  --text-accent:   #059669;
+
+  --calendar-invert: 0;
+
+  --shadow-sm:     0 2px 8px rgba(0,0,0,0.05);
+  --shadow-md:     0 8px 24px rgba(0,0,0,0.08);
+  --shadow-lg:     0 16px 48px rgba(0,0,0,0.12);
 }
 
 /* ── Reset ─────────────────────────────────────── */
@@ -128,7 +160,7 @@ input, select, button, textarea { font-family: var(--font-ui); }
   font-weight: 700;
   margin: 0;
   color: var(--text-primary);
-  background: linear-gradient(135deg, #fff 0%, var(--teal) 100%);
+  background: linear-gradient(135deg, var(--text-primary) 0%, var(--teal) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   letter-spacing: -0.02em;

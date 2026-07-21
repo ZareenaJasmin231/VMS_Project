@@ -705,7 +705,7 @@
   background: none;
   border: none;
   border-radius: 8px;
-  color: rgba(255, 255, 255, 0.85);
+  color: var(--text-secondary);
   cursor: pointer;
   transition: background 0.18s ease, color 0.18s ease, transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
@@ -713,8 +713,8 @@
 
 .topbar__icon-btn:hover,
 .topbar__icon-btn--active {
-  background: rgba(255, 255, 255, 0.1);
-  color: rgba(255, 255, 255, 1);
+  background: var(--bg-hover);
+  color: var(--text-primary);
 }
 
 /* Refresh spins on hover */
@@ -793,7 +793,7 @@
   background: none;
   border: none;
   border-radius: var(--radius-md);
-  color: #ffffff;
+  color: var(--text-primary);
   font-size: 16px;
   font-family: var(--font-ui);
   cursor: pointer;

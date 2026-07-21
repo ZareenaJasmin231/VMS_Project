@@ -105,7 +105,7 @@
 
 .title {
   font-size: var(--font-size-subheading);
-  color: #ffffff;
+  color: var(--text-primary);
   text-transform: uppercase;
   letter-spacing: 0.06em;
   font-weight: 600;
@@ -209,7 +209,7 @@
 
 .health-box p {
   font-size: var(--font-size-subheading);
-  color: #ffffff;
+  color: var(--text-primary);
   text-transform: uppercase;
   letter-spacing: 0.06em;
   margin: 0;
@@ -271,7 +271,7 @@
 .ram-free-label {
   font-size: 15px;
   font-weight: 500;
-  color: #ffffff;
+  color: var(--text-primary);
   white-space: nowrap;
 }
 
@@ -292,7 +292,7 @@
 .disk-donut-sub {
   font-size: 15px;
   font-weight: 500;
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 /* ── Health Box Label ───────────────────────────── */
@@ -300,7 +300,7 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .health-box--centered {
@@ -414,14 +414,14 @@
 .metric-box label {
   font-size: 13px;
   text-transform: uppercase;
-  color: #64748b;
+  color: var(--text-secondary);
   margin-bottom: 2px;
 }
 
 .metric-box .value {
   font-size: var(--font-size-content);
   font-weight: 700;
-  color: #f8fafc;
+  color: var(--text-primary);
 }
 
 .health-alert-bar {
@@ -588,7 +588,7 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .report-input-wrapper {
@@ -600,7 +600,7 @@
 .report-input-wrapper .input-icon {
   position: absolute;
   left: 10px;
-  color: #ffffff;
+  color: var(--text-primary);
   pointer-events: none;
 }
 
@@ -610,14 +610,14 @@
   border-radius: 8px;
   border: 1px solid var(--border);
   background: var(--bg-elevated);
-  color: #ffffff;
+  color: var(--text-primary);
   font-size: var(--font-size-content);
   font-family: var(--font-ui);
   transition: all var(--transition);
 }
 
 .report-input::-webkit-calendar-picker-indicator {
-  filter: invert(1);
+  filter: invert(var(--calendar-invert, 0));
   cursor: pointer;
 }
 
@@ -638,7 +638,7 @@
   border-radius: 8px;
   border: 1px solid var(--border);
   background: var(--bg-elevated);
-  color: #ffffff;
+  color: var(--text-primary);
   font-size: var(--font-size-content);
   font-family: var(--font-ui);
   font-weight: 500;
@@ -809,7 +809,7 @@
 }
 
 .report-table tbody tr:hover {
-  background: rgba(255, 255, 255, 0.02);
+  background: var(--bg-hover);
 }
 
 /* Tags in Table */
@@ -818,8 +818,8 @@
   font-weight: 700;
   padding: 3px 7px;
   border-radius: 4px;
-  background: rgba(255, 255, 255, 0.1);
-  color: #fff;
+  background: var(--bg-hover);
+  color: var(--text-primary);
   text-transform: uppercase;
   letter-spacing: 0.03em;
 }
@@ -1004,12 +1004,12 @@
 }
 
 .widget-item-label {
-  color: rgba(255, 255, 255, 0.75);
+  color: var(--text-secondary);
   font-weight: 500;
 }
 
 .widget-item-value {
-  color: #ffffff;
+  color: var(--text-primary);
   font-weight: 700;
   font-size: var(--font-size-content);
 }
@@ -1094,7 +1094,7 @@
 .event-type-badge.storage-events { background: rgba(236, 72, 153, 0.15); color: #ec4899; }
 
 .event-message-text {
-  color: #ffffff;
+  color: var(--text-primary);
   font-weight: 500;
   text-overflow: ellipsis;
   overflow: hidden;
@@ -1242,6 +1242,12 @@
   -webkit-backdrop-filter: blur(12px);
   border: 1px solid rgba(255, 255, 255, 0.05) !important;
   box-shadow: 0 4px 30px rgba(0, 0, 0, 0.2);
+}
+
+[data-theme='light'] .enhanced-card {
+  background: rgba(255, 255, 255, 0.6) !important;
+  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.05);
 }
 
 .enhanced-card:hover {

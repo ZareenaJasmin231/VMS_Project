@@ -30,7 +30,7 @@
   font-weight: 700;
   margin: 0;
   color: var(--text-primary);
-  background: linear-gradient(135deg, #fff 0%, var(--teal) 100%);
+  background: linear-gradient(135deg, var(--text-primary) 0%, var(--teal) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   letter-spacing: -0.02em;
@@ -58,9 +58,9 @@
   border-radius: 20px;
   font-size: 15px;
   font-weight: 500;
-  background: rgba(255, 255, 255, 0.04);
-  color: rgba(255, 255, 255, 0.35);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--bg-elevated);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
   margin-left: 4px;
 }
 .lv-toolbar__right {
@@ -169,7 +169,7 @@
 .lv-cell {
   position: relative;
   background: var(--bg-base);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--border);
   border-radius: 12px;
   overflow: hidden;
   cursor: pointer;
@@ -321,7 +321,7 @@
   align-items: center;
   justify-content: center;
   gap: 6px;
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--text-muted);
   font-size: 15px;
 }
 
@@ -333,7 +333,7 @@
   align-items: center;
   justify-content: center;
   gap: 12px;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--text-muted);
   font-size: 17px;
 }
 .lv-empty__sub {
@@ -441,7 +441,7 @@
 .lv-alerts-panel {
   width: 380px;
   min-width: 380px;
-  background: #0f141c;
+  background: var(--bg-base);
   border-left: 1px solid var(--border);
   display: flex;
   flex-direction: column;
@@ -455,14 +455,13 @@
   border-left: none !important;
 }
 
-/* Header */
 .lv-alerts-panel__header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 12px 16px;
   background: transparent;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  border-bottom: 1px solid var(--border-light);
   flex-shrink: 0;
   gap: 8px;
 }
@@ -535,16 +534,16 @@
 
 /* ── Alert Cards ─────────────────────────────────── */
 .lv-alert-card {
-  background: #141922;
+  background: var(--bg-surface);
   border-radius: 10px;
   padding: 12px;
   margin-bottom: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border);
   transition: all 0.15s ease;
   box-shadow: none;
 }
 .lv-alert-card:hover {
-  background: #1a1f2a;
+  background: var(--bg-hover);
   transform: translateY(-1px);
 }
 
@@ -559,7 +558,7 @@
   box-shadow: none;
 }
 .lv-alert-card--inactive {
-  border-left-color: rgba(255, 255, 255, 0.5);
+  border-left-color: var(--border-light);
 }
 
 .lv-alert-card__top {
@@ -571,7 +570,7 @@
 .lv-alert-card__serial {
   font-size: 15px;
   font-family: var(--font-mono);
-  color: #ffffff;
+  color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -584,7 +583,7 @@
   flex-shrink: 0;
 }
 .lv-alert-card__badge--on  { background: var(--teal-subtle); color: var(--teal); }
-.lv-alert-card__badge--off { background: rgba(255, 255, 255, 0.04); color: rgba(255, 255, 255, 0.3); }
+.lv-alert-card__badge--off { background: var(--bg-elevated); color: var(--text-secondary); }
 
 .lv-alert-card__row {
   display: flex;
@@ -593,14 +592,14 @@
 }
 .lv-alert-card__label {
   font-size: 15px;
-  color: #ffffff;
+  color: var(--text-primary);
   width: 60px;
   flex-shrink: 0;
 }
 .lv-alert-card__value {
   font-size: 17px;
   font-weight: 500;
-  color: #e8eaf0;
+  color: var(--text-secondary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -610,7 +609,7 @@
 
 .lv-alert-card__time {
   font-size: 11.5px;
-  color: rgba(255, 255, 255, 0.85);
+  color: var(--text-secondary);
   margin-top: 4px;
   font-family: var(--font-mono);
 }
@@ -685,9 +684,9 @@
 }
 
 .alp-modal {
-  background: #0f141c;
+  background: var(--bg-surface);
   border-radius: 14px;
-  border: 1px solid rgba(255,255,255,0.08);
+  border: 1px solid var(--border);
   width: 480px;
   max-width: 95vw;
   max-height: 70vh;
@@ -708,9 +707,9 @@
   align-items: center;
   justify-content: space-between;
   padding: 14px 16px;
-  border-bottom: 1px solid rgba(255,255,255,0.07);
+  border-bottom: 1px solid var(--border-light);
   flex-shrink: 0;
-  background: rgba(255,255,255,0.02);
+  background: var(--bg-elevated);
 }
 
 .alp-header__left {
@@ -722,7 +721,7 @@
 .alp-title {
   font-size: 17px;
   font-weight: 600;
-  color: #e8eaf0;
+  color: var(--text-primary);
   letter-spacing: 0.01em;
 }
 
@@ -731,25 +730,25 @@
   align-items: center;
   gap: 4px;
   font-size: 15px;
-  color: rgba(255,255,255,0.5);
-  background: rgba(255,255,255,0.05);
-  border: 1px solid rgba(255,255,255,0.1);
+  color: var(--text-secondary);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
   border-radius: 6px;
   padding: 4px 9px;
   cursor: pointer;
   transition: background 0.15s, color 0.15s;
 }
 .alp-back-btn:hover {
-  background: rgba(255,255,255,0.1);
-  color: #fff;
+  background: var(--bg-hover);
+  color: var(--text-primary);
 }
 
 .alp-close-btn {
-  background: rgba(255,255,255,0.05);
-  border: 1px solid rgba(255,255,255,0.1);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
   border-radius: 6px;
   font-size: 17px;
-  color: rgba(255,255,255,0.5);
+  color: var(--text-secondary);
   cursor: pointer;
   padding: 3px 9px;
   transition: background 0.15s, color 0.15s;
@@ -769,13 +768,13 @@
 }
 .alp-list::-webkit-scrollbar       { width: 4px; }
 .alp-list::-webkit-scrollbar-track  { background: transparent; }
-.alp-list::-webkit-scrollbar-thumb  { background: rgba(255,255,255,0.1); border-radius: 2px; }
+.alp-list::-webkit-scrollbar-thumb  { background: var(--border); border-radius: 2px; }
 
 .alp-empty {
   padding: 48px 24px;
   text-align: center;
   font-size: 17px;
-  color: rgba(255,255,255,0.3);
+  color: var(--text-muted);
 }
 
 .alp-row {
@@ -783,12 +782,12 @@
   align-items: center;
   justify-content: space-between;
   padding: 10px 16px;
-  border-bottom: 1px solid rgba(255,255,255,0.05);
+  border-bottom: 1px solid var(--border-light);
   gap: 12px;
   transition: background 0.12s;
 }
 .alp-row:last-child { border-bottom: none; }
-.alp-row:hover { background: rgba(255,255,255,0.03); }
+.alp-row:hover { background: var(--bg-hover); }
 
 .alp-row__info {
   display: flex;
@@ -801,17 +800,17 @@
 .alp-row__type {
   font-size: 16px;
   font-weight: 600;
-  color: #e8eaf0;
+  color: var(--text-primary);
 }
 
 .alp-row__scenario {
   font-size: 15px;
-  color: rgba(255,255,255,0.45);
+  color: var(--text-secondary);
 }
 
 .alp-row__time {
   font-size: 16px;
-  color: rgba(255, 255, 255, 0.6);
+  color: var(--text-secondary);
   font-family: monospace;
   margin-top: 2px;
 }
@@ -824,9 +823,9 @@
   font-weight: 500;
   padding: 5px 11px;
   border-radius: 7px;
-  border: 1px solid rgba(255,255,255,0.12);
-  background: rgba(255,255,255,0.05);
-  color: rgba(255,255,255,0.7);
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
   cursor: pointer;
   flex-shrink: 0;
   transition: background 0.15s, color 0.15s, border-color 0.15s;
@@ -848,7 +847,7 @@
   padding: 16px;
   gap: 12px;
   min-height: 200px;
-  background: #070b11;
+  background: var(--bg-base);
 }
 
 .alp-video {
@@ -864,7 +863,7 @@
   flex-direction: column;
   align-items: center;
   gap: 12px;
-  color: rgba(255,255,255,0.4);
+  color: var(--text-muted);
   font-size: 17px;
 }
 
@@ -873,7 +872,7 @@
 .alp-spinner {
   width: 30px;
   height: 30px;
-  border: 2px solid rgba(255,255,255,0.1);
+  border: 2px solid var(--border);
   border-top-color: #4da6ff;
   border-radius: 50%;
   animation: alpSpin 0.75s linear infinite;
@@ -893,14 +892,14 @@
   font-size: 14px;
   padding: 3px 9px;
   border-radius: 999px;
-  background: rgba(255,255,255,0.06);
-  color: rgba(255,255,255,0.5);
-  border: 1px solid rgba(255,255,255,0.08);
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
 }
 
 .alp-meta-time {
   font-size: 16px;
-  color: rgba(255, 255, 255, 0.6);
+  color: var(--text-secondary);
   font-family: monospace;
   margin-left: auto;
 }
@@ -973,7 +972,7 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   padding: 6px 14px;
-  color: #fff;
+  color: var(--text-primary);
   font-family: var(--font-ui);
   font-size: 16px;
   font-weight: 500;
@@ -995,7 +994,7 @@
 
 .lv-grid-icon {
   opacity: 0.9;
-  color: #fff;
+  color: var(--text-primary);
   transition: color 0.2s ease;
 }
 
@@ -1079,7 +1078,7 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   padding: 6px 14px;
-  color: #fff;
+  color: var(--text-primary);
   font-family: var(--font-ui);
   font-size: 16px;
   font-weight: 500;
@@ -1166,17 +1165,17 @@
   gap:             5px;
   padding:         6px 12px;
   border-radius:   6px;
-  border:          1px solid rgba(255,255,255,0.15);
-  background:      rgba(255,255,255,0.07);
-  color:           #cdd6f4;
+  border:          1px solid var(--border);
+  background:      var(--bg-elevated);
+  color:           var(--text-secondary);
   font-size:       16px;
   font-weight:     500;
   cursor:          pointer;
   transition:      all 0.2s ease;
 }
 .alp-save-btn:hover:not(:disabled) {
-  background: rgba(255,255,255,0.13);
-  border-color: rgba(255,255,255,0.3);
+  background: var(--bg-hover);
+  border-color: var(--border-light);
 }
 .alp-save-btn--saved {
   background:  rgba(0, 200, 120, 0.15);
@@ -1211,7 +1210,7 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   padding: 6px 10px;
-  color: #fff;
+  color: var(--text-primary);
   cursor: pointer;
   transition: all 0.2s ease;
   position: relative;
@@ -1395,14 +1394,14 @@
   align-items: center;
   gap: 6px;
   padding: 4px 10px;
-  background: rgba(15, 23, 42, 0.45);
+  background: var(--bg-elevated);
   backdrop-filter: blur(4px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--border);
   border-radius: 20px;
   font-family: var(--font-ui, sans-serif);
   font-size: 13px;
   font-weight: 500;
-  color: var(--text-secondary, #94a3b8);
+  color: var(--text-primary, #94a3b8);
   margin-left: 10px;
   transition: all 0.2s ease;
 }
@@ -1412,8 +1411,8 @@
 }
 
 .lv-toolbar__station-badge:hover {
-  background: rgba(15, 23, 42, 0.65);
-  border-color: rgba(20, 184, 166, 0.3);
+  background: var(--bg-hover);
+  border-color: var(--teal);
 }
 
 .lv-station-name-text {
@@ -1427,7 +1426,7 @@
   background: transparent;
   border: none;
   outline: none;
-  color: #fff;
+  color: var(--text-primary);
   font-family: inherit;
   font-size: inherit;
   font-weight: inherit;

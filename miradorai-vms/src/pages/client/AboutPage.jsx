@@ -8,7 +8,7 @@ export default function AboutPage() {
           <div className="about-logo-mark">M</div>
           <div className="about-product-name">MIRADOR VMS</div>
           <div className="about-tagline">Intelligent Video Management Platform</div>
-          <div className="about-version-badge">v1.0.0</div>
+          <div className="about-version-badge">v1.0</div>
         </div>
         <div className="about-info card">
           <div className="about-section-title">Platform Details</div>

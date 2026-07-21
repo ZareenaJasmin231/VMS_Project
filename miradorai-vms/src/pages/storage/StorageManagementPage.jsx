@@ -414,7 +414,7 @@ export default function StorageManagementPage() {
             <div className="sm-divider" />
 
             <div className="sm-field-row">
-              <label style={{ fontWeight: 600, fontSize: "18px", color: "rgba(255, 255, 255, 0.5)" }}>Folder for new recordings:</label>
+              <label style={{ fontWeight: 600, fontSize: "18px", color: "rgba(255, 255, 255, 0.5)" }}>MinIO Parent Folder:</label>
             </div>
 
             <div className="sm-folder-row">
@@ -422,7 +422,7 @@ export default function StorageManagementPage() {
                 type="text"
                 value={folder}
                 onChange={(e) => setFolder(e.target.value)}
-                placeholder="Enter storage path (e.g., D:\REC or D:\MyFolder)"
+                placeholder="Enter parent folder name (e.g., Recordings or VMS_Data)"
                 className="sm-input"
               />
             </div>
@@ -436,7 +436,7 @@ export default function StorageManagementPage() {
                 disabled={!!allocError}
                 onClick={handleApply}
               >
-                Save Path
+                Save Parent Folder
               </button>
             </div>
           </div>
@@ -448,25 +448,24 @@ export default function StorageManagementPage() {
         <div className="mgmt-modal-overlay" onClick={() => setAddModal(false)}>
           <div className="mgmt-modal" onClick={(e) => e.stopPropagation()}>
             <div className="mgmt-modal__header">
-              <span className="mgmt-modal__title">Add Storage Location</span>
+              <span className="mgmt-modal__title">Add MinIO Parent Folder</span>
               <button className="mgmt-detail__close" onClick={() => setAddModal(false)}>✕</button>
             </div>
             <div className="mgmt-modal__body">
               <div className="mgmt-form">
                 <div className="mgmt-form__row">
-                  <label>Path</label>
+                  <label>Folder Name</label>
                   <input
                     className="mgmt-input"
                     style={{ flex: 1 }}
                     value={newPath}
                     onChange={(e) => setNewPath(e.target.value)}
-                    placeholder="D:\REC\site-B  or  /recordings/site-B"
-                    title="Windows path (D:\REC\site-B) or container path (/recordings/site-B) — both work."
+                    placeholder="e.g., Recordings or site-B/Recordings"
+                    title="Enter the MinIO parent folder name."
                   />
                 </div>
                 <div style={{ fontSize: "0.72rem", color: "rgba(255, 255, 255, 0.5)", marginTop: 4, paddingLeft: 2 }}>
-                  Windows path <code>D:\REC\site-B</code> and container path{" "}
-                  <code>/recordings/site-B</code> both map to the same location.
+                  Enter the parent folder name for MinIO storage (e.g., <code>Recordings</code>).
                 </div>
                 <div className="mgmt-form__actions">
                   <button className="sm-btn" onClick={() => setAddModal(false)}>Cancel</button>

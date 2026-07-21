@@ -9,6 +9,7 @@ import AlarmsPanel from "./components/layout/AlarmsPanel";
 import LoginPage from "./pages/auth/LoginPage";
 import AiAnalyticsPage from "./pages/analytics/AiAnalyticsPage";
 import useActivityLogger from "./hooks/useActivityLogger"; // ✅ FIXED
+import { ThemeProvider } from "./context/ThemeContext";
 import "./styles/global.css";
 
 function AppContent() {
@@ -67,10 +68,12 @@ function AppContent() {
 
 export default function App() {
   return (
-    <AuthProvider>
-      <BrowserRouter>
-        <AppContent />
-      </BrowserRouter>
-    </AuthProvider>
+    <ThemeProvider>
+      <AuthProvider>
+        <BrowserRouter>
+          <AppContent />
+        </BrowserRouter>
+      </AuthProvider>
+    </ThemeProvider>
   );
 }

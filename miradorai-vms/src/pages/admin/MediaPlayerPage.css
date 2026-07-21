@@ -668,7 +668,7 @@
 .mp-player-wrap {
   flex: 1;
   position: relative;
-  background: #050709;
+  background: var(--bg-deep);
   display: flex;
   align-items: center;
   justify-content: center;

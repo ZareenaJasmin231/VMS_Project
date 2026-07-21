@@ -245,7 +245,8 @@ def event_playback(ip: str, time: str, request: Request = None, stream: int = 0)
                 except Exception as ex:
                     print(f"Error resolving camera shard: {ex}")
 
-                prefix = f"{shard}/{ip_prefix}/{alert_local_date}/"
+                parent = minio_client.get_parent_folder()
+                prefix = f"{parent}/{shard}/{ip_prefix}/{alert_local_date}/" if parent else f"{shard}/{ip_prefix}/{alert_local_date}/"
                 try:
                     objects = minio_client.list_objects(prefix)
                     for obj in objects:
@@ -621,7 +622,8 @@ def event_snapshot(ip: str, time: str):
                 except Exception as ex:
                     print(f"Error resolving camera shard in snapshot: {ex}")
 
-                prefix = f"{shard}/{ip_prefix}/{alert_local_date}/"
+                parent = minio_client.get_parent_folder()
+                prefix = f"{parent}/{shard}/{ip_prefix}/{alert_local_date}/" if parent else f"{shard}/{ip_prefix}/{alert_local_date}/"
                 try:
                     objects = minio_client.list_objects(prefix)
                     for obj in objects:
@@ -903,7 +905,8 @@ def event_playback_hls(ip: str, time_str: str, filename: str):
                     except Exception as ex:
                         print(f"Error resolving camera shard in HLS: {ex}")
 
-                    prefix = f"{shard}/{ip_prefix}/{alert_local_date}/"
+                    parent = minio_client.get_parent_folder()
+                    prefix = f"{parent}/{shard}/{ip_prefix}/{alert_local_date}/" if parent else f"{shard}/{ip_prefix}/{alert_local_date}/"
                     try:
                         objects = minio_client.list_objects(prefix)
                         for obj in objects:

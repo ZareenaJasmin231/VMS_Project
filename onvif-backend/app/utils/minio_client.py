@@ -170,7 +170,42 @@ def get_shard_prefix(worker_id: str) -> str:
     except:
         return f"shard_{worker_id}"
 
+def get_parent_folder() -> str:
+    """Dynamically read the parent folder name from MongoDB or local config."""
+    try:
+        from app.core.database import db
+        if db is not None:
+            doc = db["storage_settings"].find_one({"type": "recording_path"})
+            if doc:
+                raw_path = doc.get("recording_path")
+                if raw_path:
+                    cleaned = raw_path.strip().replace("\\", "/").strip("/")
+                    if cleaned:
+                        return cleaned
+    except Exception as e:
+        print("[MINIO] Failed to load parent folder from db:", e)
+
+    try:
+        config_path = os.environ.get("RECORDING_CONFIG_FILE", "/app/data/recording_config.json")
+        if os.path.exists(config_path):
+            import json
+            with open(config_path) as f:
+                data = json.load(f)
+                saved = data.get("recording_path")
+                if saved:
+                    cleaned = saved.strip().replace("\\", "/").strip("/")
+                    if cleaned:
+                        return cleaned
+    except Exception as e:
+        print("[MINIO] Failed to load parent folder from config file:", e)
+
+    return "Recordings"
+
 def build_recording_path(shard_prefix: str, camera_id: str, date_str: str, filename: str) -> str:
     """Consistent format for MinIO object paths."""
+    parent = get_parent_folder()
+    if parent:
+        return f"{parent}/{shard_prefix}/{camera_id}/{date_str}/{filename}"
     return f"{shard_prefix}/{camera_id}/{date_str}/{filename}"
+
 

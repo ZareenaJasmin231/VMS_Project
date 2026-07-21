@@ -2,7 +2,7 @@
 .side-playback-panel {
   width: 480px;
   min-width: 480px;
-  background: rgba(17, 20, 27, 0.95);
+  background: var(--bg-surface);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border-left: 1px solid var(--border);
@@ -34,7 +34,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 16px 20px;
-  background: rgba(255, 255, 255, 0.02);
+  background: var(--bg-elevated);
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
 }
@@ -63,8 +63,8 @@
 }
 
 .side-playback-close-btn {
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
   border-radius: 6px;
   color: var(--text-secondary);
   width: 28px;
@@ -87,7 +87,7 @@
 .side-playback-tabs {
   display: flex;
   padding: 10px 20px;
-  background: rgba(0, 0, 0, 0.15);
+  background: var(--bg-base);
   border-bottom: 1px solid var(--border);
   gap: 12px;
   flex-shrink: 0;
@@ -111,7 +111,7 @@
 }
 
 .side-playback-tab-btn:hover {
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--bg-hover);
   color: var(--text-primary);
 }
 
@@ -147,7 +147,7 @@
 /* ── Video Player Area ── */
 .side-playback-video-container {
   position: relative;
-  background: #000;
+  background: var(--bg-base);
   width: 100%;
   aspect-ratio: 16/9;
   flex-shrink: 0;
@@ -174,10 +174,10 @@
 }
 
 .side-playback-hud-badge {
-  background: rgba(15, 20, 28, 0.85);
+  background: var(--bg-surface);
   padding: 3px 8px;
   border-radius: 4px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--border-light);
   font-size: 10px;
   font-weight: 600;
   color: var(--teal);
@@ -186,10 +186,10 @@
 }
 
 .side-playback-hud-time {
-  background: rgba(15, 20, 28, 0.85);
+  background: var(--bg-surface);
   padding: 3px 8px;
   border-radius: 4px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--border-light);
   font-size: 11px;
   font-family: var(--font-mono);
   color: var(--text-primary);
@@ -198,14 +198,15 @@
 .side-playback-loading-overlay {
   position: absolute;
   inset: 0;
-  background: rgba(0, 0, 0, 0.7);
+  background: var(--bg-base);
+  opacity: 0.85;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 12px;
   z-index: 5;
-  color: #fff;
+  color: var(--text-primary);
 }
 
 .side-playback-spinner {
@@ -224,7 +225,7 @@
 .side-playback-error-overlay {
   position: absolute;
   inset: 0;
-  background: rgba(0, 0, 0, 0.85);
+  background: var(--bg-base);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -257,7 +258,7 @@
 
 /* ── Custom Playback Controls ── */
 .side-playback-controls-bar {
-  background: rgba(17, 20, 27, 0.9);
+  background: var(--bg-surface);
   padding: 10px 16px;
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
@@ -427,16 +428,16 @@
 .side-playback-filter-label {
   font-size: 11px;
   font-weight: 700;
-  color: #ffffff;
+  color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
 
 .side-playback-date-input {
-  background: rgba(0, 0, 0, 0.25);
+  background: var(--bg-elevated);
   border: 1px solid var(--border);
   border-radius: 6px;
-  color: #fff;
+  color: var(--text-primary);
   padding: 8px 12px;
   font-size: 13px;
   outline: none;
@@ -449,7 +450,7 @@
 }
 
 .side-playback-date-input::-webkit-calendar-picker-indicator {
-  filter: invert(1);
+  filter: invert(var(--calendar-invert, 0));
 }
 
 .side-playback-files-container {
@@ -461,10 +462,10 @@
 }
 
 .side-playback-hour-group {
-  border: 1px solid var(--border-dim);
+  border: 1px solid var(--border);
   border-radius: 8px;
   overflow: hidden;
-  background: rgba(255, 255, 255, 0.01);
+  background: var(--bg-surface);
   margin-bottom: 6px;
 }
 
@@ -473,7 +474,7 @@
   display: flex;
   align-items: center;
   padding: 8px 12px;
-  background: rgba(255, 255, 255, 0.02);
+  background: var(--bg-elevated);
   border: none;
   border-bottom: 1px solid transparent;
   color: var(--text-secondary);
@@ -486,13 +487,13 @@
 }
 
 .side-playback-hour-header:hover {
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--bg-hover);
   color: var(--text-primary);
 }
 
 .side-playback-hour-header.open {
   border-bottom-color: var(--border);
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--bg-hover);
 }
 
 .side-playback-hour-chevron {
@@ -522,7 +523,7 @@
 }
 
 .side-playback-file-item:hover {
-  background: rgba(255, 255, 255, 0.02);
+  background: var(--bg-hover);
 }
 
 .side-playback-file-item.playing {
@@ -568,7 +569,7 @@
 /* ── Timeline Timescale ── */
 .side-playback-timescale-box {
   margin-top: 6px;
-  background: rgba(0, 0, 0, 0.2);
+  background: var(--bg-elevated);
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 8px 12px;
@@ -577,7 +578,7 @@
 
 .side-playback-timeline-track {
   height: 16px;
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--bg-elevated);
   border-radius: 4px;
   position: relative;
   cursor: pointer;
@@ -632,17 +633,17 @@
   align-items: center;
   justify-content: space-between;
   padding: 10px 14px;
-  background: rgba(20, 25, 34, 0.7);
+  background: var(--bg-surface);
   border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border-light);
   margin-bottom: 8px;
   gap: 12px;
   transition: all 0.15s ease;
 }
 
 .side-playback-alert-row:hover {
-  background: rgba(26, 31, 42, 0.9);
-  border-color: rgba(255, 255, 255, 0.08);
+  background: var(--bg-hover);
+  border-color: var(--border);
 }
 
 .side-playback-alert-info {
@@ -697,9 +698,9 @@
   top: 12px;
   left: 50%;
   transform: translateX(-50%);
-  background: rgba(15, 20, 28, 0.95);
+  background: var(--bg-surface);
   border: 1px solid var(--teal);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
   padding: 6px 16px;
   border-radius: 6px;
   z-index: 1000;
@@ -727,7 +728,7 @@
   align-items: center;
   gap: 6px;
   margin-left: 10px;
-  border-left: 1px solid rgba(255, 255, 255, 0.1);
+  border-left: 1px solid var(--border);
   padding-left: 10px;
 }
 
@@ -741,7 +742,7 @@
   width: 65px;
   height: 3px;
   -webkit-appearance: none;
-  background: rgba(255, 255, 255, 0.15);
+  background: var(--border);
   border-radius: 2px;
   outline: none;
   cursor: pointer;

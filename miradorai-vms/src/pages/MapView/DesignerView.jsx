@@ -267,8 +267,8 @@ function PremiumPopup({ show, type, title, message, onConfirm, onCancel }) {
   if (!show) return null;
   return (
     <div className="mv-stream-overlay" style={{ zIndex: 99999 }}>
-      <div className="mv-zone-name-modal" style={{ maxWidth: 400, border: "1px solid #2e3d55", background: "#0d1117ee", backdropFilter: "blur(8px)" }}>
-        <div className="mv-zone-name-modal__header" style={{ color: type === "confirm" ? "#3b82f6" : "#f59e0b" }}>
+      <div className="mv-zone-name-modal" style={{ maxWidth: 400, border: "1px solid var(--border)", background: "var(--bg-elevated)", backdropFilter: "blur(8px)" }}>
+        <div className="mv-zone-name-modal__header" style={{ color: type === "confirm" ? "var(--teal)" : "var(--orange)" }}>
           {type === "confirm" ? (
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20">
               <circle cx="12" cy="12" r="10" />
@@ -283,7 +283,7 @@ function PremiumPopup({ show, type, title, message, onConfirm, onCancel }) {
           )}
           <span style={{ fontWeight: 700, fontSize: 18 }}>{title}</span>
         </div>
-        <p className="mv-zone-name-modal__sub" style={{ color: "#e8edf5", fontSize: 17, marginTop: 8, marginBottom: 20 }}>
+        <p className="mv-zone-name-modal__sub" style={{ color: "var(--text-primary)", fontSize: 17, marginTop: 8, marginBottom: 20 }}>
           {message}
         </p>
         <div className="mv-zone-name-modal__row" style={{ justifyContent: "flex-end", gap: 10 }}>
@@ -403,7 +403,7 @@ function ExportPreviewModal({ baseDataUrl, exportMode, showDori, isDownloading, 
       <div ref={previewRef} data-export-preview style={{
         position: "relative", maxWidth: 960, width: "100%",
         maxHeight: "70vh", overflow: "hidden", borderRadius: 10,
-        border: "1px solid #2e3d55", background: "#0d1117",
+        border: "1px solid var(--border)", background: "var(--bg-base)",
       }}>
         {baseDataUrl && (
           <img src={baseDataUrl} alt="layout preview"
@@ -659,8 +659,8 @@ function AutomationModal({ zone, ppm, cameraDB, getCameraForType, onConfirm, onC
         </p>
 
         <div style={{
-          background: "#0d1117",
-          border: "0.5px solid #2e3d55",
+          background: "var(--bg-base)",
+          border: "0.5px solid var(--border)",
           borderRadius: 8,
           padding: "10px 12px",
           marginBottom: 16,
@@ -674,10 +674,10 @@ function AutomationModal({ zone, ppm, cameraDB, getCameraForType, onConfirm, onC
                 value={areaSqFtVal}
                 onChange={e => setAreaSqFtVal(e.target.value)}
                 style={{
-                  background: "#0b0f1a",
-                  border: "0.5px solid #2e3d55",
+                  background: "var(--bg-input)",
+                  border: "0.5px solid var(--border)",
                   borderRadius: 4,
-                  color: "#e8edf5",
+                  color: "var(--text-primary)",
                   fontSize: 16,
                   fontWeight: 700,
                   textAlign: "right",
@@ -717,8 +717,8 @@ function AutomationModal({ zone, ppm, cameraDB, getCameraForType, onConfirm, onC
                     alignItems: "center",
                     gap: 10,
                     padding: "8px 12px",
-                    background: isChecked ? "#1D9E7514" : "#0d1117",
-                    border: isChecked ? "1px solid #1D9E75" : "1px solid #2e3d55",
+                    background: isChecked ? "rgba(29, 158, 117, 0.08)" : "var(--bg-base)",
+                    border: isChecked ? "1px solid var(--green)" : "1px solid var(--border)",
                     borderRadius: 6,
                     cursor: "pointer",
                     transition: "all 0.15s",
@@ -734,7 +734,7 @@ function AutomationModal({ zone, ppm, cameraDB, getCameraForType, onConfirm, onC
                     }}
                   />
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 16, fontWeight: 700, color: "#e8edf5" }}>{label}</div>
+                    <div style={{ fontSize: 16, fontWeight: 700, color: "var(--text-primary)" }}>{label}</div>
                     {modelsOfType.length > 0 ? (
                       <select
                         value={selectedModel?.id || ""}
@@ -1475,7 +1475,8 @@ function drawPlacedCamera(ctx, p, ppm, hovering, selected, zonesRef, activeZoneI
   }
 
   ctx.save();
-  ctx.fillStyle = "#0d1117f2";
+  const isLight = document.documentElement.getAttribute("data-theme") === "light";
+  ctx.fillStyle = isLight ? "rgba(255, 255, 255, 0.9)" : "#0d1117f2";
   ctx.beginPath();
   if (ctx.roundRect) ctx.roundRect(bx, by, labelW, labelH, 4);
   else ctx.rect(bx, by, labelW, labelH);
@@ -1497,7 +1498,7 @@ function drawPlacedCamera(ctx, p, ppm, hovering, selected, zonesRef, activeZoneI
     ctx.setLineDash([]);
   }
 
-  ctx.fillStyle = "#e8edf5";
+  ctx.fillStyle = isLight ? "#334155" : "#e8edf5";
   ctx.textAlign = "center"; ctx.textBaseline = "middle";
   ctx.fillText(lbl, labelCenterX, by + 9);
   ctx.restore();
@@ -1551,7 +1552,7 @@ function DvZoneSidebarItem({
         style={{
           display: "flex", alignItems: "center", gap: 6,
           width: "100%", background: "none", border: "none",
-          padding: "5px 6px", cursor: "pointer", color: "#c9d1d9",
+          padding: "5px 6px", cursor: "pointer", color: "var(--text-primary)",
           fontSize: 15, textAlign: "left",
         }}
       >
@@ -1579,10 +1580,10 @@ function DvZoneSidebarItem({
               onClick={e => e.stopPropagation()}
               autoFocus
               style={{
-                background: "#0d1117",
-                border: "1px solid #185FA5",
+                background: "var(--bg-input)",
+                border: "1px solid var(--teal)",
                 borderRadius: "4px",
-                color: "#e8edf5",
+                color: "var(--text-primary)",
                 fontSize: "15px",
                 padding: "2px 4px",
                 width: "100%",
@@ -1591,7 +1592,7 @@ function DvZoneSidebarItem({
               }}
             />
           ) : (
-            <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 17, fontWeight: 700, color: "#e8edf5" }}>
+            <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 17, fontWeight: 700, color: "var(--text-primary)" }}>
               {zone.name}
             </span>
           )
@@ -1614,7 +1615,7 @@ function DvZoneSidebarItem({
               title="Rename zone"
               style={{
                 fontSize: "15px",
-                color: "rgba(255, 255, 255, 0.5)",
+                color: "var(--text-muted)",
                 cursor: "pointer",
                 padding: "2px",
                 flexShrink: 0,
@@ -1632,7 +1633,7 @@ function DvZoneSidebarItem({
               title="Delete zone"
               style={{
                 fontSize: "16px",
-                color: "rgba(255, 255, 255, 0.5)",
+                color: "var(--text-muted)",
                 cursor: "pointer",
                 padding: "2px",
                 flexShrink: 0,
@@ -1664,7 +1665,7 @@ function DvZoneSidebarItem({
               >
                 <CameraIcon type={p.camera.type} size={14} color={col} />
                 <span style={{
-                  flex: 1, fontSize: 16, color: isHighlit ? "#ffffff" : "#cbd5e1",
+                  flex: 1, fontSize: 16, color: isHighlit ? "var(--text-primary)" : "var(--text-secondary)",
                   fontWeight: isHighlit ? 600 : 400,
                   overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
                 }}>
@@ -1675,7 +1676,7 @@ function DvZoneSidebarItem({
                   title="Remove camera"
                   style={{
                     background: "none", border: "none", cursor: "pointer",
-                    color: "rgba(255, 255, 255, 0.5)", fontSize: 13, padding: "0 2px", flexShrink: 0,
+                    color: "var(--text-muted)", fontSize: 13, padding: "0 2px", flexShrink: 0,
                   }}
                 >✕</button>
               </div>
@@ -1685,7 +1686,7 @@ function DvZoneSidebarItem({
       )}
 
       {isActive && sidebarExpanded && camsInZone.length === 0 && (
-        <div style={{ padding: "3px 10px 6px 18px", fontSize: 14, color: "rgba(255, 255, 255, 0.5)" }}>
+        <div style={{ padding: "3px 10px 6px 18px", fontSize: 14, color: "var(--text-muted)" }}>
           No cameras in zone
         </div>
       )}
@@ -2241,13 +2242,14 @@ export default function DesignerView({ onBack }) {
     const sc = scaleRef.current;
     ctx.save(); ctx.translate(ox, oy); ctx.scale(sc, sc);
 
+    const isLight = document.documentElement.getAttribute("data-theme") === "light";
     if (floorImgRef.current) ctx.drawImage(floorImgRef.current, 0, 0);
     else {
-      ctx.fillStyle = "#0f141c"; ctx.fillRect(0, 0, 2000, 2000);
-      ctx.strokeStyle = "#1e2d3e"; ctx.lineWidth = 1;
+      ctx.fillStyle = isLight ? "#f1f5f9" : "#0f141c"; ctx.fillRect(0, 0, 2000, 2000);
+      ctx.strokeStyle = isLight ? "#cbd5e1" : "#1e2d3e"; ctx.lineWidth = 1;
       for (let gx = 0; gx < 2000; gx += 40) { ctx.beginPath(); ctx.moveTo(gx, 0); ctx.lineTo(gx, 2000); ctx.stroke(); }
       for (let gy = 0; gy < 2000; gy += 40) { ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(2000, gy); ctx.stroke(); }
-      ctx.fillStyle = "#1e2d3e"; ctx.font = "14px monospace"; ctx.textAlign = "center";
+      ctx.fillStyle = isLight ? "#94a3b8" : "#1e2d3e"; ctx.font = "14px monospace"; ctx.textAlign = "center";
       ctx.fillText("Import a floor plan or use the grid", 1000, 1000);
     }
 
@@ -2256,7 +2258,7 @@ export default function DesignerView({ onBack }) {
     const rulerY = (floorImgRef.current?.height || 2000) - 24;
     const rulerX = 20;
     ctx.save();
-    ctx.fillStyle = "rgba(13,17,23,0.72)"; ctx.fillRect(rulerX - 4, rulerY - 6, rulerPx + 8, 18);
+    ctx.fillStyle = isLight ? "rgba(255, 255, 255, 0.72)" : "rgba(13,17,23,0.72)"; ctx.fillRect(rulerX - 4, rulerY - 6, rulerPx + 8, 18);
     ctx.strokeStyle = "#3b82f6"; ctx.lineWidth = 1.5;
     ctx.beginPath();
     ctx.moveTo(rulerX, rulerY + 4); ctx.lineTo(rulerX + rulerPx, rulerY + 4);
@@ -2333,7 +2335,7 @@ export default function DesignerView({ onBack }) {
           if (dx > 8) {
             const wx = (ptA.x + ptB.x) / 2;
             const wy = Math.min(ptA.y, ptB.y) - 8;
-            ctx.fillStyle = "#10151fec";
+            ctx.fillStyle = isLight ? "rgba(255, 255, 255, 0.9)" : "#10151fec";
             const wLbl = `W: ${Math.round(dx)} px (${(dx / currentPpm).toFixed(2)} m)`;
             ctx.font = "bold 9px monospace";
             const wTw = ctx.measureText(wLbl).width;
@@ -2348,7 +2350,7 @@ export default function DesignerView({ onBack }) {
           if (dy > 8) {
             const lx = Math.max(ptA.x, ptB.x) + 8;
             const ly = (ptA.y + ptB.y) / 2;
-            ctx.fillStyle = "#10151fec";
+            ctx.fillStyle = isLight ? "rgba(255, 255, 255, 0.9)" : "#10151fec";
             const lLbl = `L: ${Math.round(dy)} px (${(dy / currentPpm).toFixed(2)} m)`;
             ctx.font = "bold 9px monospace";
             const lTw = ctx.measureText(lLbl).width;
@@ -2363,7 +2365,7 @@ export default function DesignerView({ onBack }) {
           const dPx = Math.hypot(ptB.x - ptA.x, ptB.y - ptA.y);
           const midX = (ptA.x + ptB.x) / 2;
           const midY = (ptA.y + ptB.y) / 2;
-          ctx.fillStyle = "#10151fec";
+          ctx.fillStyle = isLight ? "rgba(255, 255, 255, 0.9)" : "#10151fec";
           const lbl = `Diag: ${Math.round(dPx)} px (${(dPx / currentPpm).toFixed(2)} m)`;
           ctx.font = "bold 10px monospace";
           const tw = ctx.measureText(lbl).width;
@@ -2567,7 +2569,7 @@ export default function DesignerView({ onBack }) {
         const bx = tx - tw / 2 - 7;
         const by = ty - 9;
         ctx.save();
-        ctx.fillStyle = "rgba(13, 17, 23, 0.95)";
+        ctx.fillStyle = isLight ? "rgba(255, 255, 255, 0.95)" : "rgba(13, 17, 23, 0.95)";
         ctx.strokeStyle = hoveredZone.color;
         ctx.lineWidth = 1;
         ctx.beginPath();
@@ -2575,7 +2577,7 @@ export default function DesignerView({ onBack }) {
         else ctx.rect(bx, by, tw + 14, 18);
         ctx.fill();
         ctx.stroke();
-        ctx.fillStyle = "#e8edf5";
+        ctx.fillStyle = isLight ? "#1e293b" : "#e8edf5";
         ctx.textAlign = "center"; ctx.textBaseline = "middle";
         ctx.fillText(lbl, tx, ty);
         ctx.restore();
@@ -5834,7 +5836,7 @@ function buildExportCanvas(exportMode = "design", company = "mirador", overlayOp
                   scheduleSave(placedRef.current, zonesRef.current, newPpm);
                   draw();
                 }}
-                style={{ width: "36px", padding: "3px 4px", background: "#0d1117", border: "0.5px solid #2e3d55", borderRadius: "4px", color: "#e8edf5", fontSize: "11.5px", textAlign: "center" }}
+                style={{ width: "36px", padding: "3px 4px", background: "var(--bg-input)", border: "0.5px solid var(--border)", borderRadius: "4px", color: "var(--text-primary)", fontSize: "11.5px", textAlign: "center" }}
               />
               <span style={{ fontSize: 12, color: "rgba(255,255,255,0.4)" }}>px/m</span>
             </div>
@@ -6058,8 +6060,8 @@ function buildExportCanvas(exportMode = "design", company = "mirador", overlayOp
           className="dv-slides-sidebar"
           style={{
             width: isSidebarCollapsed ? "40px" : "220px",
-            background: "#0d1117",
-            borderRight: "0.5px solid #1e2d3e",
+            background: "var(--bg-base)",
+            borderRight: "0.5px solid var(--border)",
             display: "flex",
             flexDirection: "column",
             flexShrink: 0,
@@ -6072,7 +6074,7 @@ function buildExportCanvas(exportMode = "design", company = "mirador", overlayOp
           <div
             style={{
               padding: isSidebarCollapsed ? "12px" : "12px 14px",
-              borderBottom: "0.5px solid #1e2d3e",
+              borderBottom: "0.5px solid var(--border)",
               display: "flex",
               alignItems: "center",
               justifyContent: isSidebarCollapsed ? "center" : "space-between"
@@ -6196,21 +6198,21 @@ function buildExportCanvas(exportMode = "design", company = "mirador", overlayOp
                       flex: 1,
                       display: "flex",
                       flexDirection: "column",
-                      background: "#10151f",
-                      border: isActive ? "1.5px solid #3b82f6" : "1px solid #1e2d3e",
+                      background: "var(--bg-elevated)",
+                      border: isActive ? "1.5px solid var(--teal)" : "1px solid var(--border)",
                       borderRadius: "6px",
                       overflow: "hidden",
                       transition: "all 0.15s ease",
-                      boxShadow: isActive ? "0 0 10px rgba(59, 130, 246, 0.15)" : "none"
+                      boxShadow: isActive ? "0 0 10px rgba(16, 185, 129, 0.15)" : "none"
                     }}
                     onMouseEnter={e => {
                       if (!isActive) {
-                        e.currentTarget.style.borderColor = "#2e3d55";
+                        e.currentTarget.style.borderColor = "var(--border-light)";
                       }
                     }}
                     onMouseLeave={e => {
                       if (!isActive) {
-                        e.currentTarget.style.borderColor = "#1e2d3e";
+                        e.currentTarget.style.borderColor = "var(--border)";
                       }
                     }}
                   >
@@ -6218,12 +6220,12 @@ function buildExportCanvas(exportMode = "design", company = "mirador", overlayOp
                     <div
                       style={{
                         height: "80px",
-                        background: "#070a0f",
+                        background: "var(--bg-hover)",
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
                         position: "relative",
-                        borderBottom: "1px solid #1e2d3e",
+                        borderBottom: "1px solid var(--border)",
                         overflow: "hidden"
                       }}
                     >
@@ -6245,7 +6247,7 @@ function buildExportCanvas(exportMode = "design", company = "mirador", overlayOp
                             flexDirection: "column",
                             alignItems: "center",
                             gap: "4px",
-                            color: "#4b5563"
+                            color: "var(--text-muted)"
                           }}
                         >
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="16" height="16">
@@ -6316,10 +6318,10 @@ function buildExportCanvas(exportMode = "design", company = "mirador", overlayOp
                           onClick={e => e.stopPropagation()}
                           autoFocus
                           style={{
-                            background: "#070a0f",
-                            border: "1px solid #3b82f6",
+                            background: "var(--bg-base)",
+                            border: "1px solid var(--teal)",
                             borderRadius: "3px",
-                            color: "#ffffff",
+                            color: "var(--text-primary)",
                             fontSize: "11px",
                             padding: "1px 4px",
                             width: "100%",
@@ -6336,7 +6338,7 @@ function buildExportCanvas(exportMode = "design", company = "mirador", overlayOp
                           style={{
                             fontSize: "11px",
                             fontWeight: "600",
-                            color: isActive ? "#60a5fa" : "#e2e8f0",
+                            color: isActive ? "var(--teal)" : "var(--text-primary)",
                             overflow: "hidden",
                             textOverflow: "ellipsis",
                             whiteSpace: "nowrap",
@@ -6492,9 +6494,9 @@ function buildExportCanvas(exportMode = "design", company = "mirador", overlayOp
             display: "flex",
             flexDirection: "column",
             width: 258,
-            borderLeft: "0.5px solid #1e2d3e",
-            borderRight: "0.5px solid #1e2d3e",
-            background: "#0d1117",
+            borderLeft: "0.5px solid var(--border)",
+            borderRight: "0.5px solid var(--border)",
+            background: "var(--bg-surface)",
             flexShrink: 0,
             position: "absolute",
             top: 0,
@@ -6631,7 +6633,7 @@ function buildExportCanvas(exportMode = "design", company = "mirador", overlayOp
                     {/* Brand and Type Custom Dropdowns */}
                     <div className="dv-library__filters" style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "14px" }}>
                       <input className="dv-search" placeholder="Search models…"
-                        value={searchQuery} onChange={e => setSearchQuery(e.target.value)} style={{ padding: "6px 8px", background: "#0d1117", border: "0.5px solid #2e3d55", borderRadius: 4, color: "#e8edf5", fontSize: 15, outline: "none" }} />
+                        value={searchQuery} onChange={e => setSearchQuery(e.target.value)} style={{ padding: "6px 8px", background: "var(--bg-surface)", border: "1px solid var(--border-light)", borderRadius: 4, color: "var(--text-primary)", fontSize: 15, outline: "none" }} />
                       <div className="dv-filter-row" style={{ display: "flex", gap: "5px" }}>
                         {/* Custom Brand Dropdown */}
                         <div className="dv-custom-select-wrap" style={{ position: "relative", flex: 1 }}>
@@ -6646,14 +6648,14 @@ function buildExportCanvas(exportMode = "design", company = "mirador", overlayOp
                           {brandMenuOpen && (
                             <div className="dv-custom-dropdown" style={{
                               position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0,
-                              background: "#0d1117", border: "0.5px solid #2e3d55", borderRadius: "5px",
+                              background: "var(--bg-surface)", border: "1.5px solid var(--border-light)", borderRadius: "5px",
                               maxHeight: "180px", overflowY: "auto", zIndex: 100, padding: "4px",
-                              boxShadow: "0 8px 24px rgba(0,0,0,0.5)"
+                              boxShadow: "0 8px 24px rgba(0,0,0,0.15)"
                             }}>
                               <button
                                 className="dv-custom-dropdown-item"
                                 style={{
-                                  width: "100%", background: "none", border: "none", color: "#cbd5e1",
+                                  width: "100%", background: "none", border: "none", color: "var(--text-secondary)",
                                   padding: "6px 8px", textAlign: "left", fontSize: "15px", cursor: "pointer",
                                   borderRadius: "4px", display: "block"
                                 }}
@@ -6666,8 +6668,8 @@ function buildExportCanvas(exportMode = "design", company = "mirador", overlayOp
                                   key={b}
                                   className="dv-custom-dropdown-item"
                                   style={{
-                                    width: "100%", background: b === brandFilter ? "rgba(24, 95, 165, 0.15)" : "none",
-                                    border: "none", color: b === brandFilter ? "#5aabf0" : "#cbd5e1",
+                                    width: "100%", background: b === brandFilter ? "var(--teal-subtle)" : "none",
+                                    border: "none", color: b === brandFilter ? "var(--teal)" : "var(--text-secondary)",
                                     padding: "6px 8px", textAlign: "left", fontSize: "15px", cursor: "pointer",
                                     borderRadius: "4px", display: "block"
                                   }}
@@ -6695,8 +6697,8 @@ function buildExportCanvas(exportMode = "design", company = "mirador", overlayOp
                           {typeMenuOpen && (
                             <div className="dv-custom-dropdown" style={{
                               position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0,
-                              background: "#0d1117", border: "0.5px solid #2e3d55", borderRadius: "5px",
-                              zIndex: 100, padding: "4px", boxShadow: "0 8px 24px rgba(0,0,0,0.5)"
+                              background: "var(--bg-surface)", border: "1.5px solid var(--border-light)", borderRadius: "5px",
+                              zIndex: 100, padding: "4px", boxShadow: "0 8px 24px rgba(0,0,0,0.15)"
                             }}>
                               <button
                                 className="dv-custom-dropdown-item"
@@ -6820,14 +6822,15 @@ function buildExportCanvas(exportMode = "design", company = "mirador", overlayOp
               <div key={`edit_tb_${z.id}`} style={{
                 position: "absolute", left: screenX, top: screenY,
                 transform: "translate(-100%, -100%)", display: "flex", gap: "2px",
-                background: "rgba(15, 20, 28, 0.9)", padding: "2px 4px",
+                background: "var(--bg-elevated)", padding: "2px 4px",
+                backdropFilter: "blur(4px)",
                 borderRadius: "3px", border: `1px solid ${z.color}`,
-                boxShadow: "0 2px 6px rgba(0,0,0,0.5)", zIndex: 90, pointerEvents: "auto",
+                boxShadow: "var(--shadow-md)", zIndex: 90, pointerEvents: "auto",
                 alignItems: "center"
               }}>
                 <button
                   onClick={(e) => { e.stopPropagation(); setEditZoneId(isEditing ? null : z.id); draw(); }}
-                  style={{ background: "none", border: "none", color: isEditing ? "#a855f7" : "#cbd5e1", cursor: "pointer", display: "flex", alignItems: "center", padding: 0 }}
+                  style={{ background: "none", border: "none", color: isEditing ? "var(--purple)" : "var(--text-secondary)", cursor: "pointer", display: "flex", alignItems: "center", padding: 0 }}
                   title={isEditing ? "Done Editing" : "Edit Zone"}
                 >
                   {isEditing ? (
@@ -7211,7 +7214,7 @@ function buildExportCanvas(exportMode = "design", company = "mirador", overlayOp
               {showConfigDrawer && (
                 <div style={{
                   display: "flex", flexDirection: "column",
-                  gap: 12, background: "#080c14", border: "0.5px solid #1e2d3e",
+                  gap: 12, background: "var(--bg-elevated)", border: "0.5px solid var(--border)",
                   borderRadius: 8, padding: "12px 16px", width: 280,
                   animation: "dvSlideDown 0.2s ease-out forwards",
                 }}>
@@ -7221,13 +7224,13 @@ function buildExportCanvas(exportMode = "design", company = "mirador", overlayOp
                    
                     {/* Recording Mode */}
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6 }}>
-                      <span style={{ fontSize: 16, color: "rgba(255, 255, 255, 0.5)", fontWeight: "500" }}>Schedule:</span>
+                      <span style={{ fontSize: 16, color: "var(--text-muted)", fontWeight: "500" }}>Schedule:</span>
                       <select
                         value={selectedPlaced.recordingMode || "continuous"}
                         onChange={e => handleCameraConfigChange(selectedIdx, "recordingMode", e.target.value)}
                         style={{
-                          background: "#0d1117", border: "0.5px solid #2e3d55", borderRadius: 6,
-                          color: "#e8edf5", fontSize: 16, padding: "4px 8px", outline: "none", width: 130, height: 28, cursor: "pointer"
+                          background: "var(--bg-base)", border: "0.5px solid var(--border)", borderRadius: 6,
+                          color: "var(--text-primary)", fontSize: 16, padding: "4px 8px", outline: "none", width: 130, height: 28, cursor: "pointer"
                         }}
                       >
                         <option value="continuous">Continuous 24/7</option>
@@ -7239,13 +7242,13 @@ function buildExportCanvas(exportMode = "design", company = "mirador", overlayOp
 
                     {/* FPS */}
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6 }}>
-                      <span style={{ fontSize: 16, color: "rgba(255, 255, 255, 0.5)", fontWeight: "500" }}>Frame Rate:</span>
+                      <span style={{ fontSize: 16, color: "var(--text-muted)", fontWeight: "500" }}>Frame Rate:</span>
                       <select
                         value={selectedPlaced.fps || 25}
                         onChange={e => handleCameraConfigChange(selectedIdx, "fps", Number(e.target.value))}
                         style={{
-                          background: "#0d1117", border: "0.5px solid #2e3d55", borderRadius: 6,
-                          color: "#e8edf5", fontSize: 16, padding: "4px 8px", outline: "none", width: 130, height: 28, cursor: "pointer"
+                          background: "var(--bg-base)", border: "0.5px solid var(--border)", borderRadius: 6,
+                          color: "var(--text-primary)", fontSize: 16, padding: "4px 8px", outline: "none", width: 130, height: 28, cursor: "pointer"
                         }}
                       >
                         <option value={5}>5 FPS</option>
@@ -7259,7 +7262,7 @@ function buildExportCanvas(exportMode = "design", company = "mirador", overlayOp
                   </div>
 
                   {/* Divider */}
-                  <div style={{ height: "0.5px", background: "#1e2d3e", margin: "4px 0" }} />
+                  <div style={{ height: "0.5px", background: "var(--border)", margin: "4px 0" }} />
 
                   {/* Column 2: Accessories */}
                   <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -7267,13 +7270,13 @@ function buildExportCanvas(exportMode = "design", company = "mirador", overlayOp
                    
                     {/* Mounting Arm */}
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6 }}>
-                      <span style={{ fontSize: 16, color: "rgba(255, 255, 255, 0.5)", fontWeight: "500" }}>Mounting:</span>
+                      <span style={{ fontSize: 16, color: "var(--text-muted)", fontWeight: "500" }}>Mounting:</span>
                       <select
                         value={selectedPlaced.mounting || "default"}
                         onChange={e => handleCameraConfigChange(selectedIdx, "mounting", e.target.value)}
                         style={{
-                          background: "#0d1117", border: "0.5px solid #2e3d55", borderRadius: 6,
-                          color: "#e8edf5", fontSize: 16, padding: "4px 8px", outline: "none", width: 130, height: 28, cursor: "pointer"
+                          background: "var(--bg-base)", border: "0.5px solid var(--border)", borderRadius: 6,
+                          color: "var(--text-primary)", fontSize: 16, padding: "4px 8px", outline: "none", width: 130, height: 28, cursor: "pointer"
                         }}
                       >
                         <option value="default">Default Mount</option>
@@ -7286,16 +7289,16 @@ function buildExportCanvas(exportMode = "design", company = "mirador", overlayOp
 
                     {/* Checkboxes */}
                     <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 4 }}>
-                      <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 15, color: "#cbd5e1" }}>
+                      <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 15, color: "var(--text-primary)" }}>
                         <input
                           type="checkbox"
                           checked={!!selectedPlaced.includeBackbox}
                           onChange={e => handleCameraConfigChange(selectedIdx, "includeBackbox", e.target.checked)}
-                          style={{ width: 16, height: 16, accentColor: "#a855f7" }}
+                          style={{ width: 16, height: 16, accentColor: "var(--purple)" }}
                         />
                         Weatherproof Backbox
                       </label>
-                      <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 15, color: "#cbd5e1" }}>
+                      <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 15, color: "var(--text-primary)" }}>
                         <input
                           type="checkbox"
                           checked={!!selectedPlaced.includePoe}
@@ -7453,10 +7456,10 @@ function buildExportCanvas(exportMode = "design", company = "mirador", overlayOp
                       onChange={e => setCalibrateRealWidth(e.target.value)}
                       style={{
                         flex: 1,
-                        background: "#0d1117",
-                        border: "1px solid #2e3d55",
+                        background: "var(--bg-input)",
+                        border: "1px solid var(--border)",
                         borderRadius: 4,
-                        color: "#e8edf5",
+                        color: "var(--text-primary)",
                         fontSize: 17,
                         padding: "8px 10px",
                         outline: "none"
@@ -7478,10 +7481,10 @@ function buildExportCanvas(exportMode = "design", company = "mirador", overlayOp
                       onChange={e => setCalibrateRealLength(e.target.value)}
                       style={{
                         flex: 1,
-                        background: "#0d1117",
-                        border: "1px solid #2e3d55",
+                        background: "var(--bg-input)",
+                        border: "1px solid var(--border)",
                         borderRadius: 4,
-                        color: "#e8edf5",
+                        color: "var(--text-primary)",
                         fontSize: 17,
                         padding: "8px 10px",
                         outline: "none"
@@ -7933,13 +7936,13 @@ function ProjectStatsPanel({
                         const accessoriesStr = accessories.join(", ") || "None";
 
                         return (
-                          <tr key={groupKey} style={{ borderBottom: "1px solid #1e2d3e", background: idx % 2 === 0 ? "#0d1117" : "#090d13" }}>
-                            <td style={{ padding: "10px 12px", textTransform: "uppercase", fontWeight: 700, fontSize: 13, color: "#3b82f6" }}>
+                          <tr key={groupKey} style={{ borderBottom: "1px solid var(--border)", background: idx % 2 === 0 ? "var(--bg-base)" : "var(--bg-surface)" }}>
+                            <td style={{ padding: "10px 12px", textTransform: "uppercase", fontWeight: 700, fontSize: 13, color: "var(--teal)" }}>
                               {p.camera.type}
                             </td>
                             <td style={{ padding: "10px 12px" }}>
-                              <div style={{ fontWeight: 600, color: "#f8fafc" }}>{p.camera.brand}</div>
-                              <div style={{ fontSize: 13, color: "rgba(255, 255, 255, 0.5)", marginTop: 2 }}>{p.camera.model}</div>
+                              <div style={{ fontWeight: 600, color: "var(--text-primary)" }}>{p.camera.brand}</div>
+                              <div style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 2 }}>{p.camera.model}</div>
                             </td>
                             <td style={{ padding: "10px 12px", textAlign: "center", fontWeight: 700 }}>{qty}</td>
                             <td style={{ padding: "10px 12px", fontSize: 13, color: "#a0aec0" }}>{accessoriesStr}</td>
@@ -7961,10 +7964,10 @@ function ProjectStatsPanel({
                                   className="dv-bom-input"
                                   style={{
                                     width: "80px",
-                                    background: "#0b0f1a",
-                                    border: "0.5px solid #2e3d55",
+                                    background: "var(--bg-input)",
+                                    border: "0.5px solid var(--border)",
                                     borderRadius: 4,
-                                    color: "#e8edf5",
+                                    color: "var(--text-primary)",
                                     padding: "2px 4px",
                                     textAlign: "right",
                                     fontSize: 14,
@@ -7992,10 +7995,10 @@ function ProjectStatsPanel({
                                   className="dv-bom-input"
                                   style={{
                                     width: "70px",
-                                    background: "#0b0f1a",
-                                    border: "0.5px solid #2e3d55",
+                                    background: "var(--bg-input)",
+                                    border: "0.5px solid var(--border)",
                                     borderRadius: 4,
-                                    color: "#e8edf5",
+                                    color: "var(--text-primary)",
                                     padding: "2px 4px",
                                     textAlign: "right",
                                     fontSize: 14,
@@ -8017,12 +8020,12 @@ function ProjectStatsPanel({
                     {manualCams.map((mc, idx) => {
                       const lineTotal = ((mc.cameraPrice || 0) + (mc.accPrice || 0)) * (mc.qty || 1);
                       return (
-                        <tr key={mc.id} style={{ borderBottom: "1px solid #1e2d3e", background: idx % 2 === 0 ? "#0d1117" : "#090d13" }}>
+                        <tr key={mc.id} style={{ borderBottom: "1px solid var(--border)", background: idx % 2 === 0 ? "var(--bg-base)" : "var(--bg-surface)" }}>
                           <td style={{ padding: "10px 12px" }}>
                             <select
                               value={mc.type}
                               onChange={(e) => updateManualCam(mc.id, "type", e.target.value)}
-                              style={{ background: "#0b0f1a", border: "0.5px solid #2e3d55", borderRadius: 4, color: "#e8edf5", padding: "2px 4px", fontSize: 13, cursor: "pointer", outline: "none" }}
+                              style={{ background: "var(--bg-input)", border: "0.5px solid var(--border)", borderRadius: 4, color: "var(--text-primary)", padding: "2px 4px", fontSize: 13, cursor: "pointer", outline: "none" }}
                             >
                               <option value="dome">Dome</option>
                               <option value="bullet">Bullet</option>
@@ -8037,13 +8040,13 @@ function ProjectStatsPanel({
                               <input
                                 value={mc.brand}
                                 onChange={(e) => updateManualCam(mc.id, "brand", e.target.value)}
-                                style={{ width: "65px", background: "#0b0f1a", border: "0.5px solid #2e3d55", borderRadius: 4, color: "#e8edf5", padding: "2px 4px", fontSize: 13, outline: "none" }}
+                                style={{ width: "65px", background: "var(--bg-input)", border: "0.5px solid var(--border)", borderRadius: 4, color: "var(--text-primary)", padding: "2px 4px", fontSize: 13, outline: "none" }}
                                 placeholder="Brand"
                               />
                               <input
                                 value={mc.model}
                                 onChange={(e) => updateManualCam(mc.id, "model", e.target.value)}
-                                style={{ width: "95px", background: "#0b0f1a", border: "0.5px solid #2e3d55", borderRadius: 4, color: "#e8edf5", padding: "2px 4px", fontSize: 13, outline: "none" }}
+                                style={{ width: "95px", background: "var(--bg-input)", border: "0.5px solid var(--border)", borderRadius: 4, color: "var(--text-primary)", padding: "2px 4px", fontSize: 13, outline: "none" }}
                                 placeholder="Model"
                               />
                               <button
@@ -8068,29 +8071,29 @@ function ProjectStatsPanel({
                             <input
                               value={mc.accessories}
                               onChange={(e) => updateManualCam(mc.id, "accessories", e.target.value)}
-                              style={{ width: "100px", background: "#0b0f1a", border: "0.5px solid #2e3d55", borderRadius: 4, color: "#e8edf5", padding: "2px 4px", fontSize: 13, outline: "none" }}
+                              style={{ width: "100px", background: "var(--bg-input)", border: "0.5px solid var(--border)", borderRadius: 4, color: "var(--text-primary)", padding: "2px 4px", fontSize: 13, outline: "none" }}
                               placeholder="e.g. Wall mount"
                             />
                           </td>
                           <td style={{ padding: "10px 12px", textAlign: "right" }}>
                             <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 2 }}>
-                              <span style={{ color: "rgba(255, 255, 255, 0.4)", fontSize: 13 }}>₹</span>
+                              <span style={{ color: "var(--text-muted)", fontSize: 13 }}>₹</span>
                               <input
                                 type="number"
                                 value={mc.cameraPrice}
                                 onChange={(e) => updateManualCam(mc.id, "cameraPrice", Number(e.target.value))}
-                                style={{ width: "65px", background: "#0b0f1a", border: "0.5px solid #2e3d55", borderRadius: 4, color: "#e8edf5", padding: "2px 4px", fontSize: 13, textAlign: "right", outline: "none" }}
+                                style={{ width: "65px", background: "var(--bg-input)", border: "0.5px solid var(--border)", borderRadius: 4, color: "var(--text-primary)", padding: "2px 4px", fontSize: 13, textAlign: "right", outline: "none" }}
                               />
                             </div>
                           </td>
                           <td style={{ padding: "10px 12px", textAlign: "right" }}>
                             <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 2 }}>
-                              <span style={{ color: "rgba(255, 255, 255, 0.4)", fontSize: 13 }}>₹</span>
+                              <span style={{ color: "var(--text-muted)", fontSize: 13 }}>₹</span>
                               <input
                                 type="number"
                                 value={mc.accPrice}
                                 onChange={(e) => updateManualCam(mc.id, "accPrice", Number(e.target.value))}
-                                style={{ width: "55px", background: "#0b0f1a", border: "0.5px solid #2e3d55", borderRadius: 4, color: "#e8edf5", padding: "2px 4px", fontSize: 13, textAlign: "right", outline: "none" }}
+                                style={{ width: "55px", background: "var(--bg-input)", border: "0.5px solid var(--border)", borderRadius: 4, color: "var(--text-primary)", padding: "2px 4px", fontSize: 13, textAlign: "right", outline: "none" }}
                               />
                             </div>
                           </td>
@@ -8201,10 +8204,10 @@ function ProjectStatsPanel({
                                 className="dv-bom-input"
                                 style={{
                                   width: "75px",
-                                  background: "#0b0f1a",
-                                  border: "0.5px solid #2e3d55",
+                                  background: "var(--bg-input)",
+                                  border: "0.5px solid var(--border)",
                                   borderRadius: 4,
-                                  color: "#e8edf5",
+                                  color: "var(--text-primary)",
                                   padding: "2px 4px",
                                   textAlign: "right",
                                   fontSize: 15,
@@ -8219,11 +8222,11 @@ function ProjectStatsPanel({
                             {nvrPrice !== "" ? `₹${Number(nvrPrice).toLocaleString("en-IN")}` : "—"}
                           </td>
                         </tr>
-                        <tr style={{ borderBottom: "1px solid #1e2d3e", background: "#0d1117" }}>
-                          <td style={{ padding: "10px 12px", textTransform: "uppercase", fontWeight: 700, fontSize: 14, color: "#f59e0b" }}>SWITCH</td>
+                        <tr style={{ borderBottom: "1px solid var(--border)", background: "var(--bg-base)" }}>
+                          <td style={{ padding: "10px 12px", textTransform: "uppercase", fontWeight: 700, fontSize: 14, color: "var(--orange)" }}>SWITCH</td>
                           <td style={{ padding: "10px 12px" }}>
-                            <div style={{ fontWeight: 600, color: "#f8fafc" }}>8-Port PoE Switch</div>
-                            <div style={{ fontSize: 13, color: "rgba(255, 255, 255, 0.5)", marginTop: 2 }}>Power-over-Ethernet switch</div>
+                            <div style={{ fontWeight: 600, color: "var(--text-primary)" }}>8-Port PoE Switch</div>
+                            <div style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 2 }}>Power-over-Ethernet switch</div>
                           </td>
                           <td style={{ padding: "10px 12px", textAlign: "center", fontWeight: 700 }}>{hardware.switchesCount}</td>
                           <td style={{ padding: "10px 12px", color: "#cbd5e1" }}>—</td>
@@ -8238,10 +8241,10 @@ function ProjectStatsPanel({
                                 className="dv-bom-input"
                                 style={{
                                   width: "75px",
-                                  background: "#0b0f1a",
-                                  border: "0.5px solid #2e3d55",
+                                  background: "var(--bg-input)",
+                                  border: "0.5px solid var(--border)",
                                   borderRadius: 4,
-                                  color: "#e8edf5",
+                                  color: "var(--text-primary)",
                                   padding: "2px 4px",
                                   textAlign: "right",
                                   fontSize: 15,
@@ -8295,21 +8298,21 @@ function ProjectStatsPanel({
                 const showGrand = camHasAny || infraHasAny;
                 return (
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginTop: 4 }}>
-                    <div style={{ background: "#0d1117", border: "1px solid #1e2d3e", borderRadius: 6, padding: "10px 12px", display: "flex", flexDirection: "column" }}>
-                      <span style={{ fontSize: 13, color: "rgba(255, 255, 255, 0.5)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em" }}>Camera & Mounts</span>
-                      <span style={{ fontSize: 20, fontFamily: "monospace", color: "#f8fafc", fontWeight: 800, marginTop: 4 }}>
+                    <div style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)", borderRadius: 6, padding: "10px 12px", display: "flex", flexDirection: "column" }}>
+                      <span style={{ fontSize: 13, color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em" }}>Camera & Mounts</span>
+                      <span style={{ fontSize: 20, fontFamily: "monospace", color: "var(--text-primary)", fontWeight: 800, marginTop: 4 }}>
                         {camHasAny ? `₹${Math.round(camTotal).toLocaleString("en-IN")}` : "—"}
                       </span>
                     </div>
-                    <div style={{ background: "#0d1117", border: "1px solid #1e2d3e", borderRadius: 6, padding: "10px 12px", display: "flex", flexDirection: "column" }}>
-                      <span style={{ fontSize: 13, color: "rgba(255, 255, 255, 0.5)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em" }}>Infrastructure (NVR & PoE)</span>
-                      <span style={{ fontSize: 20, fontFamily: "monospace", color: "#f8fafc", fontWeight: 800, marginTop: 4 }}>
+                    <div style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)", borderRadius: 6, padding: "10px 12px", display: "flex", flexDirection: "column" }}>
+                      <span style={{ fontSize: 13, color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em" }}>Infrastructure (NVR & PoE)</span>
+                      <span style={{ fontSize: 20, fontFamily: "monospace", color: "var(--text-primary)", fontWeight: 800, marginTop: 4 }}>
                         {infraHasAny ? `₹${Math.round(infraTotal).toLocaleString("en-IN")}` : "—"}
                       </span>
                     </div>
-                    <div style={{ background: "#1e1b4b", border: "1px solid #4338ca", borderRadius: 6, padding: "10px 12px", display: "flex", flexDirection: "column" }}>
-                      <span style={{ fontSize: 13, color: "#c084fc", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em" }}>Grand Surveillance Total</span>
-                      <span style={{ fontSize: 22, fontFamily: "monospace", color: "#c084fc", fontWeight: 900, marginTop: 2 }}>
+                    <div style={{ background: "rgba(168, 85, 247, 0.15)", border: "1px solid var(--purple)", borderRadius: 6, padding: "10px 12px", display: "flex", flexDirection: "column" }}>
+                      <span style={{ fontSize: 13, color: "var(--purple)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em" }}>Grand Surveillance Total</span>
+                      <span style={{ fontSize: 22, fontFamily: "monospace", color: "var(--purple)", fontWeight: 900, marginTop: 2 }}>
                         {showGrand ? `₹${Math.round(grandTotal).toLocaleString("en-IN")}` : "—"}
                       </span>
                     </div>
@@ -8395,24 +8398,24 @@ function ProjectStatsPanel({
               </div>
 
               {activeTab === "simulate" && (
-                <div style={{ marginTop: 32, paddingTop: 20, borderTop: "1px solid #1e2d3e" }}>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: "#e8edf5", marginBottom: 16, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                <div style={{ marginTop: 32, paddingTop: 20, borderTop: "1px solid var(--border)" }}>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text-primary)", marginBottom: 16, textTransform: "uppercase", letterSpacing: "0.05em" }}>
                     Simulate Additional Cameras
                   </div>
                 
                 {manualCams.map(mc => (
-                  <div key={mc.id} style={{ display: "flex", gap: 12, marginBottom: 12, alignItems: "center", background: "#0d1117", padding: "8px 12px", borderRadius: 6, border: "1px solid #1e2d3e" }}>
-                    <div style={{ flex: 1, color: "#f8fafc", fontSize: 14, fontWeight: 600 }}>
-                      {mc.brand} <span style={{ color: "rgba(255, 255, 255, 0.5)", fontWeight: 400 }}>- {mc.model}</span>
+                  <div key={mc.id} style={{ display: "flex", gap: 12, marginBottom: 12, alignItems: "center", background: "var(--bg-elevated)", padding: "8px 12px", borderRadius: 6, border: "1px solid var(--border)" }}>
+                    <div style={{ flex: 1, color: "var(--text-primary)", fontSize: 14, fontWeight: 600 }}>
+                      {mc.brand} <span style={{ color: "var(--text-muted)", fontWeight: 400 }}>- {mc.model}</span>
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <span style={{ fontSize: 13, color: "rgba(255, 255, 255, 0.85)" }}>Qty</span>
+                      <span style={{ fontSize: 13, color: "var(--text-primary)" }}>Qty</span>
                       <input
                         type="number"
                         min="1"
                         value={mc.qty}
                         onChange={(e) => updateManualCam(mc.id, "qty", Number(e.target.value))}
-                        style={{ width: "60px", background: "#0b0f1a", border: "0.5px solid #2e3d55", borderRadius: 4, color: "#e8edf5", padding: "6px", fontSize: 13, textAlign: "center", outline: "none" }}
+                        style={{ width: "60px", background: "var(--bg-input)", border: "0.5px solid var(--border)", borderRadius: 4, color: "var(--text-primary)", padding: "6px", fontSize: 13, textAlign: "center", outline: "none" }}
                       />
                     </div>
                     <button
@@ -8423,11 +8426,11 @@ function ProjectStatsPanel({
                   </div>
                 ))}
 
-                <div style={{ display: "flex", gap: 12, marginTop: 16, alignItems: "center", background: "rgba(59, 130, 246, 0.05)", padding: "12px", borderRadius: 6, border: "1px dashed #2e3d55" }}>
+                <div style={{ display: "flex", gap: 12, marginTop: 16, alignItems: "center", background: "rgba(59, 130, 246, 0.05)", padding: "12px", borderRadius: 6, border: "1px dashed var(--border-light)" }}>
                   <select
                     value={newMc.brand}
                     onChange={e => setNewMc({ ...newMc, brand: e.target.value, model: "" })}
-                    style={{ flex: 1, background: "#0b0f1a", border: "0.5px solid #2e3d55", borderRadius: 4, color: "#e8edf5", padding: "8px", fontSize: 13, outline: "none" }}
+                    style={{ flex: 1, background: "var(--bg-input)", border: "0.5px solid var(--border)", borderRadius: 4, color: "var(--text-primary)", padding: "8px", fontSize: 13, outline: "none" }}
                   >
                     <option value="">Select Brand</option>
                     {[...new Set(cameraDB.map(c => c.brand))].filter(Boolean).map(b => (
@@ -8439,7 +8442,7 @@ function ProjectStatsPanel({
                     value={newMc.model}
                     onChange={e => setNewMc({ ...newMc, model: e.target.value })}
                     disabled={!newMc.brand}
-                    style={{ flex: 1, background: "#0b0f1a", border: "0.5px solid #2e3d55", borderRadius: 4, color: "#e8edf5", padding: "8px", fontSize: 13, outline: "none" }}
+                    style={{ flex: 1, background: "var(--bg-input)", border: "0.5px solid var(--border)", borderRadius: 4, color: "var(--text-primary)", padding: "8px", fontSize: 13, outline: "none" }}
                   >
                     <option value="">Select Model</option>
                     {cameraDB.filter(c => c.brand === newMc.brand).map(c => (
