@@ -66,6 +66,15 @@ def update_node_status(node_id, status, latency=None):
         }
         alerts_col.insert_one(alert)
 
+        uptime_events_col = db["uptime_events"] if db is not None else None
+        if uptime_events_col is not None:
+            uptime_events_col.insert_one({
+                "node_id": node_id,
+                "event_type": "camera",
+                "state": "down",
+                "timestamp": datetime.utcnow()
+            })
+
         # ✅ Send email alert for device offline
         alert_device_offline(node.get('model') or node.get('ip'), node.get('ip', ''))
 
@@ -76,6 +85,16 @@ def update_node_status(node_id, status, latency=None):
             })
         except Exception as e:
             print(f"[HEALTH] Alert broadcast error: {e}")
+
+    elif previous_status and previous_status != status and status == "online":
+        uptime_events_col = db["uptime_events"] if db is not None else None
+        if uptime_events_col is not None:
+            uptime_events_col.insert_one({
+                "node_id": node_id,
+                "event_type": "camera",
+                "state": "up",
+                "timestamp": datetime.utcnow()
+            })
 
     try:
         _broadcast_safe({
