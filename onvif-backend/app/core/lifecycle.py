@@ -27,6 +27,13 @@ _health_monitor_task = None
 async def _startup_phase_1():
     infrastructure_scheduler.start()
     
+    try:
+        from app.api.routers.monitoring_api import collector
+        collector.start()
+        print("[STARTUP] ✅ System monitoring collector thread started.")
+    except Exception as e:
+        print(f"[STARTUP] ⚠ Failed to start monitoring collector: {e}")
+
     from monitoring.diagnostics import run_diagnostics_loop
     await task_manager.start_task('diagnostics', run_diagnostics_loop())
 
@@ -210,12 +217,15 @@ async def _startup_phase_2():
     for device in my_devices:
         stream_name = device.get("ome_stream")
         rtsp_url    = device.get("rtsp_url")
+        codec       = device.get("codec") or device.get("live_codec")
+        sub_rtsp    = device.get("sub_stream_rtsp")
+
         if device.get("enabled") is False:
             print(f"[STARTUP] ⏭ Skipping disabled camera: {stream_name}")
             continue
         if stream_name and rtsp_url:
             print(f"[STARTUP] Registering stream: {stream_name}")
-            register_stream(stream_name, rtsp_url)
+            register_stream(stream_name, rtsp_url, codec=codec, sub_stream_rtsp=sub_rtsp)
 
     if analytics_subs_col is not None:
         for device in my_devices:
@@ -318,5 +328,12 @@ async def lifespan(app: FastAPI):
     #     print(f"[SHUTDOWN] Failed to stop indexer: {e}")
     # Stop infrastructure scheduler
     infrastructure_scheduler.stop()
+    # Stop monitoring collector
+    try:
+        from app.api.routers.monitoring_api import collector
+        collector.stop_event.set()
+        print("[SHUTDOWN] Monitoring collector stopped.")
+    except Exception as e:
+        print(f"[SHUTDOWN] Failed to stop collector: {e}")
     # Find and kill orphan ffmpeg processes
     task_manager.kill_orphan_ffmpegs()

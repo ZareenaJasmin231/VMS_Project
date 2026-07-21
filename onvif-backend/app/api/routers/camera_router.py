@@ -86,11 +86,12 @@ async def enable_camera_by_ip(ip: str):
     for device in matched:
         stream_name = device.get("ome_stream")
         rtsp_url    = device.get("rtsp_url")
+        sub_stream_rtsp = device.get("sub_stream_rtsp")
         if not stream_name or not rtsp_url:
             continue
         device["enabled"] = True
         try:
-            register_stream(stream_name, rtsp_url)
+            register_stream(stream_name, rtsp_url, sub_stream_rtsp=sub_stream_rtsp)
         except Exception as e:
             print(f"[ENABLE] OME re-register failed for {stream_name}: {e}")
         started.append(stream_name)
@@ -262,7 +263,43 @@ async def onvif_probe(req: ProbeRequest):
         print("FINAL RTSP:", rtsp)
         suffix = f"cam{req.channel}" if req.channel > 0 else None
         stream_name = normalize_stream_name(req.ip, suffix)
-        
+
+        # ── Extract sub-stream RTSP from ONVIF profiles ───────────────────
+        # probe_camera() already labels profiles as MAIN / SUB / EXTRA.
+        # We pick the first SUB profile's rtsp_url as the low-res stream.
+        # This URL is used only for MediaMTX ingest — it never changes the
+        # camera's hardware configuration.
+        all_profiles = result.get("all_profiles", result.get("profiles", []))
+        sub_profile = next(
+            (p for p in all_profiles if (p.get("label") or "").upper() == "SUB" and p.get("rtsp_url")),
+            None
+        )
+        sub_stream_rtsp = sub_profile["rtsp_url"] if sub_profile else None
+
+        # Inject credentials into sub-stream URL if missing (same logic as main stream)
+        if sub_stream_rtsp and req.username:
+            try:
+                parsed_sub = urllib.parse.urlparse(sub_stream_rtsp)
+                if not parsed_sub.username:
+                    user_enc = urllib.parse.quote(req.username.strip(), safe='')
+                    pass_enc = urllib.parse.quote(req.password.strip(), safe='')
+                    sub_netloc = f"{user_enc}:{pass_enc}@{parsed_sub.hostname}"
+                    if parsed_sub.port:
+                        sub_netloc += f":{parsed_sub.port}"
+                    sub_stream_rtsp = urllib.parse.urlunparse((
+                        parsed_sub.scheme, sub_netloc, parsed_sub.path,
+                        parsed_sub.params, parsed_sub.query, parsed_sub.fragment
+                    ))
+                    if "transport=" not in sub_stream_rtsp:
+                        sub_stream_rtsp += ("&" if "?" in sub_stream_rtsp else "?") + "transport=tcp"
+            except Exception:
+                pass
+
+        if sub_stream_rtsp:
+            print(f"[ONVIF] Sub-stream URL found for {req.ip}: {sub_stream_rtsp}")
+        else:
+            print(f"[ONVIF] No sub-stream profile found for {req.ip} — grid will use main stream")
+
         existing    = next((d for d in devices if d.get("ome_stream") == stream_name), None)
 
         if not existing or not stream_exists(stream_name):
@@ -286,65 +323,74 @@ async def onvif_probe(req: ProbeRequest):
             if detected_codec in ["hevc", "h265"]:
                 live_codec = "H.265"
             
-            ome_response = register_stream(stream_name, rtsp, codec=live_codec)
+            ome_response = register_stream(stream_name, rtsp, codec=live_codec, sub_stream_rtsp=sub_stream_rtsp)
             print("MEDIAMTX RESPONSE:", ome_response)
             print(f"[ONVIF] OME response: {ome_response}")
+
+            sub_key = ome_response.get("sub_stream_key")
  
             live_stream = ome_response.get("transcoded_stream")
             if not existing:
                 new_device = {
-                    "ome_stream":     stream_name,
-                    "rtsp_url":       rtsp,
-                    "recording_rtsp": rtsp,
-                    "live_stream":    live_stream,
-                    "ip":             req.ip,
-                    "port":           req.port,
-                    "username":       req.username,
-                    "password":       req.password,
+                    "ome_stream":       stream_name,
+                    "rtsp_url":         rtsp,
+                    "recording_rtsp":   rtsp,
+                    "live_stream":      live_stream,
+                    "sub_stream_rtsp":  sub_stream_rtsp,
+                    "sub_stream_key":   sub_key,
+                    "ip":               req.ip,
+                    "port":             req.port,
+                    "username":         req.username,
+                    "password":         req.password,
                     "active_rec_profile": "MAIN_STREAM",
                     "recording_profile":  "MAIN_STREAM",
-                    "enabled":        True,
-                    "live_codec":     live_codec,
-                    "codec":          detected_codec,
+                    "enabled":          True,
+                    "live_codec":       live_codec,
+                    "codec":            detected_codec,
                 }
                 devices.append(new_device)
                 save_devices(devices)
             else:
-                existing["rtsp_url"]       = rtsp
-                existing["recording_rtsp"] = existing.get("recording_rtsp", rtsp)
+                existing["rtsp_url"]        = rtsp
+                existing["recording_rtsp"]  = existing.get("recording_rtsp", rtsp)
                 if live_stream:
                     existing["live_stream"] = live_stream
-                existing["port"]           = req.port
-                existing["username"]       = req.username
-                existing["password"]       = req.password
-                existing["live_codec"]     = live_codec
-                existing["codec"]          = detected_codec
+                if sub_stream_rtsp:
+                    existing["sub_stream_rtsp"] = sub_stream_rtsp
+                    existing["sub_stream_key"]  = sub_key
+                existing["port"]            = req.port
+                existing["username"]        = req.username
+                existing["password"]        = req.password
+                existing["live_codec"]      = live_codec
+                existing["codec"]           = detected_codec
                 save_devices(devices)
  
             save_camera_to_db({
-                "ip":              req.ip,
-                "ome_stream":      stream_name,
-                "rtsp_url":        rtsp,
-                "recording_rtsp":  rtsp,
-                "manufacturer":    result.get("manufacturer", ""),
-                "model":           result.get("model", ""),
-                "mac":             result.get("mac", ""),
-                "port":            req.port,
-                "username":        req.username,
-                "password":        req.password,
-                "added_at":        datetime.utcnow(),
-                "status":          "streaming",
-                "enabled":         True,
-                "live_stream":     ome_response.get("transcoded_stream"),
-                "stream_count":    result.get("stream_count", 0),
-                "stream_profiles": result.get("all_profiles", result.get("profiles", [])),
+                "ip":               req.ip,
+                "ome_stream":       stream_name,
+                "rtsp_url":         rtsp,
+                "recording_rtsp":   rtsp,
+                "sub_stream_rtsp":  sub_stream_rtsp,
+                "sub_stream_key":   sub_key,
+                "manufacturer":     result.get("manufacturer", ""),
+                "model":            result.get("model", ""),
+                "mac":              result.get("mac", ""),
+                "port":             req.port,
+                "username":         req.username,
+                "password":         req.password,
+                "added_at":         datetime.utcnow(),
+                "status":           "streaming",
+                "enabled":          True,
+                "live_stream":      ome_response.get("transcoded_stream"),
+                "stream_count":     result.get("stream_count", 0),
+                "stream_profiles":  result.get("all_profiles", result.get("profiles", [])),
                 "active_rec_profile": "MAIN_STREAM",
                 "recording_profile":  "MAIN_STREAM",
-                "api_profile":     result.get("api_profile"),
-                "group_id":        req.group_id,
-                "device_name":     req.device_name,
-                "live_codec":      live_codec,
-                "codec":           detected_codec,
+                "api_profile":      result.get("api_profile"),
+                "group_id":         req.group_id,
+                "device_name":      req.device_name,
+                "live_codec":       live_codec,
+                "codec":            detected_codec,
             })
             print(f"[ONVIF] 🎥 Recording will be started by the assigned worker process for {stream_name}")
  
@@ -353,13 +399,15 @@ async def onvif_probe(req: ProbeRequest):
             ome_response = {"status": "ok", "message": "Already registered"}
             live_stream = existing.get("live_stream") if existing else None
  
-        result["ome_stream"]   = stream_name
-        result["ome_response"] = ome_response
+        result["ome_stream"]      = stream_name
+        result["ome_response"]    = ome_response
         live_key = live_stream if live_stream else stream_name
-        result["ws_url"]       = f"http://host.docker.internal:8889/{live_key}"
-        result["stream_key"]   = live_key
-        result["status"]       = "streaming"
-        result["rtsp_url"]     = rtsp
+        result["ws_url"]          = f"http://host.docker.internal:8889/{live_key}"
+        result["stream_key"]      = live_key
+        result["status"]          = "streaming"
+        result["rtsp_url"]        = rtsp
+        result["sub_stream_key"]  = sub_key
+        result["sub_stream_rtsp"] = sub_stream_rtsp
  
     else:
         print(f"[ONVIF] ❌ {result['error']}")
@@ -390,13 +438,20 @@ async def register_rtsp_stream(req: StreamRegisterRequest):
     # cloud/NVR-hosted cameras like this one issue a fresh, single-use
     # token in the RTSP path on every fetch, so hashing the URL would
     # mint a new stream name every time.
-    stream_name = normalize_stream_name(host)
+    base_stream_name = normalize_stream_name(host)
+    stream_name = base_stream_name
 
-    existing = next(
-        (d for d in devices if d.get("ome_stream") == stream_name),
-        None
-    )
- 
+    existing_same_ip = [d for d in devices if d.get("ip") == host or d.get("ome_stream", "").startswith(base_stream_name)]
+    existing = next((d for d in existing_same_ip if d.get("rtsp_url") == rtsp), None)
+
+    if not existing and len(existing_same_ip) > 0:
+        import uuid
+        uid = uuid.uuid4().hex[:8]
+        stream_name = f"{base_stream_name}_{uid}"
+        print(f"[RTSP] IP {host} already exists with different URL. Using new stream_name: {stream_name}")
+    elif existing:
+        stream_name = existing.get("ome_stream", base_stream_name)
+
     if existing and stream_exists(stream_name):
         print(f"[RTSP] Stream {stream_name} already live in OME, skipping.")
         existing["rtsp_url"] = rtsp
@@ -522,7 +577,7 @@ async def assign_streams(req: StreamAssignRequest):
     import time
 
     host        = req.ip.strip()
-    stream_name = normalize_stream_name(host) 
+    base_stream_name = normalize_stream_name(host) 
 
     print(f"[ASSIGN] {host}: live={req.live_profile!r}  rec={req.recording_profile!r}")
     print(f"[ASSIGN] live_rtsp={req.live_rtsp!r}")
@@ -532,6 +587,8 @@ async def assign_streams(req: StreamAssignRequest):
         (d for d in devices if d.get("ip") == host and (d.get("rtsp_url") == req.live_rtsp or d.get("recording_rtsp") == req.recording_rtsp)),
         next((d for d in devices if d.get("ip") == host), None)
     )
+    
+    stream_name = existing.get("ome_stream") if existing else base_stream_name
     current_live_rtsp = existing.get("rtsp_url") if existing else None
     live_rtsp_changed = current_live_rtsp != req.live_rtsp
 

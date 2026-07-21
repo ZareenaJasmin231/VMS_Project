@@ -601,14 +601,16 @@ const DashboardPage = () => {
 
   const [reportSuccessMsg, setReportSuccessMsg] = useState("");
   const [reportErrorMsg, setReportErrorMsg] = useState("");
+  const [reportLiveOnly, setReportLiveOnly] = useState(false);
   const reportPerPage = 10;
 
   const reportRef = useRef(null);
 
   const reportTypeMap = {
-    alerts: "Camera Up/Down History",
+    alerts: "Camera Up/Down Events",
     live_alerts: "Analytics Alerts",
-    health: "Device Health & Uptime Status"
+    health: "Device Health & Uptime Status",
+    history: "Camera & Recording History (Hours)"
   };
 
   const handleGenerateReport = async () => {
@@ -729,9 +731,39 @@ const DashboardPage = () => {
             setReportSuccessMsg("No active devices found in infrastructure topology.");
           }
         } else {
-          setReportErrorMsg("Failed to fetch network topology from server.");
+          setReportErrorMsg("Failed to fetch topology from server.");
+        }
+      } else if (reportType === "history") {
+        // Query the new reports_router history endpoint
+        const fromIso = new Date(fromTime).toISOString();
+        const toIso = new Date(toTime).toISOString();
+        const res = await fetch(`${API_BASE}/api/reports/history?from_date=${fromIso}&to_date=${toIso}&live_only=${reportLiveOnly}`, {
+          headers: getAuthHeaders()
+        });
+        const historyData = await res.json();
+
+        if (historyData.status === "success" && Array.isArray(historyData.data)) {
+          const formatted = historyData.data.map(cam => ({
+            camera_name: cam.name || "—",
+            ip_address: cam.ip || "—",
+            cam_up_hrs: cam.camera_hours_up.toFixed(2),
+            cam_down_hrs: cam.camera_hours_down.toFixed(2),
+            rec_up_hrs: cam.recording_hours_up.toFixed(2),
+            rec_down_hrs: cam.recording_hours_down.toFixed(2)
+          }));
+          
+          setReportData(formatted);
+          setReportCurrentPage(1);
+          if (formatted.length > 0) {
+            setReportSuccessMsg(`Successfully generated History report for ${formatted.length} cameras.`);
+          } else {
+            setReportSuccessMsg("No cameras found for History report.");
+          }
+        } else {
+          setReportErrorMsg("Failed to fetch camera history from server.");
         }
       }
+      
     } catch (err) {
       console.error(err);
       setReportErrorMsg("An error occurred while generating the report.");
@@ -1631,6 +1663,20 @@ const DashboardPage = () => {
               )}
             </div>
           </div>
+          
+          {reportType === "history" && (
+            <div className="report-filter-group" style={{ display: 'flex', alignItems: 'center', marginTop: '24px' }}>
+              <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', gap: '8px' }}>
+                <input 
+                  type="checkbox" 
+                  checked={reportLiveOnly} 
+                  onChange={(e) => setReportLiveOnly(e.target.checked)} 
+                  style={{ width: '16px', height: '16px' }}
+                />
+                <span style={{ fontSize: '13px', color: 'var(--text-primary)' }}>Live Cameras Only</span>
+              </label>
+            </div>
+          )}
 
           <div className="report-btn-group" ref={actionsDropdownRef} style={{ position: "relative" }}>
             <button
@@ -1773,6 +1819,16 @@ const DashboardPage = () => {
                         <th>Last Reboot</th>
                       </>
                     )}
+                    {reportType === "history" && (
+                      <>
+                        <th>Camera Name</th>
+                        <th>IP Address</th>
+                        <th>Cam Up (hrs)</th>
+                        <th>Cam Down (hrs)</th>
+                        <th>Rec Up (hrs)</th>
+                        <th>Rec Down (hrs)</th>
+                      </>
+                    )}
                   </tr>
                 </thead>
                 <tbody>
@@ -1834,6 +1890,16 @@ const DashboardPage = () => {
                             <span className="report-exit-code error">{row.reboot_count}</span>
                           </td>
                           <td>{row.last_reboot !== "—" ? new Date(row.last_reboot).toLocaleString() : "—"}</td>
+                        </>
+                      )}
+                      {reportType === "history" && (
+                        <>
+                          <td>{row.camera_name}</td>
+                          <td>{row.ip_address}</td>
+                          <td style={{ color: "#22c55e", fontWeight: "600" }}>{row.cam_up_hrs}</td>
+                          <td style={{ color: "#ef4444", fontWeight: "600" }}>{row.cam_down_hrs}</td>
+                          <td style={{ color: "#22c55e", fontWeight: "600" }}>{row.rec_up_hrs}</td>
+                          <td style={{ color: "#ef4444", fontWeight: "600" }}>{row.rec_down_hrs}</td>
                         </>
                       )}
                     </tr>

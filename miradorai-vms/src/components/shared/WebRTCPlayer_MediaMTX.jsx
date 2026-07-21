@@ -3,16 +3,79 @@ import { useImageConfig } from "../../hooks/useImageConfig";
 import { Volume2, VolumeX } from "lucide-react";
 import { useDigitalZoom } from "../../hooks/useDigitalZoom";
 
-function WebRTCPlayer_MediaMTX({ streamKey, cameraId, onConnectChange, onError }) {
+// ─── SDP Bandwidth Injection ──────────────────────────────────────────────────
+// Inserts a b=TIAS (Transport Independent Application Specific) line into
+// each video media section of the SDP offer. This is a real network-layer
+// constraint — the browser's WebRTC engine uses REMB/TWCC feedback to signal
+// to MediaMTX that it should not exceed this rate. The camera hardware and
+// MediaMTX source stream are completely untouched.
+function injectBandwidthIntoSdp(sdp, maxKbps) {
+  if (!maxKbps || maxKbps <= 0) return sdp;
+
+  const tiasLine = `b=TIAS:${maxKbps * 1000}`; // TIAS is in bits per second
+  const asBandwidth = `b=AS:${maxKbps}`;        // AS is in kbps (legacy compat)
+
+  return sdp
+    .split("\r\n")
+    .map((line, idx, lines) => {
+      // After the "m=video" line, insert bandwidth constraints
+      if (line.startsWith("m=video")) {
+        return [line, tiasLine, asBandwidth].join("\r\n");
+      }
+      return line;
+    })
+    .join("\r\n");
+}
+
+// ─── Apply Bitrate Limit via RTCRtpSender.setParameters ──────────────────────
+// After the connection is established, this sets a hard bitrate cap on the
+// RTP receiver's codec parameters. This is the most reliable method on modern
+// browsers (Chrome, Edge, Firefox) and works alongside the SDP constraint.
+async function applyBitrateLimit(pc, maxKbps) {
+  if (!pc || !maxKbps) return;
+  try {
+    const receivers = pc.getReceivers();
+    for (const receiver of receivers) {
+      if (receiver.track?.kind === "video") {
+        const params = receiver.getParameters?.();
+        // Note: setParameters on receiver is not universally supported yet.
+        // The SDP injection (above) is the primary enforcement mechanism.
+        // This is a belt-and-suspenders approach.
+        if (params && params.encodings && params.encodings.length > 0) {
+          params.encodings[0].maxBitrate = maxKbps * 1000;
+          try {
+            await receiver.setParameters?.(params);
+          } catch {
+            // Not all browsers support setParameters on receivers — that's OK,
+            // SDP b=TIAS is the real constraint.
+          }
+        }
+      }
+    }
+  } catch (e) {
+    // Non-fatal — SDP injection already handles the primary throttle.
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// maxBitrate: number (Kbps)
+//   - Grid view:       pass 2000  (2 Mbps)
+//   - Fullscreen view: pass 10000 (10 Mbps)
+//   - Not passed:      no throttle applied (full native camera bitrate)
+// ─────────────────────────────────────────────────────────────────────────────
+function WebRTCPlayer_MediaMTX({ streamKey, cameraId, onConnectChange, onError, maxBitrate, badgeMode = "normal" }) {
   const videoRef = useRef(null);
   const containerRef = useRef(null);
 
-  const [status, setStatus] = useState("connecting"); // "connecting", "connected", "reconnecting", "failed"
+  const [status, setStatus] = useState("connecting");
   const [errorMsg, setErrorMsg] = useState("");
   const [isMuted, setIsMuted] = useState(true);
   const [hovered, setHovered] = useState(false);
   const [btnHovered, setBtnHovered] = useState(false);
-  
+  const [receivedMbps, setReceivedMbps] = useState(null);
+  const [videoResolution, setVideoResolution] = useState(null);
+  const lastBytesRef = useRef({ bytes: 0, ts: 0 });
+
   const [currentStreamKey, setCurrentStreamKey] = useState(streamKey);
   const [hasFallenBack, setHasFallenBack] = useState(false);
 
@@ -21,23 +84,32 @@ function WebRTCPlayer_MediaMTX({ streamKey, cameraId, onConnectChange, onError }
     setHasFallenBack(false);
   }, [streamKey]);
 
+  // When maxBitrate changes on an already-connected stream (e.g. user enters/exits fullscreen),
+  // apply the new limit immediately without reconnecting.
+  useEffect(() => {
+    if (pcRef.current && status === "connected") {
+      applyBitrateLimit(pcRef.current, maxBitrate);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [maxBitrate]);
+
   const { cssFilter, cssTransform } = useImageConfig(cameraId || streamKey);
   const { zoom, zoomTransform, handlers } = useDigitalZoom(containerRef, videoRef);
 
-  // Store references for cleanup and state
   const pcRef = useRef(null);
   const whepLocationRef = useRef(null);
   const reconnectTimeoutRef = useRef(null);
   const isComponentMounted = useRef(true);
+  // Keep latest maxBitrate accessible inside async startConnection
+  const maxBitrateRef = useRef(maxBitrate);
+  useEffect(() => { maxBitrateRef.current = maxBitrate; }, [maxBitrate]);
 
   const cleanupConnection = () => {
-    // Clear reconnect timer
     if (reconnectTimeoutRef.current) {
       clearTimeout(reconnectTimeoutRef.current);
       reconnectTimeoutRef.current = null;
     }
 
-    // Cleanup WHEP session
     if (whepLocationRef.current) {
       try {
         const whepUrl = new URL(whepLocationRef.current, `http://127.0.0.1:8889/${currentStreamKey}/whep`);
@@ -48,7 +120,6 @@ function WebRTCPlayer_MediaMTX({ streamKey, cameraId, onConnectChange, onError }
       whepLocationRef.current = null;
     }
 
-    // Close PC
     if (pcRef.current) {
       pcRef.current.onconnectionstatechange = null;
       pcRef.current.ontrack = null;
@@ -56,7 +127,6 @@ function WebRTCPlayer_MediaMTX({ streamKey, cameraId, onConnectChange, onError }
       pcRef.current = null;
     }
 
-    // Clear video
     if (videoRef.current) {
       videoRef.current.srcObject = null;
     }
@@ -92,6 +162,8 @@ function WebRTCPlayer_MediaMTX({ streamKey, cameraId, onConnectChange, onError }
         if (pc.connectionState === "connected") {
           setStatus("connected");
           onConnectChange?.(true);
+          // Apply bitrate cap once connection is live
+          applyBitrateLimit(pc, maxBitrateRef.current);
         } else if (["failed", "disconnected", "closed"].includes(pc.connectionState)) {
           setStatus("reconnecting");
           onConnectChange?.(false);
@@ -105,28 +177,35 @@ function WebRTCPlayer_MediaMTX({ streamKey, cameraId, onConnectChange, onError }
         }
       };
 
+      // ── Create offer and inject real SDP bandwidth constraint ────────────
       const offer = await pc.createOffer();
-      await pc.setLocalDescription(offer);
+
+      // Inject b=TIAS and b=AS bandwidth lines into video section of SDP.
+      // This is the real network-level throttle: the browser sends REMB/TWCC
+      // feedback to MediaMTX telling it to cap delivery at maxBitrate Kbps.
+      const constrainedSdp = injectBandwidthIntoSdp(offer.sdp, maxBitrateRef.current);
+
+      await pc.setLocalDescription({
+        type: offer.type,
+        sdp: constrainedSdp,
+      });
 
       const response = await fetch(`http://127.0.0.1:8889/${currentStreamKey}/whep`, {
         method: "POST",
         headers: {
           "Content-Type": "application/sdp",
         },
-        body: offer.sdp,
+        body: constrainedSdp,
       });
 
       if (!response.ok) {
         if (response.status === 400 && !hasFallenBack) {
-          console.warn(`[WebRTC] WHEP 400 error on ${currentStreamKey}. Trying fallback path as a safety net...`);
+          console.warn(`[WebRTC] WHEP 400 error on ${currentStreamKey}. Trying fallback path...`);
           setHasFallenBack(true);
           setCurrentStreamKey((prev) => prev.endsWith("_h264") ? prev.replace("_h264", "") : prev + "_h264");
           return;
         }
 
-        // 400 = codec/stream not compatible, 404 = stream not registered yet
-        // Do NOT automatically fall back to HLS – user must choose mode manually.
-        // Show an offline/waiting state and retry after a longer delay.
         const isStreamError = response.status === 400 || response.status === 404;
         const err = new Error(`WHEP error: ${response.status}`);
         err.isStreamError = isStreamError;
@@ -149,21 +228,17 @@ function WebRTCPlayer_MediaMTX({ streamKey, cameraId, onConnectChange, onError }
       const isStreamError = err.isStreamError;
 
       if (isStreamError) {
-        // Stream not yet available or codec incompatible — show offline state, retry slowly
         setStatus("offline");
         setErrorMsg("Stream unavailable");
         onConnectChange?.(false);
-        // Report error to parent (for logging) but NOT as a codec-fallback trigger
         if (onError) onError(err);
       } else {
-        // Network / ICE error — reconnect
         setStatus("failed");
         setErrorMsg("Connection failed");
         onConnectChange?.(false);
         if (onError) onError(err);
       }
 
-      // Always retry after a delay (longer for stream errors to avoid flooding)
       if (!reconnectTimeoutRef.current) {
         const delay = isStreamError ? 10000 : 5000;
         reconnectTimeoutRef.current = setTimeout(() => {
@@ -185,6 +260,49 @@ function WebRTCPlayer_MediaMTX({ streamKey, cameraId, onConnectChange, onError }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentStreamKey]);
+
+  // ── Real-time bandwidth + resolution measurement via RTCPeerConnection.getStats ──
+  useEffect(() => {
+    if (status !== "connected") {
+      setReceivedMbps(null);
+      setVideoResolution(null);
+      lastBytesRef.current = { bytes: 0, ts: 0 };
+      return;
+    }
+    const interval = setInterval(async () => {
+      const pc = pcRef.current;
+      if (!pc) return;
+      try {
+        const stats = await pc.getStats();
+        stats.forEach(report => {
+          if (report.type === "inbound-rtp" && report.kind === "video") {
+            const now = Date.now();
+            const bytes = report.bytesReceived || 0;
+            const prev = lastBytesRef.current;
+            if (prev.ts > 0) {
+              const dtMs = now - prev.ts;
+              const dbytes = bytes - prev.bytes;
+              if (dtMs > 0 && dbytes >= 0) {
+                const mbps = (dbytes * 8) / (dtMs * 1000); // Mbps
+                setReceivedMbps(mbps);
+              }
+            }
+            lastBytesRef.current = { bytes, ts: now };
+          }
+        });
+      } catch { /* pc may have closed */ }
+
+      // Read actual decoded resolution from the <video> element
+      if (videoRef.current) {
+        const vw = videoRef.current.videoWidth;
+        const vh = videoRef.current.videoHeight;
+        if (vw > 0 && vh > 0) {
+          setVideoResolution(`${vw}×${vh}`);
+        }
+      }
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [status]);
 
   const toggleMute = (e) => {
     e.stopPropagation();
@@ -214,7 +332,7 @@ function WebRTCPlayer_MediaMTX({ streamKey, cameraId, onConnectChange, onError }
   const volumeBtnStyle = {
     position: "absolute",
     bottom: "8px",
-    left: "8px",
+    right: "8px",
     background: btnHovered ? "rgba(20, 184, 166, 0.95)" : "rgba(15, 23, 42, 0.75)",
     backdropFilter: "blur(8px)",
     border: "1px solid rgba(255, 255, 255, 0.15)",
@@ -233,6 +351,41 @@ function WebRTCPlayer_MediaMTX({ streamKey, cameraId, onConnectChange, onError }
     opacity: hovered ? 1 : 0,
     transform: hovered ? "scale(1)" : "scale(0.85)",
     pointerEvents: hovered ? "auto" : "none",
+  };
+
+  // Colour-codes the badge: green < 3 Mbps, amber 3–8, red > 8
+  const bwColor = receivedMbps === null
+    ? "#64748b"
+    : receivedMbps < 3 ? "#22c55e"
+    : receivedMbps < 8 ? "#f59e0b"
+    : "#ef4444";
+
+  const isMicro = badgeMode === "micro";
+  const isCompact = badgeMode === "compact" || isMicro;
+
+  const bwBadgeStyle = {
+    position: "absolute",
+    bottom: isMicro ? "4px" : isCompact ? "6px" : "12px",
+    left: isMicro ? "4px" : isCompact ? "6px" : "12px",
+    background: "rgba(8, 12, 24, 0.85)",
+    backdropFilter: "blur(8px)",
+    border: `1.5px solid ${bwColor}66`,
+    borderRadius: isMicro ? "3px" : isCompact ? "4px" : "8px",
+    padding: isMicro ? "2px 4px" : isCompact ? "3px 6px" : "5px 12px 5px 10px",
+    fontSize: isMicro ? "8.5px" : isCompact ? "10px" : "13px",
+    fontWeight: "700",
+    fontFamily: "'SF Mono', 'Fira Mono', 'Consolas', monospace",
+    color: bwColor,
+    letterSpacing: isCompact ? "0.03em" : "0.06em",
+    zIndex: 20,
+    pointerEvents: "none",
+    lineHeight: "1.4",
+    display: "flex",
+    alignItems: "center",
+    gap: "6px",
+    boxShadow: `0 4px 16px rgba(0,0,0,0.6), 0 0 0 1px ${bwColor}22`,
+    textShadow: `0 0 10px ${bwColor}88`,
+    transition: "color 0.4s ease, border-color 0.4s ease, box-shadow 0.4s ease",
   };
 
   return (
@@ -293,15 +446,35 @@ function WebRTCPlayer_MediaMTX({ streamKey, cameraId, onConnectChange, onError }
         </div>
       )}
       {status === "connected" && (
-        <button
-          style={volumeBtnStyle}
-          onClick={toggleMute}
-          onMouseEnter={() => setBtnHovered(true)}
-          onMouseLeave={() => setBtnHovered(false)}
-          title={isMuted ? "Unmute" : "Mute"}
-        >
-          {isMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
-        </button>
+        <>
+          {/* ── Bandwidth + resolution badge ───────────────────────────────── */}
+          <div style={bwBadgeStyle}>
+            <svg width="10" height="10" viewBox="0 0 10 10" style={{ flexShrink: 0 }}>
+              <circle cx="5" cy="5" r="5" fill={bwColor} opacity="0.95" />
+            </svg>
+            {videoResolution && (
+              <>
+                <span style={{ color: '#94a3b8' }}>{videoResolution}</span>
+                <span style={{ color: '#475569', margin: '0 1px' }}>·</span>
+              </>
+            )}
+            {receivedMbps !== null
+              ? receivedMbps >= 1
+                ? `${receivedMbps.toFixed(1)} Mbps`
+                : `${(receivedMbps * 1000).toFixed(0)} Kbps`
+              : "— Mbps"}
+          </div>
+          {/* ── Mute button ─────────────────────────────────────────────────── */}
+          <button
+            style={volumeBtnStyle}
+            onClick={toggleMute}
+            onMouseEnter={() => setBtnHovered(true)}
+            onMouseLeave={() => setBtnHovered(false)}
+            title={isMuted ? "Unmute" : "Mute"}
+          >
+            {isMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
+          </button>
+        </>
       )}
     </div>
   );

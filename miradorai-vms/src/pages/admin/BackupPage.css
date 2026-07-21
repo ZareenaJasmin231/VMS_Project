@@ -136,41 +136,49 @@
 
 /* ── Section Cards ───────────────────────────────────────────── */
 .backup-section-card {
-  background: var(--bg-surface);
-  border: 1px solid var(--border);
+  background: rgba(30, 41, 59, 0.45);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: var(--radius-lg);
   overflow: hidden;
-  box-shadow: var(--shadow-md);
-  transition: var(--transition);
+  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.backup-section-card:hover {
+  border-color: rgba(20, 184, 166, 0.35);
+  box-shadow: 0 20px 40px -15px rgba(20, 184, 166, 0.12);
+  transform: translateY(-2px);
 }
 
 .card-header {
-  padding: 18px 24px;
-  background: rgba(255, 255, 255, 0.02);
-  border-bottom: 1px solid var(--border);
+  padding: 20px 24px;
+  background: rgba(255, 255, 255, 0.03);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   display: flex;
   align-items: center;
   gap: 12px;
 }
 
 .card-header h2 {
-  font-size: 19px;
+  font-size: 18px;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.06em;
   margin: 0;
   color: var(--text-primary);
 }
 
 .card-badge {
-  font-size: 14px;
-  padding: 2px 8px;
-  border-radius: 12px;
-  background: var(--teal-subtle);
+  font-size: 12px;
+  padding: 3px 10px;
+  border-radius: 20px;
+  background: rgba(20, 184, 166, 0.1);
   color: var(--teal);
-  border: 1px solid var(--teal-glow);
+  border: 1px solid rgba(20, 184, 166, 0.3);
   font-weight: 700;
   text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 .card-body {
@@ -191,25 +199,27 @@
 }
 
 .input-group label {
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 600;
   color: var(--text-secondary);
+  letter-spacing: 0.02em;
 }
 
 .backup-input, .backup-select {
-  background: var(--bg-base);
-  border: 1px solid var(--border);
+  background: rgba(15, 23, 42, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: var(--radius-md);
   padding: 10px 14px;
   color: var(--text-primary);
-  font-size: 17px;
+  font-size: 16px;
   outline: none;
-  transition: var(--transition);
+  transition: all 0.25s ease;
 }
 
 .backup-input:focus, .backup-select:focus {
   border-color: var(--teal);
-  box-shadow: 0 0 0 1px var(--teal-glow);
+  box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.15);
+  background: rgba(15, 23, 42, 0.75);
 }
 
 .backup-input[type="date"] {

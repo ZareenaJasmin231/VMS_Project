@@ -53,9 +53,10 @@ import ForensicSearchPage from "../../pages/forensic/ForensicSearchPage";
 import AiAnalyticsPage from "../../pages/analytics/AiAnalyticsPage";
 
 // ✅ REPORTS
+import CameraHistoryReport from "../../pages/reports/CameraHistoryReport";
 import ReportsPlaceholderPage from "../../pages/reports/ReportsPlaceholderPage";
 
-const RecordingReportPage = (props) => <ReportsPlaceholderPage {...props} reportName="Recording Report" />;
+// const RecordingReportPage = (props) => <ReportsPlaceholderPage {...props} reportName="Recording Report" />;
 const StorageReportPage = (props) => <ReportsPlaceholderPage {...props} reportName="Storage Report" />;
 const AnalyticsReportPage = (props) => <ReportsPlaceholderPage {...props} reportName="Analytics Report" />;
 
@@ -106,7 +107,9 @@ const MAP = {
   "forensic-search": ForensicSearchPage,
 
   // ================= REPORTS =================
-  "recording-report": RecordingReportPage,
+  // "recording-report": RecordingReportPage,
+  "recording-report": CameraHistoryReport,
+
   "storage-report": StorageReportPage,
   "analytics-report": AnalyticsReportPage,
 
@@ -120,7 +123,8 @@ const MAP = {
   "backup": BackupPage,
   "logs": LogsPage,
   "map-view": MapViewPage,
-  "infrastructure": TopologyPage,
+  "infrastructure": NetworkHealthPage,
+  "topology-map": TopologyPage,
   "designer-view": DesignerView,
   "network-health": NetworkHealthPage,
 };

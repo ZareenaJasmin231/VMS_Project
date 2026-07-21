@@ -99,12 +99,17 @@ def check_all_nodes():
         if latency >= 0:
             status = "online"
         else:
-            is_reachable = any(
-                scanner.probe_port(ip, port)
-                for port in [80, 554, 8080, 8000, 8081, 8899]
-            )
-            status = "online" if is_reachable else "offline"
-            latency = 1 if is_reachable else None
+            # Fallback check: check if RTSP, ONVIF or HTTP ports are reachable
+            is_reachable = False
+            for port in [554, 8080, 80]:
+                if scanner.probe_port(ip, port, timeout=0.5):
+                    is_reachable = True
+                    break
+            if is_reachable:
+                status = "online"
+                latency = 5.0  # Nominal latency for ping-blocked devices
+            else:
+                status = "offline"
         update_node_status(node["id"], status, latency)
 
     threads = [threading.Thread(target=worker, args=(n,)) for n in nodes]

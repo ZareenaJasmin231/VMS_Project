@@ -29,6 +29,9 @@ nodes_col = _db["infrastructure_nodes"] if _db is not None else None
 # ─── How often to poll each camera (seconds) ─────────────────────────────────
 POLL_INTERVAL = 15
 
+uptime_events_col = _db["uptime_events"] if _db is not None else None
+
+
 # ─── Camera credentials (override via env or extend per-camera from DB) ───────
 DEFAULT_USER = os.environ.get("CAM_USER", "admin")
 DEFAULT_PASS = os.environ.get("CAM_PASS", "")
@@ -290,7 +293,64 @@ async def probe_camera_stream(node: dict) -> dict:
     merged_codec      = onvif_data.get("codec")      or http_data.get("codec")      or rtsp_data.get("codec")
     merged_fps        = onvif_data.get("fps")        or http_data.get("fps")
     merged_resolution = onvif_data.get("resolution") or http_data.get("resolution")
-    merged_bitrate    = onvif_data.get("bitrate_mbps") or http_data.get("bitrate_mbps") or rtsp_data.get("bitrate_mbps")
+
+    # ── Real bitrate + resolution from MediaMTX ──────────────────────────────
+    # The camera DB record tells us which MediaMTX path is active for this node.
+    # We ask MediaMTX for the actual bytes received and compute real Mbps.
+    # For grid view  → use sub_stream_key path (lower res/bitrate)
+    # For fullscreen → use main stream path (full res/bitrate)
+    MEDIAMTX_API = os.environ.get("MEDIAMTX_API_URL", "http://localhost:9997")
+    ome_stream    = node.get("ome_stream") or ip.replace(".", "_")
+    sub_key       = node.get("sub_stream_key")
+    view_mode     = node.get("view_mode", "grid")
+
+    # Choose which MediaMTX path to inspect based on view mode
+    active_path = (sub_key if sub_key and view_mode != "fullscreen" else ome_stream)
+
+    merged_bitrate = None
+    real_resolution = None
+
+    try:
+        import urllib.request as _req
+        import json as _json
+        # Fetch real-time path stats from MediaMTX
+        url = f"{MEDIAMTX_API}/v3/paths/get/{active_path}"
+        with _req.urlopen(url, timeout=2) as resp:
+            path_data = _json.loads(resp.read().decode())
+
+        # Compute bitrate from bytesReceived delta stored in path_data
+        bytes_recv = path_data.get("bytesReceived") or path_data.get("inboundBytes") or 0
+        # MediaMTX reports cumulative bytes — we use the last-polled snapshot
+        # stored on the node to compute a delta.
+        last_bytes = node.get("_last_bytes_recv", 0) or 0
+        last_ts    = node.get("_last_bytes_ts",   0) or 0
+        now_ts     = time.time()
+        dt         = now_ts - last_ts
+        if last_ts > 0 and dt > 0 and bytes_recv >= last_bytes:
+            merged_bitrate = round((bytes_recv - last_bytes) * 8 / dt / 1_000_000, 2)  # Mbps
+
+        # Persist snapshot for next poll (we write it back to MongoDB below in run_stream_health_loop)
+        node["_last_bytes_recv"] = bytes_recv
+        node["_last_bytes_ts"]   = now_ts
+
+        # Real resolution from MediaMTX codec properties
+        tracks = path_data.get("tracks2") or []
+        for track in tracks:
+            props = track.get("codecProps") or {}
+            w = props.get("width")
+            h = props.get("height")
+            if w and h:
+                real_resolution = f"{w}x{h}"
+                break
+
+    except Exception:
+        pass  # MediaMTX unreachable — fall back to ONVIF resolution
+
+    # Resolution: prefer what MediaMTX actually delivers (real resolution
+    # of the active stream path), then fall back to ONVIF config value.
+    final_resolution = real_resolution or merged_resolution
+
+
 
     # Determine stream_status
     if rtsp_data["connected"]:
@@ -305,9 +365,9 @@ async def probe_camera_stream(node: dict) -> dict:
 
     return {
         # Stream health fields the frontend CameraStreamPanel reads
-        "stream_bitrate_mbps": merged_bitrate,
+        "stream_bitrate_mbps": merged_bitrate,        # real Mbps from MediaMTX bytes delta
         "stream_fps":          merged_fps,
-        "stream_resolution":   merged_resolution,
+        "stream_resolution":   final_resolution,       # real resolution from active MediaMTX path
         "stream_status":       stream_status,
         "codec":               merged_codec,
         "dropped_frames":      rtsp_data.get("dropped_frames", 0) or 0,
@@ -316,6 +376,10 @@ async def probe_camera_stream(node: dict) -> dict:
         "rtsp_connected":  rtsp_data["connected"],
         "onvif_connected": onvif_open,
         "recording":       recording,
+
+        # Bytes snapshot for delta bitrate calculation on next poll
+        "_last_bytes_recv": node.get("_last_bytes_recv", 0),
+        "_last_bytes_ts":   node.get("_last_bytes_ts",   0),
 
         # Metadata
         "stream_last_polled": datetime.now(timezone.utc).isoformat(),
@@ -349,11 +413,77 @@ async def run_stream_health_loop():
 
     while True:
         try:
+            # Sync infrastructure_nodes with cameras collection dynamically
+            from app.core.database import cameras_col as c_col
+            if c_col is not None:
+                all_cams = list(c_col.find({}))
+                configured_ips = {c.get("ip") for c in all_cams if c.get("ip")}
+                
+                # Insert new camera nodes
+                for cam in all_cams:
+                    ip = cam.get("ip")
+                    if not ip:
+                        continue
+                    node_id = f"node-{ip.replace('.', '-')}"
+                    existing = nodes_col.find_one({"id": node_id})
+                    if not existing:
+                        nodes_col.insert_one({
+                            "id": node_id,
+                            "ip": ip,
+                            "type": "camera",
+                            "manufacturer": cam.get("manufacturer", "Unknown"),
+                            "model": cam.get("model", "Unknown"),
+                            "status": "online",
+                            "latency": 5.0,
+                            "last_seen": datetime.now(timezone.utc),
+                            "inferred": False,
+                            "username": cam.get("username", "") or cam.get("user", ""),
+                            "password": cam.get("password", "") or cam.get("pass", ""),
+                            "position": None,
+                            "stream_status": "healthy"
+                        })
+                        print(f"[STREAM_HEALTH] Synced new camera node to topology: {node_id}")
+                    else:
+                        nodes_col.update_one(
+                            {"id": node_id},
+                            {"$set": {
+                                "username": cam.get("username", "") or cam.get("user", ""),
+                                "password": cam.get("password", "") or cam.get("pass", "")
+                            }}
+                        )
+                
+                # Delete removed camera nodes
+                existing_cam_nodes = list(nodes_col.find({"type": "camera"}))
+                for node in existing_cam_nodes:
+                    node_ip = node.get("ip")
+                    if node_ip and node_ip not in configured_ips:
+                        nodes_col.delete_one({"id": node.get("id")})
+                        print(f"[STREAM_HEALTH] Removed deleted camera node from topology: {node.get('id')}")
+        except Exception as e:
+            print(f"[STREAM_HEALTH] dynamic topology sync error: {e}")
+
+        try:
             cameras = list(nodes_col.find(
                 {"type": "camera"},
                 {"_id": 0, "id": 1, "ip": 1, "username": 1, "password": 1,
-                 "user": 1, "pass": 1}
+                 "user": 1, "pass": 1, "ome_stream": 1, "sub_stream_key": 1,
+                 "_last_bytes_recv": 1, "_last_bytes_ts": 1, "view_mode": 1}
             ))
+
+            # Enrich with ome_stream/sub_stream_key from cameras collection
+            # (infrastructure_nodes may not have them yet)
+            from app.core.database import cameras_col as c_col2
+            if c_col2 is not None:
+                cam_by_ip = {}
+                for c in c_col2.find({}, {"_id": 0, "ip": 1, "ome_stream": 1, "sub_stream_key": 1}):
+                    if c.get("ip"):
+                        cam_by_ip[c["ip"]] = c
+                for cam in cameras:
+                    enrichment = cam_by_ip.get(cam.get("ip"), {})
+                    if not cam.get("ome_stream"):
+                        cam["ome_stream"] = enrichment.get("ome_stream")
+                    if not cam.get("sub_stream_key"):
+                        cam["sub_stream_key"] = enrichment.get("sub_stream_key")
 
             if not cameras:
                 print("[STREAM_HEALTH] No camera nodes found in infrastructure_nodes — retrying in next cycle.")
@@ -387,7 +517,39 @@ async def run_stream_health_loop():
                                 {"id": node_id},
                                 {"$set": fields}
                             )
-
+                            # --- Track Events for History ---
+                            now_utc = datetime.now(timezone.utc)
+                            prev_status = node.get("stream_status")
+                            curr_status = fields.get("stream_status")
+                            
+                            # Camera Event: Healthy/Degraded = UP, Dead = DOWN
+                            is_curr_up = curr_status in ["healthy", "degraded", "auth_required"]
+                            is_prev_up = prev_status in ["healthy", "degraded", "auth_required"]
+                            if prev_status is not None and is_curr_up != is_prev_up:
+                                state_str = "up" if is_curr_up else "down"
+                                if uptime_events_col is not None:
+                                    uptime_events_col.insert_one({
+                                        "node_id": node_id,
+                                        "ip": node.get("ip"),
+                                        "event_type": "camera",
+                                        "state": state_str,
+                                        "timestamp": now_utc
+                                    })
+                            
+                            # Recording Event: True = UP, False = DOWN
+                            prev_rec = bool(node.get("recording"))
+                            curr_rec = bool(fields.get("recording"))
+                            if "recording" in node and curr_rec != prev_rec:
+                                rec_state_str = "up" if curr_rec else "down"
+                                if uptime_events_col is not None:
+                                    uptime_events_col.insert_one({
+                                        "node_id": node_id,
+                                        "ip": node.get("ip"),
+                                        "event_type": "recording",
+                                        "state": rec_state_str,
+                                        "timestamp": now_utc
+                                    })
+                            # --------------------------------
                             # Broadcast to all open WebSocket clients so the
                             # sidebar refreshes live without a manual refresh
                             await manager.broadcast({

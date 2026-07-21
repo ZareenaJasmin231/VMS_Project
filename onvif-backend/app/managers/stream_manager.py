@@ -85,6 +85,8 @@ def load_devices():
                     "ome_stream":     d.get("ome_stream") or normalize_stream_name(d.get("ip")),
                     "rtsp_url":       d.get("rtsp_url"),
                     "recording_rtsp": d.get("recording_rtsp", d.get("rtsp_url")),
+                    "sub_stream_rtsp": d.get("sub_stream_rtsp"),
+                    "sub_stream_key":  d.get("sub_stream_key"),
                     "ip":             d.get("ip"),
                     "port":           d.get("port", 80),
                     "username":       d.get("username", ""),
@@ -657,18 +659,24 @@ async def stream_watchdog():
                         cameras_col.update_one({"ome_stream": stream_name}, {"$set": {"live_codec": actual_codec, "codec": actual_codec}})
 
                 needs_h264_path = actual_codec == "H.265"
+                sub_stream_rtsp = device.get("sub_stream_rtsp")
                 base_exists = stream_exists_in_mediamtx(stream_name)
                 h264_exists = stream_exists_in_mediamtx(f"{stream_name}_h264") if needs_h264_path else True
+                sub_exists  = stream_exists_in_mediamtx(f"{stream_name}_sub") if sub_stream_rtsp else True
 
-                if not base_exists or (needs_h264_path and not h264_exists):
+                # if not base_exists or (needs_h264_path and not h264_exists):
+                if not base_exists or (needs_h264_path and not h264_exists) or (sub_stream_rtsp and not sub_exists):
                     if not base_exists:
                         print(f"[WATCHDOG] WARN: Stream {stream_name} base is down - re-registering...")
-                    else:
+                    elif needs_h264_path and not h264_exists:
                         print(f"[WATCHDOG] WARN: Stream {stream_name}_h264 path is missing - re-registering...")
+                    else:
+                        # print(f"[WATCHDOG] WARN: Stream {stream_name}_h264 path is missing - re-registering...")
+                        print(f"[WATCHDOG] WARN: Stream {stream_name}_sub path is missing - re-registering...")
                     
                     try:
                         from app.services.camera.mediamtx_service import register_stream
-                        result      = register_stream(stream_name, rtsp_url, codec=actual_codec)
+                        result      = register_stream(stream_name, rtsp_url, codec=actual_codec, sub_stream_rtsp=sub_stream_rtsp)
                         status_code = result.get("statusCode", 0) if isinstance(result, dict) else 0
                         if status_code in (200, 201):
                             print(f"[WATCHDOG] OK: Re-registered {stream_name} with codec {actual_codec}")

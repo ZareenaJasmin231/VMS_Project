@@ -104,13 +104,14 @@ async def run_diagnostics_loop():
                     check_port(ip, 8080, timeout=0.5)
                 )
 
+                is_online = latency is not None or rtsp or http or onvif
                 stats.append({
                     "ip":          ip,
                     "name":        cam.get("name"),
-                    "latency":     latency,
-                    "packet_loss": packet_loss,
+                    "latency":     latency if latency is not None else (5.0 if is_online else None),
+                    "packet_loss": packet_loss if latency is not None else (0 if is_online else 100),
                     "ports":       {"rtsp": rtsp, "http": http, "onvif": onvif},
-                    "status":      "Online" if latency is not None else "Offline"
+                    "status":      "Online" if is_online else "Offline"
                 })
 
             # ── FIX: Write latency, packet_loss, and port flags back to ───

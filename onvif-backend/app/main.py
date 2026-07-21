@@ -48,6 +48,8 @@ from app.api.routers.maps_router import router as maps_router
 from app.api.routers.designer_router import router as designer_router
 # from app.api.routers.forensic_api import forensic_router
 from app.api.routers.viewing_stations_router import router as viewing_stations_router
+from app.api.routers.monitoring_api import router as monitoring_api_router
+from app.api.routers.reports_router import router as reports_router
 
 class LoggerWrapper:
     def write(self, message):
@@ -103,3 +105,5 @@ app.include_router(designer_router)
 app.include_router(infrastructure_router)
 # app.include_router(forensic_router)
 app.include_router(viewing_stations_router)
+app.include_router(monitoring_api_router)
+app.include_router(reports_router)

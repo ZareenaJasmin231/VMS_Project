@@ -622,7 +622,9 @@ function AlertsPanel({ onAlertCountUpdate, onTotalAlertCountChange, isOpen, live
 }
 
 // ── CameraCell ────────────────────────────────────────────────────
-function CameraCell({ device, streamMode, onFullscreen, alertCount, onBadgeClick, isRecording, onLiveChange }) {
+// maxBitrate is in Kbps — passed into WebRTCPlayer as a real SDP b=TIAS constraint.
+// Grid default: 2000 Kbps (2 Mbps). Fullscreen: 10000 Kbps (10 Mbps).
+function CameraCell({ device, streamMode, onFullscreen, alertCount, onBadgeClick, isRecording, onLiveChange, maxBitrate, badgeMode }) {
   const showRec = localStorage.getItem("miradorai_show_rec_ind") !== "false";
   const [isLive, setIsLive] = useState(false);
   const [localStreamMode, setLocalStreamMode] = useState(streamMode);
@@ -641,9 +643,10 @@ function CameraCell({ device, streamMode, onFullscreen, alertCount, onBadgeClick
   const handleWebRTCError = () => {};
 
   // Calculate the target stream key based on stored codec metadata.
+  // We prefer the sub_stream_key for grid cells to save bandwidth.
   // If the camera is known to be H.265, we default to the transcoder path (_h264)
   // to avoid the initial 400 Bad Request error. The player will handle fallback.
-  const baseStreamKey = device.ome_stream || device.stream_key || device.live_stream || (device.ip ? device.ip.replace(/\./g, "_") : "");
+  const baseStreamKey = device.sub_stream_key || device.ome_stream || device.stream_key || device.live_stream || (device.ip ? device.ip.replace(/\./g, "_") : "");
   const activeCodec = String(device.live_codec || device.codec || "").toUpperCase();
   const isH265 = ["H.265", "H265", "HEVC"].includes(activeCodec);
   const streamKeyToUse = isH265 ? `${baseStreamKey}_h264` : baseStreamKey;
@@ -712,6 +715,8 @@ function CameraCell({ device, streamMode, onFullscreen, alertCount, onBadgeClick
                 streamKey={streamKeyToUse}
                 cameraId={device.id}
                 onConnectChange={setIsLive}
+                maxBitrate={maxBitrate}
+                badgeMode={badgeMode}
               />
             ) : (
               <HlsPlayer
@@ -936,6 +941,56 @@ export default function LiveViewPage() {
       }
     };
     checkBackendStartup();
+  }, []);
+
+  // ── Sync sub_stream_key from backend on mount ─────────────────────────────
+  // The backend is the authority for sub_stream_key/ome_stream. localStorage
+  // entries saved before sub-stream support was added will be missing these
+  // fields. This one-time fetch merges them in without disrupting anything else.
+  useEffect(() => {
+    const syncStreamKeys = async () => {
+      try {
+        const res = await fetch(`${API}/api/cameras`, { headers: getAuthHeaders() });
+        if (!res.ok) return;
+        const backendCams = await res.json();
+        if (!Array.isArray(backendCams) || backendCams.length === 0) return;
+
+        // Build a lookup by IP for fast access
+        const byIp = {};
+        for (const cam of backendCams) {
+          if (cam.ip) byIp[cam.ip] = cam;
+        }
+
+        setDevices(prev => {
+          let changed = false;
+          const next = prev.map(d => {
+            const backend = byIp[d.ip];
+            if (!backend) return d;
+            // Only update if there is new info from the backend
+            const needsUpdate =
+              (backend.sub_stream_key && d.sub_stream_key !== backend.sub_stream_key) ||
+              (backend.sub_stream_rtsp && d.sub_stream_rtsp !== backend.sub_stream_rtsp) ||
+              (backend.ome_stream && d.ome_stream !== backend.ome_stream);
+            if (!needsUpdate) return d;
+            changed = true;
+            return {
+              ...d,
+              ome_stream:      backend.ome_stream      || d.ome_stream,
+              sub_stream_key:  backend.sub_stream_key  || d.sub_stream_key  || null,
+              sub_stream_rtsp: backend.sub_stream_rtsp || d.sub_stream_rtsp || null,
+            };
+          });
+          if (changed) {
+            try { localStorage.setItem("miradorai_devices", JSON.stringify(next)); } catch {}
+          }
+          return changed ? next : prev;
+        });
+      } catch (e) {
+        console.error("[LiveView] Stream key sync failed:", e);
+      }
+    };
+    syncStreamKeys();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   
   const fsRef = useRef(null);
@@ -1193,6 +1248,24 @@ export default function LiveViewPage() {
   }, [totalPages, currentPage]);
 
   const pageCams = sortedActiveCams.slice((currentPage - 1) * gridSize, currentPage * gridSize);
+
+  useEffect(() => {
+    if (pageCams && pageCams.length > 0) {
+      pageCams.forEach((cam) => {
+        const isCamFullscreen = fsDevice && fsDevice.id === cam.id;
+        const mode = isCamFullscreen ? "fullscreen" : "grid";
+        
+        fetch(`${API}/api/system/cameras/${cam.ip}/view-mode`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...getAuthHeaders()
+          },
+          body: JSON.stringify({ mode })
+        }).catch((err) => console.error("[VMS-VIEWMODE] Error updating view mode:", err));
+      });
+    }
+  }, [fsDevice, currentPage, layout, sortedActiveCams]);
 
   useEffect(() => {
     const sendHeartbeat = async () => {
@@ -1618,14 +1691,22 @@ export default function LiveViewPage() {
               </div>
             </div>
             <div className="lv-fullscreen-overlay__player" style={{ position: "relative" }}>
-              {fsStreamMode === "webrtc" ? (
-                <WebRTCPlayer_MediaMTX
-                  key={`fs-${fsDevice.ome_stream || fsDevice.stream_key || fsDevice.live_stream}`}
-                  streamKey={fsDevice.ome_stream || fsDevice.stream_key || fsDevice.live_stream}
-                  cameraId={fsDevice.id}
-                  onConnectChange={setFsLive}
-                />
-              ) : (
+              {fsStreamMode === "webrtc" ? (() => {
+                const baseFsKey = fsDevice.ome_stream || fsDevice.stream_key || fsDevice.live_stream || "";
+                const activeCodec = String(fsDevice.live_codec || fsDevice.codec || "").toUpperCase();
+                const isH265 = ["H.265", "H265", "HEVC"].includes(activeCodec);
+                const fsStreamKeyToUse = isH265 ? `${baseFsKey}_h264` : baseFsKey;
+                
+                return (
+                  <WebRTCPlayer_MediaMTX
+                    key={`fs-${fsStreamKeyToUse}`}
+                    streamKey={fsStreamKeyToUse}
+                    cameraId={fsDevice.id}
+                    onConnectChange={setFsLive}
+                    maxBitrate={10000}
+                  />
+                );
+              })() : (
                 <HlsPlayer
                   key={`fs-hls-${fsDevice.ome_stream || fsDevice.stream_key || fsDevice.live_stream}`}
                   streamKey={fsDevice.ome_stream || fsDevice.stream_key || fsDevice.live_stream}
@@ -1716,6 +1797,8 @@ export default function LiveViewPage() {
                             }}
                             isRecording={cam && (activeRecorders.includes(cam.stream_key) || activeRecorders.includes(cam.ome_stream))}
                             onLiveChange={handleLiveChange}
+                            maxBitrate={2000}
+                            badgeMode={layout === "8x8" ? "micro" : !["1x1", "2x2"].includes(layout) ? "compact" : "normal"}
                           />
                         : <EmptyCell index={i} />
                       }

@@ -25,6 +25,7 @@ export default function Sidebar({ userRole }) {
   });
   const [expanded, setExpanded] = useState({
     Settings: true,
+    Infrastructure: true,
   });
   const [search, setSearch] = useState("");
 
