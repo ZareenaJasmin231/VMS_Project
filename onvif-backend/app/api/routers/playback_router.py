@@ -175,6 +175,7 @@ def event_playback(ip: str, time: str, request: Request = None, stream: int = 0)
                         "camera_id":  cam_id,
                         "date":       date_str,
                         "start_time": {"$lte": query_hms},
+                        "status":     {"$in": ["COMPLETE", "INCOMPLETE"]}
                     },
                     sort=[("start_time", -1)],
                 )
@@ -560,6 +561,7 @@ def event_snapshot(ip: str, time: str):
                         "camera_id":  cam_id,
                         "date":       date_str,
                         "start_time": {"$lte": query_hms},
+                        "status":     {"$in": ["COMPLETE", "INCOMPLETE"]}
                     },
                     sort=[("start_time", -1)],
                 )
@@ -845,6 +847,7 @@ def event_playback_hls(ip: str, time_str: str, filename: str):
                             "camera_id":  cam_id,
                             "date":       date_str,
                             "start_time": {"$lte": query_hms},
+                            "status":     {"$in": ["COMPLETE", "INCOMPLETE"]}
                         },
                         sort=[("start_time", -1)],
                     )

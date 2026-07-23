@@ -709,7 +709,12 @@ export default function AddDevicesPage({ onNavigate }) {
     setShowStreamURL(false);
     setEnrolling(true);
 
-    const urls = Array.isArray(payload) ? payload : payload.urls;
+    const items = Array.isArray(payload)
+      ? payload.map(u => (typeof u === "string" ? { name: "", url: u } : u))
+      : (payload.items
+          ? payload.items
+          : (payload.urls || []).map(u => ({ name: payload.cameraName || "", url: u }))
+        );
     const cameraName = Array.isArray(payload) ? "" : (payload.cameraName || "");
     const groupId = Array.isArray(payload)
       ? selectedGroupId
@@ -717,16 +722,21 @@ export default function AddDevicesPage({ onNavigate }) {
 
     const addedEntries = [];
 
-    for (let i = 0; i < urls.length; i++) {
-      const url = urls[i];
-      setEnrollMsg(`Registering stream ${i + 1} of ${urls.length}…`);
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      const url = typeof item === "string" ? item : item.url;
+      const customName = typeof item === "object" ? (item.name || "") : "";
+
+      setEnrollMsg(`Registering stream ${i + 1} of ${items.length}…`);
 
       let ip = "—";
       try { ip = new URL(url).hostname; } catch { }
 
-      const streamName = cameraName
-        ? (urls.length > 1 ? `${cameraName} (${i + 1})` : cameraName)
-        : `Stream @ ${ip}`;
+      const streamName = customName.trim()
+        ? customName.trim()
+        : (cameraName
+            ? (items.length > 1 ? `${cameraName} (${i + 1})` : cameraName)
+            : `Stream @ ${ip}`);
 
       try {
         const res = await fetch(`${STREAM_API}/api/streams/register`, {

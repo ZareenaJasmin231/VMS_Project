@@ -1,5 +1,5 @@
-from app.utils.ffmpeg_utils import FFMPEG_BIN
-from fastapi import APIRouter, Depends, Response, HTTPException, Request
+from fastapi import APIRouter, Depends, Response, HTTPException, Request, Query
+from typing import Optional
 import json
 from app.core.database import db as _db, analytics_col, watch_collection, cameras_col
 from app.core.security import verify_token
@@ -94,7 +94,9 @@ async def get_dashboard_events(limit: int = 20):
 async def get_alerts(
     limit: int = 50,
     camera_ip: str = None,
-    include_software_motion: bool = False
+    include_software_motion: bool = False,
+    from_date: str = None,
+    to_date: str = None
 ):
     if _db is None:
         return {"alerts": []}
@@ -109,6 +111,23 @@ async def get_alerts(
         if not include_software_motion:
             query["source"] = {"$ne": "software_motion"}
             
+        if from_date or to_date:
+            query["received_at"] = {}
+            if from_date:
+                try:
+                    norm_from = from_date.replace("Z", "+00:00").replace(" ", "T")
+                    dt_from = datetime.fromisoformat(norm_from)
+                    query["received_at"]["$gte"] = dt_from.strftime("%Y-%m-%dT%H:%M:%S.%f")
+                except Exception:
+                    pass
+            if to_date:
+                try:
+                    norm_to = to_date.replace("Z", "+00:00").replace(" ", "T")
+                    dt_to = datetime.fromisoformat(norm_to)
+                    query["received_at"]["$lte"] = dt_to.strftime("%Y-%m-%dT%H:%M:%S.%f")
+                except Exception:
+                    pass
+
         docs = list(
             mqtt_col.find(query, {"_id": 0})
             .sort("_id", -1)
@@ -296,6 +315,7 @@ def get_alert_thumbnail(ip: str, time: str, crop: int = 1, request: Request = No
                         "camera_id":  cam_id,
                         "date":       date_str,
                         "start_time": {"$lte": hms_str},
+                        "status":     {"$in": ["COMPLETE", "INCOMPLETE"]}
                     },
                     sort=[("start_time", -1)],
                 )
@@ -557,3 +577,50 @@ def delete_report_schedule(schedule_id: str):
         return {"success": False, "error": "Schedule not found"}
     except Exception as e:
         return {"success": False, "error": str(e)}
+
+# ── PROCESS MONITOR & HARDWARE SCALING ENDPOINTS ─────────────────────────────
+@router.get("/dashboard/system-metrics/processes", dependencies=[Depends(verify_token)])
+def get_system_process_metrics():
+    try:
+        from app.services.monitoring.process_monitor import get_vms_process_metrics
+        return get_vms_process_metrics()
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+@router.get("/dashboard/hardware-scaling-report", dependencies=[Depends(verify_token)])
+def get_hardware_scaling_report():
+    try:
+        from app.services.monitoring.process_monitor import calculate_hardware_scaling_report
+        return calculate_hardware_scaling_report()
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+@router.post("/dashboard/system-metrics/kill-orphaned-ffmpeg", dependencies=[Depends(verify_token)])
+def kill_orphaned_ffmpeg():
+    try:
+        from app.services.monitoring.process_monitor import kill_orphaned_ffmpeg_processes
+        return kill_orphaned_ffmpeg_processes()
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+@router.get("/dashboard/process-history", dependencies=[Depends(verify_token)])
+def get_process_history(
+    start_date: Optional[str] = Query(None),
+    end_date: Optional[str] = Query(None),
+    service: Optional[str] = Query("all"),
+    status: Optional[str] = Query("all"),
+    limit: Optional[int] = Query(100)
+):
+    try:
+        from app.services.monitoring.process_monitor import get_process_history_logs
+        return get_process_history_logs(
+            start_date=start_date,
+            end_date=end_date,
+            service=service,
+            status=status,
+            limit=limit
+        )
+    except Exception as e:
+        return {"success": False, "error": str(e), "logs": []}
+
+

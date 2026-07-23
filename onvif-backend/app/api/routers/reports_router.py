@@ -65,22 +65,84 @@ async def get_camera_history(
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid date format. Use ISO format.")
 
-    # Get all configured cameras
-    # all_cameras = list(cameras_col.find({}, {"_id": 0, "ip": 1, "name": 1, "model": 1}))
     query = {}
     all_cameras = list(cameras_col.find(query, {"_id": 0, "ip": 1, "name": 1, "model": 1}))
+
+    all_nodes = {n["id"]: n for n in nodes_col.find({})} if nodes_col is not None else {}
 
     if live_only:
         live_cams = []
         for cam in all_cameras:
             node_id = f"node-{cam.get('ip', '').replace('.', '-')}"
-            node = nodes_col.find_one({"id": node_id})
+            node = all_nodes.get(node_id)
             if node and node.get("stream_status") in ["healthy", "auth_required"]:
                 live_cams.append(cam)
         all_cameras = live_cams
 
     recordings_col = db["recordings"] if db is not None else None
     uptime_snapshots_col = db["uptime_snapshots"] if db is not None else None
+    
+    # 1. Bulk recording aggregate durations
+    rec_durations = {}
+    if recordings_col is not None:
+        rec_agg = list(recordings_col.aggregate([
+            {"$match": {
+                "created_at": {"$gte": start_dt, "$lte": end_dt},
+                "status": {"$in": ["COMPLETE", "UPLOADING", "INCOMPLETE", "COMPOSING"]}
+            }},
+            {"$group": {
+                "_id": "$camera_id",
+                "total_duration": {"$sum": "$duration_seconds"}
+            }}
+        ]))
+        rec_durations = {item["_id"]: item["total_duration"] for item in rec_agg if item["_id"]}
+
+    # 2. Bulk initial states before start_dt
+    initial_states = {}
+    if uptime_events_col is not None:
+        init_agg = list(uptime_events_col.aggregate([
+            {"$match": {
+                "timestamp": {"$lt": start_dt}
+            }},
+            {"$sort": {"timestamp": 1}},
+            {"$group": {
+                "_id": {
+                    "node_id": "$node_id",
+                    "event_type": "$event_type"
+                },
+                "state": {"$last": "$state"}
+            }}
+        ]))
+        initial_states = {(item["_id"]["node_id"], item["_id"]["event_type"]): item["state"] for item in init_agg}
+
+    # 3. Bulk uptime snapshots fallback
+    uptime_snapshots_by_node = {}
+    if uptime_snapshots_col is not None:
+        uptime_snapshots_by_node = {s["node_id"]: s for s in uptime_snapshots_col.find({})}
+
+    # 4. Bulk events in range
+    events_by_node = {}
+    if uptime_events_col is not None:
+        events_list = list(uptime_events_col.find({
+            "timestamp": {"$gte": start_dt, "$lte": end_dt}
+        }).sort("timestamp", 1))
+        for ev in events_list:
+            nid = ev.get("node_id")
+            if nid:
+                events_by_node.setdefault(nid, []).append(ev)
+
+    def get_bulk_initial_state(node_id: str, event_type: str):
+        state = initial_states.get((node_id, event_type))
+        if state:
+            return state
+        node = all_nodes.get(node_id)
+        if node:
+            if event_type == "camera":
+                status = node.get("stream_status")
+                return "up" if status in ["healthy", "degraded", "auth_required"] else "down"
+            elif event_type == "recording":
+                return "up" if node.get("recording") else "down"
+        return "up"
     
     report_data = []
 
@@ -97,39 +159,19 @@ async def get_camera_history(
         if total_window_hours < 0:
             total_window_hours = 0
             
-        # 1. Recording UP/DOWN calculation based on actual video segments saved
-        rec_up = 0.0
-        if recordings_col is not None:
-            pipeline = [
-                {"$match": {
-                    "camera_id": cam_id,
-                    "created_at": {"$gte": start_dt, "$lte": end_dt},
-                    "status": "COMPLETE"
-                }},
-                {"$group": {
-                    "_id": None,
-                    "total_duration": {"$sum": "$duration_seconds"}
-                }}
-            ]
-            rec_agg = list(recordings_col.aggregate(pipeline))
-            if rec_agg:
-                rec_up = rec_agg[0].get("total_duration", 0) / 3600.0
-        
+        # 1. Recording UP/DOWN calculation based on bulk durations
+        rec_duration = rec_durations.get(cam_id, 0.0)
+        rec_up = min(total_window_hours, rec_duration / 3600.0)
         rec_down = max(0.0, total_window_hours - rec_up)
         
-        # 2. Camera UP/DOWN calculation
-        # Fetch events for this camera in range
-        cam_events = list(uptime_events_col.find({
-            "node_id": node_id,
-            "timestamp": {"$gte": start_dt, "$lte": end_dt}
-        }).sort("timestamp", 1))
-
-        cam_history_events = [e for e in cam_events if e["event_type"] == "camera"]
+        # 2. Camera UP/DOWN calculation based on bulk events
+        cam_events = events_by_node.get(node_id, [])
+        cam_history_events = [e for e in cam_events if e.get("event_type") == "camera"]
         
         if cam_history_events:
             def calc_hours(events_list, e_type):
                 current_time = start_dt
-                current_state = get_initial_state(node_id, e_type, start_dt)
+                current_state = get_bulk_initial_state(node_id, e_type)
                 total_up = 0.0
                 total_down = 0.0
                 
@@ -145,7 +187,7 @@ async def get_camera_history(
                         total_down += delta_hours
                         
                     current_time = ev_time
-                    current_state = ev["state"]
+                    current_state = ev.get("state", "down")
                     
                 if end_dt > current_time:
                     delta_hours = (end_dt - current_time).total_seconds() / 3600.0
@@ -158,10 +200,9 @@ async def get_camera_history(
             
             cam_up, cam_down = calc_hours(cam_history_events, "camera")
         else:
-            # Fallback to uptime_snapshots if no explicit events are logged yet
             cam_down = 0.0
             if uptime_snapshots_col is not None:
-                snapshot = uptime_snapshots_col.find_one({"node_id": node_id})
+                snapshot = uptime_snapshots_by_node.get(node_id)
                 if snapshot:
                     downtime_secs = snapshot.get("total_downtime_seconds", 0)
                     if snapshot.get("downtime_start"):
@@ -176,6 +217,11 @@ async def get_camera_history(
                         cam_down = total_window_hours
             
             cam_up = max(0.0, total_window_hours - cam_down)
+
+        # Enforce physical consistency: Camera UP time cannot be less than Recording UP time
+        if cam_up < rec_up:
+            cam_up = rec_up
+            cam_down = max(0.0, total_window_hours - cam_up)
 
         def format_event(e):
             return {

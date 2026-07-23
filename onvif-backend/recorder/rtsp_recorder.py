@@ -477,7 +477,7 @@ class CameraRecorder:
                 "-err_detect",     "ignore_err",
                 "-ignore_unknown",
                 "-fflags",         "+genpts",
-                "-use_wallclock_as_timestamps", "1",
+                "-rtsp_transport", "tcp",
                 "-i",              safe_url,
                 "-t",              str(self.current_chunk_duration)
             ]
@@ -498,6 +498,7 @@ class CameraRecorder:
             else:
                 cmd.extend([
                     "-c:a",            "aac",
+                    "-async",          "1",
                     "-map",            "0:v",
                     "-map",            "0:a?",
                 ])
@@ -524,7 +525,7 @@ class CameraRecorder:
                 "-err_detect",     "ignore_err",
                 "-ignore_unknown",
                 "-fflags",         "+genpts",
-                "-use_wallclock_as_timestamps", "1",
+                "-rtsp_transport", "tcp",
                 "-i",              safe_url,
                 "-t",              str(self.current_chunk_duration),
                 "-c:v",            "copy"
@@ -537,6 +538,7 @@ class CameraRecorder:
             else:
                 cmd.extend([
                     "-c:a",            "aac",
+                    "-async",          "1",
                     "-map",            "0:v",
                     "-map",            "0:a?",
                 ])

@@ -501,7 +501,11 @@ export default function ManualSearchModal({
           "Content-Type": "application/json",
           "Authorization": "Bearer " + (localStorage.getItem("miradorai_token") || "")
         },
-        body: JSON.stringify({ rtsp_url: rtspUrl.trim() }),
+        body: JSON.stringify({ 
+          rtsp_url: rtspUrl.trim(),
+          device_name: cameraName || urlLabel || "Direct Stream",
+          group_id: selectedGroupId || "default"
+        }),
       });
       const json = await res.json();
       if (json.success) {

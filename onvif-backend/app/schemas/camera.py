@@ -1,37 +1,45 @@
-from pydantic import BaseModel
-from typing import Optional
+from pydantic import BaseModel, model_validator
+from typing import Optional, Any
 
-class CameraCredentials(BaseModel):
-    ip:       str
+class BaseCameraRequest(BaseModel):
+    ip:         str = ""
+    ip_address: Optional[str] = None
+
+    @model_validator(mode='before')
+    @classmethod
+    def sync_ip_fields(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            val = data.get('ip_address') or data.get('ip') or ""
+            data['ip'] = val
+            data['ip_address'] = val
+        return data
+
+class CameraCredentials(BaseCameraRequest):
     port:     int = 80
     username: str = ""
     password: str = ""
 
-class ImagingSettingRequest(BaseModel):
-    ip:       str
+class ImagingSettingRequest(BaseCameraRequest):
     port:     int   = 80
     username: str   = ""
     password: str   = ""
     setting:  str
     value:    str | float | int
 
-class PTZPresetRequest(BaseModel):
-    ip:           str
+class PTZPresetRequest(BaseCameraRequest):
     port:         int = 80
     username:     str = ""
     password:     str = ""
     preset_token: str
 
-class PTZSavePresetRequest(BaseModel):
-    ip:           str
+class PTZSavePresetRequest(BaseCameraRequest):
     port:         int = 80
     username:     str = ""
     password:     str = ""
     preset_name:  str
     preset_token: Optional[str] = None
 
-class PTZMoveRequest(BaseModel):
-    ip:       str
+class PTZMoveRequest(BaseCameraRequest):
     port:     int   = 80
     username: str   = ""
     password: str   = ""
@@ -39,26 +47,23 @@ class PTZMoveRequest(BaseModel):
     tilt:     float = 0.0
     zoom:     float = 0.0
 
-class RelayRequest(BaseModel):
-    ip:          str
+class RelayRequest(BaseCameraRequest):
     port:        int = 80
     username:    str = ""
     password:    str = ""
     relay_token: str
     state:       str = "Active"
 
-class ProbeRequest(BaseModel):
-    ip:       str
-    port:     int = 80
-    username: str = ""
-    password: str = ""
-    channel:  int = 0
+class ProbeRequest(BaseCameraRequest):
+    port:        int = 80
+    username:    str = ""
+    password:    str = ""
+    channel:     int = 0
     group_id:    str = "default"
     device_name: str = ""
 
-class StreamRegisterRequest(BaseModel):
+class StreamRegisterRequest(BaseCameraRequest):
     rtsp_url:     str
-    ip:           str = ""
     port:         int = 80
     username:     str = ""
     password:     str = ""
@@ -69,8 +74,7 @@ class StreamRegisterRequest(BaseModel):
     group_id:     str = "default"
     live_codec:   Optional[str] = "H.264"
 
-class StreamAssignRequest(BaseModel):
-    ip:                str
+class StreamAssignRequest(BaseCameraRequest):
     port:              int = 80
     username:          str = ""
     manufacturer:      str = "Unknown"
@@ -83,8 +87,7 @@ class StreamAssignRequest(BaseModel):
     recording_profile: str = ""
     live_codec:        Optional[str] = "H.264"
 
-class VideoEncoderSettingRequest(BaseModel):
-    ip:                str
+class VideoEncoderSettingRequest(BaseCameraRequest):
     port:              int = 80
     username:          str = ""
     password:          str = ""
@@ -95,4 +98,5 @@ class VideoEncoderSettingRequest(BaseModel):
     bitrate:           Optional[int] = None
     bitrate_type:      Optional[str] = None
     iframe_interval:   Optional[int] = None
+
 

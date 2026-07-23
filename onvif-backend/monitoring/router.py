@@ -58,9 +58,30 @@ async def get_metrics():
 
 
 @router.get("/alerts")
-async def get_alerts(limit: int = 50, unacknowledged_only: bool = False):
-    """Returns recent alerts, optionally filtered to unacknowledged."""
+async def get_alerts(
+    limit: int = 50,
+    unacknowledged_only: bool = False,
+    from_date: str = None,
+    to_date: str = None
+):
+    """Returns recent alerts, optionally filtered to unacknowledged or a date range."""
     query = {"acknowledged": False} if unacknowledged_only else {}
+    
+    if from_date or to_date:
+        query["timestamp"] = {}
+        if from_date:
+            try:
+                norm_from = from_date.replace("Z", "+00:00").replace(" ", "T")
+                query["timestamp"]["$gte"] = datetime.fromisoformat(norm_from)
+            except Exception:
+                pass
+        if to_date:
+            try:
+                norm_to = to_date.replace("Z", "+00:00").replace(" ", "T")
+                query["timestamp"]["$lte"] = datetime.fromisoformat(norm_to)
+            except Exception:
+                pass
+
     alerts = list(
         alerts_col.find(query, {"_id": 0})
         .sort("timestamp", -1)

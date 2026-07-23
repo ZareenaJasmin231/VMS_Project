@@ -82,7 +82,7 @@ class SaveAllMasksRequest(BaseModel):
 def _get_masks(ip: str) -> list:
     if _masks_col is not None:
         try:
-            doc = _masks_col.find_one({"ip": ip}, {"_id": 0})
+            doc = _masks_col.find_one({"$or": [{"ip": ip}, {"ip_address": ip}]}, {"_id": 0})
             return doc.get("masks", []) if doc else []
         except Exception as e:
             print(f"[MASKS] MongoDB get error: {e}")
@@ -95,8 +95,8 @@ def _set_masks(ip: str, masks: list):
     if _masks_col is not None:
         try:
             _masks_col.update_one(
-                {"ip": ip},
-                {"$set": {"ip": ip, "masks": masks}},
+                {"$or": [{"ip": ip}, {"ip_address": ip}]},
+                {"$set": {"ip": ip, "ip_address": ip, "masks": masks}},
                 upsert=True,
             )
             print(f"[MASKS] ✅ Saved {len(masks)} mask(s) for {ip} → MongoDB")

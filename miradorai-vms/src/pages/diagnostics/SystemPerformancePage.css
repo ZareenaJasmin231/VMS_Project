@@ -1,0 +1,68 @@
+.sys-perf-page {
+  padding: 16px;
+  color: var(--text-primary, #ffffff);
+  background-color: var(--bg-base, #0b0f17);
+  min-height: 100vh;
+  font-family: var(--font-ui, system-ui, -apple-system, sans-serif);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.sys-perf-page-header {
+  border-bottom: 1px solid var(--border, #1e293b);
+  padding-bottom: 12px;
+}
+
+.sys-perf-header-flex {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+.sys-perf-title {
+  font-size: var(--font-size-subheading, 18px);
+  font-weight: 700;
+  color: var(--text-primary, #ffffff);
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+
+.sys-perf-tab-group {
+  display: flex;
+  gap: 4px;
+  background: var(--bg-surface, #121824);
+  padding: 4px;
+  border-radius: 8px;
+  border: 1px solid var(--border, #1e293b);
+}
+
+.sys-perf-tab-btn {
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted, #94a3b8);
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.sys-perf-tab-btn:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.sys-perf-tab-btn.active {
+  color: #ffffff;
+  background: var(--teal, #0ea5e9);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+.sys-perf-content {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}

@@ -198,7 +198,7 @@ export default function StreamURLModal({
 }){
   const [cameraName, setCameraName] = useState("");
   const [input, setInput]           = useState("");
-  const [urls, setUrls]             = useState([]);
+  const [items, setItems]           = useState([]);
   const [error, setError]           = useState("");
   const [alertMsg, setAlertMsg]     = useState("");
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -225,21 +225,27 @@ export default function StreamURLModal({
       setAlertMsg("Stream URL is a mandatory field. Please enter a valid URL! (must start with rtsp://, rtsps://, http://, or https://)");
       return;
     }
-    if (urls.includes(input.trim())) { setError("This URL is already added"); return; }
-    setUrls((s) => [...s, input.trim()]);
+    const trimmedUrl = input.trim();
+    const trimmedName = cameraName.trim();
+    if (items.some(it => it.url === trimmedUrl)) {
+      setError("This URL is already added");
+      return;
+    }
+
+    setItems((s) => [...s, { name: trimmedName, url: trimmedUrl }]);
     setInput("");
+    setCameraName("");
     setError("");
     setAlertMsg("");
   };
 
-  const handleRemove = (url) => setUrls((s) => s.filter((u) => u !== url));
+  const handleRemove = (url) => setItems((s) => s.filter((it) => it.url !== url));
 
   const handleKeyDown = (e) => { if (e.key === "Enter") handleAdd(); };
 
   const handleSubmit = () => {
-    if (urls.length === 0) { setError("Add at least one stream URL"); return; }
-    // ✅ FIX 1 STEP 3: Pass cameraName along with urls to parent
-    onAdd?.({ urls, cameraName, group_id: selectedGroupId });
+    if (items.length === 0) { setError("Add at least one stream URL"); return; }
+    onAdd?.({ items, group_id: selectedGroupId });
     onClose?.();
   };
 
@@ -276,8 +282,6 @@ export default function StreamURLModal({
               </div>
             )}
 
-
-
             {/* Camera Name */}
             <div className="sum-field">
               <label className="sum-label">
@@ -288,6 +292,7 @@ export default function StreamURLModal({
                 placeholder="e.g. Parking Lot Camera"
                 value={cameraName}
                 onChange={(e) => setCameraName(e.target.value)}
+                onKeyDown={handleKeyDown}
               />
             </div>
 
@@ -344,19 +349,26 @@ export default function StreamURLModal({
               {error && <span className="sum-error-msg">{error}</span>}
             </div>
 
-            {/* URL list */}
-            {urls.length > 0 && (
+            {/* Items list */}
+            {items.length > 0 && (
               <div className="sum-field">
-                <label className="sum-label">{urls.length} URL{urls.length > 1 ? "s" : ""} added</label>
+                <label className="sum-label">{items.length} Stream{items.length > 1 ? "s" : ""} added</label>
                 <div className="sum-url-list">
-                  {urls.map((url) => (
-                    <div key={url} className="sum-url-item">
-                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2">
+                  {items.map((it) => (
+                    <div key={it.url} className="sum-url-item" style={{ gap: "10px" }}>
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2" style={{ flexShrink: 0, marginTop: "2px" }}>
                         <path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/>
                         <path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/>
                       </svg>
-                      <span className="sum-url-text">{url}</span>
-                      <button className="sum-url-remove" onClick={() => handleRemove(url)}>
+                      <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
+                        {it.name && (
+                          <span style={{ fontWeight: 600, fontSize: "13px", color: "var(--text-primary)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                            {it.name}
+                          </span>
+                        )}
+                        <span className="sum-url-text" style={{ fontSize: "12px", opacity: 0.8 }}>{it.url}</span>
+                      </div>
+                      <button className="sum-url-remove" onClick={() => handleRemove(it.url)}>
                         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                           <path d="M18 6L6 18M6 6l12 12"/>
                         </svg>
@@ -374,7 +386,7 @@ export default function StreamURLModal({
             <button
               className="sum-btn sum-btn--primary"
               onClick={() => {
-                if (urls.length === 0) {
+                if (items.length === 0) {
                   if (input.trim()) {
                     setAlertMsg("Please click the '+ Add' button to add your entered Stream URL first!");
                   } else {
@@ -387,7 +399,7 @@ export default function StreamURLModal({
                 handleSubmit();
               }}
             >
-              Add {urls.length > 0 ? `${urls.length} ` : ""}Stream{urls.length > 1 ? "s" : ""}
+              Add {items.length > 0 ? `${items.length} ` : ""}Stream{items.length > 1 ? "s" : ""}
             </button>
           </div>
 

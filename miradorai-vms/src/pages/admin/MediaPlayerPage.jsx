@@ -43,6 +43,17 @@ function fmt(s) {
     : `${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
 }
 
+function formatBytes(bytes) {
+  if (bytes === "—" || bytes == null) return "—";
+  const num = Number(bytes);
+  if (isNaN(num)) return bytes;
+  if (num === 0) return "0 Bytes";
+  const k = 1024;
+  const sizes = ["Bytes", "KB", "MB", "GB", "TB"];
+  const i = Math.floor(Math.log(num) / Math.log(k));
+  return `${parseFloat((num / Math.pow(k, i)).toFixed(2))} ${sizes[i]}`;
+}
+
 function loadDevices() {
   try { return JSON.parse(localStorage.getItem("miradorai_devices") || "[]"); }
   catch { return []; }
@@ -252,11 +263,14 @@ export default function MediaPlayerPage() {
           const data = await res.json();
           const raw = Array.isArray(data) ? data : (data.files || []);
           setFiles(raw.map((rec) => ({
-            name: rec.start_time || rec.name || "",
             camera_id: rec.camera_id,
             date: rec.date,
             start_time: rec.start_time,
-            size: rec.file_size || "—",
+            size: rec.file_size ?? rec.bytes_written ?? 0,
+            name: rec.file_path ? rec.file_path.split("/").pop() : "Unknown File",
+            status: rec.status || "COMPLETED",
+            duration_seconds: rec.duration_seconds ?? 0,
+            base_iv: rec.base_iv || null,
             file_path: rec.file_path,
           })));
         }
@@ -1186,11 +1200,16 @@ export default function MediaPlayerPage() {
                             )}
                           </div>
                           {file.size !== "—" && (
-                            <div className="mp-file-meta">{file.size}</div>
+                            <div className="mp-file-meta">{formatBytes(file.size)}</div>
                           )}
                         </div>
+                        {file.duration_seconds !== undefined && file.duration_seconds !== null && (
+                          <div className="mp-file-duration" style={{ marginLeft: "auto", fontSize: "13px", color: "var(--text-muted)", fontVariantNumeric: "tabular-nums" }}>
+                            {fmt(file.duration_seconds)}
+                          </div>
+                        )}
                         {playingFile?.start_time === file.start_time && (
-                          <div className="mp-file-active-ptr">
+                          <div className="mp-file-active-ptr" style={{ marginLeft: file.duration_seconds !== undefined && file.duration_seconds !== null ? "8px" : "auto" }}>
                             <div className="mp-pulse-dot" />
                           </div>
                         )}

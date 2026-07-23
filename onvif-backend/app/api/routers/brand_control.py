@@ -270,7 +270,7 @@ def _resolve_brand(ip: str, hint: str, cameras_col) -> str:
     if hint:
         return hint.lower()
     if cameras_col is not None:
-        doc = cameras_col.find_one({"ip": ip}, {"api_profile": 1})
+        doc = cameras_col.find_one({"$or": [{"ip": ip}, {"ip_address": ip}]}, {"api_profile": 1})
         if doc and doc.get("api_profile"):
             return doc["api_profile"].get("brand", "generic")
     return "generic"
@@ -295,7 +295,7 @@ async def get_motion_detection(ip: str, channel: int = 1,
     """Get current motion detection state for any brand."""
     cameras_col = _get_cameras_col()
     if not username or not password:
-        doc = cameras_col.find_one({"ip": ip}, {"_id": 0}) if cameras_col else {}
+        doc = cameras_col.find_one({"$or": [{"ip": ip}, {"ip_address": ip}]}, {"_id": 0}) if cameras_col else {}
         username = (doc or {}).get("username", "")
         password = (doc or {}).get("password", "")
 
@@ -303,20 +303,21 @@ async def get_motion_detection(ip: str, channel: int = 1,
     print(f"[BRAND] GET motion {ip} brand={brand}")
 
     if brand == "dahua":
-        result = _dahua_get_motion(ip, username, password, channel)
+        state = _dahua_get_motion(ip, username, password, channel)
+        return {"success": True, "brand": brand, "ip": ip,
+                "motion": state}
     elif brand == "hikvision":
-        result = _hik_get_motion(ip, username, password, channel)
+        state = _hik_get_motion(ip, username, password, channel)
+        return {"success": True, "brand": brand, "ip": ip,
+                "motion": state}
     else:
-        return {"success": False, "error": f"Brand '{brand}' motion control not yet supported",
+        return {"success": False,
+                "error": f"Brand '{brand}' motion detection not supported via HTTP",
                 "brand": brand}
-
-    if result is None:
-        return {"success": False, "error": "Could not fetch motion config — check credentials"}
-    return {"success": True, "brand": brand, "motion": result}
 
 
 @brand_router.post("/motion/set")
-async def set_motion_detection(req: MotionDetectRequest):
+async def set_motion_detection(req: MotionRequest):
     cameras_col = _get_cameras_col()
     brand = _resolve_brand(req.ip, req.brand, cameras_col)
     print(f"[BRAND] SET motion {req.ip} enabled={req.enabled} brand={brand}")
@@ -324,13 +325,21 @@ async def set_motion_detection(req: MotionDetectRequest):
     username = req.username
     password = req.password
     if not username or not password:
-        doc = cameras_col.find_one({"ip": req.ip}, {"_id": 0}) if cameras_col else {}
+        doc = cameras_col.find_one({"$or": [{"ip": req.ip}, {"ip_address": req.ip}]}, {"_id": 0}) if cameras_col else {}
         username = (doc or {}).get("username", "")
         password = (doc or {}).get("password", "")
 
     if brand == "dahua":
         ok = _dahua_set_motion(req.ip, username, password,
                                req.channel, req.enabled, req.sensitivity)
+    elif brand == "hikvision":
+        ok = _hik_set_motion(req.ip, username, password,
+                              req.channel, req.enabled)
+    else:
+        return {"success": False, "error": f"Brand '{brand}' set motion not supported",
+                "brand": brand}
+
+    return {"success": ok, "brand": brand, "ip": req.ip}
 
 
 @brand_router.get("/smart-events/{ip}")
@@ -339,7 +348,7 @@ async def get_smart_events(ip: str, channel: int = 1,
     """Get all smart event states for any brand."""
     cameras_col = _get_cameras_col()
     if not username or not password:
-        doc = cameras_col.find_one({"ip": ip}, {"_id": 0}) if cameras_col else {}
+        doc = cameras_col.find_one({"$or": [{"ip": ip}, {"ip_address": ip}]}, {"_id": 0}) if cameras_col else {}
         username = (doc or {}).get("username", "")
         password = (doc or {}).get("password", "")
 
@@ -379,13 +388,21 @@ async def set_smart_event(req: SmartEventRequest):
     username = req.username
     password = req.password
     if not username or not password:
-        doc = cameras_col.find_one({"ip": req.ip}, {"_id": 0}) if cameras_col else {}
+        doc = cameras_col.find_one({"$or": [{"ip": req.ip}, {"ip_address": req.ip}]}, {"_id": 0}) if cameras_col else {}
         username = (doc or {}).get("username", "")
         password = (doc or {}).get("password", "")
 
     if brand == "dahua":
         ok = _dahua_set_smart_event(req.ip, username, password,
                                     req.event_type, req.channel, req.enabled)
+    elif brand == "hikvision":
+        ok = _hik_set_smart_event(req.ip, username, password,
+                                  req.event_type, req.channel, req.enabled)
+    else:
+        return {"success": False, "error": f"Brand '{brand}' smart events not supported",
+                "brand": brand}
+
+    return {"success": ok, "brand": brand, "ip": req.ip, "event_type": req.event_type}
 
 
 @brand_router.get("/snapshot/{ip}")

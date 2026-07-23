@@ -98,7 +98,7 @@ async def enable_camera_by_ip(ip: str):
         print(f"[ENABLE] ✅ {stream_name} enabled. Recording will be started by the assigned worker process.")
     save_devices(devices)
     if cameras_col is not None:
-        cameras_col.update_many({"ip": ip}, {"$set": {"enabled": True}})
+        cameras_col.update_many({"$or": [{"ip": ip}, {"ip_address": ip}]}, {"$set": {"enabled": True}})
     return {"success": True, "ip": ip, "streams_started": started}
 
 
@@ -123,7 +123,7 @@ async def disable_camera_by_ip(ip: str):
         print(f"[DISABLE] ⏹ {stream_name} disabled. Recording will be stopped by the assigned worker process.")
     save_devices(devices)
     if cameras_col is not None:
-        cameras_col.update_many({"ip": ip}, {"$set": {"enabled": False}})
+        cameras_col.update_many({"$or": [{"ip": ip}, {"ip_address": ip}]}, {"$set": {"enabled": False}})
     return {"success": True, "ip": ip, "streams_stopped": stopped}
 
 
@@ -152,10 +152,10 @@ async def delete_camera_by_ip(ip: str):
         except Exception as e:
             print(f"[DELETE] OME unregister failed for {stream_name} (non-fatal): {e}")
         _watchdog_failures.pop(stream_name, None)
-    devices = [d for d in devices if d.get("ip") != ip]
+    devices = [d for d in devices if d.get("ip") != ip and d.get("ip_address") != ip]
     save_devices(devices)
     if cameras_col is not None:
-        result = cameras_col.delete_many({"ip": ip})
+        result = cameras_col.delete_many({"$or": [{"ip": ip}, {"ip_address": ip}]})
         print(f"[DELETE] 🗑 MongoDB: removed {result.deleted_count} document(s) for IP {ip}")
     return {"success": True, "ip": ip, "streams_stopped": stopped}
 
@@ -193,12 +193,12 @@ async def update_camera_by_ip(ip: str, request: Request):
         allowed_keys = {"name", "device_name", "mac", "manufacturer", "model", "rtsp_url", "group_id"}
         update_data = {k: v for k, v in data.items() if k in allowed_keys}
         if update_data:
-            cameras_col.update_many({"ip": ip}, {"$set": update_data})
+            cameras_col.update_many({"$or": [{"ip": ip}, {"ip_address": ip}]}, {"$set": update_data})
             print(f"[UPDATE] ✏️ MongoDB: updated document(s) for IP {ip}")
 
     global devices
     for d in devices:
-        if d.get("ip") == ip:
+        if d.get("ip") == ip or d.get("ip_address") == ip:
             for k, v in data.items():
                 d[k] = v
     save_devices(devices)
@@ -419,6 +419,7 @@ async def onvif_probe(req: ProbeRequest):
 # RTSP stream register
 # ------------------------------------------------------------------
 @router.post("/streams/register", dependencies=[Depends(verify_token)])
+@router.post("/streams/register-direct", dependencies=[Depends(verify_token)])
 async def register_rtsp_stream(req: StreamRegisterRequest):
  
     rtsp = req.rtsp_url.strip()
@@ -456,6 +457,29 @@ async def register_rtsp_stream(req: StreamRegisterRequest):
         print(f"[RTSP] Stream {stream_name} already live in OME, skipping.")
         existing["rtsp_url"] = rtsp
         save_devices(devices)
+        save_camera_to_db({
+            "ip":             host,
+            "ome_stream":     stream_name,
+            "rtsp_url":       rtsp,
+            "recording_rtsp": existing.get("recording_rtsp", rtsp),
+            "manufacturer":   req.manufacturer,
+            "model":          req.model,
+            "mac":            req.mac,
+            "device_name":    req.device_name or existing.get("device_name") or f"Camera @ {host}",
+            "port":           req.port,
+            "username":       req.username,
+            "password":       req.password,
+            "added_at":       datetime.utcnow(),
+            "status":         "streaming",
+            "live_stream":    existing.get("live_stream") or stream_name,
+            "active_rec_profile": "MAIN_STREAM",
+            "recording_profile":  "MAIN_STREAM",
+            "enabled":        True,
+            "source":         "rtsp",
+            "group_id":       req.group_id,
+            "live_codec":     req.live_codec or existing.get("live_codec", "H.264"),
+            "codec":          existing.get("codec", "unknown"),
+        })
         live_key = existing.get("live_stream") or stream_name
         return {
             "success":    True,
@@ -678,10 +702,10 @@ async def assign_streams(req: StreamAssignRequest):
 @router.get("/cameras/by-ip/{ip}", dependencies=[Depends(verify_token)])
 async def get_camera_by_ip(ip: str):
     if cameras_col is not None:
-        doc = cameras_col.find_one({"ip": ip}, {"_id": 0})
+        doc = cameras_col.find_one({"$or": [{"ip": ip}, {"ip_address": ip}]}, {"_id": 0})
         if doc:
             return doc
-    dev = next((d for d in devices if d.get("ip") == ip), None)
+    dev = next((d for d in devices if d.get("ip") == ip or d.get("ip_address") == ip), None)
     if dev:
         return dev
     raise HTTPException(status_code=404, detail=f"Camera {ip} not found")
@@ -699,7 +723,7 @@ async def get_encoder_options(ip: str, port: int = 80, username: str = "", passw
     db_encodings = None
     db_resolutions = None
     if cameras_col is not None:
-        cam_doc = cameras_col.find_one({"ip": ip}, {"_id": 0, "stream_profiles": 1, "manufacturer": 1})
+        cam_doc = cameras_col.find_one({"$or": [{"ip": ip}, {"ip_address": ip}]}, {"_id": 0, "stream_profiles": 1, "manufacturer": 1})
         if cam_doc:
             for prof in cam_doc.get("stream_profiles") or []:
                 if prof.get("token") == profile_token:
@@ -740,7 +764,7 @@ async def set_encoder_profile_settings(req: VideoEncoderSettingRequest):
     if probe_res.get("success"):
         if cameras_col is not None:
             cameras_col.update_one(
-                {"ip": req.ip},
+                {"$or": [{"ip": req.ip}, {"ip_address": req.ip}]},
                 {"$set": {
                     "stream_profiles": probe_res.get("all_profiles", probe_res.get("profiles", [])),
                     "stream_count": probe_res.get("stream_count", 0)

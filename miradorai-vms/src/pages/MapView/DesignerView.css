@@ -2934,4 +2934,189 @@
 
 [data-theme="light"] .dv-bom-table td {
   border-bottom: 1px solid var(--border);
-}
+  color: var(--text-primary);
+}
+
+/* ── Placed camera list items ── */
+[data-theme="light"] .dv-placed-item span {
+  color: var(--text-secondary);
+}
+[data-theme="light"] .dv-placed-item__dir {
+  color: var(--text-muted);
+}
+[data-theme="light"] .dv-placed-item button {
+  color: var(--text-muted);
+}
+
+/* ── Camera selector ── */
+[data-theme="light"] .dv-cam-selector__label {
+  color: var(--text-muted);
+}
+[data-theme="light"] .dv-cam-chip__name {
+  color: var(--text-primary);
+}
+[data-theme="light"] .dv-cam-chip__meta {
+  color: var(--text-muted);
+}
+[data-theme="light"] .dv-cam-chip__view {
+  border-color: var(--border-light);
+  color: var(--text-muted);
+}
+
+/* ── Model list empty & card ── */
+[data-theme="light"] .dv-model-empty {
+  color: var(--text-muted);
+}
+
+/* ── Drop hint ── */
+[data-theme="light"] .dv-drop-hint p {
+  color: var(--text-muted);
+}
+[data-theme="light"] .dv-drop-hint__sub {
+  color: var(--text-muted) !important;
+}
+
+/* ── Selected bar separator ── */
+[data-theme="light"] .dv-sep-txt {
+  color: var(--border-light);
+}
+[data-theme="light"] .dv-sep {
+  background: var(--border-light);
+}
+
+/* ── FOV overlay ── */
+[data-theme="light"] .dv-fov-overlay {
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid var(--border-light);
+  backdrop-filter: blur(6px);
+}
+[data-theme="light"] .dv-fov-overlay__label {
+  color: var(--text-secondary);
+}
+[data-theme="light"] .dv-fov-overlay-panel {
+  background: var(--bg-surface);
+  border-top: 1px solid var(--border-light);
+}
+
+/* ── Export menu (dropdown) ── */
+[data-theme="light"] .dv-export-menu {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-light);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.12);
+  backdrop-filter: none;
+}
+[data-theme="light"] .dv-export-item {
+  color: var(--text-primary);
+}
+[data-theme="light"] .dv-export-item:hover {
+  background: var(--bg-hover);
+}
+[data-theme="light"] .dv-export-item__icon {
+  background: var(--bg-elevated);
+}
+[data-theme="light"] .dv-export-item__label small {
+  color: var(--text-muted);
+}
+
+/* ── Export modal ── */
+[data-theme="light"] .dv-export-modal {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-light);
+}
+[data-theme="light"] .dv-export-modal-header {
+  color: var(--text-primary);
+  border-bottom: 1px solid var(--border);
+}
+[data-theme="light"] .dv-export-modal-body {
+  background: var(--bg-surface);
+}
+[data-theme="light"] .dv-export-option {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-light);
+  color: var(--text-primary);
+}
+[data-theme="light"] .dv-export-option:hover {
+  background: var(--teal-subtle);
+  border-color: var(--teal);
+  color: var(--teal);
+}
+[data-theme="light"] .dv-export-modal-footer {
+  border-top: 1px solid var(--border);
+}
+[data-theme="light"] .dv-export-cancel {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-light);
+  color: var(--text-secondary);
+}
+[data-theme="light"] .dv-export-cancel:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+/* ── Inspector buttons ── */
+[data-theme="light"] .dv-inspector-close-btn:hover {
+  color: var(--text-primary) !important;
+  background: var(--bg-hover) !important;
+}
+[data-theme="light"] .dv-zone-btn__edit:hover {
+  color: var(--text-primary) !important;
+}
+[data-theme="light"] .dv-inspector-section-title {
+  color: var(--blue) !important;
+}
+
+/* ── Stats card slider ── */
+[data-theme="light"] .dv-stats-card__slider input {
+  background: var(--border-light) !important;
+}
+[data-theme="light"] .dv-stats-infra__item {
+  background: var(--bg-elevated);
+  border-color: var(--border-light);
+  color: var(--text-primary);
+}
+
+/* ── BOM container ── */
+[data-theme="light"] .dv-bom-container {
+  color: var(--text-primary);
+}
+
+/* ── DORI legend title separator ── */
+[data-theme="light"] .dv-dori-legend__title {
+  border-bottom: 1px solid var(--border-light);
+}
+
+/* ── Slide cards sidebar ── */
+[data-theme="light"] .dv-slide-card {
+  background: var(--bg-surface);
+  border-color: var(--border);
+}
+[data-theme="light"] .dv-slide-card.active {
+  box-shadow: 0 0 12px rgba(5, 150, 105, 0.2);
+  border-color: var(--teal);
+}
+
+/* ── Toolbar separators ── */
+[data-theme="light"] .dv-toolbar-divider {
+  background: var(--border-light);
+}
+
+/* ── Scale bar text ── */
+[data-theme="light"] .dv-scale-bar-text {
+  color: var(--text-secondary);
+}
+[data-theme="light"] .dv-scale-bar-line {
+  border-color: var(--text-secondary);
+}
+
+/* ── Custom context menu hover ── */
+[data-theme="light"] .dv-custom-dropdown-item:hover {
+  background-color: var(--bg-hover) !important;
+  color: var(--text-primary) !important;
+}
+
+/* ── Inspector tab hover ── */
+[data-theme="light"] .dv-inspector-tab:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary) !important;
+}
+

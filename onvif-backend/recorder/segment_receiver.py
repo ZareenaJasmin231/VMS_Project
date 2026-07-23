@@ -2,6 +2,7 @@ import os
 import io
 import asyncio
 from datetime import datetime
+import time
 from fastapi import APIRouter, Request, Response
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.backends import default_backend
@@ -96,7 +97,7 @@ async def mongodb_checkpoint(key: str, state: dict):
                 "bytes_written": state["bytes_written"],
                 "last_updated": datetime.utcnow(),
                 "file_size": state["bytes_written"],
-                "duration_seconds": float(state["segment_count"] * 10.0)
+                "duration_seconds": round(time.time() - state["created_at"]) if "created_at" in state else float(state["segment_count"] * 10.0)
             },
             "$setOnInsert": {
                 "created_at": datetime.utcnow(),
@@ -139,12 +140,12 @@ async def mongodb_set_status(key: str, status: str, missing_segments=None):
         {"$set": update}
     )
 
-async def mongodb_set_complete(key: str, dest: str, duration_seconds: float = None):
+async def mongodb_set_complete(key: str, dest: str, duration_seconds: float = None, status: str = "COMPLETE"):
     if recordings_col is None:
         return
     camera_id, date_str, time_str = _parse_key_parts(key)
     update_data = {
-        "status": "COMPLETE",
+        "status": status,
         "file_path": f"minio:{dest}",
         "last_updated": datetime.utcnow()
     }
@@ -197,11 +198,15 @@ async def _compose_and_finalize(key: str):
     
     state = _recording_state.get(key)
     duration = float(state["segment_count"] * 10.0) if state else None
+    
+    final_status = "COMPLETE"
+    if state and state["segment_count"] < state.get("expected", 30):
+        final_status = "INCOMPLETE"
 
     if await asyncio.to_thread(object_exists, dest):
         print(f"[RECEIVER] ℹ {dest} already exists — skipping compose")
         await _cleanup_temp_parts(key)
-        await mongodb_set_complete(key, dest, duration)
+        await mongodb_set_complete(key, dest, duration_seconds=duration, status=final_status)
         return
         
     await mongodb_set_status(key, "COMPOSING")
@@ -228,9 +233,29 @@ async def _compose_and_finalize(key: str):
             
         await asyncio.to_thread(_upload_stream)
         await _cleanup_temp_parts(key, sources)
-        await mongodb_set_complete(key, dest, duration)
+        
+        # Determine precise duration of the composed file for UI/DB sync
+        true_duration = duration
+        try:
+            from recorder import encrypt_service
+            import subprocess, os
+            tmp_ts = await asyncio.to_thread(encrypt_service.decrypt_to_temp_file, f"minio:{dest}", ".ts")
+            if tmp_ts and os.path.exists(tmp_ts):
+                probe_cmd = [
+                    "ffprobe", "-v", "error", "-show_entries", "format=duration",
+                    "-of", "default=noprint_wrappers=1:nokey=1", tmp_ts
+                ]
+                res = await asyncio.to_thread(subprocess.run, probe_cmd, capture_output=True, text=True)
+                if res.returncode == 0 and res.stdout.strip():
+                    true_duration = float(res.stdout.strip())
+                await asyncio.to_thread(os.remove, tmp_ts)
+        except Exception as e:
+            print(f"[RECEIVER] Failed to probe true duration for {dest}: {e}")
+
+        await mongodb_set_complete(key, dest, duration_seconds=true_duration, status=final_status)
+        print(f"[RECEIVER] ✅ Finalized {key} (status={final_status}, duration={true_duration:.2f}s)")
     except Exception as e:
-        print(f"[RECEIVER] ❌ Compose (Stream) failed for {key}: {e}")
+        print(f"[RECEIVER] ❌ Compose failed for {key}: {e}")
         await mongodb_set_status(key, "FAILED")
 
 async def _cleanup_recording_resources(key: str):
@@ -250,7 +275,6 @@ async def _camera_worker(key: str):
             print(f"[RECEIVER] ⏱ Timeout waiting for {key}. Forcing composition.")
             state = _recording_state.get(key)
             if state and state["segment_count"] > 0 and state["segment_count"] < state["expected"]:
-                state["expected"] = state["segment_count"]
                 await _compose_and_finalize(key)
             break
             
@@ -320,7 +344,8 @@ async def receive_segment(camera_id: str, date: str, time_str: str, index: int, 
             "bytes_written": 0,
             "segment_count": 0,
             "expected": 30, # 5 mins at 10s segments
-            "status": "UPLOADING"
+            "status": "UPLOADING",
+            "created_at": time.time()
         }
         
         if recordings_col is not None and index == 0:
@@ -385,8 +410,6 @@ async def recover_on_startup():
             segment_count = doc["segment_count"]
             if segment_count > 0:
                 print(f"[RECEIVER] ♻ Recovering recording {key} ({segment_count} segments)")
-                # Force expected to match actual segments so verify passes
-                _recording_state[key]["expected"] = segment_count
                 await mongodb_set_status(key, "RECOVERING")
                 asyncio.create_task(_recover_finalize(key))
             else:

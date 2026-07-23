@@ -24,8 +24,18 @@ _health_monitor_task = None
 
    
 
+async def _periodic_gc_loop():
+    import gc
+    while True:
+        await asyncio.sleep(180)
+        try:
+            gc.collect()
+        except Exception:
+            pass
+
 async def _startup_phase_1():
     infrastructure_scheduler.start()
+    await task_manager.start_task('gc_cleanup', _periodic_gc_loop())
     
     try:
         from app.api.routers.monitoring_api import collector

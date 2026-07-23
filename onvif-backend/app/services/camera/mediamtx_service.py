@@ -47,11 +47,21 @@ def register_stream(stream_name, rtsp_url, codec=None, sub_stream_rtsp=None):
         h264_stream_name = f"{stream_name}_h264"
 
         if res.status_code not in [200, 201]:
-            return {
-                "status": "error",
-                "message": f"Base: {res.text}",
-                "statusCode": res.status_code
-            }
+            # If path already exists, try patching the existing path source
+            patch_res = requests.patch(
+                f"{MEDIAMTX_API}/v3/config/paths/patch/{stream_name}",
+                json=payload,
+                timeout=10
+            )
+            print("MEDIAMTX PATCH STATUS:", patch_res.status_code)
+            print("MEDIAMTX PATCH RESPONSE:", patch_res.text)
+            if patch_res.status_code not in [200, 201]:
+                return {
+                    "status": "error",
+                    "message": f"Base: {res.text} (Patch: {patch_res.text})",
+                    "statusCode": res.status_code
+                }
+            res = patch_res
 
         # ── Register sub stream if available ──────────────────────────────
         # This gives MediaMTX a second, independent path for the low-res
@@ -68,6 +78,12 @@ def register_stream(stream_name, rtsp_url, codec=None, sub_stream_rtsp=None):
                 )
                 print(f"MEDIAMTX SUB STREAM [{sub_key}] STATUS:", sub_res.status_code)
                 print(f"MEDIAMTX SUB STREAM RESPONSE:", sub_res.text)
+                if sub_res.status_code not in [200, 201]:
+                    requests.patch(
+                        f"{MEDIAMTX_API}/v3/config/paths/patch/{sub_key}",
+                        json={"source": sub_stream_rtsp, "sourceOnDemand": False},
+                        timeout=10
+                    )
             except Exception as sub_err:
                 print(f"MEDIAMTX SUB STREAM REGISTER ERROR ({sub_key}): {sub_err}")
 

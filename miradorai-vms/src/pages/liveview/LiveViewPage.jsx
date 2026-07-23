@@ -39,7 +39,9 @@ const GRID_OPTIONS = [
   { id: "3x3", label: "3x3 Grid", rows: 3, cols: 3 },
   { id: "3x4", label: "3x4 Grid", rows: 3, cols: 4 },
   { id: "4x4", label: "4x4 Grid", rows: 4, cols: 4 },
-  { id: "8x8", label: "8x8 Grid", rows: 8, cols: 8 }
+  // { id: "8x8", label: "8x8 Grid", rows: 8, cols: 8 }
+  { id: "8x8", label: "8x8 Grid", rows: 8, cols: 8 },
+  { id: "spotlight", label: "Spotlight", rows: 4, cols: 4, isSpotlight: true, pageSize: 8 }
 ];
 
 const MASK_CANVAS_W = 640;
@@ -800,7 +802,7 @@ function SequenceDropdown({ value, onChange, sequences }) {
         className={`lv-grid-dropdown-trigger ${isOpen ? "active" : ""}`}
         onClick={() => setIsOpen(!isOpen)}
         type="button"
-        style={{ padding: "4px 10px", fontSize: "15px", height: "28px", background: "rgba(9, 13, 22, 0.6)", borderColor: "rgba(255, 255, 255, 0.1)" }}
+        style={{ padding: "4px 10px", fontSize: "15px", height: "28px" }}
       >
         <span>{label}</span>
         <svg className={`lv-chevron-icon ${isOpen ? "open" : ""}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="10" height="10">
@@ -1237,7 +1239,9 @@ export default function LiveViewPage() {
   const currentGridOption = GRID_OPTIONS.find(o => o.id === layout) || GRID_OPTIONS[3];
   const rows = currentGridOption.rows;
   const cols = currentGridOption.cols;
-  const gridSize = rows * cols;
+  // const gridSize = rows * cols;
+  const isSpotlight = currentGridOption.isSpotlight;
+  const gridSize = isSpotlight ? currentGridOption.pageSize : rows * cols;
 
   const totalPages = Math.max(1, Math.ceil(sortedActiveCams.length / gridSize));
   
@@ -1535,7 +1539,7 @@ export default function LiveViewPage() {
             )}
           </div>
 
-          <div className="lv-tour-controls" style={{ display: "flex", alignItems: "center", gap: "10px", background: "rgba(15, 23, 42, 0.45)", padding: "4px 12px", borderRadius: "8px", border: "1px solid rgba(255, 255, 255, 0.08)", height: "38px" }}>
+          <div className="lv-tour-controls" style={{ display: "flex", alignItems: "center", gap: "10px", background: "var(--bg-surface)", padding: "4px 12px", borderRadius: "8px", border: "1px solid var(--border)", height: "38px" }}>
             <SequenceDropdown
               value={activeSequenceId}
               onChange={(val) => {
@@ -1550,7 +1554,7 @@ export default function LiveViewPage() {
               title={isTourActive ? "Pause Tour" : "Start Auto Sequence Tour"}
               type="button"
               className={`lv-tour-btn ${isTourActive ? "active" : ""}`}
-              style={{ background: "none", border: "none", color: isTourActive ? "var(--teal)" : "#fff", cursor: "pointer", display: "flex", alignItems: "center", padding: "4px", outline: "none" }}
+              style={{ background: "none", border: "none", color: isTourActive ? "var(--teal)" : "var(--text-secondary)", cursor: "pointer", display: "flex", alignItems: "center", padding: "4px", outline: "none" }}
             >
               {isTourActive ? (
                 <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><rect x="5" y="4" width="4" height="16" rx="1"/><rect x="15" y="4" width="4" height="16" rx="1"/></svg>
@@ -1559,7 +1563,7 @@ export default function LiveViewPage() {
               )}
             </button>
 
-            <span style={{ fontSize: "16px", color: "#fff", fontWeight: "500", whiteSpace: "nowrap" }}>Dwell:</span>
+            <span style={{ fontSize: "16px", color: "var(--text-primary)", fontWeight: "500", whiteSpace: "nowrap" }}>Dwell:</span>
             <input
               type="number"
               value={dwellTime}
@@ -1573,10 +1577,10 @@ export default function LiveViewPage() {
               disabled={isTourActive || activeSequenceId !== "all"}
               style={{
                 width: "46px",
-                background: activeSequenceId !== "all" ? "rgba(255, 255, 255, 0.05)" : "rgba(9, 13, 22, 0.6)",
-                border: "1px solid rgba(255, 255, 255, 0.1)",
+                background: activeSequenceId !== "all" ? "var(--bg-elevated)" : "var(--bg-base)",
+                border: "1px solid var(--border)",
                 borderRadius: "4px",
-                color: "#fff",
+                color: "var(--text-primary)",
                 fontSize: "16px",
                 fontWeight: "600",
                 textAlign: "center",
@@ -1598,7 +1602,7 @@ export default function LiveViewPage() {
               style={{
                 background: "none",
                 border: "none",
-                color: "#fff",
+                color: "var(--text-secondary)",
                 cursor: "pointer",
                 display: "flex",
                 alignItems: "center",
@@ -1766,10 +1770,12 @@ export default function LiveViewPage() {
                   const cam = pageCams[i];
                   const hasAlert = cam ? (alertCounts[cam.ip] > 0) : false;
                   const isSelected = cam ? (selectedCamId === cam.id) : (selectedCamId === `empty-${i}`);
+                  const spotlightStyle = (isSpotlight && i === 0) ? { gridColumn: "span 3", gridRow: "span 3" } : {};
                   return (
                     <div
                       key={cam ? cam.id : `empty-${i}`}
                       className={`lv-cell ${isSelected ? "lv-cell--selected" : ""} ${hasAlert ? "lv-cell--alert" : ""}`}
+                      style={spotlightStyle}
                       onClick={() => {
                         const target = cam ? cam.id : `empty-${i}`;
                         setSelectedCamId(selectedCamId === target ? null : target);
@@ -1992,7 +1998,7 @@ function SequenceManagerModal({ sequences, setSequences, activeCams, onClose }) 
                   {activeCams.map(cam => {
                     const isChecked = form.cameraIds.includes(String(cam.id));
                     return (
-                      <label key={cam.id} style={{ display: "flex", alignItems: "center", gap: "10px", cursor: "pointer", fontSize: "13px", color: "#e2e8f0" }}>
+                      <label key={cam.id} style={{ display: "flex", alignItems: "center", gap: "10px", cursor: "pointer", fontSize: "13px", color: "var(--text-primary)" }}>
                         <input
                           type="checkbox"
                           checked={isChecked}
@@ -2039,12 +2045,12 @@ function SequenceManagerModal({ sequences, setSequences, activeCams, onClose }) 
                   justifyContent: "space-between",
                   alignItems: "center",
                   padding: "12px 14px",
-                  background: "rgba(30, 41, 59, 0.4)",
-                  border: "1px solid rgba(255, 255, 255, 0.05)",
+                  background: "var(--bg-elevated)",
+                  border: "1px solid var(--border)",
                   borderRadius: "8px"
                 }}>
                   <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
-                    <span style={{ color: "#fff", fontSize: "14px", fontWeight: "600" }}>{seq.name}</span>
+                    <span style={{ color: "var(--text-primary)", fontSize: "14px", fontWeight: "600" }}>{seq.name}</span>
                     <span style={{ color: "var(--text-muted)", fontSize: "11.5px" }}>
                       {seq.dwellTime}s dwell | {seq.cameraIds.length} camera{seq.cameraIds.length !== 1 ? "s" : ""}
                     </span>

@@ -13,18 +13,37 @@ async def system_health_collector():
             ram = psutil.virtual_memory().percent
             disk = psutil.disk_usage('/').percent
 
-            db["health_logs"].insert_one({
-                "type": "system",
-                "cpu": cpu,
-                "ram": ram,
-                "disk": disk,
-                "timestamp": datetime.utcnow()
-            })
+            # Optional process metrics summary sampling
+            ffmpeg_count = 0
+            vms_ram_mb = 0.0
+            try:
+                for proc in psutil.process_iter(['name', 'memory_info']):
+                    pname = (proc.info['name'] or '').lower()
+                    if 'ffmpeg' in pname:
+                        ffmpeg_count += 1
+                        if proc.info['memory_info']:
+                            vms_ram_mb += proc.info['memory_info'].rss / (1024 * 1024)
+                    elif 'python' in pname or 'mongod' in pname or 'minio' in pname or 'mediamtx' in pname:
+                        if proc.info['memory_info']:
+                            vms_ram_mb += proc.info['memory_info'].rss / (1024 * 1024)
+            except Exception:
+                pass
+
+            if db is not None:
+                db["health_logs"].insert_one({
+                    "type": "system",
+                    "cpu": cpu,
+                    "ram": ram,
+                    "disk": disk,
+                    "ffmpeg_count": ffmpeg_count,
+                    "vms_ram_mb": round(vms_ram_mb, 1),
+                    "timestamp": datetime.utcnow()
+                })
 
         except Exception as e:
             print("[SYSTEM HEALTH ERROR]", e)
 
-        await asyncio.sleep(5)
+        await asyncio.sleep(10)
 
 async def camera_health_collector():
     while True:
@@ -41,11 +60,9 @@ async def camera_health_collector():
 
         await asyncio.sleep(10)            
 
-async def analytics_poll_loop(ip: str, port: int, username: str, password: str, manufacturer: str = "bosch"):
-    # # TEMPORARILY DISABLED: The polling loop consumes excessive RAM/CPU when cameras are offline
-    # print(f"[ANALYTICS] ⏸ Analytics polling is temporarily disabled to save RAM for {ip}")
-    # return
+_analytics_semaphore = asyncio.Semaphore(5)
 
+async def analytics_poll_loop(ip: str, port: int, username: str, password: str, manufacturer: str = "bosch"):
     print(f"[ANALYTICS] ▶ Started polling for {ip} ({manufacturer})")
 
     consecutive_failures = 0
@@ -64,24 +81,24 @@ async def analytics_poll_loop(ip: str, port: int, username: str, password: str, 
                 await asyncio.sleep(30)
                 continue
 
-            if is_dahua:
-                result = await asyncio.to_thread(
-                    pull_dahua_events,
-                    ip, port, username, password
-                )
-                source_name = "dahua"
-            else:
-                result = await asyncio.to_thread(
-                    pull_bosch_events,
-                    ip, port, username, password
-                )
-                source_name = "bosch"
+            async with _analytics_semaphore:
+                if is_dahua:
+                    result = await asyncio.to_thread(
+                        pull_dahua_events,
+                        ip, port, username, password
+                    )
+                    source_name = "dahua"
+                else:
+                    result = await asyncio.to_thread(
+                        pull_bosch_events,
+                        ip, port, username, password
+                    )
+                    source_name = "bosch"
 
             if result["success"] and result["events"]:
                 for ev in result["events"]:
                     event_type = ev.get("event_type", "Object Detection")
                     
-                    # Enforce is_analytics_enabled limit for this specific type of event
                     if not license_manager.is_analytics_enabled(event_type):
                         print(f"[ANALYTICS] ⚠️ Skipped event type: {event_type} on {ip} (not licensed)")
                         continue
@@ -99,7 +116,6 @@ async def analytics_poll_loop(ip: str, port: int, username: str, password: str, 
                         "received_at": datetime.now().isoformat(),
                     }
 
-                    # For Occupancy events, extract count from event or raw data
                     if "occupancy" in alert["type"].lower():
                         count_val = ev.get("count")
                         if count_val is None:
@@ -123,7 +139,7 @@ async def analytics_poll_loop(ip: str, port: int, username: str, password: str, 
 
             elif not result["success"]:
                 consecutive_failures += 1
-                if consecutive_failures % 10 == 0:
+                if consecutive_failures % 5 == 0:
                     print(f"[ANALYTICS] ✗ Failed to poll {ip} {consecutive_failures} times. Retrying in 10s...")
                     await asyncio.sleep(10)
                     continue
@@ -134,7 +150,7 @@ async def analytics_poll_loop(ip: str, port: int, username: str, password: str, 
         except Exception as e:
             print(f"[ANALYTICS] ❌ {ip}: {e}")
             consecutive_failures += 1
-            if consecutive_failures % 10 == 0:
+            if consecutive_failures % 5 == 0:
                 await asyncio.sleep(10)
                 continue
 

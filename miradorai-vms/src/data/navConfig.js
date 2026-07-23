@@ -68,6 +68,7 @@ const ADMIN_ONLY_NAV = [
     items: [
       { label: "Topology Map", page: "topology-map", icon: ICONS.infrastructure },
       { label: "Network Health", page: "network-health", icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M22 12h-4l-3 9L9 3l-3 9H2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>` },
+      { label: "System Performance", page: "system-performance", icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><path d="M15 2v2M9 2v2M15 20v2M9 20v2M2 15h2M2 9h2M20 15h2M20 9h2"/></svg>` },
     ],
   },
 ];
@@ -98,11 +99,14 @@ const SETTINGS_NAV = {
     { label: "Device Management", page: "add-devices", icon: ICONS.addDevice },
     { label: "Group Management", page: "cameras", icon: ICONS.cameras },
     { label: "Storage Management", page: "storage-mgmt", icon: ICONS.storage },
+    
+    { label: "RAID Management", page: "raid-mgmt", icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" y1="6" x2="6" y2="6"/><line x1="6" y1="18" x2="6" y2="18"/></svg> },
     { label: "Recording Method", page: "rec-method", icon: ICONS.recording },
     { label: "Privacy Masking", page: "masking", icon: ICONS.masking },
     { label: "Schedules", page: "schedules", icon: ICONS.recording },
     { label: "Backup", page: "backup", icon: ICONS.backup },
     { label: "Viewing Stations", page: "viewing-stations", icon: ICONS.client },
+    
   ],
 };
 
@@ -180,6 +184,7 @@ export const PAGE_TITLES = {
   "rec-method": "Recording Method",
   "action-rules": "Action Rules",
   "storage-mgmt": "Storage Management",
+  "raid-mgmt": "RAID Management",
   "client-settings": "Client Settings",
   "user-settings": "User Settings",
   "user-management": "User Management",
@@ -204,8 +209,8 @@ export const PAGE_TITLES = {
   "time-sync": "Time Synchronization",
   "device-mgmt": "Device Management",
   "analytics-rules": "Analytics Rules",
-    "designer-view": "Designer View",
-
+  "designer-view": "Designer View",
+  "system-performance": "System Performance & Scaling",
 };
 
 // ================= HELPER FUNCTION =================

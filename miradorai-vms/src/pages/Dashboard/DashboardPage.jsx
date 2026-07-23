@@ -20,6 +20,26 @@ import {
 import jsPDF from "jspdf";
 import "jspdf-autotable";
 import * as XLSX from "xlsx";
+import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip as RechartsTooltip,
+  PieChart,
+  Pie,
+  Cell,
+  Legend,
+  AreaChart,
+  Area,
+  ScatterChart,
+  Scatter,
+  ReferenceLine,
+  Treemap,
+  LineChart,
+  Line
+} from "recharts";
 const API_BASE = import.meta.env.VITE_API_URL || "";
 
 const getAuthHeaders = () => {
@@ -455,6 +475,1360 @@ const StorageTrendChart = ({ data, xKey, yKey, height = 180 }) => {
   );
 };
 
+// ─// ── Shared Color Palette for Alert Types ──
+const ALERT_COLORS = {
+  "motion": "#22c55e",
+  "linecrossing": "#3b82f6",
+  "leavingfield": "#f59e0b",
+  "idleobject": "#a855f7",
+  "object detection": "#ec4899",
+  "intrusion": "#ef4444",
+  "loitering": "#14b8a6",
+  "tns1:recordingconfig": "#64748b",
+  "unknown": "#6b7280"
+};
+
+const getAlertColor = (type) => {
+  const normalized = String(type || "").toLowerCase().trim();
+  return ALERT_COLORS[normalized] || ALERT_COLORS["unknown"];
+};
+
+// ── Reusable Chart Card Wrapper with Search & Leaderboard ──
+const ReportChartCard = ({
+  title,
+  subtitle,
+  searchValue,
+  onSearch,
+  searchPlaceholder = "Find device...",
+  showLeaderboardToggle = true,
+  isLeaderboard,
+  onToggleLeaderboard,
+  leaderboardData = [], // [{ label, valueStr, barPct, barColor, isHatched }]
+  children
+}) => {
+  return (
+    <div className="report-chart-card">
+      <div className="chart-card-header">
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "8px" }}>
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <h4 className="chart-card-title">{title}</h4>
+            <p className="chart-card-subtitle">{subtitle}</p>
+          </div>
+          {showLeaderboardToggle && (
+            <button
+              type="button"
+              onClick={onToggleLeaderboard}
+              className="chart-header-action-btn"
+            >
+              {isLeaderboard ? "Show Chart" : "View Leaderboard"}
+            </button>
+          )}
+        </div>
+        {onSearch && (
+          <div className="chart-card-search-container" style={{ marginTop: "10px" }}>
+            <input
+              type="text"
+              placeholder={searchPlaceholder}
+              value={searchValue}
+              onChange={(e) => onSearch(e.target.value)}
+              className="chart-card-search-input"
+            />
+          </div>
+        )}
+      </div>
+      <div className="chart-card-body">
+        {isLeaderboard ? (
+          <div className="chart-card-leaderboard-wrapper">
+            {leaderboardData.length > 0 ? (
+              <div className="chart-card-leaderboard-list">
+                {leaderboardData.map((item, idx) => (
+                  <div key={idx} className="chart-leaderboard-row">
+                    <div className="chart-leaderboard-row-info">
+                      <span className="chart-leaderboard-label" title={item.label}>{item.label}</span>
+                      <span className="chart-leaderboard-value">{item.valueStr}</span>
+                    </div>
+                    <div className="chart-leaderboard-bar-track">
+                      <div
+                        className="chart-leaderboard-bar-fill"
+                        style={{
+                          width: `${Math.min(100, Math.max(0, item.barPct))}%`,
+                          background: item.isHatched ? "repeating-linear-gradient(45deg, #475569, #475569 5px, #64748b 5px, #64748b 10px)" : item.barColor || "var(--teal)"
+                        }}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="empty-chart-state">No matching devices.</div>
+            )}
+          </div>
+        ) : (
+          children
+        )}
+      </div>
+    </div>
+  );
+};
+
+const CameraEventsCharts = ({ reportData, reportFromDate, reportToDate }) => {
+  const [searchQuery, setSearchQuery] = useState("");
+  const [isLeaderboard, setIsLeaderboard] = useState(false);
+
+  const offlineEvents = reportData.filter(d => d.event === "device_offline");
+  const uniqueIps = Array.from(new Set(reportData.map(d => d.ip).filter(ip => ip && ip !== "—")));
+  const ipToIndex = {};
+  uniqueIps.forEach((ip, idx) => {
+    ipToIndex[ip] = idx;
+  });
+
+  const scatterData = offlineEvents.map(e => ({
+    timestampVal: new Date(e.timestamp).getTime(),
+    ipIndex: ipToIndex[e.ip],
+    ip: e.ip,
+    model: e.model,
+    message: e.message,
+    timeStr: new Date(e.timestamp).toLocaleString()
+  }));
+
+  const ipCounts = {};
+  reportData.forEach(d => {
+    if (d.event === "device_offline") {
+      ipCounts[d.ip] = (ipCounts[d.ip] || 0) + 1;
+    }
+  });
+
+  const offenders = Object.entries(ipCounts)
+    .map(([ip, count]) => ({ ip, count }))
+    .sort((a, b) => b.count - a.count);
+
+  const filteredOffenders = offenders.filter(o =>
+    o.ip.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const topOffenders = filteredOffenders.slice(0, 10);
+  const maxCount = offenders[0]?.count || 1;
+
+  const ackCount = reportData.filter(d => d.acknowledged === "Yes").length;
+  const unackCount = reportData.filter(d => d.acknowledged === "No").length;
+  const pieData = [
+    { name: "Acknowledged", value: ackCount, color: "#10b981" },
+    { name: "Unacknowledged", value: unackCount, color: "#ef4444" }
+  ].filter(d => d.value > 0);
+
+  const leaderboardData = filteredOffenders.map(d => ({
+    label: d.ip,
+    valueStr: `${d.count} outages`,
+    barPct: (d.count / maxCount) * 100,
+    barColor: d.count > 5 ? "#ef4444" : d.count > 2 ? "#f59e0b" : "#faad14"
+  }));
+
+  return (
+    <div className="report-charts-grid">
+      {/* Chart 1: Outage Timeline */}
+      <ReportChartCard
+        title="Outage Timeline"
+        subtitle="Distribution of device offline events over time"
+        showLeaderboardToggle={false}
+      >
+        {scatterData.length > 0 ? (
+          <ResponsiveContainer width="100%" height={260}>
+            <ScatterChart margin={{ top: 20, right: 20, bottom: 20, left: 60 }}>
+              <XAxis 
+                type="number" 
+                dataKey="timestampVal" 
+                name="Time" 
+                domain={['dataMin - 60000', 'dataMax + 60000']} 
+                tickFormatter={(tick) => new Date(tick).toLocaleDateString(undefined, {month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'})}
+                stroke="var(--text-muted)"
+                fontSize={11}
+              />
+              <YAxis 
+                type="number" 
+                dataKey="ipIndex" 
+                name="Camera IP" 
+                ticks={uniqueIps.map((_, i) => i)}
+                tickFormatter={(tick) => uniqueIps[tick] || ""}
+                stroke="var(--text-muted)"
+                fontSize={11}
+                domain={[0, Math.max(uniqueIps.length - 1, 1)]}
+              />
+              <RechartsTooltip 
+                cursor={{ strokeDasharray: '3 3' }} 
+                content={({ active, payload }) => {
+                  if (active && payload && payload.length) {
+                    const data = payload[0].payload;
+                    return (
+                      <div className="custom-chart-tooltip">
+                        <p style={{ margin: "0 0 4px 0", fontWeight: "bold", color: "#ef4444" }}>Offline Event</p>
+                        <p style={{ margin: "0 0 2px 0" }}><strong>IP:</strong> {data.ip}</p>
+                        <p style={{ margin: "0 0 2px 0" }}><strong>Model:</strong> {data.model}</p>
+                        <p style={{ margin: "0 0 2px 0" }}><strong>Time:</strong> {data.timeStr}</p>
+                        <p style={{ margin: "0", color: "var(--text-muted)" }}>{data.message}</p>
+                      </div>
+                    );
+                  }
+                  return null;
+                }}
+              />
+              <Scatter name="Outages" data={scatterData} fill="#ef4444" shape="circle" />
+            </ScatterChart>
+          </ResponsiveContainer>
+        ) : (
+          <div className="empty-chart-state">No outages recorded — fleet stable.</div>
+        )}
+      </ReportChartCard>
+
+      {/* Chart 2: Top Offline Offenders */}
+      <ReportChartCard
+        title="Top Offline Offenders"
+        subtitle="Devices sorted by offline event frequency"
+        searchValue={searchQuery}
+        onSearch={setSearchQuery}
+        searchPlaceholder="Find camera..."
+        showLeaderboardToggle={true}
+        isLeaderboard={isLeaderboard}
+        onToggleLeaderboard={() => setIsLeaderboard(!isLeaderboard)}
+        leaderboardData={leaderboardData}
+      >
+        {topOffenders.length > 0 ? (
+          <ResponsiveContainer width="100%" height={260}>
+            <BarChart data={topOffenders} layout="vertical" margin={{ top: 10, right: 20, left: 30, bottom: 5 }}>
+              <XAxis type="number" stroke="var(--text-muted)" fontSize={11} allowDecimals={false} />
+              <YAxis type="category" dataKey="ip" stroke="var(--text-muted)" fontSize={11} width={100} />
+              <RechartsTooltip
+                content={({ active, payload }) => {
+                  if (active && payload && payload.length) {
+                    return (
+                      <div className="custom-chart-tooltip">
+                        <p style={{ margin: "0", fontWeight: "bold" }}>{payload[0].payload.ip}</p>
+                        <p style={{ margin: "4px 0 0 0", color: "#ef4444" }}><strong>Outages:</strong> {payload[0].value}</p>
+                      </div>
+                    );
+                  }
+                  return null;
+                }}
+              />
+              <Bar dataKey="count" radius={[0, 4, 4, 0]}>
+                {topOffenders.map((entry, index) => {
+                  const maxCount = topOffenders[0].count;
+                  const ratio = entry.count / maxCount;
+                  const color = ratio > 0.7 ? "#ef4444" : ratio > 0.4 ? "#f59e0b" : "#faad14";
+                  return <Cell key={`cell-${index}`} fill={color} />;
+                })}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        ) : (
+          <div className="empty-chart-state">No offline events in this range.</div>
+        )}
+      </ReportChartCard>
+
+      {/* Chart 3: Acknowledgement Status */}
+      <ReportChartCard
+        title="Acknowledgement Status"
+        subtitle="Ratio of acknowledged vs un-actioned alerts"
+        showLeaderboardToggle={false}
+      >
+        {pieData.length > 0 ? (
+          <div style={{ position: "relative", width: "100%", height: "260px" }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={pieData}
+                  dataKey="value"
+                  nameKey="name"
+                  cx="50%"
+                  cy="48%"
+                  innerRadius={60}
+                  outerRadius={80}
+                  paddingAngle={2}
+                  stroke="#0f1115"
+                  strokeWidth={2}
+                >
+                  {pieData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  ))}
+                </Pie>
+                <RechartsTooltip
+                  content={({ active, payload }) => {
+                    if (active && payload && payload.length) {
+                      const total = ackCount + unackCount;
+                      const pct = ((payload[0].value / total) * 100).toFixed(1);
+                      return (
+                        <div className="custom-chart-tooltip">
+                          <p style={{ margin: "0", fontWeight: "bold", color: payload[0].payload.color }}>{payload[0].name}</p>
+                          <p style={{ margin: "4px 0 0 0" }}><strong>Count:</strong> {payload[0].value} ({pct}%)</p>
+                        </div>
+                      );
+                    }
+                    return null;
+                  }}
+                />
+                <Legend verticalAlign="bottom" height={36} formatter={(value) => <span style={{ color: "var(--text-primary)", fontSize: "11px" }}>{value}</span>} />
+              </PieChart>
+            </ResponsiveContainer>
+            <div style={{
+              position: "absolute",
+              top: "40%",
+              left: "50%",
+              transform: "translate(-50%, -50%)",
+              textAlign: "center",
+              pointerEvents: "none"
+            }}>
+              <span style={{ fontSize: "22px", fontWeight: "700", display: "block", color: unackCount > 0 ? "#ef4444" : "var(--text-primary)" }}>
+                {unackCount}
+              </span>
+              <span style={{ fontSize: "10px", color: "var(--text-muted)", textTransform: "uppercase", fontWeight: "600", display: "block", marginTop: "-2px" }}>
+                Unacknowledged
+              </span>
+            </div>
+          </div>
+        ) : (
+          <div className="empty-chart-state">No alerts in this range.</div>
+        )}
+      </ReportChartCard>
+    </div>
+  );
+};
+
+const AnalyticsAlertsCharts = ({ reportData, reportFromDate, reportToDate }) => {
+  const [searchQuery, setSearchQuery] = useState("");
+  const [isLeaderboard, setIsLeaderboard] = useState(false);
+  const [forceTreemap, setForceTreemap] = useState(null);
+
+  const counts = {};
+  reportData.forEach(d => {
+    const cls = d.classification || "UNKNOWN";
+    counts[cls] = (counts[cls] || 0) + 1;
+  });
+
+  const pieData = Object.entries(counts).map(([type, count]) => ({
+    name: type,
+    value: count,
+    color: getAlertColor(type)
+  })).sort((a, b) => b.value - a.value);
+
+  const fromTime = new Date(reportFromDate).getTime();
+  const toTime = new Date(reportToDate).getTime();
+  const diffHrs = (toTime - fromTime) / (1000 * 60 * 60);
+
+  let timeFormat = "hourly";
+  if (diffHrs > 24 * 14) {
+    timeFormat = "weekly";
+  } else if (diffHrs > 24) {
+    timeFormat = "daily";
+  }
+
+  const formatBucketKey = (date) => {
+    const d = new Date(date);
+    if (isNaN(d.getTime())) return "Invalid Date";
+    const pad = (num) => String(num).padStart(2, "0");
+    
+    if (timeFormat === "hourly") {
+      return `${pad(d.getHours())}:00`;
+    } else if (timeFormat === "daily") {
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+    } else {
+      const day = d.getDay();
+      const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+      const startOfWeek = new Date(d.setDate(diff));
+      return `${startOfWeek.getMonth() + 1}/${startOfWeek.getDate()}`;
+    }
+  };
+
+  const buckets = {};
+  reportData.forEach(d => {
+    const tsStr = d.timestamp || d.time_only;
+    if (!tsStr) return;
+    
+    let finalDate = tsStr;
+    if (!tsStr.includes("-") && !tsStr.includes("T")) {
+      const today = new Date();
+      const pad = (n) => String(n).padStart(2, "0");
+      finalDate = `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}T${tsStr}`;
+    }
+    
+    const bucketKey = formatBucketKey(finalDate);
+    if (bucketKey === "Invalid Date") return;
+    
+    if (!buckets[bucketKey]) {
+      buckets[bucketKey] = { label: bucketKey };
+    }
+    
+    const cls = d.classification || "UNKNOWN";
+    buckets[bucketKey][cls] = (buckets[bucketKey][cls] || 0) + 1;
+  });
+
+  const timeSeriesData = Object.values(buckets);
+  if (timeFormat === "daily") {
+    timeSeriesData.sort((a, b) => new Date(a.label) - new Date(b.label));
+  } else if (timeFormat === "hourly") {
+    timeSeriesData.sort((a, b) => a.label.localeCompare(b.label));
+  }
+
+  const alertTypes = Array.from(new Set(reportData.map(d => d.classification || "UNKNOWN")));
+
+  const camCounts = {};
+  reportData.forEach(d => {
+    const ip = d.ip_address || "—";
+    if (ip !== "—") {
+      camCounts[ip] = (camCounts[ip] || 0) + 1;
+    }
+  });
+
+  const allHotspots = Object.entries(camCounts)
+    .map(([ip, count]) => ({ ip, count }))
+    .sort((a, b) => b.count - a.count);
+
+  const filteredHotspots = allHotspots.filter(h =>
+    h.ip.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const maxCount = allHotspots[0]?.count || 1;
+  const uniqueCamerasCount = allHotspots.length;
+
+  const showTreemap = forceTreemap !== null ? forceTreemap : uniqueCamerasCount > 15;
+
+  const treemapData = filteredHotspots.map(h => ({
+    name: h.ip,
+    size: h.count
+  }));
+
+  const top10Hotspots = filteredHotspots.slice(0, 10);
+
+  const leaderboardData = filteredHotspots.map(h => ({
+    label: h.ip,
+    valueStr: `${h.count} alerts`,
+    barPct: (h.count / maxCount) * 100,
+    barColor: "var(--teal)"
+  }));
+
+  const renderCustomTreemapContent = (props) => {
+    const { x, y, width, height, name, size } = props;
+    if (width < 35 || height < 20) return null;
+    return (
+      <g>
+        <rect
+          x={x}
+          y={y}
+          width={width}
+          height={height}
+          style={{
+            fill: "rgba(20, 184, 166, 0.15)",
+            stroke: "var(--border)",
+            strokeWidth: 1.5,
+          }}
+        />
+        <text
+          x={x + width / 2}
+          y={y + height / 2 - 4}
+          textAnchor="middle"
+          fill="var(--text-primary)"
+          fontSize={11}
+          fontWeight="600"
+        >
+          {name}
+        </text>
+        <text
+          x={x + width / 2}
+          y={y + height / 2 + 10}
+          textAnchor="middle"
+          fill="var(--teal)"
+          fontSize={10}
+          fontWeight="bold"
+        >
+          {size} alerts
+        </text>
+      </g>
+    );
+  };
+
+  return (
+    <div className="report-charts-grid">
+      {/* Chart 1: Alert Type Breakdown */}
+      <ReportChartCard
+        title="Alert Type Breakdown"
+        subtitle="Distribution of triggered analytics trigger types"
+        showLeaderboardToggle={false}
+      >
+        {pieData.length > 0 ? (
+          <div style={{ position: "relative", width: "100%", height: "260px" }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={pieData}
+                  dataKey="value"
+                  nameKey="name"
+                  cx="50%"
+                  cy="45%"
+                  innerRadius={60}
+                  outerRadius={80}
+                  paddingAngle={2}
+                  stroke="#0f1115"
+                  strokeWidth={2}
+                >
+                  {pieData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  ))}
+                </Pie>
+                <RechartsTooltip
+                  content={({ active, payload }) => {
+                    if (active && payload && payload.length) {
+                      const total = reportData.length;
+                      const pct = ((payload[0].value / total) * 100).toFixed(1);
+                      return (
+                        <div className="custom-chart-tooltip">
+                          <p style={{ margin: "0", fontWeight: "bold", color: payload[0].payload.color }}>{payload[0].name}</p>
+                          <p style={{ margin: "4px 0 0 0" }}><strong>Count:</strong> {payload[0].value} ({pct}%)</p>
+                        </div>
+                      );
+                    }
+                    return null;
+                  }}
+                />
+                <Legend verticalAlign="bottom" height={36} formatter={(value) => <span style={{ color: "var(--text-primary)", fontSize: "11px" }}>{value}</span>} />
+              </PieChart>
+            </ResponsiveContainer>
+            <div style={{
+              position: "absolute",
+              top: "37%",
+              left: "50%",
+              transform: "translate(-50%, -50%)",
+              textAlign: "center",
+              pointerEvents: "none"
+            }}>
+              <span style={{ fontSize: "22px", fontWeight: "700", display: "block", color: "var(--text-primary)" }}>
+                {reportData.length}
+              </span>
+              <span style={{ fontSize: "10px", color: "var(--text-muted)", textTransform: "uppercase", fontWeight: "600", display: "block", marginTop: "-2px" }}>
+                Total Alerts
+              </span>
+            </div>
+          </div>
+        ) : (
+          <div className="empty-chart-state">No alerts in this range.</div>
+        )}
+      </ReportChartCard>
+
+      {/* Chart 2: Alert Volume Over Time */}
+      <ReportChartCard
+        title="Alert Volume Over Time"
+        subtitle="Activity spikes per alert classification"
+        showLeaderboardToggle={false}
+      >
+        {timeSeriesData.length > 0 ? (
+          <ResponsiveContainer width="100%" height={260}>
+            <LineChart data={timeSeriesData} margin={{ top: 10, right: 20, left: 10, bottom: 0 }}>
+              <XAxis dataKey="label" stroke="var(--text-muted)" fontSize={11} />
+              <YAxis stroke="var(--text-muted)" fontSize={11} />
+              <RechartsTooltip
+                content={({ active, payload, label }) => {
+                  if (active && payload && payload.length) {
+                    return (
+                      <div className="custom-chart-tooltip">
+                        <p style={{ margin: "0 0 6px 0", fontWeight: "bold" }}>{label}</p>
+                        {payload.map((p, idx) => (
+                          <p key={idx} style={{ margin: "2px 0", color: p.stroke }}>
+                            <strong>{p.name}:</strong> {p.value}
+                          </p>
+                        ))}
+                        <p style={{ margin: "6px 0 0 0", borderTop: "1px dashed rgba(255,255,255,0.1)", paddingTop: "4px", fontWeight: "bold" }}>
+                          Total: {payload.reduce((sum, p) => sum + (Number(p.value) || 0), 0)}
+                        </p>
+                      </div>
+                    );
+                  }
+                  return null;
+                }}
+              />
+              {alertTypes.map((type) => (
+                <Line
+                  key={type}
+                  type="monotone"
+                  dataKey={type}
+                  stroke={getAlertColor(type)}
+                  strokeWidth={2}
+                  dot={{ r: 2 }}
+                  activeDot={{ r: 6 }}
+                  name={type}
+                />
+              ))}
+              <Legend verticalAlign="bottom" height={36} formatter={(value) => <span style={{ color: "var(--text-primary)", fontSize: "11px" }}>{value}</span>} />
+            </LineChart>
+          </ResponsiveContainer>
+        ) : (
+          <div className="empty-chart-state">No temporal trend data available.</div>
+        )}
+      </ReportChartCard>
+
+      {/* Chart 3: Camera Hotspots */}
+      <ReportChartCard
+        title={showTreemap ? "Camera Hotspots (Treemap)" : "Camera Hotspots (Bars)"}
+        subtitle={showTreemap ? "Size represents alert counts" : "Top 10 cameras triggering alerts"}
+        searchValue={searchQuery}
+        onSearch={setSearchQuery}
+        searchPlaceholder="Find camera..."
+        showLeaderboardToggle={true}
+        isLeaderboard={isLeaderboard}
+        onToggleLeaderboard={() => setIsLeaderboard(!isLeaderboard)}
+        leaderboardData={leaderboardData}
+      >
+        <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", gap: "4px" }}>
+          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "4px" }}>
+            <button
+              type="button"
+              onClick={() => setForceTreemap(showTreemap ? false : true)}
+              style={{
+                fontSize: "10px",
+                color: "var(--text-secondary)",
+                background: "transparent",
+                border: "1px dashed var(--border)",
+                padding: "1px 6px",
+                borderRadius: "3px",
+                cursor: "pointer"
+              }}
+            >
+              Switch to {showTreemap ? "Bar View" : "Treemap View"}
+            </button>
+          </div>
+
+          {filteredHotspots.length > 0 ? (
+            showTreemap ? (
+              <ResponsiveContainer width="100%" height={230}>
+                <Treemap
+                  data={treemapData}
+                  dataKey="size"
+                  ratio={4/3}
+                  stroke="#0f1115"
+                  content={renderCustomTreemapContent}
+                >
+                  <RechartsTooltip
+                    content={({ active, payload }) => {
+                      if (active && payload && payload.length) {
+                        const data = payload[0].payload;
+                        return (
+                          <div className="custom-chart-tooltip">
+                            <p style={{ margin: "0", fontWeight: "bold" }}>{data.name}</p>
+                            <p style={{ margin: "4px 0 0 0", color: "var(--teal)" }}><strong>Alerts:</strong> {data.size}</p>
+                          </div>
+                        );
+                      }
+                      return null;
+                    }}
+                  />
+                </Treemap>
+              </ResponsiveContainer>
+            ) : (
+              <ResponsiveContainer width="100%" height={230}>
+                <BarChart data={top10Hotspots} layout="vertical" margin={{ top: 5, right: 20, left: 30, bottom: 5 }}>
+                  <XAxis type="number" stroke="var(--text-muted)" fontSize={11} allowDecimals={false} />
+                  <YAxis type="category" dataKey="ip" stroke="var(--text-muted)" fontSize={11} width={100} />
+                  <RechartsTooltip
+                    content={({ active, payload }) => {
+                      if (active && payload && payload.length) {
+                        return (
+                          <div className="custom-chart-tooltip">
+                            <p style={{ margin: "0", fontWeight: "bold" }}>{payload[0].payload.ip}</p>
+                            <p style={{ margin: "4px 0 0 0", color: "var(--teal)" }}><strong>Alerts:</strong> {payload[0].value}</p>
+                          </div>
+                        );
+                      }
+                      return null;
+                    }}
+                  />
+                  <Bar dataKey="count" radius={[0, 4, 4, 0]}>
+                    {top10Hotspots.map((entry, index) => {
+                      const maxHCount = top10Hotspots[0].count;
+                      const ratio = entry.count / maxHCount;
+                      const color = ratio > 0.7 ? "#059669" : ratio > 0.4 ? "#10b981" : "#34d399";
+                      return <Cell key={`cell-${index}`} fill={color} />;
+                    })}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            )
+          ) : (
+            <div className="empty-chart-state">No hot cameras recorded.</div>
+          )}
+        </div>
+      </ReportChartCard>
+    </div>
+  );
+};
+
+const DeviceHealthCharts = ({ reportData }) => {
+  const [searchQuery, setSearchQuery] = useState("");
+  const [isLeaderboard, setIsLeaderboard] = useState(false);
+  const [viewModeOverride, setViewModeOverride] = useState(null);
+
+  const onlineCount = reportData.filter(d => d.current_status === "online").length;
+  const offlineCount = reportData.filter(d => d.current_status === "offline" || d.current_status?.toLowerCase().includes("offline")).length;
+  
+  const pieData = [
+    { name: "Online", value: onlineCount, color: "#10b981" },
+    { name: "Offline", value: offlineCount, color: "#ef4444" }
+  ].filter(d => d.value > 0);
+
+  const totalDevices = onlineCount + offlineCount;
+  const healthPct = totalDevices > 0 ? Math.round((onlineCount / totalDevices) * 100) : 0;
+
+  const parseLatency = (latencyStr) => {
+    if (!latencyStr || latencyStr === "—") return -1;
+    const match = latencyStr.match(/^(\d+(\.\d+)?)\s*ms/);
+    if (match) return parseFloat(match[1]);
+    const num = parseFloat(latencyStr);
+    return isNaN(num) ? -1 : num;
+  };
+
+  const rawLatencyData = reportData.map(d => {
+    const val = parseLatency(d.latency_ms);
+    const isOffline = d.current_status === "offline" || val === -1;
+    return {
+      name: d.device_id || d.ip_address || "—",
+      latency: isOffline ? 1 : val,
+      rawLatency: d.latency_ms,
+      isOffline: isOffline
+    };
+  });
+
+  const sortedLatencyData = [...rawLatencyData].sort((a, b) => {
+    if (a.isOffline && !b.isOffline) return 1;
+    if (!a.isOffline && b.isOffline) return -1;
+    return b.latency - a.latency;
+  });
+
+  const filteredLatencyData = sortedLatencyData.filter(d =>
+    d.name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const getLatencyColor = (latency, isOffline) => {
+    if (isOffline) return "#64748b";
+    if (latency > 50) return "#ef4444";
+    if (latency >= 40) return "#f59e0b";
+    return "#22c55e";
+  };
+
+  const histCounts = { offline: 0, excellent: 0, good: 0, fair: 0, high: 0 };
+  rawLatencyData.forEach(d => {
+    if (d.isOffline) histCounts.offline++;
+    else if (d.latency < 15) histCounts.excellent++;
+    else if (d.latency < 30) histCounts.good++;
+    else if (d.latency <= 50) histCounts.fair++;
+    else histCounts.high++;
+  });
+
+  const latencyHistogramData = [
+    { name: "Offline", count: histCounts.offline, color: "#64748b" },
+    { name: "<15ms (Exc)", count: histCounts.excellent, color: "#22c55e" },
+    { name: "15-30ms (Good)", count: histCounts.good, color: "#14b8a6" },
+    { name: "30-50ms (Fair)", count: histCounts.fair, color: "#f59e0b" },
+    { name: ">50ms (High)", count: histCounts.high, color: "#ef4444" }
+  ];
+
+  const defaultToHistogram = totalDevices > 40;
+  const currentViewMode = viewModeOverride !== null ? viewModeOverride : (defaultToHistogram ? "histogram" : "devices");
+
+  const top15Latency = filteredLatencyData.slice(0, 15);
+  const maxLatency = Math.max(...rawLatencyData.map(d => d.latency), 50);
+
+  const leaderboardData = filteredLatencyData.map(d => ({
+    label: d.name,
+    valueStr: d.isOffline ? "Offline" : `${d.rawLatency}`,
+    barPct: d.isOffline ? 100 : (d.latency / maxLatency) * 100,
+    barColor: getLatencyColor(d.latency, d.isOffline),
+    isHatched: d.isOffline
+  }));
+
+  const rebootData = reportData.map(d => ({
+    name: d.device_id || d.ip_address || "—",
+    reboots: parseInt(d.reboot_count) || 0
+  }))
+  .filter(d => d.reboots > 0)
+  .sort((a, b) => b.reboots - a.reboots);
+
+  const filteredReboots = rebootData.filter(d =>
+    d.name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const maxReboots = rebootData[0]?.reboots || 1;
+  const rebootLeaderboard = filteredReboots.map(d => ({
+    label: d.name,
+    valueStr: `${d.reboots} reboots`,
+    barPct: (d.reboots / maxReboots) * 100,
+    barColor: "#f59e0b"
+  }));
+
+  return (
+    <div className="report-charts-grid">
+      {/* Chart 1: Fleet Health Overview */}
+      <ReportChartCard
+        title="Fleet Health Overview"
+        subtitle="Active vs offline devices in infrastructure"
+        showLeaderboardToggle={false}
+      >
+        {pieData.length > 0 ? (
+          <div style={{ position: "relative", width: "100%", height: "260px" }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={pieData}
+                  dataKey="value"
+                  nameKey="name"
+                  cx="50%"
+                  cy="48%"
+                  innerRadius={60}
+                  outerRadius={80}
+                  paddingAngle={2}
+                  stroke="#0f1115"
+                  strokeWidth={2}
+                >
+                  {pieData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  ))}
+                </Pie>
+                <RechartsTooltip
+                  content={({ active, payload }) => {
+                    if (active && payload && payload.length) {
+                      return (
+                        <div className="custom-chart-tooltip">
+                          <p style={{ margin: "0", fontWeight: "bold", color: payload[0].payload.color }}>{payload[0].name}</p>
+                          <p style={{ margin: "4px 0 0 0" }}><strong>Count:</strong> {payload[0].value}</p>
+                        </div>
+                      );
+                    }
+                    return null;
+                  }}
+                />
+                <Legend verticalAlign="bottom" height={36} formatter={(value) => <span style={{ color: "var(--text-primary)", fontSize: "11px" }}>{value}</span>} />
+              </PieChart>
+            </ResponsiveContainer>
+            <div style={{
+              position: "absolute",
+              top: "40%",
+              left: "50%",
+              transform: "translate(-50%, -50%)",
+              textAlign: "center",
+              pointerEvents: "none"
+            }}>
+              <span style={{ fontSize: "22px", fontWeight: "700", display: "block", color: healthPct >= 90 ? "#10b981" : healthPct >= 75 ? "#f59e0b" : "#ef4444" }}>
+                {healthPct}%
+              </span>
+              <span style={{ fontSize: "10px", color: "var(--text-muted)", textTransform: "uppercase", fontWeight: "600", display: "block", marginTop: "-2px" }}>
+                {onlineCount}/{totalDevices} Online
+              </span>
+            </div>
+          </div>
+        ) : (
+          <div className="empty-chart-state">No device data available.</div>
+        )}
+      </ReportChartCard>
+
+      {/* Chart 2: Latency by Device */}
+      <ReportChartCard
+        title={currentViewMode === "histogram" ? "Latency Distribution (Hist)" : "Latency by Device"}
+        subtitle={currentViewMode === "histogram" ? "Device counts segmented by latency range" : "Ping latencies with 50ms threshold"}
+        searchValue={currentViewMode === "devices" ? searchQuery : ""}
+        onSearch={setSearchQuery}
+        searchPlaceholder="Find device..."
+        showLeaderboardToggle={currentViewMode === "devices"}
+        isLeaderboard={isLeaderboard}
+        onToggleLeaderboard={() => setIsLeaderboard(!isLeaderboard)}
+        leaderboardData={leaderboardData}
+      >
+        <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", gap: "4px" }}>
+          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "4px" }}>
+            <button
+              type="button"
+              onClick={() => setViewModeOverride(currentViewMode === "histogram" ? "devices" : "histogram")}
+              style={{
+                fontSize: "10px",
+                color: "var(--text-secondary)",
+                background: "transparent",
+                border: "1px dashed var(--border)",
+                padding: "1px 6px",
+                borderRadius: "3px",
+                cursor: "pointer"
+              }}
+            >
+              Switch to {currentViewMode === "histogram" ? "Per-Device View" : "Histogram View"}
+            </button>
+          </div>
+
+          {filteredLatencyData.length > 0 ? (
+            currentViewMode === "histogram" ? (
+              <ResponsiveContainer width="100%" height={230}>
+                <BarChart data={latencyHistogramData} margin={{ top: 15, right: 20, left: 10, bottom: 5 }}>
+                  <XAxis dataKey="name" stroke="var(--text-muted)" fontSize={9} />
+                  <YAxis stroke="var(--text-muted)" fontSize={11} allowDecimals={false} />
+                  <RechartsTooltip
+                    content={({ active, payload }) => {
+                      if (active && payload && payload.length) {
+                        return (
+                          <div className="custom-chart-tooltip">
+                            <p style={{ margin: "0", fontWeight: "bold", color: payload[0].payload.color }}>{payload[0].name}</p>
+                            <p style={{ margin: "4px 0 0 0" }}><strong>Devices count:</strong> {payload[0].value}</p>
+                          </div>
+                        );
+                      }
+                      return null;
+                    }}
+                  />
+                  <Bar dataKey="count" radius={[4, 4, 0, 0]}>
+                    {latencyHistogramData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <ResponsiveContainer width="100%" height={230}>
+                <BarChart data={top15Latency} margin={{ top: 15, right: 20, left: 10, bottom: 5 }}>
+                  <defs>
+                    <pattern id="latencyHatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+                      <line x1="0" y1="0" x2="0" y2="6" stroke="#475569" strokeWidth="2.5" />
+                    </pattern>
+                  </defs>
+                  <XAxis dataKey="name" stroke="var(--text-muted)" fontSize={9} />
+                  <YAxis stroke="var(--text-muted)" fontSize={11} label={{ value: 'Latency (ms)', angle: -90, position: 'insideLeft', fill: 'var(--text-muted)', fontSize: 11 }} />
+                  <ReferenceLine y={50} stroke="#ef4444" strokeDasharray="3 3" />
+                  <RechartsTooltip
+                    content={({ active, payload }) => {
+                      if (active && payload && payload.length) {
+                        const data = payload[0].payload;
+                        return (
+                          <div className="custom-chart-tooltip">
+                            <p style={{ margin: "0", fontWeight: "bold" }}>{data.name}</p>
+                            <p style={{ margin: "4px 0 0 0" }}>
+                              <strong>Latency:</strong> {data.isOffline ? <span style={{ color: "#ef4444" }}>Unreachable (Offline)</span> : `${data.rawLatency}`}
+                            </p>
+                          </div>
+                        );
+                      }
+                      return null;
+                    }}
+                  />
+                  <Bar dataKey="latency" radius={[4, 4, 0, 0]}>
+                    {top15Latency.map((entry, index) => {
+                      if (entry.isOffline) {
+                        return <Cell key={`cell-${index}`} fill="url(#latencyHatch)" stroke="#64748b" strokeWidth={1} />;
+                      }
+                      const color = getLatencyColor(entry.latency, entry.isOffline);
+                      return <Cell key={`cell-${index}`} fill={color} />;
+                    })}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            )
+          ) : (
+            <div className="empty-chart-state">No latency statistics available.</div>
+          )}
+        </div>
+      </ReportChartCard>
+
+      {/* Chart 3: Reboot Instability Ranking */}
+      <ReportChartCard
+        title="Reboot Instability Ranking"
+        subtitle="Devices flagged for instability due to reboot triggers"
+        searchValue={searchQuery}
+        onSearch={setSearchQuery}
+        searchPlaceholder="Find camera..."
+        showLeaderboardToggle={rebootData.length > 0}
+        isLeaderboard={isLeaderboard}
+        onToggleLeaderboard={() => setIsLeaderboard(!isLeaderboard)}
+        leaderboardData={rebootLeaderboard}
+      >
+        {filteredReboots.length > 0 ? (
+          <ResponsiveContainer width="100%" height={260}>
+            <BarChart data={filteredReboots.slice(0, 10)} layout="vertical" margin={{ top: 10, right: 20, left: 30, bottom: 5 }}>
+              <XAxis type="number" stroke="var(--text-muted)" fontSize={11} allowDecimals={false} />
+              <YAxis type="category" dataKey="name" stroke="var(--text-muted)" fontSize={11} width={100} />
+              <RechartsTooltip
+                content={({ active, payload }) => {
+                  if (active && payload && payload.length) {
+                    return (
+                      <div className="custom-chart-tooltip">
+                        <p style={{ margin: "0", fontWeight: "bold" }}>{payload[0].payload.name}</p>
+                        <p style={{ margin: "4px 0 0 0", color: "#f59e0b" }}><strong>Reboots:</strong> {payload[0].value}</p>
+                      </div>
+                    );
+                  }
+                  return null;
+                }}
+              />
+              <Bar dataKey="reboots" fill="#f59e0b" radius={[0, 4, 4, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        ) : (
+          <div className="empty-chart-state" style={{ color: "#10b981", border: "1px dashed rgba(34, 197, 94, 0.2)" }}>
+            No reboots recorded — fleet stable.
+          </div>
+        )}
+      </ReportChartCard>
+    </div>
+  );
+};
+
+const CameraHistoryCharts = ({ reportData }) => {
+  const [searchQuery, setSearchQuery] = useState("");
+  const [isLeaderboard, setIsLeaderboard] = useState(false);
+  const [viewModeOverride, setViewModeOverride] = useState(null);
+
+  const parseTimeToHours = (timeStr) => {
+    if (!timeStr || timeStr === "—") return 0;
+    const parts = timeStr.split(":");
+    if (parts.length === 2) {
+      const h = parseInt(parts[0]) || 0;
+      const m = parseInt(parts[1]) || 0;
+      return h + m / 60;
+    }
+    const num = parseFloat(timeStr);
+    return isNaN(num) ? 0 : num;
+  };
+
+  const parsedData = reportData.map(d => {
+    const camUp = parseTimeToHours(d.cam_up_hrs);
+    const camDown = parseTimeToHours(d.cam_down_hrs);
+    const camTotal = camUp + camDown;
+    const camPct = camTotal > 0 ? (camUp / camTotal) * 100 : 0;
+
+    const recUp = parseTimeToHours(d.rec_up_hrs);
+    const recDown = parseTimeToHours(d.rec_down_hrs);
+    const recTotal = recUp + recDown;
+    const recPct = recTotal > 0 ? (recUp / recTotal) * 100 : 0;
+
+    return {
+      name: d.camera_name || d.ip_address || "—",
+      camUp: parseFloat(camUp.toFixed(2)),
+      camDown: parseFloat(camDown.toFixed(2)),
+      camPct: parseFloat(camPct.toFixed(1)),
+      recUp: parseFloat(recUp.toFixed(2)),
+      recDown: parseFloat(recDown.toFixed(2)),
+      recPct: parseFloat(recPct.toFixed(1))
+    };
+  });
+
+  const sortedCamData = [...parsedData].sort((a, b) => a.camPct - b.camPct);
+  const sortedRecData = [...parsedData].sort((a, b) => a.recPct - b.recPct);
+
+  const filteredCamData = sortedCamData.filter(d =>
+    d.name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+  
+  const filteredRecData = sortedRecData.filter(d =>
+    d.name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const totalDevices = parsedData.length;
+  const defaultToHistogram = totalDevices > 40;
+  const currentViewMode = viewModeOverride !== null ? viewModeOverride : (defaultToHistogram ? "histogram" : "devices");
+
+  const camHist = { critical: 0, poor: 0, fair: 0, excellent: 0 };
+  const recHist = { critical: 0, poor: 0, fair: 0, excellent: 0 };
+
+  parsedData.forEach(d => {
+    if (d.camPct < 50) camHist.critical++;
+    else if (d.camPct < 70) camHist.poor++;
+    else if (d.camPct < 90) camHist.fair++;
+    else camHist.excellent++;
+
+    if (d.recPct < 50) recHist.critical++;
+    else if (d.recPct < 70) recHist.poor++;
+    else if (d.recPct < 90) recHist.fair++;
+    else recHist.excellent++;
+  });
+
+  const camHistogramData = [
+    { name: "<50% (Crit)", count: camHist.critical, color: "#ef4444" },
+    { name: "50-70% (Poor)", count: camHist.poor, color: "#f59e0b" },
+    { name: "70-90% (Fair)", count: camHist.fair, color: "#faad14" },
+    { name: "90-100% (Exc)", count: camHist.excellent, color: "#22c55e" }
+  ];
+
+  const recHistogramData = [
+    { name: "<50% (Crit)", count: recHist.critical, color: "#ef4444" },
+    { name: "50-70% (Poor)", count: recHist.poor, color: "#f59e0b" },
+    { name: "70-90% (Fair)", count: recHist.fair, color: "#faad14" },
+    { name: "90-100% (Exc)", count: recHist.excellent, color: "#22c55e" }
+  ];
+
+  const leaderboardCamData = filteredCamData.map(d => ({
+    label: d.name,
+    valueStr: `${d.camPct}% uptime`,
+    barPct: d.camPct,
+    barColor: d.camPct >= 95 ? "#22c55e" : d.camPct >= 80 ? "#f59e0b" : "#ef4444"
+  }));
+
+  const leaderboardRecData = filteredRecData.map(d => ({
+    label: d.name,
+    valueStr: `${d.recPct}% active`,
+    barPct: d.recPct,
+    barColor: d.recPct >= 95 ? "#22c55e" : d.recPct >= 80 ? "#f59e0b" : "#ef4444"
+  }));
+
+  let totalCamUp = 0;
+  let totalCamDown = 0;
+  let totalRecUp = 0;
+  let totalRecDown = 0;
+
+  parsedData.forEach(d => {
+    totalCamUp += d.camUp;
+    totalCamDown += d.camDown;
+    totalRecUp += d.recUp;
+    totalRecDown += d.recDown;
+  });
+
+  const fleetCamTotal = totalCamUp + totalCamDown;
+  const fleetCamPct = fleetCamTotal > 0 ? (totalCamUp / fleetCamTotal) * 100 : 0;
+  
+  const fleetRecTotal = totalRecUp + totalRecDown;
+  const fleetRecPct = fleetRecTotal > 0 ? (totalRecUp / fleetRecTotal) * 100 : 0;
+
+  const renderHalfGauge = (pct, title) => {
+    const gaugeData = [
+      { value: pct },
+      { value: Math.max(0, 100 - pct) }
+    ];
+    const color = pct >= 95 ? "#10b981" : pct >= 80 ? "#f59e0b" : "#ef4444";
+    return (
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", width: "48%", position: "relative" }}>
+        <div style={{ position: "relative", width: "100%", height: "130px" }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <PieChart>
+              <Pie
+                data={gaugeData}
+                dataKey="value"
+                startAngle={180}
+                endAngle={0}
+                cx="50%"
+                cy="100%"
+                innerRadius={55}
+                outerRadius={75}
+                stroke="none"
+              >
+                <Cell fill={color} />
+                <Cell fill="rgba(255,255,255,0.06)" />
+              </Pie>
+            </PieChart>
+          </ResponsiveContainer>
+          <div style={{
+            position: "absolute",
+            bottom: "0",
+            left: "50%",
+            transform: "translateX(-50%)",
+            textAlign: "center"
+          }}>
+            <span style={{ fontSize: "20px", fontWeight: "700", color }}>
+              {pct.toFixed(1)}%
+            </span>
+          </div>
+        </div>
+        <span style={{ fontSize: "11px", fontWeight: "600", color: "var(--text-secondary)", marginTop: "12px", textAlign: "center", textTransform: "uppercase" }}>
+          {title}
+        </span>
+      </div>
+    );
+  };
+
+  return (
+    <div className="report-charts-grid">
+      {/* Chart 1: Camera Availability */}
+      <ReportChartCard
+        title={currentViewMode === "histogram" ? "Camera Availability Shape (Hist)" : "Camera Availability"}
+        subtitle={currentViewMode === "histogram" ? "Device counts by availability percentage" : "Worst 15 cameras connection hours"}
+        searchValue={currentViewMode === "devices" ? searchQuery : ""}
+        onSearch={setSearchQuery}
+        searchPlaceholder="Find camera..."
+        showLeaderboardToggle={currentViewMode === "devices"}
+        isLeaderboard={isLeaderboard}
+        onToggleLeaderboard={() => setIsLeaderboard(!isLeaderboard)}
+        leaderboardData={leaderboardCamData}
+      >
+        <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", gap: "4px" }}>
+          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "4px" }}>
+            <button
+              type="button"
+              onClick={() => setViewModeOverride(currentViewMode === "histogram" ? "devices" : "histogram")}
+              style={{
+                fontSize: "10px",
+                color: "var(--text-secondary)",
+                background: "transparent",
+                border: "1px dashed var(--border)",
+                padding: "1px 6px",
+                borderRadius: "3px",
+                cursor: "pointer"
+              }}
+            >
+              Switch to {currentViewMode === "histogram" ? "Per-Device View" : "Histogram View"}
+            </button>
+          </div>
+
+          {filteredCamData.length > 0 ? (
+            currentViewMode === "histogram" ? (
+              <ResponsiveContainer width="100%" height={230}>
+                <BarChart data={camHistogramData} margin={{ top: 15, right: 20, left: 10, bottom: 5 }}>
+                  <XAxis dataKey="name" stroke="var(--text-muted)" fontSize={9} />
+                  <YAxis stroke="var(--text-muted)" fontSize={11} allowDecimals={false} />
+                  <RechartsTooltip
+                    content={({ active, payload }) => {
+                      if (active && payload && payload.length) {
+                        return (
+                          <div className="custom-chart-tooltip">
+                            <p style={{ margin: "0", fontWeight: "bold", color: payload[0].payload.color }}>{payload[0].name}</p>
+                            <p style={{ margin: "4px 0 0 0" }}><strong>Cameras:</strong> {payload[0].value}</p>
+                          </div>
+                        );
+                      }
+                      return null;
+                    }}
+                  />
+                  <Bar dataKey="count" radius={[4, 4, 0, 0]}>
+                    {camHistogramData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <ResponsiveContainer width="100%" height={230}>
+                <BarChart data={filteredCamData.slice(0, 15)} layout="vertical" margin={{ top: 5, right: 20, left: 30, bottom: 5 }}>
+                  <XAxis type="number" stroke="var(--text-muted)" fontSize={11} label={{ value: 'Hours', position: 'insideBottom', offset: -5, fill: 'var(--text-muted)' }} />
+                  <YAxis type="category" dataKey="name" stroke="var(--text-muted)" fontSize={10} width={90} />
+                  <RechartsTooltip
+                    content={({ active, payload }) => {
+                      if (active && payload && payload.length) {
+                        const data = payload[0].payload;
+                        return (
+                          <div className="custom-chart-tooltip">
+                            <p style={{ margin: "0", fontWeight: "bold" }}>{data.name}</p>
+                            <p style={{ margin: "4px 0 2px 0", color: "#10b981" }}><strong>Up Hours:</strong> {data.camUp} hrs</p>
+                            <p style={{ margin: "0 0 2px 0", color: "#ef4444" }}><strong>Down Hours:</strong> {data.camDown} hrs</p>
+                            <p style={{ margin: "4px 0 0 0", borderTop: "1px dashed rgba(255,255,255,0.1)", paddingTop: "4px" }}>
+                              <strong>Availability:</strong> {data.camPct}%
+                            </p>
+                          </div>
+                        );
+                      }
+                      return null;
+                    }}
+                  />
+                  <Bar dataKey="camUp" stackId="availability" fill="#10b981" />
+                  <Bar dataKey="camDown" stackId="availability" fill="#ef4444" radius={[0, 4, 4, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            )
+          ) : (
+            <div className="empty-chart-state">No availability history.</div>
+          )}
+        </div>
+      </ReportChartCard>
+
+      {/* Chart 2: Recording Reliability */}
+      <ReportChartCard
+        title={currentViewMode === "histogram" ? "Recording Reliability Shape (Hist)" : "Recording Reliability"}
+        subtitle={currentViewMode === "histogram" ? "Device counts by recording reliability percentage" : "Worst 15 cameras recording hours"}
+        searchValue={currentViewMode === "devices" ? searchQuery : ""}
+        onSearch={setSearchQuery}
+        searchPlaceholder="Find camera..."
+        showLeaderboardToggle={currentViewMode === "devices"}
+        isLeaderboard={isLeaderboard}
+        onToggleLeaderboard={() => setIsLeaderboard(!isLeaderboard)}
+        leaderboardData={leaderboardRecData}
+      >
+        <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", gap: "4px" }}>
+          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "4px" }}>
+            <button
+              type="button"
+              onClick={() => setViewModeOverride(currentViewMode === "histogram" ? "devices" : "histogram")}
+              style={{
+                fontSize: "10px",
+                color: "var(--text-secondary)",
+                background: "transparent",
+                border: "1px dashed var(--border)",
+                padding: "1px 6px",
+                borderRadius: "3px",
+                cursor: "pointer"
+              }}
+            >
+              Switch to {currentViewMode === "histogram" ? "Per-Device View" : "Histogram View"}
+            </button>
+          </div>
+
+          {filteredRecData.length > 0 ? (
+            currentViewMode === "histogram" ? (
+              <ResponsiveContainer width="100%" height={230}>
+                <BarChart data={recHistogramData} margin={{ top: 15, right: 20, left: 10, bottom: 5 }}>
+                  <XAxis dataKey="name" stroke="var(--text-muted)" fontSize={9} />
+                  <YAxis stroke="var(--text-muted)" fontSize={11} allowDecimals={false} />
+                  <RechartsTooltip
+                    content={({ active, payload }) => {
+                      if (active && payload && payload.length) {
+                        return (
+                          <div className="custom-chart-tooltip">
+                            <p style={{ margin: "0", fontWeight: "bold", color: payload[0].payload.color }}>{payload[0].name}</p>
+                            <p style={{ margin: "4px 0 0 0" }}><strong>Cameras:</strong> {payload[0].value}</p>
+                          </div>
+                        );
+                      }
+                      return null;
+                    }}
+                  />
+                  <Bar dataKey="count" radius={[4, 4, 0, 0]}>
+                    {recHistogramData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <ResponsiveContainer width="100%" height={230}>
+                <BarChart data={filteredRecData.slice(0, 15)} layout="vertical" margin={{ top: 5, right: 20, left: 30, bottom: 5 }}>
+                  <XAxis type="number" stroke="var(--text-muted)" fontSize={11} label={{ value: 'Hours', position: 'insideBottom', offset: -5, fill: 'var(--text-muted)' }} />
+                  <YAxis type="category" dataKey="name" stroke="var(--text-muted)" fontSize={10} width={90} />
+                  <RechartsTooltip
+                    content={({ active, payload }) => {
+                      if (active && payload && payload.length) {
+                        const data = payload[0].payload;
+                        return (
+                          <div className="custom-chart-tooltip">
+                            <p style={{ margin: "0", fontWeight: "bold" }}>{data.name}</p>
+                            <p style={{ margin: "4px 0 2px 0", color: "#10b981" }}><strong>Rec Up Hours:</strong> {data.recUp} hrs</p>
+                            <p style={{ margin: "0 0 2px 0", color: "#ef4444" }}><strong>Rec Down Hours:</strong> {data.recDown} hrs</p>
+                            <p style={{ margin: "4px 0 0 0", borderTop: "1px dashed rgba(255,255,255,0.1)", paddingTop: "4px" }}>
+                              <strong>Reliability:</strong> {data.recPct}%
+                            </p>
+                          </div>
+                        );
+                      }
+                      return null;
+                    }}
+                  />
+                  <Bar dataKey="recUp" stackId="reliability" fill="#10b981" />
+                  <Bar dataKey="recDown" stackId="reliability" fill="#ef4444" radius={[0, 4, 4, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            )
+          ) : (
+            <div className="empty-chart-state">No recording history.</div>
+          )}
+        </div>
+      </ReportChartCard>
+
+      {/* Chart 3: Fleet Availability Score */}
+      <ReportChartCard
+        title="Fleet Availability Score"
+        subtitle="Aggregate metrics score for cameras vs recording"
+        showLeaderboardToggle={false}
+      >
+        <div className="chart-card-body" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 14px", width: "100%" }}>
+          {renderHalfGauge(fleetCamPct, "Camera Fleet")}
+          {renderHalfGauge(fleetRecPct, "Recording Fleet")}
+        </div>
+      </ReportChartCard>
+    </div>
+  );
+};
+
 const parseEvents = (uiLogsList, infraAlertsList) => {
   const merged = [];
 
@@ -598,10 +1972,44 @@ const DashboardPage = () => {
   const [reportDropdownOpen, setReportDropdownOpen] = useState(false);
   const [actionsDropdownOpen, setActionsDropdownOpen] = useState(false);
   const actionsDropdownRef = useRef(null);
+  const widgetsScrollRef = useRef(null);
 
   const [reportSuccessMsg, setReportSuccessMsg] = useState("");
   const [reportErrorMsg, setReportErrorMsg] = useState("");
   const [reportLiveOnly, setReportLiveOnly] = useState(false);
+  const [reportViewModes, setReportViewModes] = useState({
+    alerts: "tabular",
+    live_alerts: "tabular",
+    health: "tabular",
+    history: "tabular"
+  });
+  const [lastViewModeTransition, setLastViewModeTransition] = useState(null);
+
+  const handleSetViewMode = (type, mode) => {
+    setLastViewModeTransition({ from: reportViewModes[type], to: mode });
+    setReportViewModes(prev => ({
+      ...prev,
+      [type]: mode
+    }));
+  };
+
+  const renderGraphicalReport = () => {
+    if (!reportData || reportData.length === 0) return null;
+
+    switch (reportType) {
+      case "alerts":
+        return <CameraEventsCharts reportData={reportData} reportFromDate={reportFromDate} reportToDate={reportToDate} />;
+      case "live_alerts":
+        return <AnalyticsAlertsCharts reportData={reportData} reportFromDate={reportFromDate} reportToDate={reportToDate} />;
+      case "health":
+        return <DeviceHealthCharts reportData={reportData} />;
+      case "history":
+        return <CameraHistoryCharts reportData={reportData} />;
+      default:
+        return null;
+    }
+  };
+
   const reportPerPage = 10;
 
   const reportRef = useRef(null);
@@ -621,9 +2029,12 @@ const DashboardPage = () => {
       const fromTime = new Date(reportFromDate).getTime();
       const toTime = new Date(reportToDate).getTime();
 
+      const fromIso = new Date(fromTime).toISOString();
+      const toIso = new Date(toTime).toISOString();
+
       if (reportType === "alerts") {
         // Query recent alerts and filter by date range
-        const res = await fetch(`${API_BASE}/api/infrastructure/alerts?limit=5000`, {
+        const res = await fetch(`${API_BASE}/api/infrastructure/alerts?limit=5000&from_date=${fromIso}&to_date=${toIso}`, {
           headers: getAuthHeaders()
         });
         const alertsData = await res.json();
@@ -656,7 +2067,7 @@ const DashboardPage = () => {
         }
       } else if (reportType === "live_alerts") {
         // Query Real-Time MQTT Alerts and filter by date range
-        const res = await fetch(`${API_BASE}/api/alerts?limit=5000`, {
+        const res = await fetch(`${API_BASE}/api/alerts?limit=5000&from_date=${fromIso}&to_date=${toIso}`, {
           headers: getAuthHeaders()
         });
         const alertsRes = await res.json();
@@ -743,13 +2154,40 @@ const DashboardPage = () => {
         const historyData = await res.json();
 
         if (historyData.status === "success" && Array.isArray(historyData.data)) {
-          const formatted = historyData.data.map(cam => ({
-            camera_name: cam.name || "—",
-            ip_address: cam.ip || "—",
-            cam_up_hrs: cam.camera_hours_up.toFixed(2),
-            cam_down_hrs: cam.camera_hours_down.toFixed(2),
-            rec_up_hrs: cam.recording_hours_up.toFixed(2),
-            rec_down_hrs: cam.recording_hours_down.toFixed(2)
+          const uniqueCams = {};
+          historyData.data.forEach(cam => {
+            const key = cam.ip || cam.name || "unknown";
+            if (!uniqueCams[key]) {
+              uniqueCams[key] = {
+                name: cam.name || "—",
+                ip: cam.ip || "—",
+                camera_hours_up: 0,
+                camera_hours_down: 0,
+                recording_hours_up: 0,
+                recording_hours_down: 0
+              };
+            }
+            uniqueCams[key].camera_hours_up += cam.camera_hours_up || 0;
+            uniqueCams[key].camera_hours_down += cam.camera_hours_down || 0;
+            uniqueCams[key].recording_hours_up += cam.recording_hours_up || 0;
+            uniqueCams[key].recording_hours_down += cam.recording_hours_down || 0;
+          });
+
+          const formatHours = (decHours) => {
+            if (decHours == null) return "00:00";
+            const totalMins = Math.round(Number(decHours) * 60);
+            const h = Math.floor(totalMins / 60);
+            const m = totalMins % 60;
+            return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+          };
+
+          const formatted = Object.values(uniqueCams).map(cam => ({
+            camera_name: cam.name,
+            ip_address: cam.ip,
+            cam_up_hrs: formatHours(cam.camera_hours_up),
+            cam_down_hrs: formatHours(cam.camera_hours_down),
+            rec_up_hrs: formatHours(cam.recording_hours_up),
+            rec_down_hrs: formatHours(cam.recording_hours_down)
           }));
           
           setReportData(formatted);
@@ -807,7 +2245,21 @@ const DashboardPage = () => {
   const handleDownloadPDF = () => {
     if (!reportData || reportData.length === 0) return;
     const doc = new jsPDF();
+    // Title
+    doc.setFontSize(16);
     doc.text(`${reportTypeMap[reportType]} Report`, 14, 15);
+    // Download Date/Time in top right
+ doc.setFontSize(10);
+ doc.setTextColor(100);
+const now = new Date();
+const downloadTime = `Downloaded: ${now.toLocaleDateString()} ${now.toLocaleTimeString()}`;
+const textWidth = doc.getTextWidth(downloadTime);
+const pageWidth = doc.internal.pageSize.width;
+ doc.text(downloadTime, pageWidth - textWidth - 14, 15);
+// Selected Date Range
+const fromToText = `Selected Period: ${reportFromDate.replace('T', ' ')} to ${reportToDate.replace('T', ' ')}`;
+ doc.text(fromToText, 14, 22);
+ doc.setTextColor(0); // reset color
     
     const keys = Object.keys(reportData[0]);
     const headers = keys.map(k => k.replace(/_/g, " ").toUpperCase());
@@ -819,7 +2271,7 @@ const DashboardPage = () => {
     doc.autoTable({
       head: [headers],
       body: rows,
-      startY: 20,
+      startY: 28,
       theme: "striped",
       styles: { fontSize: 8 }
     });
@@ -1243,262 +2695,344 @@ const DashboardPage = () => {
 
       {/* ── Enhanced Diagnostics & Service Status Section ── */}
       <div className="enhanced-widgets-section">
-        <div className="widgets-grid">
-          {/* Widget 1: Server Health */}
-          <div className="enhanced-card">
-            <div className="enhanced-card-header">
-              <span className="header-icon"><Server size={18} /></span>
-              <h4>Server Health</h4>
-            </div>
-            <div className="widget-content-list">
-              <div className="widget-item-row">
-                <span className="widget-item-label">Server Uptime</span>
-                <span className="widget-item-value">{serverMetrics.uptime || "—"}</span>
-              </div>
-              <div className="widget-item-row">
-                <span className="widget-item-label">Backend Status</span>
-                <span className={`widget-item-value ${healthInfo.status === "ok" ? "healthy" : "unhealthy"}`}>
-                  {healthInfo.status === "ok" ? "Healthy" : "Unhealthy"}
-                </span>
-              </div>
-              <div className="widget-item-row">
-                <span className="widget-item-label">Server Time</span>
-                <span className="widget-item-value">{serverTime}</span>
-              </div>
-              <div className="widget-item-row">
-                <span className="widget-item-label">App Version</span>
-                <span className="widget-item-value">v{healthInfo.version || "1.0.0"}</span>
-              </div>
-            </div>
-          </div>
+        <div className="widgets-carousel-wrapper">
+          {/* Left Arrow */}
+          <button
+            className="carousel-arrow carousel-arrow-left"
+            onClick={() => widgetsScrollRef.current?.scrollBy({ left: -340, behavior: "smooth" })}
+            aria-label="Scroll left"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M15 18l-6-6 6-6" />
+            </svg>
+          </button>
 
-          {/* Widget 2: Device Health */}
-          <div className="enhanced-card">
-            <div className="enhanced-card-header">
-              <span className="header-icon"><Camera size={18} /></span>
-              <h4>Device Health</h4>
-            </div>
-            <div className="widget-content-list">
-              <div className="widget-item-row">
-                <span className="widget-item-label">Total Cameras</span>
-                <span className="widget-item-value">{summary.total_cameras}</span>
-              </div>
-              <div className="widget-item-row">
-                <span className="widget-item-label">Online Cameras</span>
-                <span className="widget-item-value healthy">
-                  {summary.active_streams}
-                </span>
-              </div>
-              <div className="widget-item-row">
-                <span className="widget-item-label">Offline Cameras</span>
-                <span className="widget-item-value unhealthy">
-                  {summary.total_cameras - summary.active_streams}
-                </span>
-              </div>
-              <div className="widget-item-row">
-                <span className="widget-item-label">Recording Cameras</span>
-                <span className="widget-item-value">
-                  {recordingCount}
-                </span>
-              </div>
-              <div className="widget-item-row">
-                <span className="widget-item-label">Signal Loss Cameras</span>
-                <span className="widget-item-value unhealthy">
-                  {summary.total_cameras - summary.active_streams}
-                </span>
-              </div>
-            </div>
-          </div>
+          {/* Scrollable track */}
+          <div className="widgets-scroll-track" ref={widgetsScrollRef}>
 
-
-          {/* Widget 4: Recording Health */}
-          <div className="enhanced-card">
-            <div className="enhanced-card-header">
-              <span className="header-icon"><Server size={18} /></span>
-              <h4>Recording Health</h4>
-            </div>
-            <div className="widget-content-list">
-              <div className="widget-item-row">
-                <span className="widget-item-label">Recording Cameras</span>
-                <span className="widget-item-value">{recordingCount} / {enabledCount}</span>
-              </div>
-              <div 
-                className="widget-item-row" 
-                onClick={() => setShowFailedCamerasPopup(true)} 
-                style={{ cursor: "pointer" }}
-                title="Click to view failed recordings"
-              >
-                <span className="widget-item-label" style={{ textDecoration: "underline" }}>Failed Recordings</span>
-                <span className={`widget-item-value ${cameras.filter(cam => cam.enabled !== false && !activeRecorders.includes(cam.ome_stream) && !activeRecorders.includes(cam.stream_key)).length > 0 ? "unhealthy" : "healthy"}`}>
-                  {cameras.filter(cam => cam.enabled !== false && !activeRecorders.includes(cam.ome_stream) && !activeRecorders.includes(cam.stream_key)).length}
+            {/* Widget 1: Server Health */}
+            <div className="enhanced-card">
+              <div className="enhanced-card-header">
+                <span className="header-icon"><Server size={18} /></span>
+                <h4>Server Health</h4>
+                <span className={`badge ${healthInfo.status === "ok" ? "healthy" : "unhealthy"}`} style={{ marginLeft: "auto", fontSize: "11px", display: "inline-flex", alignItems: "center", gap: "4px", background: healthInfo.status === "ok" ? "rgba(34, 197, 94, 0.12)" : "rgba(239, 68, 68, 0.12)", color: healthInfo.status === "ok" ? "#22c55e" : "#ef4444", padding: "3px 9px", borderRadius: "12px", fontWeight: "600" }}>
+                  <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: healthInfo.status === "ok" ? "#22c55e" : "#ef4444", display: "inline-block" }} />
+                  {healthInfo.status === "ok" ? "Online" : "Offline"}
                 </span>
               </div>
-              <div className="widget-item-row">
-                <span className="widget-item-label">Service Status</span>
-                <span className={`widget-item-value ${activeRecorders.length > 0 ? "healthy" : "unhealthy"}`}>
-                  {activeRecorders.length > 0 ? "Running" : "Stopped"}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Widget 5: Storage Details */}
-          <div className="enhanced-card">
-            <div className="enhanced-card-header">
-              <span className="header-icon"><HardDrive size={18} /></span>
-              <h4>Storage Details</h4>
-              {storageDiagnostics.warning_status && (
-                <span className="badge warning" style={{ marginLeft: "auto", fontSize: "11px" }}>Low Storage Warning</span>
-              )}
-            </div>
-            <div className="widget-content-list">
-              <div className="widget-item-row">
-                <span className="widget-item-label">Total Capacity</span>
-                <span className="widget-item-value">{(storageDiagnostics.total_gb / 1024).toFixed(2)} TB ({storageDiagnostics.total_gb} GB)</span>
-              </div>
-              <div className="widget-item-row">
-                <span className="widget-item-label">Used Space</span>
-                <span className="widget-item-value">{(storageDiagnostics.used_gb / 1024).toFixed(2)} TB ({storageDiagnostics.used_gb} GB)</span>
-              </div>
-              <div className="widget-item-row">
-                <span className="widget-item-label">Free Space</span>
-                <span className="widget-item-value">{(storageDiagnostics.free_gb / 1024).toFixed(2)} TB ({storageDiagnostics.free_gb} GB)</span>
-              </div>
-              
-              <div style={{ marginTop: "10px" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", marginBottom: "4px" }}>
-                  <span>Usage Utilization</span>
-                  <strong>{storageDiagnostics.usage_pct}%</strong>
+              <div className="widget-content-list">
+                <div className="widget-item-row">
+                  <span className="widget-item-label">Server Uptime</span>
+                  <span className="widget-item-value">{serverMetrics.uptime || "—"}</span>
                 </div>
-                <div className="card-inline-bar" style={{ marginTop: 0 }}>
-                  <div
-                    className="card-inline-bar-fill"
-                    style={{
-                      width: `${storageDiagnostics.usage_pct}%`,
-                      background: storageDiagnostics.warning_status ? "linear-gradient(90deg, #f59e0b, #ef4444)" : "linear-gradient(90deg, var(--teal), #00d2ff)"
-                    }}
-                  />
+                <div className="widget-item-row">
+                  <span className="widget-item-label">Backend Status</span>
+                  <span className={`widget-item-value ${healthInfo.status === "ok" ? "healthy" : "unhealthy"}`}>
+                    {healthInfo.status === "ok" ? "Healthy" : "Unhealthy"}
+                  </span>
+                </div>
+                <div className="widget-item-row">
+                  <span className="widget-item-label">Server Time</span>
+                  <span className="widget-item-value">{serverTime}</span>
+                </div>
+                <div className="widget-item-row">
+                  <span className="widget-item-label">App Version</span>
+                  <span className="widget-item-value">v{healthInfo.version || "1.0.0"}</span>
+                </div>
+
+                {/* Micro Service Status Chips */}
+                <div style={{ marginTop: "auto", paddingTop: "10px", borderTop: "1px dashed rgba(255,255,255,0.08)", display: "flex", justifyContent: "space-between", gap: "4px" }}>
+                  <div style={{ background: "rgba(255,255,255,0.04)", padding: "4px 7px", borderRadius: "6px", fontSize: "11px", color: "#94a3b8", display: "flex", alignItems: "center", gap: "5px" }}>
+                    <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: "#22c55e" }} /> API
+                  </div>
+                  <div style={{ background: "rgba(255,255,255,0.04)", padding: "4px 7px", borderRadius: "6px", fontSize: "11px", color: "#94a3b8", display: "flex", alignItems: "center", gap: "5px" }}>
+                    <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: "#22c55e" }} /> Database
+                  </div>
+                  <div style={{ background: "rgba(255,255,255,0.04)", padding: "4px 7px", borderRadius: "6px", fontSize: "11px", color: "#94a3b8", display: "flex", alignItems: "center", gap: "5px" }}>
+                    <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: "#22c55e" }} /> Streamer
+                  </div>
                 </div>
               </div>
+            </div>
 
-              <div className="widget-item-row" style={{ marginTop: "10px" }}>
-                <span className="widget-item-label">Estimated Retention</span>
-                <span className={`widget-item-value ${storageDiagnostics.retention_days === null ? "warning" : "healthy"}`}>
-                  {storageDiagnostics.retention_days !== null ? `${storageDiagnostics.retention_days} Days` : "Calculating..."}
+            {/* Widget 2: Device Health */}
+            <div className="enhanced-card">
+              <div className="enhanced-card-header">
+                <span className="header-icon"><Camera size={18} /></span>
+                <h4>Device Health</h4>
+                <span className="badge healthy" style={{ marginLeft: "auto", fontSize: "11px", background: "rgba(34, 197, 94, 0.12)", color: "#22c55e", padding: "3px 9px", borderRadius: "12px", fontWeight: "600" }}>
+                  {summary.total_cameras} Devices
                 </span>
               </div>
-            </div>
-          </div>
+              <div className="widget-content-list">
+                <div className="widget-item-row">
+                  <span className="widget-item-label">Total Cameras</span>
+                  <span className="widget-item-value">{summary.total_cameras}</span>
+                </div>
+                <div className="widget-item-row">
+                  <span className="widget-item-label">Online Cameras</span>
+                  <span className="widget-item-value healthy">{summary.active_streams}</span>
+                </div>
+                <div className="widget-item-row">
+                  <span className="widget-item-label">Offline Cameras</span>
+                  <span className="widget-item-value unhealthy">{summary.total_cameras - summary.active_streams}</span>
+                </div>
+                <div className="widget-item-row">
+                  <span className="widget-item-label">Recording Cameras</span>
+                  <span className="widget-item-value">{recordingCount}</span>
+                </div>
+                <div className="widget-item-row">
+                  <span className="widget-item-label">Signal Loss Cameras</span>
+                  <span className="widget-item-value unhealthy">{summary.total_cameras - summary.active_streams}</span>
+                </div>
 
-          {/* Widget 6: Bitrate Trend */}
-          <div className="enhanced-card">
-            <div className="enhanced-card-header">
-              <span className="header-icon"><Activity size={18} /></span>
-              <h4>Bitrate Trend</h4>
-              <div className="chart-filters" style={{ marginLeft: "auto", display: "flex", gap: "6px" }}>
-                {["1h", "24h", "7d"].map((f) => (
-                  <button
-                    key={f}
-                    onClick={() => setBitrateFilter(f)}
-                    className={`chart-filter-btn ${bitrateFilter === f ? "active" : ""}`}
-                    style={{
-                      padding: "2px 8px",
-                      fontSize: "10px",
-                      fontWeight: "700",
-                      borderRadius: "4px",
-                      border: "1px solid var(--border)",
-                      background: bitrateFilter === f ? "rgba(16, 185, 129, 0.2)" : "rgba(255, 255, 255, 0.02)",
-                      color: bitrateFilter === f ? "var(--teal)" : "var(--text-secondary)",
-                      cursor: "pointer",
-                      transition: "all 0.2s"
-                    }}
-                  >
-                    {f.toUpperCase()}
-                  </button>
-                ))}
+                {/* Availability Progress Bar */}
+                <div style={{ marginTop: "auto", paddingTop: "8px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11.5px", marginBottom: "4px" }}>
+                    <span className="widget-item-label" style={{ fontSize: "11.5px" }}>Availability Rate</span>
+                    <strong style={{ color: "#22c55e" }}>
+                      {summary.total_cameras > 0 ? Math.round((summary.active_streams / summary.total_cameras) * 100) : 0}%
+                    </strong>
+                  </div>
+                  <div className="card-inline-bar" style={{ marginTop: 0 }}>
+                    <div
+                      className="card-inline-bar-fill"
+                      style={{
+                        width: `${summary.total_cameras > 0 ? (summary.active_streams / summary.total_cameras) * 100 : 0}%`,
+                        background: "linear-gradient(90deg, #22c55e, #00d2ff)"
+                      }}
+                    />
+                  </div>
+                </div>
               </div>
             </div>
-            <div className="widget-content-list" style={{ minHeight: "280px" }}>
-              <div style={{ display: "flex", justifyContent: "space-around", marginBottom: "10px", fontSize: "12px" }}>
-                <div>Current: <strong>{bitrateDiagnostics.current_bitrate} Mbps</strong></div>
-                <div>Avg: <strong>{bitrateDiagnostics.avg_bitrate} Mbps</strong></div>
-                <div>Peak: <strong>{bitrateDiagnostics.peak_bitrate} Mbps</strong></div>
-              </div>
-              <InteractiveLineChart data={bitrateDiagnostics.trend_data} xKey="timestamp" yKey="bitrate_mbps" height={220} />
-            </div>
-          </div>
 
-          {/* Widget 7: Storage Usage Trend */}
-          <div className="enhanced-card">
-            <div className="enhanced-card-header">
-              <span className="header-icon"><HardDrive size={18} /></span>
-              <h4>Storage Growth Trend</h4>
+            {/* Widget 3: Recording Health */}
+            <div className="enhanced-card">
+              <div className="enhanced-card-header">
+                <span className="header-icon"><Server size={18} /></span>
+                <h4>Recording Health</h4>
+                <span className={`badge ${activeRecorders.length > 0 ? "healthy" : "unhealthy"}`} style={{ marginLeft: "auto", fontSize: "11px", background: activeRecorders.length > 0 ? "rgba(34, 197, 94, 0.12)" : "rgba(239, 68, 68, 0.12)", color: activeRecorders.length > 0 ? "#22c55e" : "#ef4444", padding: "3px 9px", borderRadius: "12px", fontWeight: "600" }}>
+                  {activeRecorders.length > 0 ? "Active" : "Stopped"}
+                </span>
+              </div>
+              <div className="widget-content-list">
+                <div className="widget-item-row">
+                  <span className="widget-item-label">Recording Cameras</span>
+                  <span className="widget-item-value">{recordingCount} / {enabledCount}</span>
+                </div>
+                <div
+                  className="widget-item-row"
+                  onClick={() => setShowFailedCamerasPopup(true)}
+                  style={{ cursor: "pointer" }}
+                  title="Click to view failed recordings"
+                >
+                  <span className="widget-item-label" style={{ textDecoration: "underline" }}>Failed Recordings</span>
+                  <span className={`widget-item-value ${cameras.filter(cam => cam.enabled !== false && !activeRecorders.includes(cam.ome_stream) && !activeRecorders.includes(cam.stream_key)).length > 0 ? "unhealthy" : "healthy"}`}>
+                    {cameras.filter(cam => cam.enabled !== false && !activeRecorders.includes(cam.ome_stream) && !activeRecorders.includes(cam.stream_key)).length}
+                  </span>
+                </div>
+                <div className="widget-item-row">
+                  <span className="widget-item-label">Service Status</span>
+                  <span className={`widget-item-value ${activeRecorders.length > 0 ? "healthy" : "unhealthy"}`}>
+                    {activeRecorders.length > 0 ? "Running" : "Stopped"}
+                  </span>
+                </div>
+                <div className="widget-item-row">
+                  <span className="widget-item-label">Storage Mode</span>
+                  <span className="widget-item-value" style={{ color: "#38bdf8" }}>Continuous & Motion</span>
+                </div>
+
+                {/* Recording Utilization Bar */}
+                <div style={{ marginTop: "auto", paddingTop: "8px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11.5px", marginBottom: "4px" }}>
+                    <span className="widget-item-label" style={{ fontSize: "11.5px" }}>Recording Active</span>
+                    <strong style={{ color: enabledCount > 0 && recordingCount / enabledCount >= 0.8 ? "#22c55e" : "#f59e0b" }}>
+                      {enabledCount > 0 ? Math.round((recordingCount / enabledCount) * 100) : 0}%
+                    </strong>
+                  </div>
+                  <div className="card-inline-bar" style={{ marginTop: 0 }}>
+                    <div
+                      className="card-inline-bar-fill"
+                      style={{
+                        width: `${enabledCount > 0 ? (recordingCount / enabledCount) * 100 : 0}%`,
+                        background: "linear-gradient(90deg, #8b5cf6, #3b82f6)"
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
             </div>
-            <div className="widget-content-list" style={{ minHeight: "280px" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "8px", fontSize: "12px", alignItems: "center" }}>
-                <div>Avg Daily: <strong>{storageDiagnostics.avg_daily_consumption !== null ? `${storageDiagnostics.avg_daily_consumption} GB/day` : "Calculating..."}</strong></div>
-                {storageDiagnostics.predicted_exhaustion_date && (
-                  <div style={{ color: "#ef4444", fontWeight: "700", whiteSpace: "nowrap", fontSize: "11.5px" }}>Exhaustion: {storageDiagnostics.predicted_exhaustion_date}</div>
+
+            {/* Widget 4: Storage Details */}
+            <div className="enhanced-card">
+              <div className="enhanced-card-header">
+                <span className="header-icon"><HardDrive size={18} /></span>
+                <h4>Storage Details</h4>
+                {storageDiagnostics.warning_status && (
+                  <span className="badge warning" style={{ marginLeft: "auto", fontSize: "11px" }}>Low Storage Warning</span>
                 )}
               </div>
-              {storageDiagnostics.warning_status && storageDiagnostics.predicted_exhaustion_date && (
-                <div className="warning-banner" style={{ background: "rgba(239, 68, 68, 0.15)", border: "1px solid rgba(239, 68, 68, 0.3)", borderRadius: "6px", padding: "6px 10px", fontSize: "11.5px", color: "#f87171", marginBottom: "8px" }}>
-                  ⚠️ Warning: Exhaustion predicted on {storageDiagnostics.predicted_exhaustion_date}.
+              <div className="widget-content-list">
+                <div className="widget-item-row">
+                  <span className="widget-item-label">Total Capacity</span>
+                  <span className="widget-item-value">{(storageDiagnostics.total_gb / 1024).toFixed(2)} TB ({storageDiagnostics.total_gb} GB)</span>
                 </div>
-              )}
-              <StorageTrendChart data={storageDiagnostics.trend_history} xKey="timestamp" yKey="used_gb" height={220} />
-            </div>
-          </div>
-
-          {/* Widget 8: Top Bandwidth Consumers */}
-          <div className="enhanced-card bandwidth-card">
-            <div className="enhanced-card-header">
-              <span className="header-icon"><Camera size={18} /></span>
-              <h4>Top Bandwidth Consumers</h4>
-            </div>
-            <div className="widget-content-list">
-              {camerasBandwidth.top_cameras && camerasBandwidth.top_cameras.length > 0 ? (
-                <div className="bandwidth-list-container">
-                  {camerasBandwidth.top_cameras.map((cam, idx) => (
+                <div className="widget-item-row">
+                  <span className="widget-item-label">Used Space</span>
+                  <span className="widget-item-value">{(storageDiagnostics.used_gb / 1024).toFixed(2)} TB ({storageDiagnostics.used_gb} GB)</span>
+                </div>
+                <div className="widget-item-row">
+                  <span className="widget-item-label">Free Space</span>
+                  <span className="widget-item-value">{(storageDiagnostics.free_gb / 1024).toFixed(2)} TB ({storageDiagnostics.free_gb} GB)</span>
+                </div>
+                <div style={{ marginTop: "10px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", marginBottom: "4px" }}>
+                    <span className="widget-item-label">Usage Utilization</span>
+                    <strong>{storageDiagnostics.usage_pct}%</strong>
+                  </div>
+                  <div className="card-inline-bar" style={{ marginTop: 0 }}>
                     <div
-                      key={cam.id || idx}
-                      onClick={() => navigate("/cameras")}
-                      className="bandwidth-item-row"
+                      className="card-inline-bar-fill"
                       style={{
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                        padding: "8px 12px",
-                        background: "var(--bg-elevated)",
-                        border: "1px solid var(--border-light)",
-                        borderRadius: "6px",
-                        cursor: "pointer",
-                        transition: "border-color 0.2s ease"
+                        width: `${storageDiagnostics.usage_pct}%`,
+                        background: storageDiagnostics.warning_status ? "linear-gradient(90deg, #f59e0b, #ef4444)" : "linear-gradient(90deg, var(--teal), #00d2ff)"
                       }}
-                      onMouseEnter={(e) => e.currentTarget.style.borderColor = "var(--teal)"}
-                      onMouseLeave={(e) => e.currentTarget.style.borderColor = "var(--border-light)"}
+                    />
+                  </div>
+                </div>
+                <div className="widget-item-row" style={{ marginTop: "10px" }}>
+                  <span className="widget-item-label">Estimated Retention</span>
+                  <span className={`widget-item-value ${storageDiagnostics.retention_days === null ? "warning" : "healthy"}`}>
+                    {storageDiagnostics.retention_days !== null ? `${storageDiagnostics.retention_days} Days` : "Calculating..."}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Bitrate Trend & Storage Growth Trend cards (temporarily commented out)
+            // Widget 5: Bitrate Trend
+            <div className="enhanced-card enhanced-card--wide">
+              <div className="enhanced-card-header">
+                <span className="header-icon"><Activity size={18} /></span>
+                <h4>Bitrate Trend</h4>
+                <div className="chart-filters" style={{ marginLeft: "auto", display: "flex", gap: "6px" }}>
+                  {["1h", "24h", "7d"].map((f) => (
+                    <button
+                      key={f}
+                      onClick={() => setBitrateFilter(f)}
+                      className={`chart-filter-btn ${bitrateFilter === f ? "active" : ""}`}
+                      style={{
+                        padding: "2px 8px",
+                        fontSize: "10px",
+                        fontWeight: "700",
+                        borderRadius: "4px",
+                        border: "1px solid var(--border)",
+                        background: bitrateFilter === f ? "rgba(16, 185, 129, 0.2)" : "rgba(255, 255, 255, 0.02)",
+                        color: bitrateFilter === f ? "var(--teal)" : "var(--text-secondary)",
+                        cursor: "pointer",
+                        transition: "all 0.2s"
+                      }}
                     >
-                      <div style={{ display: "flex", flexDirection: "column", minWidth: 0, flex: 1 }}>
-                        <span style={{ fontSize: "13.5px", fontWeight: "600", color: "var(--text-primary)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                          {cam.name}
-                        </span>
-                        <span style={{ fontSize: "11px", color: "var(--text-muted)" }}>{cam.ip}</span>
-                      </div>
-                      <div style={{ textAlign: "right", whiteSpace: "nowrap" }}>
-                        <div style={{ fontSize: "13.5px", fontWeight: "700", color: "var(--text-primary)" }}>{cam.bitrate} Mbps</div>
-                        <div style={{ fontSize: "11px", color: "var(--teal)", fontWeight: "600" }}>{cam.percentage}% of total</div>
-                      </div>
-                    </div>
+                      {f}
+                    </button>
                   ))}
                 </div>
-              ) : (
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: "var(--text-muted)", fontSize: "13.5px", minHeight: "120px" }}>
-                  No active camera bandwidth metrics
+              </div>
+              <div className="widget-content-list" style={{ minHeight: "220px" }}>
+                <div style={{ display: "flex", justifyContent: "space-around", marginBottom: "10px", fontSize: "12px" }}>
+                  <div>Current: <strong>{bitrateDiagnostics.current_bitrate} Mbps</strong></div>
+                  <div>Avg: <strong>{bitrateDiagnostics.avg_bitrate} Mbps</strong></div>
+                  <div>Peak: <strong>{bitrateDiagnostics.peak_bitrate} Mbps</strong></div>
                 </div>
-              )}
+                <InteractiveLineChart data={bitrateDiagnostics.trend_data} xKey="timestamp" yKey="bitrate_mbps" height={180} />
+              </div>
             </div>
-          </div>
 
+            // Widget 6: Storage Growth Trend
+            <div className="enhanced-card enhanced-card--wide">
+              <div className="enhanced-card-header">
+                <span className="header-icon"><HardDrive size={18} /></span>
+                <h4>Storage Growth Trend</h4>
+              </div>
+              <div className="widget-content-list" style={{ minHeight: "220px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "8px", fontSize: "12px", alignItems: "center" }}>
+                  <div>Avg Daily: <strong>{storageDiagnostics.avg_daily_consumption !== null ? `${storageDiagnostics.avg_daily_consumption} GB/day` : "Calculating..."}</strong></div>
+                  {storageDiagnostics.predicted_exhaustion_date && (
+                    <div style={{ color: "#ef4444", fontWeight: "700", whiteSpace: "nowrap", fontSize: "11.5px" }}>Exhaustion: {storageDiagnostics.predicted_exhaustion_date}</div>
+                  )}
+                </div>
+                {storageDiagnostics.warning_status && storageDiagnostics.predicted_exhaustion_date && (
+                  <div className="warning-banner" style={{ background: "rgba(239, 68, 68, 0.15)", border: "1px solid rgba(239, 68, 68, 0.3)", borderRadius: "6px", padding: "6px 10px", fontSize: "11.5px", color: "#f87171", marginBottom: "8px" }}>
+                    ⚠️ Warning: Exhaustion predicted on {storageDiagnostics.predicted_exhaustion_date}.
+                  </div>
+                )}
+                <StorageTrendChart data={storageDiagnostics.trend_history} xKey="timestamp" yKey="used_gb" height={180} />
+              </div>
+            </div>
+            */}
+
+            {/* Widget 7: Top Bandwidth Consumers */}
+            <div className="enhanced-card bandwidth-card">
+              <div className="enhanced-card-header">
+                <span className="header-icon"><Camera size={18} /></span>
+                <h4>Top Bandwidth Consumers</h4>
+              </div>
+              <div className="widget-content-list">
+                {camerasBandwidth.top_cameras && camerasBandwidth.top_cameras.length > 0 ? (
+                  <div className="bandwidth-list-container">
+                    {camerasBandwidth.top_cameras.map((cam, idx) => (
+                      <div
+                        key={cam.id || idx}
+                        onClick={() => navigate("/cameras")}
+                        className="bandwidth-item-row"
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          padding: "8px 12px",
+                          background: "var(--bg-elevated)",
+                          border: "1px solid var(--border-light)",
+                          borderRadius: "6px",
+                          cursor: "pointer",
+                          transition: "border-color 0.2s ease"
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.borderColor = "var(--teal)"}
+                        onMouseLeave={(e) => e.currentTarget.style.borderColor = "var(--border-light)"}
+                      >
+                        <div style={{ display: "flex", flexDirection: "column", minWidth: 0, flex: 1 }}>
+                          <span style={{ fontSize: "13.5px", fontWeight: "600", color: "var(--text-primary)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                            {cam.name}
+                          </span>
+                          <span style={{ fontSize: "11px", color: "var(--text-muted)" }}>{cam.ip}</span>
+                        </div>
+                        <div style={{ textAlign: "right", whiteSpace: "nowrap" }}>
+                          <div style={{ fontSize: "13.5px", fontWeight: "700", color: "var(--text-primary)" }}>{cam.bitrate} Mbps</div>
+                          <div style={{ fontSize: "11px", color: "var(--teal)", fontWeight: "600" }}>{cam.percentage}% of total</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: "var(--text-muted)", fontSize: "13.5px", minHeight: "120px" }}>
+                    No active camera bandwidth metrics
+                  </div>
+                )}
+              </div>
+            </div>
+
+          </div>{/* end widgets-scroll-track */}
+
+          {/* Right Arrow */}
+          <button
+            className="carousel-arrow carousel-arrow-right"
+            onClick={() => widgetsScrollRef.current?.scrollBy({ left: 340, behavior: "smooth" })}
+            aria-label="Scroll right"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M9 18l6-6-6-6" />
+            </svg>
+          </button>
         </div>
       </div>
 
@@ -1678,6 +3212,28 @@ const DashboardPage = () => {
             </div>
           )}
 
+          {reportData.length > 0 && (
+            <div className="report-filter-group" style={{ minWidth: 'auto', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <label>View Mode</label>
+              <div className="report-view-toggle">
+                <button
+                  type="button"
+                  className={`report-toggle-pill ${reportViewModes[reportType] === "tabular" ? "active" : "inactive"}`}
+                  onClick={() => handleSetViewMode(reportType, "tabular")}
+                >
+                  Tabular View
+                </button>
+                <button
+                  type="button"
+                  className={`report-toggle-pill ${reportViewModes[reportType] === "graphical" ? "active" : "inactive"}`}
+                  onClick={() => handleSetViewMode(reportType, "graphical")}
+                >
+                  Graphical View
+                </button>
+              </div>
+            </div>
+          )}
+
           <div className="report-btn-group" ref={actionsDropdownRef} style={{ position: "relative" }}>
             <button
               onClick={handleGenerateReport}
@@ -1777,161 +3333,179 @@ const DashboardPage = () => {
           {reportSuccessMsg && <div className="report-alert success">{reportSuccessMsg}</div>}
           {reportErrorMsg && <div className="report-alert error">{reportErrorMsg}</div>}
 
-          {/* Report Results Table */}
+          {/* Report Results View */}
           {reportData.length > 0 && (
-            <div className="report-table-container">
-            <div className="report-table-wrapper">
-              <table className="report-table">
-                <thead>
-                  <tr>
-                    {reportType === "alerts" && (
-                      <>
-                        <th>Timestamp</th>
-                        <th>Device IP</th>
-                        <th>Model</th>
-                        <th>Type</th>
-                        <th>Event</th>
-                        <th>Message</th>
-                        <th>Ack</th>
-                      </>
-                    )}
-                    {reportType === "live_alerts" && (
-                      <>
-                        <th>Camera IP</th>
-                        <th>Type</th>
-                        <th>Event</th>
-                        <th>Time</th>
-                        <th>Timestamp</th>
-                      </>
-                    )}
-                    {reportType === "health" && (
-                      <>
-                        <th>Device ID</th>
-                        <th>IP Address</th>
-                        <th>Manufacturer</th>
-                        <th>Model</th>
-                        <th>Type</th>
-                        <th>Status</th>
-                        <th>Latency</th>
-                        <th>Uptime</th>
-                        <th>Online Since</th>
-                        <th>Reboot Count</th>
-                        <th>Last Reboot</th>
-                      </>
-                    )}
-                    {reportType === "history" && (
-                      <>
-                        <th>Camera Name</th>
-                        <th>IP Address</th>
-                        <th>Cam Up (hrs)</th>
-                        <th>Cam Down (hrs)</th>
-                        <th>Rec Up (hrs)</th>
-                        <th>Rec Down (hrs)</th>
-                      </>
-                    )}
-                  </tr>
-                </thead>
-                <tbody>
-                  {currentReportRows.map((row, i) => (
-                    <tr key={i}>
-                      {reportType === "alerts" && (
-                        <>
-                          <td>{new Date(row.timestamp).toLocaleString()}</td>
-                          <td>{row.ip}</td>
-                          <td>{row.model}</td>
-                          <td>
-                            <span className={`report-tag-type ${row.type}`}>
-                              {row.type?.toUpperCase()}
-                            </span>
-                          </td>
-                          <td>
-                            <span className={`report-event-tag ${row.event === "device_offline" ? "offline" : "online"}`}>
-                              {row.event?.replace("_", " ").toUpperCase()}
-                            </span>
-                          </td>
-                          <td>{row.message}</td>
-                          <td>{row.acknowledged}</td>
-                        </>
-                      )}
-                      {reportType === "live_alerts" && (
-                        <>
-                          <td>{row.ip_address}</td>
-                          <td>
-                            <span className={`report-tag-type ${row.classification?.toLowerCase()}`}>
-                              {row.classification?.toUpperCase()}
-                            </span>
-                          </td>
-                          <td>{row.scenario}</td>
-                          <td style={{ color: "#22c55e", fontWeight: "600" }}>{row.time_only}</td>
-                          <td>{row.timestamp ? new Date(row.timestamp).toLocaleString() : "—"}</td>
-                        </>
-                      )}
-                      {reportType === "health" && (
-                        <>
-                          <td>{row.device_id}</td>
-                          <td>{row.ip_address}</td>
-                          <td>{row.manufacturer}</td>
-                          <td>{row.model}</td>
-                          <td>
-                            <span className={`report-tag-type ${row.device_type}`}>
-                              {row.device_type?.toUpperCase()}
-                            </span>
-                          </td>
-                          <td>
-                            <span className={`status-dot ${row.current_status === "online" ? "online" : "error"}`} style={{ display: "inline-block", marginRight: "6px" }} />
-                            <span className={`report-event-tag ${row.current_status === "online" ? "online" : "offline"}`}>
-                              {row.current_status?.toUpperCase()}
-                            </span>
-                          </td>
-                          <td>{row.latency_ms}</td>
-                          <td>{row.uptime_duration}</td>
-                          <td>{row.online_since !== "—" ? new Date(row.online_since).toLocaleString() : "—"}</td>
-                          <td>
-                            <span className="report-exit-code error">{row.reboot_count}</span>
-                          </td>
-                          <td>{row.last_reboot !== "—" ? new Date(row.last_reboot).toLocaleString() : "—"}</td>
-                        </>
-                      )}
-                      {reportType === "history" && (
-                        <>
-                          <td>{row.camera_name}</td>
-                          <td>{row.ip_address}</td>
-                          <td style={{ color: "#22c55e", fontWeight: "600" }}>{row.cam_up_hrs}</td>
-                          <td style={{ color: "#ef4444", fontWeight: "600" }}>{row.cam_down_hrs}</td>
-                          <td style={{ color: "#22c55e", fontWeight: "600" }}>{row.rec_up_hrs}</td>
-                          <td style={{ color: "#ef4444", fontWeight: "600" }}>{row.rec_down_hrs}</td>
-                        </>
-                      )}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <div className="reports-views-container">
+              {/* Tabular View Panel */}
+              <div className={`reports-view-panel ${
+                reportViewModes[reportType] === "tabular" ? "active" : "inactive-slide-out"
+              } ${
+                lastViewModeTransition?.to === "tabular" ? "instant" : ""
+              }`}>
+                <div className="report-table-container">
+                  <div className="report-table-wrapper">
+                    <table className="report-table">
+                      <thead>
+                        <tr>
+                          {reportType === "alerts" && (
+                            <>
+                              <th>Timestamp</th>
+                              <th>Device IP</th>
+                              <th>Model</th>
+                              <th>Type</th>
+                              <th>Event</th>
+                              <th>Message</th>
+                              <th>Ack</th>
+                            </>
+                          )}
+                          {reportType === "live_alerts" && (
+                            <>
+                              <th>Camera IP</th>
+                              <th>Type</th>
+                              <th>Event</th>
+                              <th>Time</th>
+                              <th>Timestamp</th>
+                            </>
+                          )}
+                          {reportType === "health" && (
+                            <>
+                              <th>Device ID</th>
+                              <th>IP Address</th>
+                              <th>Manufacturer</th>
+                              <th>Model</th>
+                              <th>Type</th>
+                              <th>Status</th>
+                              <th>Latency</th>
+                              <th>Uptime</th>
+                              <th>Online Since</th>
+                              <th>Reboot Count</th>
+                              <th>Last Reboot</th>
+                            </>
+                          )}
+                          {reportType === "history" && (
+                            <>
+                              <th>Camera Name</th>
+                              <th>IP Address</th>
+                              <th>Cam Up (hrs)</th>
+                              <th>Cam Down (hrs)</th>
+                              <th>Rec Up (hrs)</th>
+                              <th>Rec Down (hrs)</th>
+                            </>
+                          )}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {currentReportRows.map((row, i) => (
+                          <tr key={i}>
+                            {reportType === "alerts" && (
+                              <>
+                                <td>{new Date(row.timestamp).toLocaleString()}</td>
+                                <td>{row.ip}</td>
+                                <td>{row.model}</td>
+                                <td>
+                                  <span className={`report-tag-type ${row.type}`}>
+                                    {row.type?.toUpperCase()}
+                                  </span>
+                                </td>
+                                <td>
+                                  <span className={`report-event-tag ${row.event === "device_offline" ? "offline" : "online"}`}>
+                                    {row.event?.replace("_", " ").toUpperCase()}
+                                  </span>
+                                </td>
+                                <td>{row.message}</td>
+                                <td>{row.acknowledged}</td>
+                              </>
+                            )}
+                            {reportType === "live_alerts" && (
+                              <>
+                                <td>{row.ip_address}</td>
+                                <td>
+                                  <span className={`report-tag-type ${row.classification?.toLowerCase()}`}>
+                                    {row.classification?.toUpperCase()}
+                                  </span>
+                                </td>
+                                <td>{row.scenario}</td>
+                                <td style={{ color: "#22c55e", fontWeight: "600" }}>{row.time_only}</td>
+                                <td>{row.timestamp ? new Date(row.timestamp).toLocaleString() : "—"}</td>
+                              </>
+                            )}
+                            {reportType === "health" && (
+                              <>
+                                <td>{row.device_id}</td>
+                                <td>{row.ip_address}</td>
+                                <td>{row.manufacturer}</td>
+                                <td>{row.model}</td>
+                                <td>
+                                  <span className={`report-tag-type ${row.device_type}`}>
+                                    {row.device_type?.toUpperCase()}
+                                  </span>
+                                </td>
+                                <td>
+                                  <span className={`status-dot ${row.current_status === "online" ? "online" : "error"}`} style={{ display: "inline-block", marginRight: "6px" }} />
+                                  <span className={`report-event-tag ${row.current_status === "online" ? "online" : "offline"}`}>
+                                    {row.current_status?.toUpperCase()}
+                                  </span>
+                                </td>
+                                <td>{row.latency_ms}</td>
+                                <td>{row.uptime_duration}</td>
+                                <td>{row.online_since !== "—" ? new Date(row.online_since).toLocaleString() : "—"}</td>
+                                <td>
+                                  <span className="report-exit-code error">{row.reboot_count}</span>
+                                </td>
+                                <td>{row.last_reboot !== "—" ? new Date(row.last_reboot).toLocaleString() : "—"}</td>
+                              </>
+                            )}
+                            {reportType === "history" && (
+                              <>
+                                <td>{row.camera_name}</td>
+                                <td>{row.ip_address}</td>
+                                <td style={{ color: "#22c55e", fontWeight: "600" }}>{row.cam_up_hrs}</td>
+                                <td style={{ color: "#ef4444", fontWeight: "600" }}>{row.cam_down_hrs}</td>
+                                <td style={{ color: "#22c55e", fontWeight: "600" }}>{row.rec_up_hrs}</td>
+                                <td style={{ color: "#ef4444", fontWeight: "600" }}>{row.rec_down_hrs}</td>
+                              </>
+                            )}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
 
-            {/* Pagination */}
-            {reportData.length > reportPerPage && (
-              <div className="report-pagination">
-                <button
-                  className="report-pag-btn"
-                  disabled={reportCurrentPage === 1}
-                  onClick={() => setReportCurrentPage(reportCurrentPage - 1)}
-                >
-                  Prev
-                </button>
-                <span className="report-pag-info">
-                  Page {reportCurrentPage} of {totalReportPages} ({reportData.length} records)
-                </span>
-                <button
-                  className="report-pag-btn"
-                  disabled={reportCurrentPage === totalReportPages}
-                  onClick={() => setReportCurrentPage(reportCurrentPage + 1)}
-                >
-                  Next
-                </button>
+                  {/* Pagination */}
+                  {reportData.length > reportPerPage && (
+                    <div className="report-pagination">
+                      <button
+                        className="report-pag-btn"
+                        disabled={reportCurrentPage === 1}
+                        onClick={() => setReportCurrentPage(reportCurrentPage - 1)}
+                      >
+                        Prev
+                      </button>
+                      <span className="report-pag-info">
+                        Page {reportCurrentPage} of {totalReportPages} ({reportData.length} records)
+                      </span>
+                      <button
+                        className="report-pag-btn"
+                        disabled={reportCurrentPage === totalReportPages}
+                        onClick={() => setReportCurrentPage(reportCurrentPage + 1)}
+                      >
+                        Next
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
-            )}
-          </div>
-        )}
+
+              {/* Graphical View Panel */}
+              <div className={`reports-view-panel ${
+                reportViewModes[reportType] === "graphical" ? "active" : "inactive-slide-out"
+              } ${
+                lastViewModeTransition?.to === "tabular" ? "instant" : ""
+              }`}>
+                {renderGraphicalReport()}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

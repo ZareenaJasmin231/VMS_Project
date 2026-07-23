@@ -45,6 +45,11 @@ def save_camera_to_db(data: dict):
         print("[MONGO] ERROR: No connection")
         return False
  
+    cam_ip = data.get("ip_address") or data.get("ip")
+    if cam_ip:
+        data["ip_address"] = cam_ip
+        data["ip"] = cam_ip
+
     existing = cameras_col.find_one({"ome_stream": data["ome_stream"]})
     current_count = cameras_col.count_documents({"enabled": True})
 
@@ -65,11 +70,20 @@ def save_camera_to_db(data: dict):
 def load_devices():
     if cameras_col is not None:
         try:
+            try:
+                cameras_col.update_many(
+                    {"ip_address": {"$exists": False}, "ip": {"$exists": True}},
+                    [{"$set": {"ip_address": "$ip"}}]
+                )
+            except Exception:
+                pass
+
             docs = list(cameras_col.find({}, {"_id": 0}))
             if docs:
                 unique_cams = {}
                 for d in docs:
-                    stream_id = d.get("ome_stream") or normalize_stream_name(d.get("ip", "unknown"))
+                    cam_ip = d.get("ip_address") or d.get("ip")
+                    stream_id = d.get("ome_stream") or normalize_stream_name(cam_ip or "unknown")
                     if not stream_id: continue
                     
                     if stream_id not in unique_cams:
@@ -82,12 +96,13 @@ def load_devices():
                 print(f"[STARTUP] Loaded {len(docs)} cameras ({len(deduped)} unique IPs) from MongoDB")
                 
                 final_list = [{
-                    "ome_stream":     d.get("ome_stream") or normalize_stream_name(d.get("ip")),
+                    "ome_stream":     d.get("ome_stream") or normalize_stream_name(d.get("ip_address") or d.get("ip")),
                     "rtsp_url":       d.get("rtsp_url"),
                     "recording_rtsp": d.get("recording_rtsp", d.get("rtsp_url")),
                     "sub_stream_rtsp": d.get("sub_stream_rtsp"),
                     "sub_stream_key":  d.get("sub_stream_key"),
-                    "ip":             d.get("ip"),
+                    "ip":             d.get("ip_address") or d.get("ip"),
+                    "ip_address":     d.get("ip_address") or d.get("ip"),
                     "port":           d.get("port", 80),
                     "username":       d.get("username", ""),
                     "password":       d.get("password", ""),
@@ -104,7 +119,7 @@ def load_devices():
 
                     "shard_prefix":         d.get("shard_prefix"),
                     "assigned_worker":      d.get("assigned_worker"),
-                } for d in deduped if d.get("ip") and d.get("rtsp_url")]
+                } for d in deduped if (d.get("ip_address") or d.get("ip")) and d.get("rtsp_url")]
                 
                 save_devices(final_list)
                 return final_list
@@ -119,6 +134,11 @@ def load_devices():
         if os.path.exists(DEVICES_FILE):
             with open(DEVICES_FILE) as f:
                 data = json.load(f)
+                for d in data:
+                    cam_ip = d.get("ip_address") or d.get("ip")
+                    if cam_ip:
+                        d["ip"] = cam_ip
+                        d["ip_address"] = cam_ip
                 print(f"[STARTUP] Loaded {len(data)} cameras from devices.json")
                 return data
     except Exception as e:
@@ -135,6 +155,12 @@ def save_devices(devs):
             if isinstance(obj, datetime):
                 return obj.isoformat()
             return str(obj)
+
+        for d in devs:
+            cam_ip = d.get("ip_address") or d.get("ip")
+            if cam_ip:
+                d["ip"] = cam_ip
+                d["ip_address"] = cam_ip
 
         with open(DEVICES_FILE, "w") as f:
             json.dump(devs, f, default=serialize, indent=2)
@@ -156,7 +182,7 @@ def stream_exists_in_mediamtx(stream_name: str) -> bool:
 devices = load_devices()
 
 def get_devices_by_ip(ip: str) -> list:
-    return [d for d in devices if d.get("ip") == ip]
+    return [d for d in devices if d.get("ip") == ip or d.get("ip_address") == ip]
 
 # ------------------------------------------------------------------
 # Worker Subprocess Pool & Dynamic Camera Sharding
@@ -592,6 +618,12 @@ async def supervise_worker_pool():
         except Exception as e:
             print(f"[STREAM MANAGER] Worker pool supervision error: {e}")
             
+        try:
+            from app.services.monitoring.process_monitor import get_vms_process_metrics
+            await asyncio.to_thread(get_vms_process_metrics)
+        except Exception:
+            pass
+
         await asyncio.sleep(5)
 
 def stop_worker_pool():

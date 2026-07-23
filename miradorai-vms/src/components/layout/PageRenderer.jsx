@@ -51,6 +51,8 @@ import DesignerView from "../../pages/Mapview/DesignerView";
 import MaskingPage from "../../pages/devices/MaskingPage";
 import ForensicSearchPage from "../../pages/forensic/ForensicSearchPage";
 import AiAnalyticsPage from "../../pages/analytics/AiAnalyticsPage";
+import SystemPerformancePage from "../../pages/diagnostics/SystemPerformancePage";
+import RaidMgmtPage from "../../pages/StorageManagement";
 
 // ✅ REPORTS
 import CameraHistoryReport from "../../pages/reports/CameraHistoryReport";
@@ -127,6 +129,8 @@ const MAP = {
   "topology-map": TopologyPage,
   "designer-view": DesignerView,
   "network-health": NetworkHealthPage,
+  "system-performance": SystemPerformancePage,
+  "raid-mgmt": RaidMgmtPage,
 };
 
 // Pages that require supervisor unlock for CLIENT role
