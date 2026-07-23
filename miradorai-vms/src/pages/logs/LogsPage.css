@@ -542,3 +542,152 @@
   font-style: italic;
   margin-top: 2px;
 }
+
+/* ── Light Mode Overrides for Logs Page ── */
+[data-theme="light"] .logs-page {
+  background: var(--bg-base);
+  color: var(--text-primary);
+}
+
+[data-theme="light"] .logs-title {
+  background: linear-gradient(135deg, #0f172a 0%, var(--teal) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+[data-theme="light"] .logs-subtitle {
+  color: #64748b;
+}
+
+[data-theme="light"] .logs-tabs {
+  background: var(--bg-elevated);
+  border-color: var(--border-light);
+}
+
+[data-theme="light"] .logs-tab {
+  color: #334155;
+}
+
+[data-theme="light"] .logs-tab:hover:not(.active) {
+  background: var(--bg-hover);
+  color: #0f172a;
+}
+
+[data-theme="light"] .logs-filters {
+  background: var(--bg-surface);
+  border-color: var(--border-light);
+  box-shadow: var(--shadow-md);
+}
+
+[data-theme="light"] .log-filter-group label {
+  color: #0f172a;
+}
+
+[data-theme="light"] .log-input {
+  background: var(--bg-elevated);
+  border-color: var(--border-light);
+  color: #0f172a;
+}
+
+[data-theme="light"] .log-input::-webkit-calendar-picker-indicator {
+  filter: invert(0);
+  opacity: 0.6;
+}
+
+[data-theme="light"] .log-btn-secondary {
+  background: var(--bg-elevated);
+  border-color: var(--border-light);
+  color: #0f172a;
+}
+
+[data-theme="light"] .log-btn-secondary:hover {
+  background: var(--bg-hover);
+  color: #0f172a;
+}
+
+[data-theme="light"] .logs-table-container {
+  background: var(--bg-surface);
+  border-color: var(--border-light);
+  box-shadow: var(--shadow-md);
+}
+
+[data-theme="light"] .logs-table th {
+  background: var(--bg-elevated) !important;
+  color: #0f172a !important;
+  border-bottom-color: var(--border-light);
+}
+
+[data-theme="light"] .logs-table td {
+  color: #0f172a !important;
+  border-bottom-color: var(--border-light);
+}
+
+[data-theme="light"] .logs-table tbody tr:hover {
+  background: var(--bg-hover);
+}
+
+[data-theme="light"] .empty-logs {
+  color: #64748b;
+}
+
+[data-theme="light"] .log-camera-name {
+  color: #0f172a;
+}
+
+[data-theme="light"] .log-output pre,
+[data-theme="light"] .log-details-pre {
+  background: var(--bg-elevated);
+  color: #0f172a;
+  border: 1px solid var(--border-light);
+}
+
+[data-theme="light"] .pagination-container {
+  background: var(--bg-surface);
+  border-top-color: var(--border-light);
+}
+
+[data-theme="light"] .pagination-btn {
+  background: var(--bg-elevated);
+  border-color: var(--border-light);
+  color: #0f172a;
+}
+
+[data-theme="light"] .pagination-btn:not(:disabled):hover {
+  background: var(--bg-hover);
+}
+
+[data-theme="light"] .pagination-info {
+  color: #475569;
+}
+
+[data-theme="light"] .logs-select-btn {
+  background: var(--bg-elevated);
+  border-color: var(--border-light);
+  color: #0f172a;
+}
+
+[data-theme="light"] .logs-select-btn:hover {
+  background: var(--bg-hover);
+}
+
+[data-theme="light"] .logs-dropdown-menu {
+  background: var(--bg-surface);
+  border-color: var(--border-light);
+  box-shadow: var(--shadow-md);
+}
+
+[data-theme="light"] .logs-dropdown-item {
+  color: #334155;
+}
+
+[data-theme="light"] .logs-dropdown-item:hover {
+  background: var(--bg-hover);
+  color: #0f172a;
+}
+
+[data-theme="light"] .log-file-name,
+[data-theme="light"] .log-duration,
+[data-theme="light"] .log-no-face {
+  color: #475569;
+}
+

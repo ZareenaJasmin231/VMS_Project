@@ -1,16 +1,11 @@
 /* ── Backup Page Root ────────────────────────────────────────── */
 .backup-page {
-  --text-secondary: #ffffff;
-  --text-muted: #ffffff;
-  color-scheme: dark;
   display: flex;
   flex-direction: column;
   gap: 24px;
   padding: 32px;
   background: var(--bg-base);
   color: var(--text-primary);
-  min-height: 100vh;
-  overflow-y: auto;
   font-family: var(--font-ui);
 }
 
@@ -34,7 +29,7 @@
   font-size: 30px;
   font-weight: 700;
   margin: 0 0 4px;
-  background: linear-gradient(135deg, #fff 0%, var(--teal) 100%);
+  background: linear-gradient(135deg, var(--text-primary) 0%, var(--teal) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   letter-spacing: -0.02em;
@@ -497,3 +492,170 @@
 .group-retention-table tbody tr:hover {
   background: var(--bg-hover);
 }
+
+/* ── Light Mode Overrides for Backup Page ── */
+[data-theme="light"] .backup-page {
+  background: var(--bg-base);
+  color: var(--text-primary);
+}
+
+[data-theme="light"] .backup-page-title {
+  background: linear-gradient(135deg, #0f172a 0%, var(--teal) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+[data-theme="light"] .backup-page-desc {
+  color: #475569;
+}
+
+[data-theme="light"] .stat-pill {
+  background: var(--bg-surface);
+  border-color: var(--border-light);
+}
+
+[data-theme="light"] .stat-pill label {
+  color: #64748b;
+}
+
+[data-theme="light"] .stat-value {
+  color: #0f172a;
+}
+
+[data-theme="light"] .backup-info-bar {
+  background: var(--teal-subtle);
+  border-color: var(--teal-glow);
+  color: #334155;
+}
+
+[data-theme="light"] .info-item strong {
+  color: #0f172a;
+}
+
+[data-theme="light"] .backup-section-card {
+  background: var(--bg-surface);
+  border-color: var(--border-light);
+  box-shadow: var(--shadow-md);
+}
+
+[data-theme="light"] .backup-section-card:hover {
+  border-color: var(--teal);
+  box-shadow: var(--shadow-lg);
+}
+
+[data-theme="light"] .card-header {
+  background: var(--bg-elevated);
+  border-bottom-color: var(--border-light);
+}
+
+[data-theme="light"] .card-header h2 {
+  color: #0f172a;
+}
+
+[data-theme="light"] .input-group label {
+  color: #475569;
+}
+
+[data-theme="light"] .backup-input,
+[data-theme="light"] .backup-select {
+  background: var(--bg-elevated);
+  border-color: var(--border-light);
+  color: #0f172a;
+}
+
+[data-theme="light"] .backup-input:focus,
+[data-theme="light"] .backup-select:focus {
+  background: var(--bg-surface);
+  border-color: var(--teal);
+}
+
+[data-theme="light"] .camera-selector {
+  background: var(--bg-elevated);
+  border-color: var(--border-light);
+}
+
+[data-theme="light"] .cam-item {
+  color: #334155;
+}
+
+[data-theme="light"] .cam-item:hover {
+  background: var(--bg-hover);
+  color: #0f172a;
+}
+
+[data-theme="light"] .btn-secondary {
+  background: var(--bg-elevated);
+  color: #0f172a;
+  border-color: var(--border-light);
+}
+
+[data-theme="light"] .btn-secondary:hover {
+  background: var(--bg-hover);
+}
+
+[data-theme="light"] .progress-header {
+  color: #475569;
+}
+
+[data-theme="light"] .progress-bar-bg {
+  background: var(--bg-elevated);
+}
+
+[data-theme="light"] .modal-overlay {
+  background: rgba(15, 23, 42, 0.35);
+}
+
+[data-theme="light"] .modal-content {
+  background: var(--bg-surface);
+  border-color: var(--border-light);
+  box-shadow: var(--shadow-lg);
+}
+
+[data-theme="light"] .dest-card {
+  background: var(--bg-elevated);
+  border-color: var(--border-light);
+}
+
+[data-theme="light"] .dest-card:hover {
+  background: var(--bg-hover);
+}
+
+[data-theme="light"] .dest-card.active {
+  background: var(--teal-subtle);
+  border-color: var(--teal);
+}
+
+[data-theme="light"] .dest-label {
+  color: #0f172a;
+}
+
+[data-theme="light"] .dest-sub {
+  color: #64748b;
+}
+
+[data-theme="light"] .help-box {
+  background: var(--bg-elevated);
+  border-color: var(--border-light);
+  color: #334155;
+}
+
+[data-theme="light"] .group-retention-table-wrap {
+  background: var(--bg-surface);
+  border-color: var(--border-light);
+}
+
+[data-theme="light"] .group-retention-table th {
+  background: var(--bg-elevated);
+  color: #64748b;
+  border-bottom-color: var(--border-light);
+}
+
+[data-theme="light"] .group-retention-table td {
+  color: #0f172a;
+  border-bottom-color: var(--border-light);
+}
+
+[data-theme="light"] .group-retention-table tbody tr:hover {
+  background: var(--bg-hover);
+}
+

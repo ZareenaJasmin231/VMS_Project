@@ -314,10 +314,10 @@ function WeekGrid({ week, onChange }) {
     <div className="week-grid-v2">
       {/* Header */}
       <div className="wgv2-header">
-        <div className="wgv2-col-day" style={{ color: "rgba(255, 255, 255, 0.5)" }}>Day</div>
-        <div className="wgv2-col-from" style={{ color: "rgba(255, 255, 255, 0.5)" }}>From</div>
-        <div className="wgv2-col-to" style={{ color: "rgba(255, 255, 255, 0.5)" }}>To</div>
-        <div className="wgv2-col-bar" style={{ color: "rgba(255, 255, 255, 0.5)" }}>Timeline (24 h)</div>
+        <div className="wgv2-col-day">Day</div>
+        <div className="wgv2-col-from">From</div>
+        <div className="wgv2-col-to">To</div>
+        <div className="wgv2-col-bar">Timeline (24 h)</div>
       </div>
 
       {DAYS.map((day) => {
@@ -415,7 +415,7 @@ function ExceptionCalendar({ exceptions, onChange }) {
         <button className="cal-nav" onClick={nextMonth}>&#8250;</button>
       </div>
       <div className="cal-grid">
-        {["Mo","Tu","We","Th","Fr","Sa","Su"].map((d) => <div key={d} className="cal-dow" style={{ color: "rgba(255, 255, 255, 0.5)" }}>{d}</div>)}
+        {["Mo","Tu","We","Th","Fr","Sa","Su"].map((d) => <div key={d} className="cal-dow">{d}</div>)}
         {cells}
       </div>
     </div>
@@ -480,7 +480,7 @@ export default function Schedules() {
     setSchedules((prev) => prev.map((s) => (s.id === selectedId ? { ...s, ...patch } : s)));
 
   return (
-    <div className="page-shell schedules-page">
+    <div className="schedules-page">
       <div className="page-header">
         <div className="page-header__left">
           <h1 className="page-title">Schedules</h1>
@@ -499,14 +499,14 @@ export default function Schedules() {
         />
       )}
 
-      <div className="app-content">
+      <div className="sch-main-content">
         {/* Schedule list table */}
         <div className="sch-table-wrap">
           <table className="m-table">
             <thead>
               <tr>
-                <th style={{ color: "rgba(255, 255, 255, 0.5)" }}>Name</th>
-                <th style={{ color: "rgba(255, 255, 255, 0.5)" }}>Status</th>
+                <th>Name</th>
+                <th>Status</th>
               </tr>
             </thead>
             <tbody>
@@ -537,7 +537,7 @@ export default function Schedules() {
           <div className="sch-detail card">
             <div className="sch-detail-body" style={{ marginTop: '8px' }}>
               <div className="sch-name-row">
-                <label style={{ color: "rgba(255, 255, 255, 0.5)" }}>Name:</label>
+                <label className="sch-name-label">Name:</label>
                 <input
                   className="ec-input"
                   value={selected.name}
@@ -551,7 +551,7 @@ export default function Schedules() {
                   Schedule Exceptions
                 </button>
               </div>
-              <h3 className="week-title" style={{ color: "rgba(255, 255, 255, 0.5)" }}>Week schedule</h3>
+              <h3 className="week-title">Week schedule</h3>
               <WeekGrid week={selected.week} onChange={(week) => updateSelected({ week })} />
 
               <div className="sch-apply-row">
@@ -606,7 +606,7 @@ export default function Schedules() {
                 exceptions={selected.exceptions}
                 onChange={(exceptions) => updateSelected({ exceptions })}
               />
-              <p className="exc-note" style={{ marginTop: "16px", color: "rgba(255, 255, 255, 0.5)", fontSize: "12.5px", lineHeight: "1.4" }}>
+              <p className="exc-note" style={{ marginTop: "16px", fontSize: "12.5px", lineHeight: "1.4" }}>
                 Select specific dates as exceptions. On these selected days, no recordings or scheduled events will take place.
               </p>
             </>

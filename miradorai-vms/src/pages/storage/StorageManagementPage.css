@@ -170,12 +170,30 @@
 .sm-legend-dot--free  { background: #22c55e; }
 .sm-legend-dot--other { background: #ef4444; }
 
+.sm-field-label {
+  font-weight: 500;
+  color: #ffffff;
+}
+
+.sm-field-label--lg {
+  font-weight: 600;
+  font-size: 18px;
+  color: #ffffff;
+}
+
+.sm-modal-help {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  margin-top: 4px;
+  padding-left: 2px;
+}
+
 /* ── Usage bar ──────────────────────────────────── */
 .sm-usage-label {
   font-size: 15px;
   font-weight: 700;
   letter-spacing: 0.08em;
-  color: var(--text-muted);
+  color: #ffffff;
   margin-top: 4px;
   width: 100%;
   text-align: left;
@@ -195,7 +213,7 @@
 }
 .sm-usage-text {
   font-size: 17px;
-  color: var(--text-secondary);
+  color: #ffffff;
   margin-top: 4px;
   width: 100%;
   text-align: left;
@@ -269,8 +287,6 @@
   margin: 4px 0;
 }
 
-/* ── APPEND TO BOTTOM OF StorageManagementPage.css ── */
-
 /* ── Folder row with Browse button ─────────────── */
 .sm-folder-row {
   display: flex;
@@ -341,3 +357,77 @@
   outline: none !important;
   transform: none !important;
 }
+
+/* ── Light Mode Overrides for Storage Management Page ── */
+[data-theme="light"] .sm-table-wrap .m-table th {
+  color: #0f172a !important;
+}
+
+[data-theme="light"] .sm-table-wrap .m-table td {
+  color: #0f172a !important;
+}
+
+[data-theme="light"] .sm-table-wrap .m-table td code,
+[data-theme="light"] .sm-table-wrap .m-table td .sm-location {
+  color: #0f172a !important;
+}
+
+[data-theme="light"] .sm-field-label,
+[data-theme="light"] .sm-field-label--lg,
+[data-theme="light"] .sm-usage-label,
+[data-theme="light"] .sm-usage-text {
+  color: #0f172a !important;
+}
+
+[data-theme="light"] .sm-input {
+  background: var(--bg-elevated);
+  border-color: var(--border-light);
+  color: #0f172a;
+}
+
+[data-theme="light"] .sm-card:hover {
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="light"] .sm-legend span {
+  color: #334155;
+}
+
+[data-theme="light"] .sm-legend strong {
+  color: #0f172a;
+}
+
+[data-theme="light"] .sm-btn--danger {
+  color: #dc2626 !important;
+  background: rgba(220, 38, 38, 0.06) !important;
+  border-color: rgba(220, 38, 38, 0.3) !important;
+}
+
+[data-theme="light"] .sm-btn--danger:hover:not(:disabled) {
+  background: rgba(220, 38, 38, 0.15) !important;
+  border-color: #dc2626 !important;
+  color: #dc2626 !important;
+}
+
+[data-theme="light"] .sm-alloc-warning {
+  background: rgba(239, 68, 68, 0.1);
+  border-color: rgba(239, 68, 68, 0.3);
+  color: #991b1b;
+}
+
+[data-theme="light"] .sm-alloc-warning svg {
+  color: #dc2626;
+}
+
+[data-theme="light"] .sm-browse-btn {
+  background: var(--bg-elevated);
+  border-color: var(--border-light);
+  color: var(--text-secondary);
+}
+
+[data-theme="light"] .sm-browse-btn:hover {
+  background: var(--bg-hover);
+  color: #0f172a;
+  border-color: var(--teal);
+}
+

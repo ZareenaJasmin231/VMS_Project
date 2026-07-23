@@ -343,3 +343,86 @@
   color: #ef4444;
   background: rgba(239, 68, 68, 0.08);
 }
+
+/* ── Light Mode Overrides for Email Schedules Page ── */
+[data-theme="light"] .es-page {
+  background-color: var(--bg-base);
+  color: var(--text-primary);
+}
+
+[data-theme="light"] .es-title {
+  color: #0f172a;
+}
+
+[data-theme="light"] .es-panel {
+  background: var(--bg-surface);
+  border-color: var(--border-light);
+  box-shadow: var(--shadow-md);
+}
+
+[data-theme="light"] .es-form-title,
+[data-theme="light"] .es-list-title {
+  color: #0f172a;
+  border-bottom-color: var(--border-light);
+}
+
+[data-theme="light"] .es-form-field label {
+  color: #475569;
+}
+
+[data-theme="light"] .es-input,
+[data-theme="light"] .es-select,
+[data-theme="light"] .es-time-input {
+  background: var(--bg-elevated);
+  border-color: var(--border-light);
+  color: #0f172a;
+}
+
+[data-theme="light"] .es-input:focus,
+[data-theme="light"] .es-select:focus,
+[data-theme="light"] .es-time-input:focus {
+  background: var(--bg-surface);
+  border-color: var(--teal);
+}
+
+[data-theme="light"] .es-checkbox-field label {
+  color: #0f172a;
+}
+
+[data-theme="light"] .es-empty-state {
+  background: var(--bg-elevated);
+  border-color: var(--border-light);
+  color: #64748b;
+}
+
+[data-theme="light"] .es-list-item {
+  background: var(--bg-elevated);
+  border-color: var(--border-light);
+}
+
+[data-theme="light"] .es-list-item:hover {
+  background: var(--bg-hover);
+  border-color: var(--teal);
+}
+
+[data-theme="light"] .es-item-report-type {
+  color: #0f172a;
+}
+
+[data-theme="light"] .es-item-freq-info {
+  color: #475569;
+}
+
+[data-theme="light"] .es-item-recipients {
+  color: #64748b;
+}
+
+[data-theme="light"] .es-btn-delete {
+  color: #64748b;
+}
+
+[data-theme="light"] .es-btn-delete:hover {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.1);
+}
+

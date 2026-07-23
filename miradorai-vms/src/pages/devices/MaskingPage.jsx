@@ -91,7 +91,7 @@ export default function MaskingPage() {
                 <div className="mp-device-dot" />
                 <div className="mp-device-info">
                   <span className="mp-device-name">{selectedCam.name || selectedCam.ip}</span>
-                  <span className="mp-device-ip" style={{ color: "#ffffff" }}>{selectedCam.ip}</span>
+                  <span className="mp-device-ip">{selectedCam.ip}</span>
                 </div>
               </div>
             </div>
@@ -112,7 +112,7 @@ export default function MaskingPage() {
                 <path d="M8 8h8v8H8z" />
               </svg>
             </div>
-            <p style={{ color: "#ffffff" }}>Select a camera from the list on the right to start configuring privacy masks.</p>
+            <p>Select a camera from the list on the right to start configuring privacy masks.</p>
           </div>
         )}
       </main>
@@ -120,7 +120,7 @@ export default function MaskingPage() {
       {/* Right Sidebar: Camera List */}
       <aside className="mp-sidebar">
         <div className="mp-sidebar-head">
-          <h3 className="mp-sidebar-title" style={{ color: "#ffffff" }}>Devices</h3>
+          <h3 className="mp-sidebar-title">Devices</h3>
           <span className="mp-badge">{cameras.length}</span>
         </div>
         <div className="mp-sidebar-search">
@@ -137,7 +137,7 @@ export default function MaskingPage() {
               >
                 <div className="mp-cam-info">
                   <div className="mp-cam-name">{cam.name || "Unnamed"}</div>
-                  <div className="mp-cam-ip" style={{ color: "#ffffff" }}>{cam.ip}</div>
+                  <div className="mp-cam-ip">{cam.ip}</div>
                 </div>
                 {count > 0 && (
                   <span className="mp-cam-mask-badge">
@@ -149,7 +149,7 @@ export default function MaskingPage() {
             );
           })}
           {cameras.filter(c => (c.name || "Unnamed").toLowerCase().includes(filter.toLowerCase()) || (c.ip || "").toLowerCase().includes(filter.toLowerCase())).length === 0 && (
-            <div className="mp-sidebar-empty" style={{ color: "rgba(255, 255, 255, 0.5)" }}>No cameras found.</div>
+            <div className="mp-sidebar-empty">No cameras found.</div>
           )}
         </div>
       </aside>

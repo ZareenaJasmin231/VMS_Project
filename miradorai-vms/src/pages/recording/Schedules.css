@@ -2,12 +2,19 @@
 .schedules-page {
   display: flex;
   flex-direction: column;
-  height: 100%;
-  padding: 12px 16px 0;
+  padding: 16px 24px 60px;
   font-size: 17px;
   color: var(--text-primary);
   background: var(--bg-base);
-  overflow-y: auto;
+  box-sizing: border-box;
+}
+
+.sch-main-content {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+  padding-bottom: 40px;
 }
 
 /* ── Page header ─────────────────────────────────────────────── */
@@ -65,8 +72,9 @@
   background: var(--bg-surface);
   box-shadow: var(--shadow-sm);
   min-height: 120px;
-  max-height: 240px;
-  overflow: auto !important;
+  max-height: 180px;
+  overflow-y: auto !important;
+  flex-shrink: 0;
 }
 
 /* Force sticky headers to stay on top */
@@ -120,11 +128,12 @@
   flex-direction: column;
   border: 1px solid var(--border);
   border-radius: 4px;
-  padding: 14px 16px 10px;
-  margin-bottom: 16px;
+  padding: 14px 16px 24px;
+  margin-bottom: 24px;
   background: var(--bg-base);
   position: relative;
   align-items: flex-start;
+  flex-shrink: 0;
 }
 
 .sch-detail-body {
@@ -770,4 +779,208 @@
   animation: toast-bar var(--toast-duration, 3500ms) linear forwards;
   opacity: 0.75;
 }
+
+/* ── Light Mode Overrides for Schedules Page ── */
+[data-theme="light"] .schedules-page {
+  background: var(--bg-base);
+  color: var(--text-primary);
+}
+
+[data-theme="light"] .schedules-page .page-title {
+  background: linear-gradient(135deg, #0f172a 0%, var(--teal) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+[data-theme="light"] .sch-filter {
+  background: var(--bg-elevated);
+  border-color: var(--border-light);
+  color: #0f172a;
+}
+
+[data-theme="light"] .sch-table-wrap {
+  background: var(--bg-surface);
+  border-color: var(--border-light);
+}
+
+[data-theme="light"] .sch-table-wrap .m-table th {
+  color: #0f172a !important;
+  background: var(--bg-surface) !important;
+}
+
+[data-theme="light"] .sch-table-wrap .m-table td {
+  color: #0f172a !important;
+}
+
+[data-theme="light"] .sch-table-wrap .m-table td code,
+[data-theme="light"] .sch-table-wrap .m-table td span,
+[data-theme="light"] .sch-table-wrap .m-table td a {
+  color: #0f172a !important;
+}
+
+[data-theme="light"] .sch-detail {
+  background: var(--bg-surface);
+  border-color: var(--border-light);
+}
+
+[data-theme="light"] .sch-name-input {
+  background: var(--bg-elevated);
+  border-color: var(--border-light);
+  color: #0f172a;
+}
+
+[data-theme="light"] .sch-name-label {
+  color: #475569;
+}
+
+[data-theme="light"] .mode-check {
+  color: #334155;
+}
+
+[data-theme="light"] .mode-box {
+  background: var(--bg-elevated);
+  border-color: var(--border-light);
+}
+
+[data-theme="light"] .week-title {
+  color: #0f172a;
+}
+
+[data-theme="light"] .week-grid-v2 {
+  background: var(--bg-surface);
+  border-color: var(--border-light);
+}
+
+[data-theme="light"] .wgv2-header {
+  background: var(--bg-elevated);
+  border-bottom-color: var(--border-light);
+  color: #475569;
+}
+
+[data-theme="light"] .wgv2-header > div {
+  color: #475569 !important;
+}
+
+
+[data-theme="light"] .wgv2-row {
+  border-bottom-color: var(--border-light);
+}
+
+[data-theme="light"] .wgv2-row:hover {
+  background: var(--bg-hover);
+}
+
+[data-theme="light"] .wgv2-row--active {
+  background: rgba(59, 130, 246, 0.08);
+}
+
+[data-theme="light"] .wgv2-row--active .wgv2-day-name {
+  color: #0f172a;
+}
+
+[data-theme="light"] .wgv2-day-name {
+  color: #475569;
+}
+
+[data-theme="light"] .wgv2-off-label {
+  color: #64748b;
+}
+
+[data-theme="light"] .time-input-wrap {
+  background: var(--bg-elevated);
+  border-color: var(--border-light);
+}
+
+[data-theme="light"] .time-input-wrap--disabled {
+  opacity: 0.45;
+  border-color: var(--border);
+}
+
+[data-theme="light"] .day-bar-track {
+  background: var(--bg-elevated);
+  border-color: var(--border-light);
+}
+
+[data-theme="light"] .day-bar-tick {
+  background: var(--border-light);
+}
+
+[data-theme="light"] .day-bar-tick.major {
+  background: var(--border);
+}
+
+[data-theme="light"] .exc-title {
+  color: #0f172a;
+}
+
+[data-theme="light"] .cal-wrap {
+  background: var(--bg-surface);
+  border-color: var(--border-light);
+}
+
+[data-theme="light"] .cal-month-label {
+  color: #0f172a;
+}
+
+[data-theme="light"] .cal-dow {
+  color: #475569;
+}
+
+[data-theme="light"] .cal-cell {
+  color: #0f172a;
+}
+
+[data-theme="light"] .cal-cell.other {
+  color: #94a3b8;
+}
+
+[data-theme="light"] .exc-side-panel {
+  background: var(--bg-surface);
+  border-color: var(--border-light);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.12);
+}
+
+[data-theme="light"] .exc-sp-header {
+  background: var(--bg-elevated);
+  border-bottom-color: var(--border-light);
+}
+
+[data-theme="light"] .exc-sp-header h3 {
+  color: #0f172a;
+}
+
+[data-theme="light"] .exc-sp-close {
+  color: var(--text-muted);
+}
+
+[data-theme="light"] .exc-sp-close:hover {
+  color: #0f172a;
+}
+
+[data-theme="light"] .toast-v2 {
+  background: var(--bg-surface);
+  border-color: var(--border-light);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+}
+
+[data-theme="light"] .toast-v2__msg {
+  color: #0f172a;
+}
+
+[data-theme="light"] .toast-v2__label {
+  color: #64748b;
+}
+
+[data-theme="light"] .toast-v2__sub {
+  color: #64748b;
+}
+
+[data-theme="light"] .toast-v2__close {
+  color: #64748b;
+}
+
+[data-theme="light"] .toast-v2__close:hover {
+  color: #0f172a;
+}
+
 

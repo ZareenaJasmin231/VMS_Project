@@ -104,7 +104,7 @@
   letter-spacing: -0.02em;
   color: var(--text-primary);
   margin: 0;
-  background: linear-gradient(135deg, #fff 0%, var(--teal) 100%);
+  background: linear-gradient(135deg, var(--text-primary) 0%, var(--teal) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -927,4 +927,129 @@
 .topo-dropdown-item:hover {
   background: var(--bg-hover);
   color: var(--teal);
+}
+
+/* ── Node Badge (Under Canvas Icon) ── */
+.topo-node-badge {
+  background: rgba(17, 24, 39, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+.topo-node-ip { color: #e5e7eb; }
+.topo-node-type { color: #9ca3af; }
+
+/* ── LIGHT THEME OVERRIDES FOR TOPOLOGY MAP ── */
+[data-theme="light"] .topo-toolbar-unified {
+  background: rgba(255, 255, 255, 0.95) !important;
+  border: 1.5px solid var(--border-light) !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08) !important;
+}
+
+[data-theme="light"] .topo-templates-dropdown {
+  background: var(--bg-surface) !important;
+  border: 1.5px solid var(--border-light) !important;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12) !important;
+}
+
+[data-theme="light"] .topo-node-badge {
+  background: var(--bg-surface) !important;
+  border: 1.5px solid var(--border-light) !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08) !important;
+}
+[data-theme="light"] .topo-node-ip {
+  color: var(--text-primary) !important;
+}
+[data-theme="light"] .topo-node-type {
+  color: #475569 !important;
+  font-weight: 700 !important;
+}
+
+[data-theme="light"] .topo-btn {
+  background: var(--bg-surface) !important;
+  border: 1px solid var(--border-light) !important;
+  color: var(--text-primary) !important;
+  font-weight: 600 !important;
+}
+[data-theme="light"] .topo-btn:hover {
+  background: var(--bg-hover) !important;
+  border-color: var(--teal) !important;
+  color: var(--teal) !important;
+}
+[data-theme="light"] .topo-btn--primary {
+  background: var(--teal-subtle) !important;
+  border: 1px solid var(--teal) !important;
+  color: var(--teal) !important;
+}
+[data-theme="light"] .topo-btn-clear {
+  color: var(--red) !important;
+  border-color: rgba(239, 68, 68, 0.4) !important;
+}
+
+[data-theme="light"] .topo-legend {
+  color: var(--text-primary) !important;
+  font-weight: 600;
+}
+
+[data-theme="light"] .react-flow__background circle {
+  fill: #cbd5e1 !important;
+}
+
+[data-theme="light"] .react-flow__controls {
+  background: var(--bg-surface) !important;
+  border: 1.5px solid var(--border-light) !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08) !important;
+}
+
+[data-theme="light"] .react-flow__controls-button {
+  background: var(--bg-surface) !important;
+  border-bottom: 1px solid var(--border-light) !important;
+  color: var(--text-primary) !important;
+  fill: var(--text-primary) !important;
+}
+
+[data-theme="light"] .react-flow__controls-button:hover {
+  background: var(--bg-hover) !important;
+}
+
+[data-theme="light"] .react-flow__controls-button svg {
+  fill: var(--text-primary) !important;
+}
+
+[data-theme="light"] .react-flow__minimap {
+  background: var(--bg-surface) !important;
+  border: 1.5px solid var(--border-light) !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08) !important;
+}
+
+[data-theme="light"] .react-flow__minimap-mask {
+  fill: rgba(0, 0, 0, 0.06) !important;
+}
+
+[data-theme="light"] .react-flow__minimap-node {
+  fill: #94a3b8 !important;
+  stroke: #64748b !important;
+}
+
+[data-theme="light"] .accordion-content {
+  background: var(--bg-elevated) !important;
+}
+
+[data-theme="light"] .stream-panel,
+[data-theme="light"] .nvr-panel,
+[data-theme="light"] .poe-panel,
+[data-theme="light"] .bw-section,
+[data-theme="light"] .metric-card {
+  background: var(--bg-elevated) !important;
+  border: 1px solid var(--border-light) !important;
+}
+
+[data-theme="light"] .bell-alert-popup {
+  background: var(--bg-surface) !important;
+  border: 1.5px solid var(--border-light) !important;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15) !important;
+}
+
+[data-theme="light"] .bell-alert-header {
+  border-bottom: 1px solid var(--border-light) !important;
+  color: var(--text-primary) !important;
 }

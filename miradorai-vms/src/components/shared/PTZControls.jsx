@@ -138,7 +138,40 @@ export default function PTZControls({ camera, onClose }) {
   const [savingPreset, setSavingPreset] = useState(false);
   const [tab,         setTab]         = useState("joystick"); // "joystick" | "presets"
 
+  const [position, setPosition] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const dragStartRef = useRef({ x: 0, y: 0 });
+
   const intervalRef = useRef(null);
+
+  const handleMouseDown = (e) => {
+    if (e.target.closest('.ptz2-close-btn')) return;
+    e.preventDefault(); // Stop native drag/selection
+    setIsDragging(true);
+    dragStartRef.current = {
+      x: e.clientX - position.x,
+      y: e.clientY - position.y
+    };
+  };
+
+  useEffect(() => {
+    if (!isDragging) return;
+    const handleMouseMove = (e) => {
+      setPosition({
+        x: e.clientX - dragStartRef.current.x,
+        y: e.clientY - dragStartRef.current.y
+      });
+    };
+    const handleMouseUp = () => {
+      setIsDragging(false);
+    };
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mouseup", handleMouseUp);
+    return () => {
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [isDragging]);
 
   // Save presets locally whenever they change
   useEffect(() => {
@@ -250,15 +283,35 @@ export default function PTZControls({ camera, onClose }) {
   if (!camera) return null;
 
   return (
-    <div className="ptz2-panel" onClick={(e) => e.stopPropagation()}>
+    <div 
+      className="ptz2-panel" 
+      onClick={(e) => e.stopPropagation()}
+      onMouseDown={(e) => e.stopPropagation()}
+      onTouchStart={(e) => e.stopPropagation()}
+      style={{ 
+        transform: `translate(${position.x}px, ${position.y}px)`,
+        bottom: '20px',
+        left: '20px'
+      }}
+    >
       {/* Header */}
-      <div className="ptz2-header">
+      <div 
+        className="ptz2-header"
+        onMouseDown={handleMouseDown}
+        style={{ cursor: isDragging ? "grabbing" : "grab" }}
+      >
         <div className="ptz2-header-left">
           <span className="ptz2-icon-dot" />
           <span className="ptz2-title">PTZ Control</span>
           <span className="ptz2-cam-name">{camera.name || camera.ip}</span>
         </div>
-        <button className="ptz2-close-btn" onClick={onClose} title="Close PTZ" type="button">
+        <button 
+          className="ptz2-close-btn" 
+          onClick={onClose} 
+          title="Close PTZ" 
+          type="button"
+          onMouseDown={(e) => e.stopPropagation()}
+        >
           <Icons.Close />
         </button>
       </div>
@@ -311,59 +364,6 @@ export default function PTZControls({ camera, onClose }) {
             <JoyBtn dir="down-right" title="Down-Right"><Icons.DownRight /></JoyBtn>
           </div>
 
-          {/* Zoom + Speed */}
-          <div className="ptz2-sliders">
-            {/* Zoom buttons */}
-            <div className="ptz2-zoom-row">
-              <span className="ptz2-slider-label">Zoom</span>
-              <button
-                className="ptz2-zoom-btn"
-                onMouseDown={() => startMove("zoom-out")}
-                onMouseUp={stopMove}
-                onMouseLeave={() => { if (activeDir === "zoom-out") stopMove(); }}
-                title="Zoom Out"
-                type="button"
-                disabled={!camera}
-              >
-                <Icons.ZoomOut />
-              </button>
-              <input
-                type="range"
-                min={0}
-                max={100}
-                value={zoom}
-                onChange={handleZoomChange}
-                className="ptz2-slider ptz2-zoom-slider"
-                disabled={!camera}
-              />
-              <button
-                className="ptz2-zoom-btn"
-                onMouseDown={() => startMove("zoom-in")}
-                onMouseUp={stopMove}
-                onMouseLeave={() => { if (activeDir === "zoom-in") stopMove(); }}
-                title="Zoom In"
-                type="button"
-                disabled={!camera}
-              >
-                <Icons.ZoomIn />
-              </button>
-              <span className="ptz2-slider-val">{zoom}%</span>
-            </div>
-
-            {/* Speed */}
-            <div className="ptz2-speed-row">
-              <span className="ptz2-slider-label">Speed</span>
-              <input
-                type="range"
-                min={5}
-                max={100}
-                value={speed}
-                onChange={(e) => setSpeed(Number(e.target.value))}
-                className="ptz2-slider ptz2-speed-slider"
-              />
-              <span className="ptz2-slider-val">{speed}%</span>
-            </div>
-          </div>
         </div>
       )}
 

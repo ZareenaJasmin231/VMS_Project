@@ -852,4 +852,75 @@
   color: #a78bfa !important;
 }
 
+/* ── Light Mode Overrides for TopBar ── */
+[data-theme="light"] .topbar {
+  background: var(--bg-surface);
+  border-bottom-color: var(--border-light);
+}
+
+[data-theme="light"] .topbar__ai-btn {
+  background: var(--bg-elevated);
+  border-color: var(--border-light);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+[data-theme="light"] .topbar__ai-btn:hover {
+  background: var(--bg-hover);
+  border-color: var(--teal);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="light"] .topbar__ai-logo-name {
+  color: #0f172a;
+}
+
+[data-theme="light"] .topbar__ai-logo-sub {
+  color: #4f46e5;
+}
+
+[data-theme="light"] .topbar__ai-info {
+  background: var(--bg-elevated);
+  color: #64748b;
+}
+
+[data-theme="light"] .topbar__ai-info:hover {
+  background: var(--bg-hover);
+  color: #0f172a;
+}
+
+[data-theme="light"] .topbar__user-dropdown,
+[data-theme="light"] .topbar__settings-dropdown {
+  background: var(--bg-surface);
+  border-color: var(--border-light);
+  box-shadow: var(--shadow-lg);
+}
+
+[data-theme="light"] .topbar__user-dropdown-header {
+  background: var(--bg-elevated);
+  border-bottom-color: var(--border-light);
+}
+
+[data-theme="light"] .topbar__user-dropdown-name {
+  color: #0f172a;
+}
+
+[data-theme="light"] .topbar__user-dropdown-item {
+  color: #334155;
+}
+
+[data-theme="light"] .topbar__user-dropdown-item:hover {
+  background: var(--bg-hover);
+  color: #0f172a;
+}
+
+[data-theme="light"] .topbar__settings-dropdown-item {
+  color: #0f172a;
+}
+
+[data-theme="light"] .topbar__settings-dropdown-item:hover {
+  background: var(--bg-hover);
+  color: #0f172a;
+}
+
+
 

@@ -256,15 +256,15 @@ export default function StorageManagementPage() {
             <tr>
               <th style={{ width: 40 }}></th>
               {["Location", "Allocated", "Used", "Status", "Server"].map((c) => (
-                <th key={c} style={{ color: "rgba(255, 255, 255, 0.5)" }}>{c}</th>
+                <th key={c}>{c}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={6} className="m-table__empty" style={{ color: "rgba(255, 255, 255, 0.5)" }}>Loading...</td></tr>
+              <tr><td colSpan={6} className="m-table__empty">Loading...</td></tr>
             ) : filtered.length === 0 ? (
-              <tr><td colSpan={6} className="m-table__empty" style={{ color: "rgba(255, 255, 255, 0.5)" }}>No storage locations configured.</td></tr>
+              <tr><td colSpan={6} className="m-table__empty">No storage locations configured.</td></tr>
             ) : filtered.map((r, i) => {
               const isSel = selected === i;
               const pct   = r.total ? Math.round((r.used / r.total) * 100) : 0;
@@ -333,7 +333,7 @@ export default function StorageManagementPage() {
             <div className="sm-divider" style={{ marginTop: "auto" }} />
 
             <div className="sm-field-row" style={{ marginTop: 8 }}>
-              <span style={{ fontWeight: 600, color: "rgba(255, 255, 255, 0.5)", fontSize: "18px" }}>Total Capacity:</span>
+              <span className="sm-field-label sm-field-label--lg">Total Capacity:</span>
               <strong style={{ marginLeft: "auto", fontSize: "20px", color: "var(--teal)" }}>{sel.total} GB</strong>
             </div>
           </div>
@@ -342,18 +342,18 @@ export default function StorageManagementPage() {
           <div className="sm-card card">
             <div className="sm-panel-title">Disk Usage</div>
 
-            <div className="sm-usage-label" style={{ color: "rgba(255, 255, 255, 0.5)" }}>DISK USAGE</div>
+            <div className="sm-usage-label">DISK USAGE</div>
             <div className="sm-usage-track">
               <div className="sm-usage-bar" style={{ width: `${usedPct}%`, background: usedColor }} />
             </div>
-            <div className="sm-usage-text" style={{ color: "rgba(255, 255, 255, 0.5)" }}>
+            <div className="sm-usage-text">
               {sel.used} GB used of {sel.total} GB ({usedPct}%)
             </div>
 
             <div className="sm-divider" />
 
             <div className="sm-field-row">
-              <label style={{ fontWeight: 600, fontSize: "18px", color: "rgba(255, 255, 255, 0.5)" }}>Allocated Limit:</label>
+              <label className="sm-field-label sm-field-label--lg">Allocated Limit:</label>
             </div>
             <div className="sm-slider-row">
               <input
@@ -405,7 +405,7 @@ export default function StorageManagementPage() {
             <div className="sm-panel-title">Status to Apply</div>
 
             <div className="sm-field-row" style={{ marginBottom: 6 }}>
-              <label style={{ fontWeight: 600, fontSize: "18px", color: "rgba(255, 255, 255, 0.5)" }}>Status:</label>
+              <label className="sm-field-label sm-field-label--lg">Status:</label>
               <span className={`sm-status ${usedPct >= 90 ? "sm-status--warn" : "sm-status--ok"}`}>
                 {sel.status}
               </span>
@@ -414,7 +414,7 @@ export default function StorageManagementPage() {
             <div className="sm-divider" />
 
             <div className="sm-field-row">
-              <label style={{ fontWeight: 600, fontSize: "18px", color: "rgba(255, 255, 255, 0.5)" }}>MinIO Parent Folder:</label>
+              <label className="sm-field-label sm-field-label--lg">MinIO Parent Folder:</label>
             </div>
 
             <div className="sm-folder-row">
@@ -464,7 +464,7 @@ export default function StorageManagementPage() {
                     title="Enter the MinIO parent folder name."
                   />
                 </div>
-                <div style={{ fontSize: "0.72rem", color: "rgba(255, 255, 255, 0.5)", marginTop: 4, paddingLeft: 2 }}>
+                <div className="sm-modal-help">
                   Enter the parent folder name for MinIO storage (e.g., <code>Recordings</code>).
                 </div>
                 <div className="mgmt-form__actions">

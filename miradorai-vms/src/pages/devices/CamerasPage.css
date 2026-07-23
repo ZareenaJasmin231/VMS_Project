@@ -984,3 +984,116 @@ html, body, #root {
   outline: none !important;
   transform: none !important;
 }
+
+/* ── Light Mode Overrides for Cameras Page ── */
+[data-theme="light"] .cam-table-wrap .m-table th {
+  color: #0f172a !important;
+}
+
+[data-theme="light"] .cam-table-wrap .m-table td {
+  color: #0f172a !important;
+}
+
+[data-theme="light"] .cam-table-wrap .m-table td code,
+[data-theme="light"] .cam-table-wrap .m-table td .cam-mono,
+[data-theme="light"] .cam-table-wrap .m-table td .cam-ip-link {
+  color: #0f172a !important;
+}
+
+[data-theme="light"] .close-btn {
+  color: #0f172a;
+}
+
+[data-theme="light"] .cam-thumb-placeholder {
+  background: var(--bg-elevated);
+  border-color: var(--border-light);
+}
+
+[data-theme="light"] .cam-side-panel {
+  box-shadow: -8px 0 32px rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="light"] .cam-side-header {
+  border-bottom-color: var(--border-light);
+}
+
+[data-theme="light"] .cam-side-header h3 {
+  color: #0f172a;
+}
+
+[data-theme="light"] .cam-item-name {
+  color: #0f172a;
+}
+
+[data-theme="light"] .cam-item-ip {
+  color: #475569;
+}
+
+[data-theme="light"] .cam-side-panel__stream {
+  background: var(--bg-elevated);
+  border-color: var(--border-light);
+}
+
+[data-theme="light"] .cam-side-feature-btn:hover {
+  background: var(--bg-hover);
+  color: #0f172a;
+}
+
+[data-theme="light"] .group-total {
+  color: #0f172a;
+}
+
+[data-theme="light"] .group-cam-row {
+  border-bottom-color: var(--border-light);
+}
+
+[data-theme="light"] .group-cam-row:hover {
+  background: var(--bg-hover);
+}
+
+[data-theme="light"] .group-cam-row--checked {
+  background: rgba(34, 197, 94, 0.1);
+}
+
+[data-theme="light"] .group-cam-name {
+  color: #0f172a;
+}
+
+[data-theme="light"] .group-cam-ip {
+  color: #475569;
+}
+
+[data-theme="light"] .ec-modal {
+  background: var(--bg-surface);
+  border-color: var(--border-light);
+  color: #0f172a;
+}
+
+[data-theme="light"] .ec-titlebar {
+  background: var(--bg-elevated);
+  border-bottom-color: var(--border-light);
+}
+
+[data-theme="light"] .ec-title {
+  color: #0f172a;
+}
+
+[data-theme="light"] .ec-section-title {
+  color: #0f172a;
+}
+
+[data-theme="light"] .ec-checkbox-row {
+  color: #0f172a;
+}
+
+[data-theme="light"] .ec-toggle-label {
+  color: #0f172a;
+}
+
+[data-theme="light"] .ec-input,
+[data-theme="light"] .ec-textarea {
+  background: var(--bg-elevated);
+  border-color: var(--border-light);
+  color: #0f172a;
+}
+

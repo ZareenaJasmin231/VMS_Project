@@ -935,3 +935,107 @@
   background: var(--teal-dim);
   box-shadow: 0 6px 16px rgba(20, 184, 166, 0.4);
 }
+
+/* ── Light Mode Overrides for Masking Page ── */
+[data-theme="light"] .mp-layout {
+  background: var(--bg-base);
+  color: var(--text-primary);
+}
+
+[data-theme="light"] .mp-cam-btn {
+  color: #0f172a;
+}
+
+[data-theme="light"] .mp-cam-btn:hover {
+  background: var(--bg-hover);
+  color: #0f172a;
+}
+
+[data-theme="light"] .mp-cam-btn.active {
+  background: var(--bg-elevated);
+  border-color: var(--border-light);
+  color: #0f172a;
+}
+
+[data-theme="light"] .mp-cam-name {
+  color: #0f172a !important;
+}
+
+[data-theme="light"] .mp-cam-ip {
+  color: #475569 !important;
+}
+
+[data-theme="light"] .mp-device-name {
+  color: #0f172a;
+}
+
+[data-theme="light"] .mp-stat-label,
+[data-theme="light"] .mp-stat-val,
+[data-theme="light"] .mp-stat-val.teal {
+  color: #0f172a !important;
+}
+
+[data-theme="light"] .mp-card-input {
+  color: #0f172a;
+}
+
+[data-theme="light"] .mp-modal-overlay {
+  background: rgba(15, 23, 42, 0.35);
+}
+
+[data-theme="light"] .mp-modal {
+  background: var(--bg-surface);
+  border-color: var(--border-light);
+  box-shadow: var(--shadow-lg);
+}
+
+[data-theme="light"] .mp-modal-header {
+  border-bottom-color: var(--border-light);
+}
+
+[data-theme="light"] .mp-modal-title {
+  color: #0f172a;
+}
+
+[data-theme="light"] .mp-modal-close {
+  color: var(--text-muted);
+}
+
+[data-theme="light"] .mp-modal-close:hover {
+  color: var(--teal);
+}
+
+[data-theme="light"] .mp-form-input {
+  background: var(--bg-elevated);
+  border-color: var(--border-light);
+  color: #0f172a;
+}
+
+[data-theme="light"] .mp-modal-footer {
+  background: var(--bg-surface);
+  border-top-color: var(--border-light);
+}
+
+[data-theme="light"] .mp-btn-cancel {
+  background: var(--bg-elevated);
+  border-color: var(--border-light);
+  color: var(--text-secondary);
+}
+
+[data-theme="light"] .mp-btn-cancel:hover {
+  background: var(--bg-hover);
+  color: #0f172a;
+}
+
+[data-theme="light"] .mp-sidebar-title {
+  color: #0f172a !important;
+}
+
+[data-theme="light"] .mp-sidebar-empty {
+  color: #64748b !important;
+}
+
+[data-theme="light"] .mp-empty-state p {
+  color: #0f172a !important;
+}
+

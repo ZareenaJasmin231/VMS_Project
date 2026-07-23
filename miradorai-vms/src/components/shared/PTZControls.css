@@ -6,8 +6,10 @@
 .ptz2-panel {
   position: absolute;
   bottom: 12px;
-  right: 12px;
-  width: 260px;
+  left: 12px;
+  width: 200px;
+  max-width: 100%;
+  max-height: calc(100% - 24px);
   background: rgba(9, 15, 28, 0.92);
   backdrop-filter: blur(20px) saturate(160%);
   -webkit-backdrop-filter: blur(20px) saturate(160%);
@@ -37,7 +39,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 9px 12px 8px;
+  padding: 6px 10px;
   background: linear-gradient(135deg, rgba(0, 200, 160, 0.12), rgba(0, 160, 220, 0.08));
   border-bottom: 1px solid rgba(0, 200, 160, 0.15);
 }
@@ -105,13 +107,16 @@
 /* ── Tabs ─────────────────────────────────────────── */
 .ptz2-tabs {
   display: flex;
-  background: rgba(255, 255, 255, 0.03);
+  justify-content: center;
+  gap: 8px;
+  background: transparent;
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  padding: 4px;
 }
 
 .ptz2-tab {
-  flex: 1;
-  padding: 7px 8px;
+  flex: none;
+  padding: 4px 10px;
   background: none;
   border: none;
   color: rgba(255, 255, 255, 0.4);
@@ -179,24 +184,29 @@
 
 /* ── Body ─────────────────────────────────────────── */
 .ptz2-body {
-  padding: 12px;
+  padding: 10px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
+  overflow-y: auto;
 }
 
 /* ── Joystick grid ─────────────────────────────── */
 .ptz2-joystick {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 5px;
+  gap: 4px;
+  width: 120px;
+  height: 120px;
+  margin: 0 auto;
 }
 
 .ptz2-joy-btn {
-  aspect-ratio: 1;
+  width: 100%;
+  height: 100%;
   background: rgba(255, 255, 255, 0.07);
   border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
+  border-radius: 6px;
   color: rgba(255, 255, 255, 0.75);
   cursor: pointer;
   display: flex;
@@ -205,7 +215,6 @@
   transition: all 0.12s ease;
   touch-action: none;
   padding: 0;
-  min-height: 36px;
 }
 
 .ptz2-joy-btn:hover:not(:disabled) {
@@ -231,17 +240,17 @@
 
 /* Home button in center */
 .ptz2-home-btn {
-  aspect-ratio: 1;
+  width: 100%;
+  height: 100%;
   background: rgba(99, 102, 241, 0.15);
   border: 1px solid rgba(99, 102, 241, 0.3);
-  border-radius: 8px;
+  border-radius: 6px;
   color: rgba(165, 180, 252, 0.85);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   transition: all 0.15s ease;
-  min-height: 36px;
 }
 
 .ptz2-home-btn:hover:not(:disabled) {

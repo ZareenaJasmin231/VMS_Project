@@ -329,9 +329,9 @@ const CustomNode = ({ data }) => {
           <div className="topo-node__pulse" style={{ backgroundColor: statusColor(data.status), position: 'absolute', top: -10, right: -10, width: 14, height: 14, borderRadius: '50%', boxShadow: `0 0 10px ${statusColor(data.status)}`, zIndex: 10 }} />
           <Icon type={data.type} size={80} model={data.model} subtype={data.camera_type} />
         </div>
-        <div style={{ marginTop: 8, textAlign: 'center', background: 'rgba(17, 24, 39, 0.7)', padding: '2px 8px', borderRadius: 12, backdropFilter: 'blur(4px)' }}>
-          <div style={{ fontSize: 13, fontWeight: 'bold', color: '#e5e7eb' }}>{data.ip}</div>
-          <div style={{ fontSize: 11, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{deviceTypeLabel(data.type)}</div>
+        <div className="topo-node-badge" style={{ marginTop: 8, textAlign: 'center', padding: '2px 8px', borderRadius: 12, backdropFilter: 'blur(4px)' }}>
+          <div className="topo-node-ip" style={{ fontSize: 13, fontWeight: 'bold' }}>{data.ip}</div>
+          <div className="topo-node-type" style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{deviceTypeLabel(data.type)}</div>
         </div>
         <Handle type="source" position={Position.Bottom} style={{ background: '#555', border: 'none' }} />
       </div>
@@ -444,10 +444,10 @@ const BellAlertButton = ({ alerts, onAck }) => {
         onClick={() => setOpen(o => !o)}
         style={{
           position: 'relative',
-          background: open ? 'rgba(99,102,241,0.15)' : 'rgba(17,24,39,0.85)',
-          border: `1px solid ${open ? '#6366f1' : '#374151'}`,
+          background: open ? 'rgba(99,102,241,0.15)' : 'var(--bg-surface)',
+          border: `1px solid ${open ? '#6366f1' : 'var(--border-light)'}`,
           borderRadius: 10,
-          color: unreadCount > 0 ? '#f59e0b' : '#9ca3af',
+          color: unreadCount > 0 ? '#f59e0b' : 'var(--text-secondary)',
           cursor: 'pointer',
           width: 38,
           height: 38,
@@ -476,7 +476,7 @@ const BellAlertButton = ({ alerts, onAck }) => {
             alignItems: 'center',
             justifyContent: 'center',
             padding: '0 4px',
-            border: '2px solid #111827',
+            border: '2px solid var(--bg-surface)',
             lineHeight: 1,
           }}>
             {unreadCount > 99 ? '99+' : unreadCount}
@@ -486,32 +486,32 @@ const BellAlertButton = ({ alerts, onAck }) => {
 
       {/* Popup */}
       {open && (
-        <div style={{
+        <div className="bell-alert-popup" style={{
           position: 'absolute',
           top: 46,
           right: 0,
           width: 360,
           maxHeight: 480,
-          background: '#111827',
-          border: '1px solid #1f2937',
+          background: 'var(--bg-surface)',
+          border: '1px solid var(--border-light)',
           borderRadius: 12,
-          boxShadow: '0 20px 60px rgba(0,0,0,0.6)',
+          boxShadow: '0 20px 60px rgba(0,0,0,0.15)',
           zIndex: 9999,
           display: 'flex',
           flexDirection: 'column',
           overflow: 'hidden',
         }}>
           {/* Popup header */}
-          <div style={{
+          <div className="bell-alert-header" style={{
             padding: '12px 16px',
-            borderBottom: '1px solid #1f2937',
+            borderBottom: '1px solid var(--border-light)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <Icon type="bell" size={14} />
-              <span style={{ color: '#e5e7eb', fontWeight: 600, fontSize: 17 }}>Alerts</span>
+              <span style={{ color: 'var(--text-primary)', fontWeight: 600, fontSize: 17 }}>Alerts</span>
               {unreadCount > 0 && (
                 <span style={{
                   background: '#ef4444',
@@ -527,7 +527,7 @@ const BellAlertButton = ({ alerts, onAck }) => {
             </div>
             <button
               onClick={() => setOpen(false)}
-              style={{ background: 'none', border: 'none', color: "rgba(255, 255, 255, 0.5)", cursor: 'pointer', padding: 2 }}
+              style={{ background: 'none', border: 'none', color: "var(--text-muted)", cursor: 'pointer', padding: 2 }}
             >
               <Icon type="x" size={14} />
             </button>
@@ -769,9 +769,9 @@ const CameraStreamPanel = ({ d, liveData, isRefreshing, onRefresh }) => {
 
       {!hasAnyStreamData && !isRefreshing && (
         <div style={{
-          background: '#1f2937', borderRadius: 6, padding: '8px 10px',
-          color: "rgba(255, 255, 255, 0.5)", fontSize: 14, marginBottom: 8,
-          border: '1px solid #374151', display: 'flex', alignItems: 'center', gap: 6
+          background: 'var(--bg-elevated)', borderRadius: 6, padding: '8px 10px',
+          color: "var(--text-secondary)", fontSize: 14, marginBottom: 8,
+          border: '1px solid var(--border-light)', display: 'flex', alignItems: 'center', gap: 6
         }}>
           <Icon type="alert" size={12}/>
           Stream data not yet polled. Click Refresh or wait for the next cycle.
@@ -781,32 +781,32 @@ const CameraStreamPanel = ({ d, liveData, isRefreshing, onRefresh }) => {
       <div className="stream-grid">
         <div className="stream-stat">
           <span className="stream-label">Bitrate</span>
-          <span className="stream-val" style={{ color: cam.stream_bitrate_mbps != null ? '#e5e7eb' : '#4b5563' }}>
+          <span className="stream-val" style={{ color: cam.stream_bitrate_mbps != null ? 'var(--text-primary)' : 'var(--text-muted)' }}>
             {cam.stream_bitrate_mbps != null ? `${cam.stream_bitrate_mbps} Mbps` : '—'}
           </span>
         </div>
         <div className="stream-stat">
           <span className="stream-label">FPS</span>
-          <span className="stream-val" style={{ color: cam.stream_fps != null ? '#e5e7eb' : '#4b5563' }}>
+          <span className="stream-val" style={{ color: cam.stream_fps != null ? 'var(--text-primary)' : 'var(--text-muted)' }}>
             {cam.stream_fps != null ? cam.stream_fps : '—'}
           </span>
         </div>
         <div className="stream-stat">
           <span className="stream-label">Status</span>
           <span className={`stream-val ${cam.stream_status === 'healthy' ? 'txt-green' : cam.stream_status ? 'txt-red' : ''}`}
-                style={{ color: !cam.stream_status ? '#4b5563' : undefined }}>
+                style={{ color: !cam.stream_status ? 'var(--text-muted)' : undefined }}>
             {cam.stream_status || '—'}
           </span>
         </div>
         <div className="stream-stat">
           <span className="stream-label">Resolution</span>
-          <span className="stream-val" style={{ color: cam.stream_resolution != null ? '#e5e7eb' : '#4b5563' }}>
+          <span className="stream-val" style={{ color: cam.stream_resolution != null ? 'var(--text-primary)' : 'var(--text-muted)' }}>
             {cam.stream_resolution || '—'}
           </span>
         </div>
         <div className="stream-stat">
           <span className="stream-label">Codec</span>
-          <span className="stream-val" style={{ color: cam.codec != null ? '#e5e7eb' : '#4b5563' }}>
+          <span className="stream-val" style={{ color: cam.codec != null ? 'var(--text-primary)' : 'var(--text-muted)' }}>
             {cam.codec || '—'}
           </span>
         </div>
@@ -1648,9 +1648,9 @@ export default function Topology() {
     gap: 5,
     padding: '3px 10px',
     borderRadius: 20,
-    border: `1px solid ${active ? activeColor : 'transparent'}`,
-    background: active ? `${activeColor}22` : 'rgba(255,255,255,0.04)',
-    color: active ? activeColor : '#9ca3af',
+    border: `1px solid ${active ? activeColor : 'var(--border-light)'}`,
+    background: active ? `${activeColor}22` : 'var(--bg-elevated)',
+    color: active ? activeColor : 'var(--text-secondary)',
     cursor: 'pointer',
     fontSize: 15,
     fontWeight: active ? 700 : 500,
@@ -1780,8 +1780,8 @@ export default function Topology() {
         </div>
 
         {/* ── DEVICE TYPE FILTER CHIPS ── */}
-        <div style={{ borderTop: '1px solid #1f2937', padding: '8px 12px 0 12px', marginTop: 2 }}>
-          <div style={{ color: "rgba(255, 255, 255, 0.5)", fontSize: 13, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 6 }}>
+        <div style={{ borderTop: '1px solid var(--border-light)', padding: '8px 12px 0 12px', marginTop: 2 }}>
+          <div style={{ color: "var(--text-secondary)", fontSize: 13, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 6 }}>
             Filter by Type
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
@@ -1808,15 +1808,16 @@ export default function Topology() {
                     display: 'flex',
                     alignItems: 'center',
                     gap: 6,
-                    color: active ? '#818cf8' : '#9ca3af',
-                    fontWeight: active ? 700 : 500,
+                    color: active ? 'var(--teal)' : 'var(--text-primary)',
+                    fontWeight: active ? 700 : 600,
                   }}>
                     <Icon type={type} size={11}/>
                     <span>{deviceTypeLabel(type)}</span>
                     <span style={{
                       marginLeft: 'auto',
-                      background: active ? '#6366f1' : '#1f2937',
-                      color: active ? '#fff' : '#6b7280',
+                      background: active ? 'var(--teal)' : 'var(--bg-elevated)',
+                      color: active ? '#fff' : 'var(--text-secondary)',
+                      border: '1px solid var(--border-light)',
                       borderRadius: 10,
                       padding: '0 6px',
                       fontSize: 13,
@@ -1917,7 +1918,7 @@ export default function Topology() {
           onNodesChange={onNodesChange} onEdgesChange={onEdgesChange}
           onConnect={onConnect} onNodeClick={handleNodeClick}
           onNodeDragStop={onNodeDragStop} nodeTypes={nodeTypes} fitView>
-          <Background color="#1f2937" gap={20} />
+          <Background color="var(--border-light)" gap={20} />
           <Controls />
           <MiniMap nodeStrokeWidth={3} zoomable pannable maskColor="rgba(0,0,0,0.1)" />
 
@@ -1973,8 +1974,8 @@ export default function Topology() {
                     position: 'absolute',
                     top: 'calc(100% + 6px)',
                     left: 0,
-                    background: '#111827',
-                    border: '1px solid #1f2937',
+                    background: 'var(--bg-surface)',
+                    border: '1px solid var(--border-light)',
                     borderRadius: 8,
                     padding: '4px',
                     boxShadow: '0 10px 25px rgba(0,0,0,0.5)',

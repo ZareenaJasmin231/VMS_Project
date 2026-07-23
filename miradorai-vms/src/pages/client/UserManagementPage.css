@@ -311,3 +311,64 @@
   accent-color: var(--teal);
   cursor: pointer;
 }
+
+/* ── Light Mode Overrides for User Management Page ── */
+[data-theme="light"] .um-page {
+  background: var(--bg-base);
+  color: var(--text-primary);
+}
+
+[data-theme="light"] .um-table th {
+  background: var(--bg-elevated);
+  border-bottom-color: var(--border-light);
+  color: #0f172a !important;
+}
+
+[data-theme="light"] .um-table td {
+  border-bottom-color: var(--border-light);
+  color: #0f172a !important;
+}
+
+[data-theme="light"] .um-table tr:hover {
+  background: var(--bg-hover);
+}
+
+[data-theme="light"] .td-date {
+  color: #64748b;
+}
+
+[data-theme="light"] .action-edit {
+  background: var(--bg-elevated);
+  border-color: var(--border-light);
+  color: #0f172a;
+}
+
+[data-theme="light"] .action-edit:hover {
+  background: var(--bg-hover);
+  color: #0f172a;
+}
+
+[data-theme="light"] .um-modal {
+  background: var(--bg-surface) !important;
+  border-color: var(--border-light) !important;
+  box-shadow: var(--shadow-lg) !important;
+}
+
+[data-theme="light"] .um-divider {
+  background: var(--border-light);
+}
+
+[data-theme="light"] .camera-select-list {
+  background: var(--bg-elevated);
+  border-color: var(--border-light);
+}
+
+[data-theme="light"] .camera-select-all {
+  color: #0f172a;
+  border-bottom-color: var(--border-light);
+}
+
+[data-theme="light"] .camera-select-item {
+  color: #334155;
+}
+

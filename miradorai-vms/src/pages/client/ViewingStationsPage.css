@@ -460,3 +460,129 @@
   cursor: not-allowed;
   box-shadow: none;
 }
+
+/* ── Light Mode Overrides for Viewing Stations Page ── */
+[data-theme="light"] .vs-page {
+  background: var(--bg-base);
+  color: var(--text-primary);
+}
+
+[data-theme="light"] .vs-title {
+  background: linear-gradient(135deg, #0f172a 0%, var(--teal) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+[data-theme="light"] .vs-subtitle {
+  color: #64748b;
+}
+
+[data-theme="light"] .vs-panel {
+  background: var(--bg-surface);
+  border-color: var(--border-light);
+  box-shadow: var(--shadow-md);
+}
+
+[data-theme="light"] .vs-panel-header {
+  background: var(--bg-elevated);
+  border-bottom-color: var(--border-light);
+}
+
+[data-theme="light"] .vs-panel-header h2 {
+  color: #0f172a;
+}
+
+[data-theme="light"] .vs-station-card {
+  background: var(--bg-elevated);
+  border-color: var(--border-light);
+}
+
+[data-theme="light"] .vs-station-card:hover {
+  background: var(--bg-hover);
+  border-color: var(--teal);
+}
+
+[data-theme="light"] .vs-station-name {
+  color: #0f172a;
+}
+
+[data-theme="light"] .vs-station-id {
+  color: #64748b;
+}
+
+[data-theme="light"] .vs-card-details {
+  border-top-color: var(--border-light);
+}
+
+[data-theme="light"] .vs-detail-row .label {
+  color: #64748b;
+}
+
+[data-theme="light"] .vs-detail-row .value {
+  color: #0f172a;
+}
+
+[data-theme="light"] .vs-builder-top h3 {
+  color: #0f172a;
+}
+
+[data-theme="light"] .vs-form-label {
+  color: #0f172a;
+}
+
+[data-theme="light"] .vs-grid-btn {
+  background: var(--bg-elevated);
+  border-color: var(--border-light);
+  color: #0f172a;
+}
+
+[data-theme="light"] .vs-grid-btn:hover {
+  background: var(--bg-hover);
+  color: #0f172a;
+}
+
+[data-theme="light"] .vs-grid-btn.active {
+  background: var(--teal);
+  border-color: var(--teal);
+  color: #ffffff;
+}
+
+[data-theme="light"] .vs-builder-grid {
+  background: var(--bg-elevated);
+  border-color: var(--border-light);
+}
+
+[data-theme="light"] .vs-builder-cell {
+  background: var(--bg-surface);
+  border-color: var(--border-light);
+}
+
+[data-theme="light"] .vs-cell-dropdown-trigger {
+  background: var(--bg-elevated);
+  border-color: var(--border-light);
+  color: #0f172a;
+}
+
+[data-theme="light"] .vs-cell-dropdown-trigger:hover {
+  border-color: var(--teal);
+}
+
+[data-theme="light"] .vs-cell-dropdown-menu {
+  background: var(--bg-surface);
+  border-color: var(--border-light);
+  box-shadow: var(--shadow-md);
+}
+
+[data-theme="light"] .vs-cell-dropdown-item {
+  color: #334155;
+}
+
+[data-theme="light"] .vs-cell-dropdown-item:hover {
+  background: var(--bg-hover);
+  color: #0f172a;
+}
+
+[data-theme="light"] .vs-cell-preview-name {
+  color: #0f172a;
+}
+
