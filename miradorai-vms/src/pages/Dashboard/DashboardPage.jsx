@@ -186,7 +186,7 @@ const DiskDonut = ({ value, used, total }) => {
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="disk-donut-svg">
         <circle
           cx={size / 2} cy={size / 2} r={radius}
-          fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth={strokeW}
+          fill="none" stroke="var(--border-light)" strokeWidth={strokeW}
         />
         <circle
           cx={size / 2} cy={size / 2} r={radius}
@@ -232,7 +232,7 @@ const MiniArcGauge = ({ value, label, thresholds = [60, 85], invert = false }) =
         {/* Background track */}
         <path
           d={`M ${strokeW / 2},${size / 2} A ${radius},${radius} 0 0,1 ${size - strokeW / 2},${size / 2}`}
-          fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth={strokeW} strokeLinecap="round"
+          fill="none" stroke="var(--border-light)" strokeWidth={strokeW} strokeLinecap="round"
         />
         {/* Progress arc */}
         <path
@@ -301,8 +301,8 @@ const InteractiveLineChart = ({ data, xKey, yKey, height = 180 }) => {
           const val = maxVal - ratio * valRange;
           return (
             <g key={idx}>
-              <line x1={padding.left} y1={y} x2={width - padding.right} y2={y} stroke="rgba(255, 255, 255, 0.06)" strokeWidth="0.8" />
-              <text x={padding.left - 8} y={y + 4} textAnchor="end" fill="#ffffff" fontSize="13" fontWeight="700">
+              <line x1={padding.left} y1={y} x2={width - padding.right} y2={y} stroke="var(--border-light)" strokeWidth="0.8" />
+              <text x={padding.left - 8} y={y + 4} textAnchor="end" fill="var(--text-primary)" fontSize="13" fontWeight="700">
                 {val.toFixed(1)}
               </text>
             </g>
@@ -412,8 +412,8 @@ const StorageTrendChart = ({ data, xKey, yKey, height = 180 }) => {
           const val = maxVal - ratio * valRange;
           return (
             <g key={idx}>
-              <line x1={padding.left} y1={y} x2={width - padding.right} y2={y} stroke="rgba(255, 255, 255, 0.06)" strokeWidth="0.8" />
-              <text x={padding.left - 8} y={y + 4} textAnchor="end" fill="#ffffff" fontSize="13" fontWeight="700">
+              <line x1={padding.left} y1={y} x2={width - padding.right} y2={y} stroke="var(--border-light)" strokeWidth="0.8" />
+              <text x={padding.left - 8} y={y + 4} textAnchor="end" fill="var(--text-primary)" fontSize="13" fontWeight="700">
                 {val.toFixed(0)} GB
               </text>
             </g>
@@ -1607,7 +1607,7 @@ const CameraHistoryCharts = ({ reportData }) => {
                 stroke="none"
               >
                 <Cell fill={color} />
-                <Cell fill="rgba(255,255,255,0.06)" />
+                <Cell fill="var(--border-light)" />
               </Pie>
             </PieChart>
           </ResponsiveContainer>
@@ -2655,9 +2655,9 @@ const fromToText = `Selected Period: ${reportFromDate.replace('T', ' ')} to ${re
               <div style={{
                 height: '16px',
                 width: '100%',
-                background: 'rgba(255,255,255,0.03)',
+                background: 'var(--bg-elevated)',
                 borderRadius: '6px',
-                border: '1px solid rgba(255, 255, 255, 0.06)',
+                border: '1px solid var(--border-light)',
                 position: 'relative',
                 overflow: 'hidden'
               }}>
@@ -2675,11 +2675,11 @@ const fromToText = `Selected Period: ${reportFromDate.replace('T', ' ')} to ${re
                 <div style={{
                   position: 'absolute',
                   inset: 0,
-                  backgroundImage: 'repeating-linear-gradient(90deg, transparent, transparent 15px, rgba(0, 0, 0, 0.35) 15px, rgba(0, 0, 0, 0.35) 17px)',
+                  backgroundImage: 'repeating-linear-gradient(90deg, transparent, transparent 15px, var(--border-dim, rgba(125, 125, 125, 0.2)) 15px, var(--border-dim, rgba(125, 125, 125, 0.2)) 17px)',
                   pointerEvents: 'none'
                 }} />
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', color: '#ffffff', fontWeight: '600' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', color: 'var(--text-primary)', fontWeight: '600' }}>
                 <span>Used: {storage.used} GB</span>
                 <span>Free: {(storage.total - storage.used).toFixed(1)} GB</span>
               </div>
@@ -2741,14 +2741,14 @@ const fromToText = `Selected Period: ${reportFromDate.replace('T', ' ')} to ${re
                 </div>
 
                 {/* Micro Service Status Chips */}
-                <div style={{ marginTop: "auto", paddingTop: "10px", borderTop: "1px dashed rgba(255,255,255,0.08)", display: "flex", justifyContent: "space-between", gap: "4px" }}>
-                  <div style={{ background: "rgba(255,255,255,0.04)", padding: "4px 7px", borderRadius: "6px", fontSize: "11px", color: "#94a3b8", display: "flex", alignItems: "center", gap: "5px" }}>
+                <div style={{ marginTop: "auto", paddingTop: "10px", borderTop: "1px dashed var(--border-light)", display: "flex", justifyContent: "space-between", gap: "4px" }}>
+                  <div style={{ background: "var(--bg-elevated)", padding: "4px 7px", borderRadius: "6px", fontSize: "11px", color: "var(--text-secondary)", display: "flex", alignItems: "center", gap: "5px" }}>
                     <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: "#22c55e" }} /> API
                   </div>
-                  <div style={{ background: "rgba(255,255,255,0.04)", padding: "4px 7px", borderRadius: "6px", fontSize: "11px", color: "#94a3b8", display: "flex", alignItems: "center", gap: "5px" }}>
+                  <div style={{ background: "var(--bg-elevated)", padding: "4px 7px", borderRadius: "6px", fontSize: "11px", color: "var(--text-secondary)", display: "flex", alignItems: "center", gap: "5px" }}>
                     <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: "#22c55e" }} /> Database
                   </div>
-                  <div style={{ background: "rgba(255,255,255,0.04)", padding: "4px 7px", borderRadius: "6px", fontSize: "11px", color: "#94a3b8", display: "flex", alignItems: "center", gap: "5px" }}>
+                  <div style={{ background: "var(--bg-elevated)", padding: "4px 7px", borderRadius: "6px", fontSize: "11px", color: "var(--text-secondary)", display: "flex", alignItems: "center", gap: "5px" }}>
                     <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: "#22c55e" }} /> Streamer
                   </div>
                 </div>

@@ -664,9 +664,9 @@
 }
 
 .side-playback-alert-time {
-  font-size: 11px;
+  font-size: 11.5px;
   font-family: var(--font-mono);
-  color: #ffffff;
+  color: var(--text-secondary);
 }
 
 .side-playback-alert-play-btn {

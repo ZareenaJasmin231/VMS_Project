@@ -576,8 +576,8 @@ function AlertsPanel({ onAlertCountUpdate, onTotalAlertCountChange, isOpen, live
 
                     <div className="lv-alert-card__row">
                       <span className="lv-alert-card__label">Date</span>
-                      <span className="lv-alert-card__value">
-                        {alert.received_at ? alert.received_at.split("T")[0] : ""}
+                      <span className="lv-alert-card__value lv-alert-card__value--date">
+                        {(alert.received_at || alert.time || "").split("T")[0]}
                       </span>
                     </div>
                   </div>

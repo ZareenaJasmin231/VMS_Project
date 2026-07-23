@@ -2216,7 +2216,6 @@ export default function MapViewPage() {
                     </div>
                     <div className="mv-export-item__label">
                       <span>Download Design</span>
-                      <small>Exact snapshot of current layout</small>
                     </div>
                   </button>
                   <button className="mv-export-item" onClick={() => exportMapPNG("heatmap")}>
@@ -2228,7 +2227,6 @@ export default function MapViewPage() {
                     </div>
                     <div className="mv-export-item__label">
                       <span>Download Heatmap</span>
-                      <small>Coverage intensity map</small>
                     </div>
                   </button>
                 </div>

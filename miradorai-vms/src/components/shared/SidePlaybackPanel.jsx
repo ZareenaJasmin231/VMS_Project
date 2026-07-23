@@ -905,22 +905,32 @@ export default function SidePlaybackPanel({ camera, onClose }) {
                 </div>
               )}
 
-              {alerts.map((alert, i) => (
-                <div key={i} className="side-playback-alert-row">
-                  <div className="side-playback-alert-info">
-                    <span className="side-playback-alert-type">{alert.type || "Active Alert"}</span>
-                    <span className="side-playback-alert-time">
-                      {alert.time ? alert.time.split("T")[1]?.split("+")[0] : alert.received_at}
-                    </span>
+              {alerts.map((alert, i) => {
+                const rawTime = alert.time || alert.received_at || "";
+                const timeOnly = rawTime.includes("T")
+                  ? rawTime.split("T")[1]?.split("+")[0]?.split(".")[0]
+                  : rawTime;
+                const dateOnly = rawTime.includes("T")
+                  ? rawTime.split("T")[0]
+                  : "";
+
+                return (
+                  <div key={i} className="side-playback-alert-row">
+                    <div className="side-playback-alert-info">
+                      <span className="side-playback-alert-type">{alert.type || "Active Alert"}</span>
+                      <span className="side-playback-alert-time">
+                        {timeOnly || "—"} {dateOnly && <span style={{ color: "var(--teal)", marginLeft: "6px" }}>({dateOnly})</span>}
+                      </span>
+                    </div>
+                    <button className="m-btn m-btn--primary" style={{ padding: "4px 10px", fontSize: "11.5px" }} onClick={() => playAlert(alert)}>
+                      <svg viewBox="0 0 24 24" fill="currentColor" width="10" height="10" style={{ marginRight: "4px" }}>
+                        <polygon points="6 3 20 12 6 21 6 3" />
+                      </svg>
+                      Play
+                    </button>
                   </div>
-                  <button className="m-btn m-btn--primary" style={{ padding: "4px 10px", fontSize: "11.5px" }} onClick={() => playAlert(alert)}>
-                    <svg viewBox="0 0 24 24" fill="currentColor" width="10" height="10" style={{ marginRight: "4px" }}>
-                      <polygon points="6 3 20 12 6 21 6 3" />
-                    </svg>
-                    Play
-                  </button>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}

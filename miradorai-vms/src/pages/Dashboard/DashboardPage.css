@@ -21,7 +21,7 @@
   font-size: var(--font-size-heading);
   font-weight: 700;
   margin: 0;
-  background: linear-gradient(135deg, #fff 0%, var(--teal) 100%);
+  background: linear-gradient(135deg, var(--text-primary) 0%, var(--teal) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -964,8 +964,8 @@
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  background: rgba(15, 23, 42, 0.85);
+  border: 1px solid var(--border-light);
+  background: var(--bg-surface);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   color: var(--text-primary);
@@ -974,7 +974,7 @@
   justify-content: center;
   cursor: pointer;
   transition: all 0.2s ease;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
+  box-shadow: var(--shadow-sm);
 }
 
 .carousel-arrow:hover {
@@ -1057,7 +1057,7 @@
 }
 
 .widget-item-label {
-  color: #ffffff;
+  color: var(--text-secondary);
   font-weight: 500;
   font-size: 14px;
 }
@@ -1157,7 +1157,7 @@
 
 .event-time-text {
   font-size: 12px;
-  color: rgba(255, 255, 255, 0.6);
+  color: var(--text-muted);
   white-space: nowrap;
 }
 
@@ -1291,22 +1291,22 @@
 
 /* Glassmorphism overrides for enhanced cards */
 .enhanced-card {
-  background: rgba(30, 41, 59, 0.4) !important;
+  background: var(--bg-surface) !important;
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.05) !important;
-  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--border) !important;
+  box-shadow: var(--shadow-sm);
 }
 
 [data-theme='light'] .enhanced-card {
-  background: rgba(255, 255, 255, 0.6) !important;
-  border: 1px solid rgba(0, 0, 0, 0.08) !important;
-  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.05);
+  background: var(--bg-surface) !important;
+  border: 1px solid var(--border) !important;
+  box-shadow: var(--shadow-sm);
 }
 
 .enhanced-card:hover {
-  border-color: rgba(16, 185, 129, 0.4) !important;
-  box-shadow: 0 8px 32px rgba(16, 185, 129, 0.15);
+  border-color: var(--teal) !important;
+  box-shadow: var(--shadow-md);
 }
 
 /* Custom SVG chart container responsive behavior */
@@ -1319,8 +1319,21 @@
 }
 
 .custom-chart-tooltip {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 12px;
+  color: var(--text-primary);
+  box-shadow: var(--shadow-md);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
+  font-size: 12px;
+}
+
+.custom-chart-tooltip p,
+.custom-chart-tooltip span,
+.custom-chart-tooltip strong {
+  color: var(--text-primary);
 }
 
 /* Mobile & Tablet support for the widgets grid */
@@ -1459,7 +1472,7 @@
 }
 
 .report-chart-card {
-  background: #0f1115;
+  background: var(--bg-surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-md, 8px);
   padding: 16px;
@@ -1541,7 +1554,7 @@
   font-size: 11px;
   border-radius: 4px;
   border: 1px solid var(--border);
-  background: #161a22;
+  background: var(--bg-elevated);
   color: var(--text-primary);
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
@@ -1615,7 +1628,7 @@
 .chart-leaderboard-bar-track {
   width: 100%;
   height: 6px;
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--bg-hover);
   border-radius: 3px;
   overflow: hidden;
 }
@@ -1644,4 +1657,43 @@
   .report-charts-grid {
     display: none !important; /* Printing usually focuses on tabular view */
   }
+}
+
+/* ═══════════════════════════════════════════════════
+   LIGHT THEME OVERRIDES FOR DASHBOARD & CHARTS
+═══════════════════════════════════════════════════ */
+[data-theme='light'] .recharts-cartesian-axis-tick-value,
+[data-theme='light'] .recharts-legend-item-text,
+[data-theme='light'] .recharts-label {
+  fill: var(--text-secondary) !important;
+  color: var(--text-secondary) !important;
+}
+
+[data-theme='light'] .recharts-cartesian-grid line {
+  stroke: var(--border-light) !important;
+}
+
+[data-theme='light'] .custom-chart-tooltip {
+  background: var(--bg-surface) !important;
+  border-color: var(--border) !important;
+  color: var(--text-primary) !important;
+  box-shadow: var(--shadow-md) !important;
+}
+
+[data-theme='light'] .report-chart-card {
+  background: var(--bg-surface) !important;
+  border-color: var(--border) !important;
+}
+
+[data-theme='light'] .chart-card-search-input {
+  background: var(--bg-elevated) !important;
+  color: var(--text-primary) !important;
+  border-color: var(--border) !important;
+}
+
+[data-theme='light'] .carousel-arrow {
+  background: var(--bg-surface) !important;
+  color: var(--text-primary) !important;
+  border-color: var(--border) !important;
+  box-shadow: var(--shadow-sm) !important;
 }

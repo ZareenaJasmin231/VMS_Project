@@ -2000,6 +2000,18 @@
   stroke: #10b981;
 }
 
+.dv-icon-btn--danger {
+  background: rgba(239, 68, 68, 0.08);
+  border-color: rgba(239, 68, 68, 0.35);
+  color: #f87171;
+}
+
+.dv-icon-btn--danger:hover {
+  background: rgba(239, 68, 68, 0.16);
+  border-color: #ef4444;
+  color: #ef4444;
+}
+
 .dv-icon-btn__label {
   font-size: 14px;
   font-weight: 600;
@@ -2843,6 +2855,18 @@
   background: var(--bg-hover);
   border-color: var(--border-light);
   color: var(--text-primary);
+}
+
+[data-theme="light"] .dv-icon-btn--danger {
+  background: rgba(239, 68, 68, 0.06);
+  border-color: rgba(239, 68, 68, 0.3);
+  color: #dc2626;
+}
+
+[data-theme="light"] .dv-icon-btn--danger:hover {
+  background: rgba(239, 68, 68, 0.12);
+  border-color: #dc2626;
+  color: #dc2626;
 }
 
 [data-theme="light"] .dv-dropdown-panel {

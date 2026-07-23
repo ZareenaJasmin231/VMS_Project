@@ -5330,12 +5330,12 @@ function buildExportCanvas(exportMode = "design", company = "mirador", overlayOp
                   </button>
 
                   <div className="dv-dropdown-panel__title" style={{ marginTop: "10px" }}>Company Branding</div>
-                  <div style={{ padding: "8px 12px", display: "flex", flexDirection: "column", gap: "8px", background: "rgba(255,255,255,0.03)", borderRadius: "6px", margin: "0 8px" }}>
-                    <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer", color: "#e8edf5", fontSize: "13px" }}>
+                  <div style={{ padding: "8px 12px", display: "flex", flexDirection: "column", gap: "8px", background: "var(--bg-elevated)", border: "1px solid var(--border-light)", borderRadius: "6px", margin: "0 8px" }}>
+                    <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer", color: "var(--text-primary)", fontSize: "13px" }}>
                       <input type="radio" name="exportCompanyDrop" checked={selectedCompany === "mirador"} onChange={(e) => { e.stopPropagation(); setSelectedCompany("mirador"); }} onClick={e => e.stopPropagation()} />
                       Mirador AI Technologies
                     </label>
-                    <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer", color: "#e8edf5", fontSize: "13px" }}>
+                    <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer", color: "var(--text-primary)", fontSize: "13px" }}>
                       <input type="radio" name="exportCompanyDrop" checked={selectedCompany === "sentinel"} onChange={(e) => { e.stopPropagation(); setSelectedCompany("sentinel"); }} onClick={e => e.stopPropagation()} />
                       Sentinel Technologies
                     </label>
@@ -5757,13 +5757,13 @@ function buildExportCanvas(exportMode = "design", company = "mirador", overlayOp
             <div className="dv-toolbar-divider" />
 
             {/* ── Undo / Redo ── */}
-            <button className="dv-tbtn" onClick={handleUndo} disabled={undoStack.length === 0} title="Undo last action" style={{ padding: "4px 8px" }}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="13" height="13">
+            <button className="dv-icon-btn" onClick={handleUndo} disabled={undoStack.length === 0} title="Undo last action" style={{ padding: "6px 10px" }}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16">
                 <path d="M3 7v6h6M21 17a9 9 0 00-9-9 9 9 0 00-6 2.3L3 13" />
               </svg>
             </button>
-            <button className="dv-tbtn" onClick={handleRedo} disabled={redoStack.length === 0} title="Redo last action" style={{ padding: "4px 8px" }}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="13" height="13">
+            <button className="dv-icon-btn" onClick={handleRedo} disabled={redoStack.length === 0} title="Redo last action" style={{ padding: "6px 10px" }}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16">
                 <path d="M21 7v6h-6M3 17a9 9 0 019-9 9 9 0 016 2.3l3 2.7" />
               </svg>
             </button>
@@ -5782,8 +5782,8 @@ function buildExportCanvas(exportMode = "design", company = "mirador", overlayOp
             {draftZones.length > 0 && (
               <div style={{ display: "flex", gap: "4px", alignItems: "center" }}>
                 <button
-                  className="dv-tbtn"
-                  style={{ borderColor: "#10b981", background: "#10b98122", color: "#10b981", padding: "4px 8px" }}
+                  className="dv-icon-btn"
+                  style={{ borderColor: "#10b981", background: "rgba(16, 185, 129, 0.12)", color: "#10b981" }}
                   onClick={() => {
                     showConfirm("Import All Zones", `Import all ${draftZones.length} detected zones?`, () => {
                       const newImportedZones = draftZones.map((dz, idx) => {
@@ -5805,18 +5805,17 @@ function buildExportCanvas(exportMode = "design", company = "mirador", overlayOp
                     });
                   }}
                 >
-                  Import All ({draftZones.length})
+                  <span className="dv-icon-btn__label">Import All ({draftZones.length})</span>
                 </button>
                 <button
-                  className="dv-tbtn"
-                  style={{ borderColor: "#ef4444", background: "#ef444411", color: "#ef4444", padding: "4px 8px" }}
+                  className="dv-icon-btn dv-icon-btn--danger"
                   onClick={() => {
                     setDraftZones([]);
                     draftZonesRef.current = [];
                     draw();
                   }}
                 >
-                  Clear Drafts
+                  <span className="dv-icon-btn__label">Clear Drafts</span>
                 </button>
               </div>
             )}
@@ -5826,8 +5825,8 @@ function buildExportCanvas(exportMode = "design", company = "mirador", overlayOp
           <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
 
             {/* ── Scale Widget ── */}
-            <div className="dv-scale-control" style={{ display: "flex", alignItems: "center", gap: 4, marginRight: 8 }}>
-              <span style={{ fontSize: 13, color: "rgba(255,255,255,0.45)" }}>Scale:</span>
+            <div className="dv-icon-btn" style={{ cursor: "default", gap: "6px" }}>
+              <span style={{ fontSize: "13px", color: "var(--text-secondary)", fontWeight: 600 }}>Scale:</span>
               <input type="number" min="4" max="100" value={ppm}
                 onChange={e => {
                   const newPpm = Number(e.target.value) || PIXELS_PER_METRE;
@@ -5836,45 +5835,42 @@ function buildExportCanvas(exportMode = "design", company = "mirador", overlayOp
                   scheduleSave(placedRef.current, zonesRef.current, newPpm);
                   draw();
                 }}
-                style={{ width: "36px", padding: "3px 4px", background: "var(--bg-input)", border: "0.5px solid var(--border)", borderRadius: "4px", color: "var(--text-primary)", fontSize: "11.5px", textAlign: "center" }}
+                style={{ width: "38px", height: "22px", padding: "2px 4px", background: "var(--bg-elevated)", border: "1px solid var(--border-light)", borderRadius: "4px", color: "var(--text-primary)", fontSize: "13px", fontWeight: "700", textAlign: "center", outline: "none" }}
               />
-              <span style={{ fontSize: 12, color: "rgba(255,255,255,0.4)" }}>px/m</span>
+              <span style={{ fontSize: "12px", color: "var(--text-secondary)", fontWeight: 600 }}>px/m</span>
             </div>
 
-
             {selectedPlaced && (
-              <button className="dv-tbtn dv-tbtn--danger" onClick={removeSelected} style={{ padding: "4px 8px" }}>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="12" height="12" style={{ marginRight: 2 }}>
+              <button className="dv-icon-btn dv-icon-btn--danger" onClick={removeSelected}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16">
                   <polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14H6L5 6" />
                 </svg>
-                Remove
+                <span className="dv-icon-btn__label">Remove</span>
               </button>
             )}
 
             <button
-              className={`dv-tbtn ${showStats ? "dv-tbtn--active" : ""}`}
+              className={`dv-icon-btn ${showStats ? "dv-icon-btn--active" : ""}`}
               onClick={() => setShowStats(!showStats)}
               title="View proposal summary"
-              style={{ padding: "4px 8px" }}
             >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="12" height="12" style={{ marginRight: 2 }}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16">
                 <path d="M12 20V10M18 20V4M6 20v-4" />
               </svg>
-              Proposal
+              <span className="dv-icon-btn__label">Proposal</span>
             </button>
 
             {/* ── Toolbox Dropdown ── */}
-            <div style={{ position: "relative" }}>
+            <div className="dv-icon-drop-wrap">
               <button
-                className={`dv-tbtn ${toolboxOpen ? "dv-tbtn--active" : ""}`}
+                className={`dv-icon-btn ${toolboxOpen ? "dv-icon-btn--active" : ""}`}
                 onClick={() => setToolboxOpen(!toolboxOpen)}
                 title="Open Toolbox"
-                style={{ padding: "4px 8px" }}
               >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="13" height="13" style={{ marginRight: 4 }}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16">
                   <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
                 </svg>
-                Toolbox
+                <span className="dv-icon-btn__label">Toolbox</span>
               </button>
              
               {toolboxOpen && (
@@ -5885,22 +5881,22 @@ function buildExportCanvas(exportMode = "design", company = "mirador", overlayOp
                   display: 'flex',
                   flexDirection: 'column',
                   gap: 12,
-                  background: '#161b22',
-                  border: '1px solid #30363d',
+                  background: 'var(--bg-surface)',
+                  border: '1px solid var(--border-light)',
                   borderRadius: 8,
                   padding: '12px',
-                  boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+                  boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
                   zIndex: 50,
                   width: 200,
                   pointerEvents: 'auto'
                 }}>
                   <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                    <div style={{ fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,0.85)", textTransform: "uppercase" }}>Camera Icon Size</div>
-                    <div style={{ display: "flex", background: "rgba(255,255,255,0.05)", borderRadius: 4, overflow: "hidden", alignItems: "center", height: 28, border: '1px solid rgba(255,255,255,0.1)', justifyContent: "space-between" }}>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-secondary)", textTransform: "uppercase" }}>Camera Icon Size</div>
+                    <div style={{ display: "flex", background: "var(--bg-elevated)", borderRadius: 4, overflow: "hidden", alignItems: "center", height: 28, border: '1px solid var(--border-light)', justifyContent: "space-between" }}>
                       <button className="dv-tbtn" onClick={() => { setIconScale(s => Math.max(0.4, s - 0.2)); setTimeout(draw, 0); }} style={{ padding: "4px 8px", background: "transparent", border: "none", height: "100%" }} title="Decrease Icon Size">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="12" height="12"><line x1="5" y1="12" x2="19" y2="12" /></svg>
                       </button>
-                      <span style={{ fontSize: 12, color: "rgba(255,255,255,0.8)" }}>{Math.round(iconScale * 100)}%</span>
+                      <span style={{ fontSize: 12, color: "var(--text-primary)" }}>{Math.round(iconScale * 100)}%</span>
                       <button className="dv-tbtn" onClick={() => { setIconScale(s => Math.min(2.0, s + 0.2)); setTimeout(draw, 0); }} style={{ padding: "4px 8px", background: "transparent", border: "none", height: "100%" }} title="Increase Icon Size">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="12" height="12"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
                       </button>
@@ -5910,17 +5906,17 @@ function buildExportCanvas(exportMode = "design", company = "mirador", overlayOp
                   {/* Flip Cam */}
                   {selectedPlaced && (
                     <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                      <button className="dv-tbtn" onClick={flipSelected} style={{ padding: "6px 8px", width: "100%", justifyContent: "center", background: "rgba(255,255,255,0.05)", border: '1px solid rgba(255,255,255,0.1)', borderRadius: 4 }} title="Flip Camera Mount">
+                      <button className="dv-tbtn" onClick={flipSelected} style={{ padding: "6px 8px", width: "100%", justifyContent: "center", background: "var(--bg-elevated)", border: '1px solid var(--border-light)', borderRadius: 4 }} title="Flip Camera Mount">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="12" height="12" style={{ marginRight: 6 }}><path d="M21 9V3h-6M3 15v6h6M21 3l-7.5 7.5M3 21l7.5-7.5" /></svg>
                         Flip Cam
                       </button>
                     </div>
                   )}
 
-                  <hr style={{ border: 0, borderTop: "1px solid rgba(255,255,255,0.1)", margin: "4px 0" }} />
+                  <hr style={{ border: 0, borderTop: "1px solid var(--border-light)", margin: "4px 0" }} />
 
                   <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                    <div style={{ fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,0.85)", textTransform: "uppercase" }}>Shapes & Obstacles</div>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-secondary)", textTransform: "uppercase" }}>Shapes & Obstacles</div>
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 6 }}>
                       {["Rectangle", "Circle", "Triangle", "Hexagon", "Diamond", "Star", "Cross", "Arrow", "L-Shape", "T-Shape", "U-Shape", "Boom Barrier"].map(shape => {
                         const isBoom = shape === "Boom Barrier";
@@ -5932,9 +5928,9 @@ function buildExportCanvas(exportMode = "design", company = "mirador", overlayOp
                             style={{
                               padding: "6px 0",
                               justifyContent: "center",
-                              background: isBoom ? "#ef444422" : "rgba(255,255,255,0.05)",
-                              border: isBoom ? '1px solid #ef4444' : '1px solid rgba(255,255,255,0.1)',
-                              color: isBoom ? "#fca5a5" : "#c9d6e3",
+                              background: isBoom ? "#ef444422" : "var(--bg-elevated)",
+                              border: isBoom ? '1px solid #ef4444' : '1px solid var(--border-light)',
+                              color: isBoom ? "#ef4444" : "var(--text-secondary)",
                               borderRadius: 4
                             }}
                             title={`Add ${shape}${isBoom ? " (Blocks camera FOV)" : ""}`}
@@ -5946,10 +5942,10 @@ function buildExportCanvas(exportMode = "design", company = "mirador", overlayOp
                     </div>
                   </div>
 
-                  <hr style={{ border: 0, borderTop: "1px solid rgba(255,255,255,0.1)", margin: "4px 0" }} />
+                  <hr style={{ border: 0, borderTop: "1px solid var(--border-light)", margin: "4px 0" }} />
 
                   <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                    <div style={{ fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,0.85)", textTransform: "uppercase" }}>Text Box Options</div>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-secondary)", textTransform: "uppercase" }}>Text Box Options</div>
                     
                     <div style={{ display: "flex", gap: 8 }}>
                       <input type="color" value={tbFontColor} onChange={e => {
@@ -5965,7 +5961,7 @@ function buildExportCanvas(exportMode = "design", company = "mirador", overlayOp
                         }
                       }} style={{ width: 24, height: 24, padding: 0, border: "none", borderRadius: 4, cursor: "pointer", background: "transparent" }} title="Font Color" />
                      
-                      <div style={{ display: "flex", alignItems: "center", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 4, padding: "0 4px" }}>
+                      <div style={{ display: "flex", alignItems: "center", background: "var(--bg-elevated)", border: "1px solid var(--border-light)", borderRadius: 4, padding: "0 4px" }}>
                         <input type="number" min="8" max="120" value={tbFontSize} onChange={e => {
                           const val = Number(e.target.value);
                           setTbFontSize(val);
@@ -5977,8 +5973,8 @@ function buildExportCanvas(exportMode = "design", company = "mirador", overlayOp
                             setTextNodes(updated);
                             draw();
                           }
-                        }} style={{ width: 36, background: "transparent", border: "none", color: "white", fontSize: 12, outline: "none", textAlign: "center" }} title="Font Size" />
-                        <span style={{ fontSize: 10, color: "rgba(255,255,255,0.85)" }}>px</span>
+                        }} style={{ width: 36, background: "transparent", border: "none", color: "var(--text-primary)", fontSize: 12, outline: "none", textAlign: "center" }} title="Font Size" />
+                        <span style={{ fontSize: 10, color: "var(--text-secondary)" }}>px</span>
                       </div>
                     </div>
 
@@ -5993,9 +5989,9 @@ function buildExportCanvas(exportMode = "design", company = "mirador", overlayOp
                         setTextNodes(updated);
                         draw();
                       }
-                    }} style={{ width: "100%", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 4, padding: "4px 8px", color: "white", fontSize: 12, outline: "none", cursor: "pointer" }}>
+                    }} style={{ width: "100%", background: "var(--bg-elevated)", border: "1px solid var(--border-light)", borderRadius: 4, padding: "4px 8px", color: "var(--text-primary)", fontSize: 12, outline: "none", cursor: "pointer" }}>
                       {["Arial", "Verdana", "Courier New", "Times New Roman", "Georgia", "Impact", "Tahoma", "Trebuchet MS", "Comic Sans MS", "Lucida Console"].map(font => (
-                        <option key={font} value={font} style={{ color: "#000" }}>{font}</option>
+                        <option key={font} value={font} style={{ color: "var(--text-primary)", background: "var(--bg-surface)" }}>{font}</option>
                       ))}
                     </select>
 
@@ -6023,29 +6019,27 @@ function buildExportCanvas(exportMode = "design", company = "mirador", overlayOp
             </div>
 
             <button
-              className="dv-tbtn"
+              className="dv-icon-btn"
               onClick={handleManualSave}
               title="Save layout version"
-              style={{ borderColor: "rgba(59, 130, 246, 0.4)", color: "#60a5fa", background: "rgba(59, 130, 246, 0.1)", padding: "4px 8px" }}
             >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="12" height="12" style={{ marginRight: 2 }}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16">
                 <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
                 <polyline points="17 21 17 13 7 13 7 21" />
                 <polyline points="7 3 7 8 15 8" />
               </svg>
-              Save Layout
+              <span className="dv-icon-btn__label">Save Layout</span>
             </button>
 
             <button
-              className="dv-tbtn dv-tbtn--danger"
+              className="dv-icon-btn dv-icon-btn--danger"
               onClick={clearFloorCameras}
               title="Remove all cameras from floor (keeps floor plan)"
-              style={{ borderColor: "rgba(239, 68, 68, 0.25)", color: "#ef4444", background: "rgba(239, 68, 68, 0.05)", padding: "4px 8px" }}
             >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="12" height="12" style={{ marginRight: 2 }}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16">
                 <polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14H6L5 6" />
               </svg>
-              Clear Layout
+              <span className="dv-icon-btn__label">Clear Layout</span>
             </button>
           </div>
 
@@ -6181,7 +6175,7 @@ function buildExportCanvas(exportMode = "design", company = "mirador", overlayOp
                     style={{
                       fontSize: "11px",
                       fontWeight: "700",
-                      color: isActive ? "#3b82f6" : "#4b5563",
+                      color: isActive ? "var(--teal)" : "var(--text-muted)",
                       width: "14px",
                       display: "flex",
                       alignItems: "center",
@@ -6364,12 +6358,12 @@ function buildExportCanvas(exportMode = "design", company = "mirador", overlayOp
                       )}
 
                       {/* Counts stats line */}
-                      <div style={{ fontSize: "9.5px", color: "#ffffff", marginTop: "2px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <div style={{ fontSize: "9.5px", color: "var(--text-secondary)", marginTop: "2px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                         <span>{camCount} Cam{camCount !== 1 ? "s" : ""} • {zoneCount} Zone{zoneCount !== 1 ? "s" : ""}</span>
                         {slide.versions && slide.versions.length > 0 && (
                           <div
                             onClick={(e) => { e.stopPropagation(); setExpandedVersions(prev => ({ ...prev, [slide.id]: !prev[slide.id] })); }}
-                            style={{ cursor: "pointer", padding: "2px", display: "flex", alignItems: "center", justifyContent: "center" }}
+                            style={{ cursor: "pointer", padding: "2px", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-muted)" }}
                             title={expandedVersions[slide.id] ? "Hide versions" : "Show versions"}
                           >
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="12" height="12"
@@ -6387,7 +6381,7 @@ function buildExportCanvas(exportMode = "design", company = "mirador", overlayOp
                 {/* Versions Tree */}
                 {slide.versions && slide.versions.length > 0 && expandedVersions[slide.id] && (
                   <div style={{ paddingLeft: "28px", display: "flex", flexDirection: "column", gap: "4px", position: "relative", paddingBottom: "4px" }}>
-                      <div style={{ position: "absolute", left: "14px", top: 0, bottom: "14px", width: "1px", background: "#1e2d3e" }}></div>
+                      <div style={{ position: "absolute", left: "14px", top: 0, bottom: "14px", width: "1px", background: "var(--border-light)" }}></div>
                       {slide.versions.map((v, vIdx) => (
                         <div
                           key={v.id}
@@ -6397,21 +6391,21 @@ function buildExportCanvas(exportMode = "design", company = "mirador", overlayOp
                             alignItems: "center",
                             gap: "8px",
                             fontSize: "12px",
-                            color: "#ffffff",
+                            color: "var(--text-primary)",
                             cursor: "pointer",
                             padding: "4px 8px",
                             borderRadius: "4px",
-                            background: "rgba(255,255,255,0.02)",
+                            background: "var(--bg-elevated)",
                             position: "relative",
-                            border: "0.5px solid transparent",
+                            border: "0.5px solid var(--border-light)",
                             transition: "all 0.15s"
                           }}
-                          onMouseEnter={e => { e.currentTarget.style.background = "rgba(255,255,255,0.06)"; e.currentTarget.style.borderColor = "#2e3d55"; }}
-                          onMouseLeave={e => { e.currentTarget.style.background = "rgba(255,255,255,0.02)"; e.currentTarget.style.borderColor = "transparent"; }}
+                          onMouseEnter={e => { e.currentTarget.style.background = "var(--bg-hover)"; e.currentTarget.style.borderColor = "var(--teal)"; }}
+                          onMouseLeave={e => { e.currentTarget.style.background = "var(--bg-elevated)"; e.currentTarget.style.borderColor = "var(--border-light)"; }}
                           title={`Restore ${v.name}`}
                         >
-                          <div style={{ position: "absolute", left: "-14px", top: "50%", width: "10px", height: "1px", background: "#1e2d3e" }}></div>
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="10" height="10" style={{ flexShrink: 0 }}>
+                          <div style={{ position: "absolute", left: "-14px", top: "50%", width: "10px", height: "1px", background: "var(--border-light)" }}></div>
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="10" height="10" style={{ flexShrink: 0, color: "var(--text-muted)" }}>
                             <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
                             <polyline points="17 21 17 13 7 13 7 21" />
                             <polyline points="7 3 7 8 15 8" />
@@ -6437,19 +6431,19 @@ function buildExportCanvas(exportMode = "design", company = "mirador", overlayOp
                               onClick={e => e.stopPropagation()}
                               autoFocus
                               style={{
-                                background: "#070a0f", border: "1px solid #3b82f6", borderRadius: "3px", color: "#ffffff",
+                                background: "var(--bg-input)", border: "1px solid var(--teal)", borderRadius: "3px", color: "var(--text-primary)",
                                 fontSize: "12px", padding: "1px 4px", width: "100%", outline: "none"
                               }}
                             />
                           ) : (
                             <>
                               <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{v.name}</span>
-                              <span style={{ fontSize: "10px", color: "#ffffff", flexShrink: 0 }}>
+                              <span style={{ fontSize: "10px", color: "var(--text-secondary)", flexShrink: 0 }}>
                                 ({v.placed ? v.placed.length : 0})
                               </span>
                               <svg
                                 viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="10" height="10"
-                                style={{ opacity: 0.3, cursor: "pointer", flexShrink: 0, marginLeft: "4px" }}
+                                style={{ opacity: 0.6, cursor: "pointer", flexShrink: 0, marginLeft: "4px", color: "var(--text-secondary)" }}
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   setEditingVersionId(v.id);
@@ -6473,7 +6467,7 @@ function buildExportCanvas(exportMode = "design", company = "mirador", overlayOp
                                 <line x1="18" y1="6" x2="6" y2="18" />
                                 <line x1="6" y1="6" x2="18" y2="18" />
                               </svg>
-                              <span style={{ fontSize: "9px", color: "#ffffff", flexShrink: 0, marginLeft: "4px" }}>
+                              <span style={{ fontSize: "9px", color: "var(--text-muted)", flexShrink: 0, marginLeft: "4px" }}>
                                 {new Date(v.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
                               </span>
                             </>
@@ -6613,11 +6607,11 @@ function buildExportCanvas(exportMode = "design", company = "mirador", overlayOp
                                     onKeyDown={e => {
                                       if (e.key === 'Enter') e.target.blur();
                                     }}
-                                    style={{ flex: 1, background: "transparent", border: "none", borderBottom: "1px solid rgba(255,255,255,0.2)", color: "#fff", fontSize: 15, outline: "none", minWidth: 0 }}
+                                    style={{ flex: 1, background: "transparent", border: "none", borderBottom: "1px solid var(--border-light)", color: "var(--text-primary)", fontSize: 15, outline: "none", minWidth: 0 }}
                                   />
-                                  <button onClick={(e) => { e.stopPropagation(); handleRemoveCamFromZone(p.id); }} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.5)", cursor: "pointer", fontSize: 16 }}>✕</button>
+                                  <button onClick={(e) => { e.stopPropagation(); handleRemoveCamFromZone(p.id); }} style={{ background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer", fontSize: 16 }}>✕</button>
                                </div>
-                               <div style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", marginTop: 4, marginLeft: 26 }}>
+                               <div style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 4, marginLeft: 26 }}>
                                   {p.camera.brand} · {p.camera.megapixels}MP · {p.camera.type}
                                 </div>
                             </div>
@@ -7844,15 +7838,15 @@ function ProjectStatsPanel({
         </div>
 
         {/* Tab Buttons */}
-        <div style={{ display: "flex", borderBottom: "1px solid #1e2d3e", background: "#090d13", padding: "0 20px" }}>
+        <div style={{ display: "flex", borderBottom: "1px solid var(--border-light)", background: "var(--bg-elevated)", padding: "0 20px" }}>
           <button
             onClick={() => setActiveTab("layout")}
             style={{
               padding: "12px 18px",
               background: "transparent",
               border: "none",
-              borderBottom: activeTab === "layout" ? "2px solid #3b82f6" : "2px solid transparent",
-              color: activeTab === "layout" ? "#3b82f6" : "rgba(255, 255, 255, 0.85)",
+              borderBottom: activeTab === "layout" ? "2px solid var(--teal)" : "2px solid transparent",
+              color: activeTab === "layout" ? "var(--teal)" : "var(--text-secondary)",
               fontWeight: 700,
               fontSize: 16,
               cursor: "pointer",
@@ -7868,7 +7862,7 @@ function ProjectStatsPanel({
               background: "transparent",
               border: "none",
               borderBottom: activeTab === "simulate" ? "2px solid #a855f7" : "2px solid transparent",
-              color: activeTab === "simulate" ? "#a855f7" : "rgba(255, 255, 255, 0.85)",
+              color: activeTab === "simulate" ? "#a855f7" : "var(--text-secondary)",
               fontWeight: 700,
               fontSize: 16,
               cursor: "pointer",

@@ -124,7 +124,7 @@ function HlsPlayer({ streamKey, streamUrl, muted = true, autoplay = true, classN
     position: "relative",
     width: "100%",
     height: "100%",
-    background: "#000",
+    background: "var(--bg-elevated)",
     borderRadius: 6,
     overflow: "hidden",
   };
