@@ -1,0 +1,166 @@
+/* ── Tab bar ─────────────────────────────────────── */
+.rm-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 20px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0;
+}
+
+.rm-tab {
+  padding: 8px 18px;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text-secondary);
+  font-size: 15px;
+  font-family: var(--font-ui);
+  font-weight: 500;
+  cursor: pointer;
+  margin-bottom: -1px;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.rm-tab:hover {
+  color: var(--text-primary);
+}
+
+.rm-tab--active {
+  color: var(--text-primary);
+  border-bottom-color: var(--teal);
+  background: var(--teal-subtle);
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+}
+
+/* ── Wizard ──────────────────────────────────────── */
+.rm-wizard {
+  display: flex;
+  justify-content: center;
+  padding-top: 20px;
+}
+
+.rm-wizard-card {
+  width: 100%;
+  max-width: 640px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.rm-wizard-desc {
+  color: var(--text-secondary);
+  font-size: 15px;
+  line-height: 1.6;
+  margin: 0;
+}
+
+/* ── Device List ─────────────────────────────────── */
+.rm-device-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.rm-device-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background: var(--bg-base);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+  font-family: var(--font-ui);
+  width: 100%;
+  text-align: left;
+}
+
+.rm-device-item:hover {
+  border-color: var(--border-light);
+  background: var(--bg-hover);
+}
+
+.rm-device-item--selected {
+  border-color: var(--teal);
+  background: var(--teal-subtle);
+}
+
+.rm-device-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--text-muted);
+}
+
+.rm-device-name {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.rm-device-meta {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+/* ── Field Row Label ─────────────────────────────── */
+.rm-label {
+  font-size: 15px;
+  color: var(--text-secondary);
+  font-weight: 500;
+  min-width: 140px;
+  flex-shrink: 0;
+}
+
+.rm-field-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+}
+
+/* ── Actions ─────────────────────────────────────── */
+.rm-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 8px;
+}
+
+/* ── Logs viewer ─────────────────────────────────── */
+.rm-logs-wrap {
+  flex: 1;
+}
+
+.rm-logs-viewer {
+  background: var(--bg-base);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--teal);
+  line-height: 1.7;
+  white-space: pre-wrap;
+  min-height: 260px;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+/* ── Empty state ─────────────────────────────────── */
+.rm-empty {
+  color: var(--text-muted);
+  font-size: 15px;
+  padding: 20px 0;
+  text-align: center;
+}
+
+/* ── Loading ─────────────────────────────────────── */
+.rm-loading {
+  color: var(--text-muted);
+  font-size: 15px;
+  padding: 40px 0;
+  text-align: center;
+}
