@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { useWebSocket } from "../../hooks/useWebSocket";
 import { AreaChart, Area, LineChart, Line, BarChart, Bar, PieChart, Pie, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
@@ -221,10 +222,13 @@ export default function LogsPage() {
     fetchLogs();
   }, [activeTab, category]);
 
+  const { isConnected: isWsConnected } = useWebSocket(["alerts", "system_metrics"]);
+
   useEffect(() => {
-    const interval = setInterval(() => fetchLogs(true), 2000);
+    const pollMs = isWsConnected ? 30000 : 5000;
+    const interval = setInterval(() => fetchLogs(true), pollMs);
     return () => clearInterval(interval);
-  }, [activeTab, fromDate, toDate, category]);
+  }, [activeTab, fromDate, toDate, category, isWsConnected]);
 
   // Pagination calculations
   const indexOfLastLog = currentPage * logsPerPage;

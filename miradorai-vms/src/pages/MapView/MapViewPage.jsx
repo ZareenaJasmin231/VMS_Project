@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useAuth } from "../../context/AuthContext";
+import { useWebSocket } from "../../hooks/useWebSocket";
 import "./MapViewPage.css";
 import SearchBar from "../../components/shared/SearchBar";
 import MapCanvas      from "./MapCanvas";
@@ -788,7 +789,9 @@ export default function MapViewPage() {
   const camerasRef = useRef(cameras);
   useEffect(() => { camerasRef.current = cameras; }, [cameras]);
 
-  // Fetch active alert counts periodically (replaces websocket)
+  const { isConnected: isWsConnected } = useWebSocket(["alerts"]);
+
+  // Fetch active alert counts periodically
   useEffect(() => {
     const loadCounts = async () => {
       try {
@@ -819,11 +822,12 @@ export default function MapViewPage() {
         console.error("[AlertCounts] load failed:", e);
       }
     };
-    loadCounts();
 
-    const interval = setInterval(loadCounts, 5000);
+    loadCounts();
+    const pollMs = isWsConnected ? 30000 : 5000;
+    const interval = setInterval(loadCounts, pollMs);
     return () => clearInterval(interval);
-  }, []);
+  }, [isWsConnected]);
 
 
 

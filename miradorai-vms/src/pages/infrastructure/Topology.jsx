@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useWebSocket } from '../../hooks/useWebSocket';
 import ReactFlow, {
   addEdge, Background, Controls, MiniMap,
   useNodesState, useEdgesState, Panel, MarkerType, Handle, Position
@@ -1217,19 +1218,22 @@ export default function Topology() {
     } catch {}
   }, []);
 
+  const { isConnected: isWsConnected } = useWebSocket(['alerts', 'camera_status', 'system_metrics']);
+
   useEffect(() => {
     fetchTopology(); fetchMetrics(); fetchAlerts(); fetchBandwidth();
-    const intervalMetrics = setInterval(fetchMetrics, 10000);
-    const intervalTopo = setInterval(fetchTopology, 2000);
-    const intervalAlerts = setInterval(fetchAlerts, 5000);
-    const intervalBw = setInterval(fetchBandwidth, 2000);
+    const pollMs = isWsConnected ? 30000 : 10000;
+    const intervalMetrics = setInterval(fetchMetrics, pollMs);
+    const intervalTopo = setInterval(fetchTopology, pollMs);
+    const intervalAlerts = setInterval(fetchAlerts, pollMs);
+    const intervalBw = setInterval(fetchBandwidth, pollMs);
     return () => {
       clearInterval(intervalMetrics);
       clearInterval(intervalTopo);
       clearInterval(intervalAlerts);
       clearInterval(intervalBw);
     };
-  }, [fetchTopology, fetchMetrics, fetchAlerts, fetchBandwidth]);
+  }, [fetchTopology, fetchMetrics, fetchAlerts, fetchBandwidth, isWsConnected]);
 
   // Keep selectedNode data in sync when nodes refresh
   useEffect(() => {

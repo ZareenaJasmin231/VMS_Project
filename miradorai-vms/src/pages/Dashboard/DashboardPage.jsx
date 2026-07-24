@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
+import { useWebSocket } from "../../hooks/useWebSocket";
 import "./DashboardPage.css";
 import {
   Camera,
@@ -1903,6 +1904,7 @@ const parseEvents = (uiLogsList, infraAlertsList) => {
 
 const DashboardPage = () => {
   const navigate = useNavigate();
+  const { isConnected: isWsConnected, systemMetrics, eventsByTopic } = useWebSocket(['alerts', 'camera_status', 'system_metrics']);
   const [summary, setSummary] = useState({
     total_cameras: 0,
     active_streams: 0,
@@ -1914,6 +1916,41 @@ const DashboardPage = () => {
     status: "Healthy",
     history: { cpu: [], ram: [], disk: [] }
   });
+
+  // Sync real-time WebSocket telemetry metrics
+  useEffect(() => {
+    if (systemMetrics) {
+      setSummary(prev => ({
+        ...prev,
+        cpu: systemMetrics.cpu ?? prev.cpu,
+        ram: systemMetrics.ram ?? prev.ram,
+        disk: systemMetrics.disk ?? prev.disk,
+        history: {
+          cpu: [...(prev.history?.cpu || []).slice(-19), systemMetrics.cpu],
+          ram: [...(prev.history?.ram || []).slice(-19), systemMetrics.ram],
+          disk: [...(prev.history?.disk || []).slice(-19), systemMetrics.disk]
+        }
+      }));
+    }
+  }, [systemMetrics]);
+
+  // Sync real-time AI & Analytics alerts over WebSocket
+  useEffect(() => {
+    const alertEnvelope = eventsByTopic.alerts;
+    if (alertEnvelope && alertEnvelope.data) {
+      setEvents(prev => [alertEnvelope.data, ...prev.filter(e => (e.event_id || e._id) !== (alertEnvelope.data.event_id || alertEnvelope.data._id))]);
+      setSummary(prev => ({ ...prev, alarms_today: prev.alarms_today + 1 }));
+    }
+  }, [eventsByTopic.alerts]);
+
+  // Sync camera online/offline status changes over WebSocket
+  useEffect(() => {
+    const statusEnvelope = eventsByTopic.camera_status;
+    if (statusEnvelope && statusEnvelope.data) {
+      const { ip, status } = statusEnvelope.data;
+      setCameras(prev => prev.map(c => (c.ip === ip || c.ip_address === ip) ? { ...c, enabled: status === 'online' } : c));
+    }
+  }, [eventsByTopic.camera_status]);
   const [storage, setStorage] = useState({ total: 0, used: 0, free: 0, location: "—" });
   const [events, setEvents] = useState([]);
   const [cameras, setCameras] = useState([]);
@@ -2372,9 +2409,10 @@ const fromToText = `Selected Period: ${reportFromDate.replace('T', ' ')} to ${re
 
   useEffect(() => {
     fetchDiagnostics();
-    const interval = setInterval(fetchDiagnostics, 5000);
+    const pollMs = isWsConnected ? 30000 : 5000;
+    const interval = setInterval(fetchDiagnostics, pollMs);
     return () => clearInterval(interval);
-  }, [bitrateFilter]);
+  }, [bitrateFilter, isWsConnected]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -2493,9 +2531,11 @@ const fromToText = `Selected Period: ${reportFromDate.replace('T', ' ')} to ${re
     };
 
     fetchData();
-    const interval = setInterval(fetchData, 2000);
+    // Dynamic polling interval: 30s safety check when WS connected, 5s fallback when WS disconnected
+    const pollInterval = isWsConnected ? 30000 : 5000;
+    const interval = setInterval(fetchData, pollInterval);
     return () => clearInterval(interval);
-  }, []);
+  }, [isWsConnected]);
 
   // 🎨 Color logic for health bars
   const getColor = (value) => {

@@ -6,6 +6,10 @@ from app.managers.stream_manager import devices
 from app.adapters.bosch_adapter import pull_bosch_events
 from app.adapters.dahua_adapter import pull_dahua_events
 
+from app.core.ws_manager import ws_manager
+
+_previous_camera_statuses = {}
+
 async def system_health_collector():
     while True:
         try:
@@ -29,15 +33,32 @@ async def system_health_collector():
             except Exception:
                 pass
 
+            metrics_payload = {
+                "cpu": cpu,
+                "ram": ram,
+                "disk": disk,
+                "ffmpeg_count": ffmpeg_count,
+                "vms_ram_mb": round(vms_ram_mb, 1)
+            }
+
             if db is not None:
                 db["health_logs"].insert_one({
                     "type": "system",
+                    **metrics_payload,
+                    "timestamp": datetime.utcnow()
+                })
+
+            # Broadcast system metrics telemetry over WebSocket
+            await ws_manager.broadcast("system_metrics", "metrics_tick", metrics_payload)
+
+            # High resource usage alert broadcast
+            if cpu > 90 or ram > 90 or disk > 90:
+                await ws_manager.broadcast("system_metrics", "system_alert", {
+                    "severity": "WARNING" if disk < 95 else "CRITICAL",
                     "cpu": cpu,
                     "ram": ram,
                     "disk": disk,
-                    "ffmpeg_count": ffmpeg_count,
-                    "vms_ram_mb": round(vms_ram_mb, 1),
-                    "timestamp": datetime.utcnow()
+                    "message": f"Resource warning: CPU {cpu}%, RAM {ram}%, Disk {disk}%"
                 })
 
         except Exception as e:
@@ -46,15 +67,36 @@ async def system_health_collector():
         await asyncio.sleep(10)
 
 async def camera_health_collector():
+    global _previous_camera_statuses
     while True:
         try:
             for cam in devices:
-                db["health_logs"].insert_one({
-                    "type": "camera",
-                    "ip": cam.get("ip"),
-                    "status": "online" if cam.get("enabled") else "offline",
-                    "timestamp": datetime.utcnow()
-                })
+                ip = cam.get("ip")
+                if not ip:
+                    continue
+                current_status = "online" if cam.get("enabled") else "offline"
+                previous_status = _previous_camera_statuses.get(ip)
+
+                if db is not None:
+                    db["health_logs"].insert_one({
+                        "type": "camera",
+                        "ip": ip,
+                        "status": current_status,
+                        "timestamp": datetime.utcnow()
+                    })
+
+                # Broadcast camera status ONLY when status actually changes
+                if previous_status is not None and previous_status != current_status:
+                    await ws_manager.broadcast("camera_status", "status_change", {
+                        "ip": ip,
+                        "status": current_status,
+                        "previous_status": previous_status,
+                        "camera_name": cam.get("name", ip)
+                    })
+                    print(f"[WS CAM STATUS CHANGE] {ip}: {previous_status} -> {current_status}")
+
+                _previous_camera_statuses[ip] = current_status
+
         except Exception as e:
             print("[CAM HEALTH ERROR]", e)
 
@@ -130,7 +172,12 @@ async def analytics_poll_loop(ip: str, port: int, username: str, password: str, 
                                 alert["human"] = count_val
 
                     if analytics_col is not None:
-                        analytics_col.insert_one(alert)
+                        res = analytics_col.insert_one(alert)
+                        alert_id = str(res.inserted_id)
+                        clean_alert = {**alert, "_id": alert_id}
+                        # Broadcast analytics alert via WS
+                        await ws_manager.broadcast("alerts", "analytics_alert", clean_alert, event_id=alert_id)
+
                     if watch_collection is not None:
                         watch_collection.insert_one(alert)
 
