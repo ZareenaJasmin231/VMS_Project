@@ -560,6 +560,7 @@ def start_camera(
     
     recorder_obj = CameraRecorder(stream_name, rtsp_url, camera_data, vf_filter)
     _recorders[stream_name] = recorder_obj
+    recorder_obj.tick()
     print(f"[RECORDER] 🎥 Started threadless: {stream_name} → {get_recordings_dir()}")
 
 

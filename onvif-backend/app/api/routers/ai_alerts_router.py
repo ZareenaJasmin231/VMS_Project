@@ -10,6 +10,8 @@ from datetime import datetime
 import os
 import logging
 import json
+from app.core.ws_manager import ws_manager
+
 
 try:
     from app.core.database import analytics_col, db
@@ -22,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 # Collection to store incoming alerts
 # ai_alerts_col = analytics_col if analytics_col is not None else (db["analytics_events"] if db is not None else None)
-ai_alerts_col = db["cameras"]
+ai_alerts_col = None
 
 # class AIAlertPayload(BaseModel):
 #     camera_id: Optional[str] = Field(None, description="Camera ID or IP Address")
@@ -103,11 +105,46 @@ async def process_ai_alert(request: Request):
         if cam_ip:
             alert_data["ip"] = cam_ip
             alert_data["ip_address"] = cam_ip
+            if not alert_data.get("ome_stream"):
+                alert_data["ome_stream"] = cam_ip.replace(".", "_")
 
         result = col.insert_one(alert_data)
         alert_id = str(result.inserted_id)
-        # logger.info(f"[AI_ALERT] Alert received & saved successfully: {alert_id} ({payload.alert_type})")
-        logger.info(f"[AI_ALERT] Payload: {alert_data}")
+
+                # Broadcast via WebSocket after persisting to MongoDB
+        ws_payload = {**alert_data}
+        if "_id" in ws_payload:
+            ws_payload["_id"] = alert_id
+        ws_payload["alert_id"] = alert_id
+
+        try:
+            await ws_manager.broadcast("alerts", "ai_alert", ws_payload, event_id=alert_id)
+            logger.info(f"[AI_ALERT] Broadcast alert {alert_id} over WebSocket topic 'alerts'")
+        except Exception as ws_err:
+            logger.warning(f"[AI_ALERT] Failed to broadcast over WebSocket: {ws_err}")
+        logger.info(f"[AI_ALERT] Payload saved: {alert_data}")
+
+        # Register stream with MediaMTX and start RTSP recorder
+        rtsp_url = alert_data.get("rtsp_url")
+        if cam_ip and rtsp_url:
+            stream_name = alert_data.get("ome_stream") or cam_ip.replace(".", "_")
+            alert_data["enabled"] = alert_data.get("enabled", True)
+
+            # 1. Register with MediaMTX for Live View WebRTC player
+            try:
+                from app.services.camera import mediamtx_service
+                mediamtx_service.register_stream(stream_name, rtsp_url)
+                logger.info(f"[AI_ALERT] Registered MediaMTX path: {stream_name}")
+            except Exception as mtx_err:
+                logger.warning(f"[AI_ALERT] Could not register MediaMTX stream {stream_name}: {mtx_err}")
+
+            # 2. Start recording engine
+            try:
+                from app.services.storage import rtsp_recorder
+                rtsp_recorder.start_camera(stream_name, rtsp_url, alert_data)
+                logger.info(f"[AI_ALERT] Automatically started recording stream: {stream_name}")
+            except Exception as rec_err:
+                logger.warning(f"[AI_ALERT] Could not auto-start recording for {cam_ip}: {rec_err}")
 
         return AIAlertResponse(
             status="success",
@@ -292,3 +329,30 @@ async def get_alerts_by_reader(reader_id: str):
         "count": len(docs),
         "alerts": docs
     }
+
+
+# Python urllib-based media proxy to bypass python.exe socket blocks on port 9000
+from fastapi.responses import StreamingResponse
+import urllib.request
+
+@router.get("/media/{path:path}")
+def proxy_external_ai_media(path: str):
+    target_url = f"http://192.168.126.201:9000/{path}"
+    try:
+        # Fetch directly using standard urllib which is allowed on system level
+        req = urllib.request.Request(target_url, method="GET")
+        response = urllib.request.urlopen(req, timeout=10)
+        
+        content_type = response.headers.get("Content-Type", "image/jpeg")
+        
+        def iter_file():
+            while True:
+                chunk = response.read(16384)
+                if not chunk:
+                    break
+                yield chunk
+                
+        return StreamingResponse(iter_file(), media_type=content_type)
+    except Exception as e:
+        logger.error(f"[AI_MEDIA_PROXY] urllib fetch failed for {target_url}: {e}")
+        raise HTTPException(status_code=502, detail=f"Failed to stream media: {e}")

@@ -41,7 +41,7 @@ function fmt(s) {
     : `${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
 }
 
-export default function SidePlaybackPanel({ camera, onClose }) {
+export default function SidePlaybackPanel({ camera, onClose, alertSource = "builtin" }) {
   const videoRef = useRef(null);
   const playerWrap = useRef(null);
   const hlsRef = useRef(null);
@@ -92,6 +92,10 @@ export default function SidePlaybackPanel({ camera, onClose }) {
     return (camera?.ip || "").replace(/_/g, ".");
   }, [camera]);
 
+  const playbackIp = useMemo(() => {
+    return (camera?.ip || "").replace(/\./g, "_");
+  }, [camera]);
+
   const showToast = (msg, type = "success") => {
     setToast({ msg, type });
     setTimeout(() => setToast(null), 3000);
@@ -102,32 +106,73 @@ export default function SidePlaybackPanel({ camera, onClose }) {
     if (!cameraIp) return;
     setLoadingAlerts(true);
     try {
-      const res = await fetch(`${API}/api/alerts?limit=500`, {
-        headers: getAuthHeaders()
-      });
-      if (res.ok) {
-        const data = await res.json();
-        const filtered = (data.alerts || [])
-          .filter(a => (a.ip || "").replace(/_/g, ".") === cameraIp)
-          .filter((a) => {
-             const t = (a.type || "").toLowerCase();
-             const s = (a.scenario || "").toLowerCase();
-             return !t.includes("motion") && !s.includes("motion") && t !== "unknown" && t !== "" && !t.includes("tns1:");
-          })
-          .sort((a, b) => {
-            const tA = new Date(a.time || a.received_at).getTime() || 0;
-            const tB = new Date(b.time || b.received_at).getTime() || 0;
-            return tB - tA;
-          })
-          .slice(0, 99);
-        setAlerts(filtered);
+      if (alertSource === "external") {
+        const readerId = camera?.reader_id;
+        if (!readerId) return; // no reader_id registered for this camera yet
+        const res = await fetch(`/external-ai-api/getalert?readerIds=${encodeURIComponent(readerId)}&page=1&size=50`, {
+          headers: {
+            "Authorization": "Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ7XCJpZFwiOlwiN2MxYzVhMzYtOGM0ZS00YzdlLTlkNmEtMWE3ZjFlOWQyYTQxXCIsXCJlbWFpbFwiOlwiYWRtaW5AbWlyYWRvci5haVwiLFwidGVuYW50SWRcIjpcIjZhNWVkMmE0LWI2MTQtNDY3My1iOWUzLTFiYTEwNzM4M2VmZVwiLFwiZmlyc3ROYW1lXCI6XCJBZG1pblwiLFwibGFzdE5hbWVcIjpudWxsfSIsImlhdCI6MTc4NDY5OTc0OX0.70FwbJjKRihC_YRN3w2icZKgWxld_zKFjrMoRVDyYMQ",
+            "Content-Type": "application/json"
+          }
+        });
+        if (res.ok) {
+          const extData = await res.ok ? await res.json() : { data: [] };
+          const items = extData.data || [];
+          const mapped = items.map(item => {
+            // Format sourceType e.g. "identity_management" -> "Identity Management"
+            let eventType = item.sourceType || item.subType || "AI Event";
+            eventType = eventType
+              .split(/[_-]/)
+              .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+              .join(" ");
+
+            const personName = item.empName || item.employeeName || item.personName || item.name || item.label || "Unknown";
+            const isUnknown = personName.toLowerCase().includes("unknown");
+            const eventText = isUnknown ? "Unknown" : `${eventType} — ${personName}`;
+
+            return {
+              ip: item.readerIp || "",
+              serial: item.readerId || "",
+              time: item.detectionTime || "",
+              received_at: item.detectionTime || "",
+              type: eventText,
+              eventType: isUnknown ? "Unknown" : eventType,
+              personName: isUnknown ? "" : personName,
+              isExternal: true,
+              rawData: item
+            };
+          });
+          mapped.sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
+          setAlerts(mapped);
+        }
+      } else {
+        const res = await fetch(`${API}/api/alerts?limit=500`, {
+          headers: getAuthHeaders()
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const filtered = (data.alerts || [])
+            .filter(a => (a.ip || "").replace(/_/g, ".") === cameraIp)
+            .filter((a) => {
+               const t = (a.type || "").toLowerCase();
+               const s = (a.scenario || "").toLowerCase();
+               return !t.includes("motion") && !s.includes("motion") && t !== "unknown" && t !== "" && !t.includes("tns1:");
+            })
+            .sort((a, b) => {
+              const tA = new Date(a.time || a.received_at).getTime() || 0;
+              const tB = new Date(b.time || b.received_at).getTime() || 0;
+              return tB - tA;
+            })
+            .slice(0, 99);
+          setAlerts(filtered);
+        }
       }
     } catch (e) {
       console.error("[SidePlaybackPanel] fetch alerts failed:", e);
     } finally {
       setLoadingAlerts(false);
     }
-  }, [cameraIp]);
+  }, [cameraIp, alertSource, camera]);
 
   useEffect(() => {
     if (activeTab === "alerts") {
@@ -424,7 +469,7 @@ export default function SidePlaybackPanel({ camera, onClose }) {
       if (!time) throw new Error("Alert has no timestamp");
 
       const url = `${API}/api/event-playback`
-        + `?ip=${encodeURIComponent(cameraIp)}`
+        + `?ip=${encodeURIComponent(playbackIp)}`
         + `&time=${encodeURIComponent(time)}`;
 
       const res = await fetch(url, { headers: getAuthHeaders() });
@@ -493,38 +538,82 @@ export default function SidePlaybackPanel({ camera, onClose }) {
   };
 
   const handleDownloadVideo = async () => {
-    if (!playingFile && !playingAlert) {
-      showToast("Select a file or alert to download", "error");
-      return;
-    }
+  if (!playingFile && !playingAlert) {
+    showToast("Select a file or alert to download", "error");
+    return;
+  }
 
-    if (playingAlert) {
-      if (!videoUrl) return;
-      try {
-        const time = playingAlert.time || playingAlert.received_at;
-        if (!time) throw new Error("Alert has no timestamp");
-        const downloadUrl = `${API}/api/event-playback?ip=${encodeURIComponent(cameraIp)}&time=${encodeURIComponent(time)}&stream=1`;
-        const response = await fetch(downloadUrl, { headers: getAuthHeaders() });
-        if (!response.ok) throw new Error(`Server returned ${response.status}`);
-        const blob = await response.blob();
-        
+  if (playingAlert) {
+    if (!videoUrl) return;
+    try {
+      const time = playingAlert.time || playingAlert.received_at;
+      if (!time) throw new Error("Alert has no timestamp");
+
+      const isHls = videoUrl.includes(".m3u8");
+
+      if (isHls) {
+        // videoUrl is an HLS playlist — fetch it, then fetch + stitch
+        // together every .ts segment it references into one real file.
+        const playlistRes = await fetch(videoUrl, { headers: getAuthHeaders() });
+        if (!playlistRes.ok) throw new Error(`Server returned ${playlistRes.status}`);
+        const playlistText = await playlistRes.text();
+
+        const segmentNames = playlistText
+          .split("\n")
+          .map((line) => line.trim())
+          .filter((line) => line && !line.startsWith("#"));
+
+        if (segmentNames.length === 0) {
+          throw new Error("Playlist has no video segments");
+        }
+
+        const baseUrl = videoUrl.substring(0, videoUrl.lastIndexOf("/") + 1);
+
+        const segmentBuffers = [];
+        for (const name of segmentNames) {
+          const segUrl = /^https?:\/\//.test(name) ? name : baseUrl + name;
+          const segRes = await fetch(segUrl, { headers: getAuthHeaders() });
+          if (!segRes.ok) throw new Error(`Failed to fetch segment ${name} (${segRes.status})`);
+          segmentBuffers.push(await segRes.arrayBuffer());
+        }
+
+        const blob = new Blob(segmentBuffers, { type: "video/mp2t" });
         const blobUrl = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = blobUrl;
-        const timeStr = time || "alert";
-        const safeTime = timeStr.replace(/[:\/]/g, "-");
+        const safeTime = time.replace(/[:\/]/g, "-");
+        // Real container is MPEG-TS, not MP4 — labeling it .mp4 would
+        // still fail to open in players that check the container format.
+        a.download = `Alert_${camera?.name || cameraIp}_${safeTime}.ts`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 5000);
+        showToast("Download started! (.ts file — plays in VLC and most players)");
+      } else {
+        // Not HLS — a direct fetch+blob is safe as-is.
+        const response = await fetch(videoUrl, { headers: getAuthHeaders() });
+        if (!response.ok) throw new Error(`Server returned ${response.status}`);
+        const blob = await response.blob();
+        const blobUrl = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = blobUrl;
+        const safeTime = time.replace(/[:\/]/g, "-");
         a.download = `Alert_${camera?.name || cameraIp}_${safeTime}.mp4`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
         setTimeout(() => URL.revokeObjectURL(blobUrl), 5000);
         showToast("Download started!");
-      } catch (err) {
-        console.error("Alert download error:", err);
-        showToast("Download failed: " + err.message, "error");
       }
-      return;
+    } catch (err) {
+      console.error("Alert download error:", err);
+      showToast("Download failed: " + err.message, "error");
     }
+    return;
+  }
+
+  // ...rest (playingFile branch) unchanged
 
     const safeTime = playingFile.start_time.replace(/[:\/]/g, "-");
     const safeDate = playingFile.date.replace(/[:\/]/g, "-");
@@ -917,8 +1006,21 @@ export default function SidePlaybackPanel({ camera, onClose }) {
                 return (
                   <div key={i} className="side-playback-alert-row">
                     <div className="side-playback-alert-info">
-                      <span className="side-playback-alert-type">{alert.type || "Active Alert"}</span>
-                      <span className="side-playback-alert-time">
+                      {alert.isExternal ? (
+                        <>
+                          <span className="side-playback-alert-type" style={{ display: "block", fontWeight: "bold" }}>
+                            {alert.eventType || "AI Event"}
+                          </span>
+                          {alert.personName && (
+                            <span className="side-playback-alert-person" style={{ display: "block", fontSize: "11.5px", color: "var(--text-secondary)", marginTop: "2px" }}>
+                              👤 {alert.personName}
+                            </span>
+                          )}
+                        </>
+                      ) : (
+                        <span className="side-playback-alert-type">{alert.type || "Active Alert"}</span>
+                      )}
+                      <span className="side-playback-alert-time" style={{ display: "block", marginTop: "3px" }}>
                         {timeOnly || "—"} {dateOnly && <span style={{ color: "var(--teal)", marginLeft: "6px" }}>({dateOnly})</span>}
                       </span>
                     </div>

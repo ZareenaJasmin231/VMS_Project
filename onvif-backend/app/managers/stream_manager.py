@@ -119,6 +119,8 @@ def load_devices():
 
                     "shard_prefix":         d.get("shard_prefix"),
                     "assigned_worker":      d.get("assigned_worker"),
+                    "reader_id":            d.get("reader_id"),
+                    "source":               d.get("source"),
                 } for d in deduped if (d.get("ip_address") or d.get("ip")) and d.get("rtsp_url")]
                 
                 save_devices(final_list)

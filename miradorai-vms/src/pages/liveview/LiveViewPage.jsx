@@ -7,11 +7,15 @@ import SidePlaybackPanel from "../../components/shared/SidePlaybackPanel";
 import PTZControls from "../../components/shared/PTZControls";
 import { useAuth } from "../../context/AuthContext";
 import "./LiveViewPage.css";
+import { useWebSocket } from "../../hooks/useWebSocket";
 
-const API = import.meta.env.VITE_API_URL;
+const API = import.meta.env.VITE_API_URL || "";
 
 function getAuthHeaders() {
-  const token = localStorage.getItem("miradorai_token");
+  const token =
+      localStorage.getItem("miradorai_token") ||
+      localStorage.getItem("token") ||
+      localStorage.getItem("authToken");
   return token ? { "Authorization": "Bearer " + token } : {};
 }
 
@@ -95,16 +99,6 @@ function MaskOverlay({ ip }) {
       .catch(() => {});
   }, [ip]);
 
-  useEffect(() => {
-    if (!ip) return;
-    const interval = setInterval(() => {
-      fetch(`${API}/api/masks/${encodeURIComponent(ip)}`)
-        .then(r => r.json())
-        .then(data => setMasks((data.masks || []).filter(m => m.enabled !== false)))
-        .catch(() => {});
-    }, 5000);
-    return () => clearInterval(interval);
-  }, [ip]);
 
   if (!masks.length) return null;
 
@@ -244,11 +238,11 @@ export function AlertPopup({ ip, alerts, onClose }) {
       const time = alert.time || alert.received_at;
       if (!time) throw new Error("Alert has no timestamp");
 
-      const normIp = (ip || "").replace(/_/g, ".");
+      const safeIp = (ip || "").replace(/\./g, "_");
 
       const url =
         `${API}/api/event-playback` +
-        `?ip=${encodeURIComponent(normIp)}` +
+        `?ip=${encodeURIComponent(safeIp)}` +
         `&time=${encodeURIComponent(time)}`;
 
       const res = await fetch(url, { headers: getAuthHeaders() });
@@ -400,18 +394,12 @@ a
                           : alert.received_at}
                       </span>
                     </div>
-                    <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
                       <button
                         className="alp-view-btn"
                         onClick={() => handleView(alert)}
-                        title="Play ±10 s around this alert"
                       >
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
-                          <polygon points="5 3 19 12 5 21 5 3"/>
-                        </svg>
                         View
                       </button>
-                    </div>
                   </div>
                 );
               })
@@ -425,76 +413,138 @@ a
 }
 
 // ── AlertsPanel ───────────────────────────────────────────────────
-function AlertsPanel({ onAlertCountUpdate, onTotalAlertCountChange, isOpen, liveStatus }) {
-  const [alerts,  setAlerts]  = useState([]);
-  const [loading, setLoading] = useState(true);
+function AlertsPanel({ isOpen, onAlertCountUpdate, liveStatus, alertSource, setAlertSource, devices: devicesProp }) {
+  const [alerts,     setAlerts]     = useState([]);
+  const [loading,    setLoading]    = useState(true);
   const [zoomedImage, setZoomedImage] = useState(null);
 
   const normalizeIp = (ip) => (ip || "").replace(/_/g, ".");
 
-  useEffect(() => {
-    onTotalAlertCountChange?.(alerts.length);
-  }, [alerts, onTotalAlertCountChange]);
-
   const fetchAlerts = useCallback(async () => {
     try {
-      const res  = await fetch(`${API}/api/alerts?limit=500`, {
-        headers: getAuthHeaders()
-      });
-      const data = await res.json();
-      const filtered = (data.alerts || [])
-        .filter((a) => {
-           const t = (a.type || "").toLowerCase();
-           const s = (a.scenario || "").toLowerCase();
-           return !t.includes("motion") && !s.includes("motion") && t !== "unknown" && t !== "" && !t.includes("tns1:");
-        })
-        .filter(isAlertAllowed)
-        .filter((a) => {
-          const ip = normalizeIp(a.ip);
-          return liveStatus && liveStatus[ip] === true;
+      if (alertSource === "builtin") {
+        const res  = await fetch(`${API}/api/alerts?limit=500`, {
+          headers: getAuthHeaders()
         });
-      const perCamCounts = {};
-      const finalAlerts = [];
-      filtered.forEach((alert) => {
-        const ip = normalizeIp(alert.ip);
-        if (ip) {
-          perCamCounts[ip] = (perCamCounts[ip] || 0) + 1;
-          if (perCamCounts[ip] <= 50) {
+        if (!res.ok) return;
+        const data = await res.json();
+        const filtered = (data.alerts || [])
+          .filter((a) => {
+             const t = (a.type || "").toLowerCase();
+             const s = (a.scenario || "").toLowerCase();
+             return !t.includes("motion") && !s.includes("motion") && t !== "unknown" && t !== "" && !t.includes("tns1:");
+          })
+          .filter(isAlertAllowed)
+          .filter((a) => {
+            const ip = normalizeIp(a.ip);
+            return liveStatus && liveStatus[ip] === true;
+          });
+        const perCamCounts = {};
+        const finalAlerts = [];
+        filtered.forEach((alert) => {
+          const ip = normalizeIp(alert.ip);
+          if (ip) {
+            perCamCounts[ip] = (perCamCounts[ip] || 0) + 1;
+            if (perCamCounts[ip] <= 50) {
+              finalAlerts.push(alert);
+            }
+          } else {
             finalAlerts.push(alert);
           }
-        } else {
-          finalAlerts.push(alert);
-        }
-      });
-      
-      finalAlerts.sort((a, b) => {
-        const tA = new Date(a.time || a.received_at).getTime() || 0;
-        const tB = new Date(b.time || b.received_at).getTime() || 0;
-        return tB - tA;
-      });
+        });
+        
+        finalAlerts.sort((a, b) => {
+          const tA = new Date(a.time || a.received_at).getTime() || 0;
+          const tB = new Date(b.time || b.received_at).getTime() || 0;
+          return tB - tA;
+        });
 
-      setAlerts(finalAlerts);
+        setAlerts(finalAlerts);
 
-      const counts = {};
-      filtered.forEach((alert) => {
-        const ip = normalizeIp(alert.ip);
-        if (ip) {
-          counts[ip] = (counts[ip] || 0) + 1;
-        }
-      });
-      onAlertCountUpdate?.(counts);
+        const counts = {};
+        filtered.forEach((alert) => {
+          const ip = normalizeIp(alert.ip);
+          if (ip) {
+            counts[ip] = (counts[ip] || 0) + 1;
+          }
+        });
+        onAlertCountUpdate?.(counts);
+      } else {
+        // External AI Alerts Mode — separate call per reader_id
+        const activeCams = (devicesProp && devicesProp.length > 0) ? devicesProp : loadDevices();
+        const readerIds = activeCams.map(d => d.reader_id).filter(Boolean);
+
+        if (readerIds.length === 0) return; // no registered AI cameras yet
+
+        const authHeader = {
+          "Authorization": "Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ7XCJpZFwiOlwiN2MxYzVhMzYtOGM0ZS00YzdlLTlkNmEtMWE3ZjFlOWQyYTQxXCIsXCJlbWFpbFwiOlwiYWRtaW5AbWlyYWRvci5haVwiLFwidGVuYW50SWRcIjpcIjZhNWVkMmE0LWI2MTQtNDY3My1iOWUzLTFiYTEwNzM4M2VmZVwiLFwiZmlyc3ROYW1lXCI6XCJBZG1pblwiLFwibGFzdE5hbWVcIjpudWxsfSIsImlhdCI6MTc4NDY5OTc0OX0.70FwbJjKRihC_YRN3w2icZKgWxld_zKFjrMoRVDyYMQ",
+          "Content-Type": "application/json"
+        };
+
+        // Fire one request per reader_id in parallel
+        const responses = await Promise.all(
+          readerIds.map(rid =>
+            fetch(`/external-ai-api/getalert?readerIds=${encodeURIComponent(rid)}&page=1&size=50`, { headers: authHeader })
+              .then(r => r.ok ? r.json() : { data: [] })
+              .catch(() => ({ data: [] }))
+          )
+        );
+
+        // Merge all results into one flat list
+        const fixUrl = (imgUrl) => {
+          if (!imgUrl) return "";
+          if (imgUrl.includes("localhost:9000"))          return imgUrl.replace("http://localhost:9000",          "http://192.168.126.201:8006");
+          if (imgUrl.includes("127.0.0.1:9000"))          return imgUrl.replace("http://127.0.0.1:9000",          "http://192.168.126.201:8006");
+          if (imgUrl.includes("192.168.126.201:9000"))    return imgUrl.replace("http://192.168.126.201:9000",    "http://192.168.126.201:8006");
+          return imgUrl;
+        };
+
+        const mapped = responses.flatMap(extData =>
+          (extData.data || []).map(item => ({
+            isExternal: true,
+            id:     item.id,
+            ip:     item.readerIp || "",
+            serial: item.readerId || "",
+            time:   item.detectionTime || "",
+            image:  fixUrl(item.image || ""),
+            status: item.statusName || "Active",
+            rawData: item
+          }))
+        );
+
+        mapped.sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
+        setAlerts(mapped);
+
+        const counts = {};
+        mapped.forEach(a => { if (a.ip) counts[a.ip] = (counts[a.ip] || 0) + 1; });
+        onAlertCountUpdate?.(counts);
+      }
     } catch (e) {
       console.error("[Alerts] fetch failed:", e);
     } finally {
       setLoading(false);
     }
-  }, [onAlertCountUpdate, liveStatus]);
+  }, [onAlertCountUpdate, liveStatus, alertSource, devicesProp]);
+    const { isConnected: isWsConnected, eventsByTopic } = useWebSocket(["alerts"]);
+
+  // Listen to incoming WebSocket alerts in real time
+  useEffect(() => {
+    const alertEnvelope = eventsByTopic.alerts;
+    if (alertEnvelope && alertEnvelope.data) {
+      const newAlert = alertEnvelope.data;
+      setAlerts((prev) => {
+        const exists = prev.some((a) => (a.alert_id || a._id) === (newAlert.alert_id || newAlert._id));
+        if (exists) return prev;
+        return [newAlert, ...prev].slice(0, 500);
+      });
+    }
+  }, [eventsByTopic.alerts]);
 
   useEffect(() => {
     fetchAlerts();
-    const interval = setInterval(fetchAlerts, 2000);
-    return () => clearInterval(interval);
-  }, [fetchAlerts]);
+    if (isWsConnected) return; // Zero HTTP polling when WebSocket is connected
+    const interval = setInterval(fetchAlerts, 5000);    return () => clearInterval(interval);
+  }, [fetchAlerts, isWsConnected]);
 
   return (
     <div className={`lv-alerts-panel ${!isOpen ? "lv-alerts-panel--collapsed" : ""}`}>
@@ -504,6 +554,24 @@ function AlertsPanel({ onAlertCountUpdate, onTotalAlertCountChange, isOpen, live
           <span className="lv-alerts-panel__dot" />
           Alerts
           <span className="lv-alerts-panel__count">{alerts.length}</span>
+        </div>
+
+        {/* Source Toggle Switch */}
+        <div className="lv-alert-source-toggle" title="Switch between VMS Built-in alerts and External AI team alerts">
+          <button
+            type="button"
+            className={`lv-source-btn ${alertSource === "builtin" ? "active" : ""}`}
+            onClick={() => { setLoading(true); setAlertSource("builtin"); }}
+          >
+            Built-in
+          </button>
+          <button
+            type="button"
+            className={`lv-source-btn ${alertSource === "external" ? "active" : ""}`}
+            onClick={() => { setLoading(true); setAlertSource("external"); }}
+          >
+            External AI
+          </button>
         </div>
       </div>
 
@@ -536,71 +604,150 @@ function AlertsPanel({ onAlertCountUpdate, onTotalAlertCountChange, isOpen, live
               >
                 <div className="lv-alert-card__layout">
                   <div className="lv-alert-card__info">
-                    <div className="lv-alert-card__top">
-                      <span className="lv-alert-card__serial" title={displayId}>
-                        {cameraName ? `${cameraName} (${displayId})` : displayId}
-                      </span>
-                    </div>
-
-                    <div className="lv-alert-card__row">
-                      <span className="lv-alert-card__label">Event</span>
-                      <span className="lv-alert-card__value">{alert.type || "—"}</span>
-                    </div>
-
-                    {(alert.type === "OccupancyCount" || alert.scenario === "OccupancyCount") && (
-                      <div className="lv-alert-card__row">
-                        <span className="lv-alert-card__label">People</span>
-                        <span className="lv-alert-card__value">
-                          👥 {alert.human ?? alert.total ?? "—"}
+                    {!alert.isExternal && (
+                      <div className="lv-alert-card__top">
+                        <span className="lv-alert-card__serial" title={displayId}>
+                          {cameraName ? `${cameraName} (${displayId})` : displayId}
                         </span>
                       </div>
                     )}
 
-                    {timeOnly && (
-                      <div className="lv-alert-card__row">
-                        <span className="lv-alert-card__label">Time</span>
-                        <span className="lv-alert-card__value lv-alert-card__value--time">
-                          {timeOnly}
-                        </span>
-                      </div>
-                    )}
+                    {alert.isExternal ? (
+                      (() => {
+                        const raw = alert.rawData || {};
+                        
+                        // Parse event subType: e.g. "fr-blacklist" -> format to "Blacklist" or "fr-blacklist"
+                        let eventType = raw.subType || raw.sourceType || "AI Event";
+                        if (eventType.startsWith("fr-")) {
+                          eventType = eventType.substring(3); // e.g. "blacklist"
+                        }
+                        // Capitalize first letter
+                        eventType = eventType.charAt(0).toUpperCase() + eventType.slice(1);
 
-                    {alert.class && (
-                      <div className="lv-alert-card__row">
-                        <span className="lv-alert-card__label">Class</span>
-                        <span className="lv-alert-card__value lv-alert-card__value--human">
-                          👤 {alert.class}
-                        </span>
-                      </div>
-                    )}
+                        // Person/Employee name: e.g. राजेश (Rajesh) from "empName"
+                        const personName = raw.empName || raw.employeeName || raw.personName || raw.name || raw.label || "";
+                        let eventText = "";
+                        if (!personName || personName.toLowerCase().includes("unknown")) {
+                          eventText = "Unknown";
+                        } else {
+                          eventText = `${eventType} - ${personName}`;
+                        }
+                        
+                        const locationText = raw.locationName || raw.location || "Tek Towers"; 
+                        const cameraText = raw.readerName || raw.cameraName || raw.camera || "Mirador";
 
-                    <div className="lv-alert-card__row">
-                      <span className="lv-alert-card__label">Date</span>
-                      <span className="lv-alert-card__value lv-alert-card__value--date">
-                        {(alert.received_at || alert.time || "").split("T")[0]}
-                      </span>
-                    </div>
+                        // Split detectionTime into date and time parts
+                        const dtPart = raw.detectionTime || "";
+                        const dateOnly = dtPart.split("T")[0] || "—";
+                        const timeOnlyPart = dtPart.includes("T") 
+                          ? dtPart.split("T")[1]?.split("+")[0] 
+                          : "—";
+
+                        return (
+                          <>
+                            <div className="lv-alert-card__top">
+                              <span className="lv-alert-card__serial" style={{ fontWeight: "600", color: "#ffffff" }}>
+                                {cameraText} ({raw.readerIp || alert.ip || "Unknown"})
+                              </span>
+                            </div>
+
+                            <div className="lv-alert-card__row">
+                              <span className="lv-alert-card__label">Event</span>
+                              <span className="lv-alert-card__value" style={{ color: "#ff4d4f" }}>{eventText}</span>
+                            </div>
+
+                            <div className="lv-alert-card__row">
+                              <span className="lv-alert-card__label">Location</span>
+                              <span className="lv-alert-card__value">{locationText}</span>
+                            </div>
+
+                            <div className="lv-alert-card__row">
+                              <span className="lv-alert-card__label">Time</span>
+                              <span className="lv-alert-card__value lv-alert-card__value--time">{timeOnlyPart}</span>
+                            </div>
+
+                            <div className="lv-alert-card__row">
+                              <span className="lv-alert-card__label">Date</span>
+                              <span className="lv-alert-card__value lv-alert-card__value--date">{dateOnly}</span>
+                            </div>
+                          </>
+                        );
+                      })()
+                    ) : (
+                      <>
+                        <div className="lv-alert-card__row">
+                          <span className="lv-alert-card__label">Event</span>
+                          <span className="lv-alert-card__value">{alert.type || "—"}</span>
+                        </div>
+
+                        {(alert.type === "OccupancyCount" || alert.scenario === "OccupancyCount") && (
+                          <div className="lv-alert-card__row">
+                            <span className="lv-alert-card__label">People</span>
+                            <span className="lv-alert-card__value">
+                              👥 {alert.human ?? alert.total ?? "—"}
+                            </span>
+                          </div>
+                        )}
+
+                        {timeOnly && (
+                          <div className="lv-alert-card__row">
+                            <span className="lv-alert-card__label">Time</span>
+                            <span className="lv-alert-card__value lv-alert-card__value--time">
+                              {timeOnly}
+                            </span>
+                          </div>
+                        )}
+
+                        {alert.class && (
+                          <div className="lv-alert-card__row">
+                            <span className="lv-alert-card__label">Class</span>
+                            <span className="lv-alert-card__value lv-alert-card__value--human">
+                              👤 {alert.class}
+                            </span>
+                          </div>
+                        )}
+
+                        <div className="lv-alert-card__row">
+                          <span className="lv-alert-card__label">Date</span>
+                          <span className="lv-alert-card__value lv-alert-card__value--date">
+                            {(alert.received_at || alert.time || "").split("T")[0]}
+                          </span>
+                        </div>
+                      </>
+                    )}
                   </div>
 
-                  {/*
-                  <div
-                    className="lv-alert-card__thumbnail-container"
-                    onClick={() => setZoomedImage({
-                      url: `${API}/api/event-playback/snapshot?ip=${encodeURIComponent(alert.ip)}&time=${encodeURIComponent(alert.time || alert.received_at)}`,
-                      cameraName: cameraName,
-                      ip: displayId,
-                      type: alert.type || "—",
-                      time: timeOnly || alert.received_at
-                    })}
-                  >
-                    <img
-                      src={`${API}/api/event-playback/snapshot?ip=${encodeURIComponent(alert.ip)}&time=${encodeURIComponent(alert.time || alert.received_at)}`}
-                      alt="Event snapshot"
-                      className="lv-alert-card__thumbnail"
-                      loading="lazy"
-                    />
-                  </div>
-                  */}
+                  {alert.image && (
+                    <div
+                      className="lv-alert-card__thumbnail-container"
+                      style={{ 
+                        width: "110px", 
+                        height: "110px", 
+                        minWidth: "110px",
+                        marginLeft: "12px", 
+                        cursor: "pointer", 
+                        borderRadius: "8px", 
+                        overflow: "hidden",
+                        border: "1px solid var(--border-light)",
+                        alignSelf: "center"
+                      }}
+                      onClick={() => setZoomedImage({
+                        url: alert.image,
+                        cameraName: cameraName,
+                        ip: displayId,
+                        type: alert.type || "—",
+                        time: timeOnly || alert.received_at
+                      })}
+                    >
+                      <img
+                        src={alert.image}
+                        alt="Alert snapshot"
+                        className="lv-alert-card__thumbnail"
+                        style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                        loading="lazy"
+                      />
+                    </div>
+                  )}
                 </div>
               </div>
             );
@@ -675,6 +822,11 @@ function CameraCell({ device, streamMode, onFullscreen, alertCount, onBadgeClick
       <div className="lv-cell__header">
         {isLive && <span className="lv-live-dot" />}
         <span className="lv-cell__name">{device.name}</span>
+        {(device.source === "AI_WEBHOOK" || device.reader_id) && (
+          <span className="lv-ai-webhook-badge" title="AI Webhook Integration Camera">
+            AI WEBHOOK
+          </span>
+        )}
         {isLive && showRec && isRecording && (
           <span className="lv-rec-dot" />
         )}
@@ -917,6 +1069,7 @@ export default function LiveViewPage() {
   const [alertsPanelOpen, setAlertsPanelOpen] = useState(false);
   const [totalAlertsCount, setTotalAlertsCount] = useState(0);
   const [sidePlaybackCam, setSidePlaybackCam] = useState(null);
+  const [alertSource, setAlertSource] = useState("builtin"); // 'builtin' | 'external'
 
   useEffect(() => {
     sessionStorage.setItem("miradorai_liveview_layout", layout);
@@ -965,23 +1118,47 @@ export default function LiveViewPage() {
 
         setDevices(prev => {
           let changed = false;
+          const existingIps = new Set(prev.map(d => d.ip).filter(Boolean));
           const next = prev.map(d => {
             const backend = byIp[d.ip];
             if (!backend) return d;
-            // Only update if there is new info from the backend
             const needsUpdate =
+              (backend.reader_id && d.reader_id !== backend.reader_id) ||
               (backend.sub_stream_key && d.sub_stream_key !== backend.sub_stream_key) ||
               (backend.sub_stream_rtsp && d.sub_stream_rtsp !== backend.sub_stream_rtsp) ||
-              (backend.ome_stream && d.ome_stream !== backend.ome_stream);
+              (backend.ome_stream && d.ome_stream !== backend.ome_stream) ||
+              (backend.source && d.source !== backend.source);
             if (!needsUpdate) return d;
             changed = true;
             return {
               ...d,
+              source:          backend.source          || d.source,
+              reader_id:       backend.reader_id       || d.reader_id,
               ome_stream:      backend.ome_stream      || d.ome_stream,
               sub_stream_key:  backend.sub_stream_key  || d.sub_stream_key  || null,
               sub_stream_rtsp: backend.sub_stream_rtsp || d.sub_stream_rtsp || null,
             };
           });
+
+          // Also auto-append any new cameras posted directly to backend DB (like AI_WEBHOOK cameras)
+          for (const cam of backendCams) {
+            const camIp = cam.ip || cam.ip_address;
+            if (camIp && !existingIps.has(camIp)) {
+              changed = true;
+              next.push({
+                id: cam.id || cam._id || cam.reader_id || camIp,
+                name: cam.name || cam.camera_name || `AI Cam (${camIp})`,
+                ip: camIp,
+                rtsp_url: cam.rtsp_url || "",
+                source: cam.source || "AI_WEBHOOK",
+                reader_id: cam.reader_id,
+                enabled: cam.enabled !== false,
+                status: cam.status || "Active",
+                ome_stream: cam.ome_stream || camIp.replace(/\./g, "_")
+              });
+            }
+          }
+
           if (changed) {
             try { localStorage.setItem("miradorai_devices", JSON.stringify(next)); } catch {}
           }
@@ -1057,7 +1234,7 @@ export default function LiveViewPage() {
       }
     };
     fetchRecordingStatus();
-    const interval = setInterval(fetchRecordingStatus, 8000);
+    const interval = setInterval(fetchRecordingStatus, 30000);
     return () => clearInterval(interval);
   }, []);
 
@@ -1200,7 +1377,7 @@ export default function LiveViewPage() {
     }
     return enabledCams.filter(c => user.allowedCameras.includes(String(c.id)));
   }, [devices, user]);
-  const onlineCams    = activeCams.filter((d) => d.ws_url);
+  const onlineCams    = activeCams.filter((d) => d.ws_url || d.rtsp_url || d.source === "AI_WEBHOOK");
   const disabledCount = devices.length - activeCams.length;
 
   const activeSequence = useMemo(() => {
@@ -1327,7 +1504,7 @@ export default function LiveViewPage() {
     };
 
     sendHeartbeat();
-    const interval = setInterval(sendHeartbeat, 4000);
+    const interval = setInterval(sendHeartbeat, 30000);
     return () => clearInterval(interval);
   }, [stationDetails.sid, stationName, layout, devices, appliedTimestamp, pageCams.length]);
 
@@ -1801,7 +1978,16 @@ export default function LiveViewPage() {
                               setAlertsPanelOpen(false);
                               window.dispatchEvent(new Event("collapse-sidebar"));
                             }}
-                            isRecording={cam && (activeRecorders.includes(cam.stream_key) || activeRecorders.includes(cam.ome_stream))}
+                            isRecording={
+                              cam && (
+                                activeRecorders.includes(cam.stream_key) ||
+                                activeRecorders.includes(cam.ome_stream) ||
+                                activeRecorders.includes(cam.ip) ||
+                                (cam.ip && activeRecorders.includes(cam.ip.replace(/\./g, "_"))) ||
+                                activeRecorders.includes(cam.reader_id) ||
+                                activeRecorders.includes(cam.id)
+                              )
+                            }
                             onLiveChange={handleLiveChange}
                             maxBitrate={2000}
                             badgeMode={layout === "8x8" ? "micro" : !["1x1", "2x2"].includes(layout) ? "compact" : "normal"}
@@ -1846,6 +2032,7 @@ export default function LiveViewPage() {
           <SidePlaybackPanel
             camera={sidePlaybackCam}
             onClose={() => setSidePlaybackCam(null)}
+            alertSource={alertSource}
           />
         )}
 
@@ -1855,6 +2042,9 @@ export default function LiveViewPage() {
           onTotalAlertCountChange={setTotalAlertsCount}
           isOpen={alertsPanelOpen}
           liveStatus={liveStatus}
+          alertSource={alertSource}
+          setAlertSource={setAlertSource}
+          devices={devices}
         />
 
       </div>
