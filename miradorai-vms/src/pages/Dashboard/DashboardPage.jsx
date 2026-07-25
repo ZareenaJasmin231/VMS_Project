@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import SpecularButton from "../../components/shared/SpecularButton";
 import { useNavigate } from "react-router-dom";
 import { useWebSocket } from "../../hooks/useWebSocket";
 import "./DashboardPage.css";
@@ -3404,13 +3405,29 @@ const DashboardPage = () => {
           )}
 
           <div className="report-btn-group" ref={actionsDropdownRef} style={{ position: "relative" }}>
-            <button
-              onClick={handleGenerateReport}
+            <SpecularButton
+              size="md"
+              radius={8}
+              tint="#10b981"
+              tintOpacity={0.10}
+              blur={4}
+              textColor="#f0fff8"
+              lineColor="#10b981"
+              baseColor="#0d3326"
+              intensity={1.2}
+              shineSize={12}
+              shineFade={38}
+              thickness={1}
+              speed={0.35}
+              followMouse
+              proximity={220}
+              autoAnimate={false}
               disabled={reportLoading}
-              className="report-btn-primary"
+              onClick={handleGenerateReport}
+              type="button"
             >
               {reportLoading ? "Generating..." : "Generate Report"}
-            </button>
+            </SpecularButton>
             
             {reportData.length > 0 && (
               <div className="report-actions-dropdown">

@@ -359,3 +359,161 @@ input, select, button, textarea { font-family: var(--font-ui); }
   background: var(--bg-base);
   color: var(--text-primary);
 }
+
+/* ═══════════════════════════════════════════════════
+   Global Primary Button Unification
+   Targets every *--primary / btn-primary class used
+   across the entire application for a consistent look.
+   The WebGL specular shimmer is applied via React
+   (Button.jsx / SpecularButton) wherever components
+   use the shared Button wrapper. This CSS layer
+   handles all raw <button> elements with primary classes.
+═══════════════════════════════════════════════════ */
+.btn-primary,
+.m-btn--primary,
+.ec-btn--primary,
+.mgmt-action-btn--primary,
+.dm-btn--primary,
+.sm-btn--primary,
+.vms-proc-btn-primary,
+.es-btn-primary,
+.sum-btn--primary,
+.dv-btn--primary,
+.report-btn-primary {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 9px 20px;
+  border-radius: 8px;
+  border: 1px solid rgba(16, 185, 129, 0.45);
+  background: rgba(16, 185, 129, 0.10);
+  color: #a7f3d0;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  white-space: nowrap;
+  box-shadow:
+    inset 0 1px 0 rgba(16, 185, 129, 0.08),
+    0 4px 14px rgba(16, 185, 129, 0.12);
+  transition:
+    background 0.18s ease,
+    border-color 0.18s ease,
+    box-shadow 0.18s ease,
+    transform 0.12s ease,
+    color 0.18s ease;
+  outline: none;
+}
+
+.btn-primary:hover:not(:disabled),
+.m-btn--primary:hover:not(:disabled),
+.ec-btn--primary:hover:not(:disabled),
+.mgmt-action-btn--primary:hover:not(:disabled),
+.dm-btn--primary:hover:not(:disabled),
+.sm-btn--primary:hover:not(:disabled),
+.vms-proc-btn-primary:hover:not(:disabled),
+.es-btn-primary:hover:not(:disabled),
+.sum-btn--primary:hover:not(:disabled),
+.dv-btn--primary:hover:not(:disabled),
+.report-btn-primary:hover:not(:disabled) {
+  background: rgba(16, 185, 129, 0.20);
+  border-color: rgba(16, 185, 129, 0.75);
+  color: #d1fae5;
+  box-shadow:
+    inset 0 1px 0 rgba(16, 185, 129, 0.15),
+    0 0 0 3px rgba(16, 185, 129, 0.12),
+    0 6px 20px rgba(16, 185, 129, 0.22);
+  transform: translateY(-1px);
+}
+
+.btn-primary:active:not(:disabled),
+.m-btn--primary:active:not(:disabled),
+.ec-btn--primary:active:not(:disabled),
+.mgmt-action-btn--primary:active:not(:disabled),
+.dm-btn--primary:active:not(:disabled),
+.sm-btn--primary:active:not(:disabled),
+.vms-proc-btn-primary:active:not(:disabled),
+.es-btn-primary:active:not(:disabled),
+.sum-btn--primary:active:not(:disabled),
+.dv-btn--primary:active:not(:disabled),
+.report-btn-primary:active:not(:disabled) {
+  transform: scale(0.97);
+  box-shadow:
+    inset 0 1px 0 rgba(16, 185, 129, 0.08),
+    0 2px 8px rgba(16, 185, 129, 0.18);
+}
+
+.btn-primary:focus-visible,
+.m-btn--primary:focus-visible,
+.ec-btn--primary:focus-visible,
+.mgmt-action-btn--primary:focus-visible,
+.dm-btn--primary:focus-visible,
+.sm-btn--primary:focus-visible,
+.vms-proc-btn-primary:focus-visible,
+.es-btn-primary:focus-visible,
+.sum-btn--primary:focus-visible,
+.dv-btn--primary:focus-visible,
+.report-btn-primary:focus-visible {
+  outline: 2px solid rgba(16, 185, 129, 0.6);
+  outline-offset: 3px;
+}
+
+.btn-primary:disabled,
+.m-btn--primary:disabled,
+.ec-btn--primary:disabled,
+.mgmt-action-btn--primary:disabled,
+.dm-btn--primary:disabled,
+.sm-btn--primary:disabled,
+.vms-proc-btn-primary:disabled,
+.es-btn-primary:disabled,
+.sum-btn--primary:disabled,
+.dv-btn--primary:disabled,
+.report-btn-primary:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+/* Light mode adjustments */
+[data-theme='light'] .btn-primary,
+[data-theme='light'] .m-btn--primary,
+[data-theme='light'] .ec-btn--primary,
+[data-theme='light'] .mgmt-action-btn--primary,
+[data-theme='light'] .dm-btn--primary,
+[data-theme='light'] .sm-btn--primary,
+[data-theme='light'] .vms-proc-btn-primary,
+[data-theme='light'] .es-btn-primary,
+[data-theme='light'] .sum-btn--primary,
+[data-theme='light'] .dv-btn--primary,
+[data-theme='light'] .report-btn-primary {
+  background: rgba(5, 150, 105, 0.10);
+  border-color: rgba(5, 150, 105, 0.45);
+  color: #065f46;
+  box-shadow:
+    inset 0 1px 0 rgba(5, 150, 105, 0.08),
+    0 4px 14px rgba(5, 150, 105, 0.12);
+}
+
+[data-theme='light'] .btn-primary:hover:not(:disabled),
+[data-theme='light'] .m-btn--primary:hover:not(:disabled),
+[data-theme='light'] .ec-btn--primary:hover:not(:disabled),
+[data-theme='light'] .mgmt-action-btn--primary:hover:not(:disabled),
+[data-theme='light'] .dm-btn--primary:hover:not(:disabled),
+[data-theme='light'] .sm-btn--primary:hover:not(:disabled),
+[data-theme='light'] .vms-proc-btn-primary:hover:not(:disabled),
+[data-theme='light'] .es-btn-primary:hover:not(:disabled),
+[data-theme='light'] .sum-btn--primary:hover:not(:disabled),
+[data-theme='light'] .dv-btn--primary:hover:not(:disabled),
+[data-theme='light'] .report-btn-primary:hover:not(:disabled) {
+  background: rgba(5, 150, 105, 0.18);
+  border-color: rgba(5, 150, 105, 0.70);
+  color: #064e3b;
+  box-shadow:
+    inset 0 1px 0 rgba(5, 150, 105, 0.15),
+    0 0 0 3px rgba(5, 150, 105, 0.12),
+    0 6px 20px rgba(5, 150, 105, 0.18);
+}

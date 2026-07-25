@@ -474,11 +474,11 @@
 }
 .dm-btn--cancel:hover:not(:disabled) { background: rgba(255,255,255,0.04); }
 .dm-btn--primary {
-  background: var(--teal, #10b981);
-  border: 1px solid transparent;
-  color: #fff;
+  /* styles unified in global.css primary button override */
 }
-.dm-btn--primary:hover:not(:disabled) { background: var(--teal-dim); }
+.dm-btn--primary:hover:not(:disabled) {
+  /* styles unified in global.css primary button override */
+}
 .dm-btn:disabled { opacity: 0.45; cursor: not-allowed; }
 
 /* ── Per-device registration status badges ── */
