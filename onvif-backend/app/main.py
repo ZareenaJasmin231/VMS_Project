@@ -52,12 +52,49 @@ from app.api.routers.monitoring_api import router as monitoring_api_router
 from app.api.routers.reports_router import router as reports_router
 from app.api.routers.ai_alerts_router import router as ai_alerts_router, reader_router
 from app.api.storage.router import router as storage_management_router
+from app.api.routers.events_ws_router import router as events_ws_router
+import threading
+import queue
 
 class LoggerWrapper:
+    _local = threading.local()
+    _queue = queue.Queue()
+    _worker_started = False
+    _lock = threading.Lock()
+
+    @classmethod
+    def _worker(cls):
+        while True:
+            try:
+                msg = cls._queue.get()
+                if msg is None:
+                    break
+                log_terminal("admin@gmail.com", "admin", "system log", "backend", 0, msg)
+                cls._queue.task_done()
+            except Exception:
+                pass
+
     def write(self, message):
-        msg = message.strip()
-        if msg and ("[WATCHDOG]" in msg or "[ENCRYPT]" in msg or "[RTSP]" in msg or "ERROR" in msg or "❌" in msg):
-            log_terminal("admin@gmail.com", "admin", "system log", "backend", 0, msg)
+        if getattr(self._local, "in_write", False):
+            sys.__stdout__.write(message)
+            return
+        
+        self._local.in_write = True
+        try:
+            msg = message.strip()
+            if msg and ("[WATCHDOG]" in msg or "[ENCRYPT]" in msg or "[RTSP]" in msg or "ERROR" in msg or "❌" in msg):
+                if not LoggerWrapper._worker_started:
+                    with LoggerWrapper._lock:
+                        if not LoggerWrapper._worker_started:
+                            t = threading.Thread(target=LoggerWrapper._worker, daemon=True, name="bg-logger-worker")
+                            t.start()
+                            LoggerWrapper._worker_started = True
+                LoggerWrapper._queue.put(msg)
+        except Exception:
+            pass
+        finally:
+            self._local.in_write = False
+
         sys.__stdout__.write(message)
 
     def flush(self):
@@ -85,6 +122,7 @@ os.makedirs(faces_dir, exist_ok=True)
 app.mount("/api/faces", StaticFiles(directory=faces_dir), name="faces")
 
 # Register all routers
+app.include_router(events_ws_router)
 app.include_router(auth_router)
 app.include_router(playback_router)
 app.include_router(camera_router)

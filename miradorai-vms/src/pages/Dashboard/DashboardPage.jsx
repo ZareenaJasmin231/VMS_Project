@@ -696,7 +696,7 @@ const CameraEventsCharts = ({ reportData, reportFromDate, reportToDate }) => {
           <ResponsiveContainer width="100%" height={260}>
             <BarChart data={topOffenders} layout="vertical" margin={{ top: 10, right: 20, left: 30, bottom: 5 }}>
               <XAxis type="number" stroke="var(--text-muted)" fontSize={11} allowDecimals={false} />
-              <YAxis type="category" dataKey="ip" stroke="var(--text-muted)" fontSize={11} width={100} />
+              <YAxis type="category" dataKey="ip" stroke="var(--text-muted)" fontSize={11} width={110} interval={0} />
               <RechartsTooltip
                 content={({ active, payload }) => {
                   if (active && payload && payload.length) {
@@ -1024,19 +1024,27 @@ const AnalyticsAlertsCharts = ({ reportData, reportFromDate, reportToDate }) => 
               <XAxis dataKey="label" stroke="var(--text-muted)" fontSize={11} />
               <YAxis stroke="var(--text-muted)" fontSize={11} />
               <RechartsTooltip
+                position={{ y: 0 }}
+                wrapperStyle={{ pointerEvents: 'none', zIndex: 100 }}
                 content={({ active, payload, label }) => {
                   if (active && payload && payload.length) {
+                    const activeItems = payload.filter((p) => Number(p.value) > 0);
+                    const displayItems = activeItems.length > 0 ? activeItems : payload;
+                    const total = payload.reduce((sum, p) => sum + (Number(p.value) || 0), 0);
                     return (
-                      <div className="custom-chart-tooltip">
-                        <p style={{ margin: "0 0 6px 0", fontWeight: "bold" }}>{label}</p>
-                        {payload.map((p, idx) => (
-                          <p key={idx} style={{ margin: "2px 0", color: p.stroke }}>
-                            <strong>{p.name}:</strong> {p.value}
-                          </p>
-                        ))}
-                        <p style={{ margin: "6px 0 0 0", borderTop: "1px dashed rgba(255,255,255,0.1)", paddingTop: "4px", fontWeight: "bold" }}>
-                          Total: {payload.reduce((sum, p) => sum + (Number(p.value) || 0), 0)}
-                        </p>
+                      <div className="custom-chart-tooltip" style={{ pointerEvents: "none", opacity: 0.95, padding: "6px 10px" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", borderBottom: "1px dashed rgba(255,255,255,0.15)", paddingBottom: "3px", marginBottom: "4px" }}>
+                          <span style={{ fontWeight: "bold", fontSize: "11px", color: "var(--text-primary)" }}>{label}</span>
+                          <span style={{ fontSize: "11px", fontWeight: "700", color: "var(--teal)" }}>Total: {total}</span>
+                        </div>
+                        <div style={{ display: "grid", gridTemplateColumns: displayItems.length > 3 ? "repeat(2, minmax(0, 1fr))" : "1fr", gap: "2px 10px", fontSize: "11px" }}>
+                          {displayItems.map((p, idx) => (
+                            <div key={idx} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px" }}>
+                              <span style={{ color: p.stroke, fontWeight: 600 }}>{p.name}:</span>
+                              <span style={{ fontWeight: 700, color: "var(--text-primary)" }}>{p.value}</span>
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     );
                   }
@@ -1124,7 +1132,7 @@ const AnalyticsAlertsCharts = ({ reportData, reportFromDate, reportToDate }) => 
               <ResponsiveContainer width="100%" height={230}>
                 <BarChart data={top10Hotspots} layout="vertical" margin={{ top: 5, right: 20, left: 30, bottom: 5 }}>
                   <XAxis type="number" stroke="var(--text-muted)" fontSize={11} allowDecimals={false} />
-                  <YAxis type="category" dataKey="ip" stroke="var(--text-muted)" fontSize={11} width={100} />
+                  <YAxis type="category" dataKey="ip" stroke="var(--text-muted)" fontSize={11} width={110} interval={0} />
                   <RechartsTooltip
                     content={({ active, payload }) => {
                       if (active && payload && payload.length) {
@@ -1443,7 +1451,7 @@ const DeviceHealthCharts = ({ reportData }) => {
           <ResponsiveContainer width="100%" height={260}>
             <BarChart data={filteredReboots.slice(0, 10)} layout="vertical" margin={{ top: 10, right: 20, left: 30, bottom: 5 }}>
               <XAxis type="number" stroke="var(--text-muted)" fontSize={11} allowDecimals={false} />
-              <YAxis type="category" dataKey="name" stroke="var(--text-muted)" fontSize={11} width={100} />
+              <YAxis type="category" dataKey="name" stroke="var(--text-muted)" fontSize={11} width={110} interval={0} />
               <RechartsTooltip
                 content={({ active, payload }) => {
                   if (active && payload && payload.length) {
@@ -1694,7 +1702,7 @@ const CameraHistoryCharts = ({ reportData }) => {
               <ResponsiveContainer width="100%" height={230}>
                 <BarChart data={filteredCamData.slice(0, 15)} layout="vertical" margin={{ top: 5, right: 20, left: 30, bottom: 5 }}>
                   <XAxis type="number" stroke="var(--text-muted)" fontSize={11} label={{ value: 'Hours', position: 'insideBottom', offset: -5, fill: 'var(--text-muted)' }} />
-                  <YAxis type="category" dataKey="name" stroke="var(--text-muted)" fontSize={10} width={90} />
+                  <YAxis type="category" dataKey="name" stroke="var(--text-muted)" fontSize={10} width={110} interval={0} />
                   <RechartsTooltip
                     content={({ active, payload }) => {
                       if (active && payload && payload.length) {
@@ -1785,7 +1793,7 @@ const CameraHistoryCharts = ({ reportData }) => {
               <ResponsiveContainer width="100%" height={230}>
                 <BarChart data={filteredRecData.slice(0, 15)} layout="vertical" margin={{ top: 5, right: 20, left: 30, bottom: 5 }}>
                   <XAxis type="number" stroke="var(--text-muted)" fontSize={11} label={{ value: 'Hours', position: 'insideBottom', offset: -5, fill: 'var(--text-muted)' }} />
-                  <YAxis type="category" dataKey="name" stroke="var(--text-muted)" fontSize={10} width={90} />
+                  <YAxis type="category" dataKey="name" stroke="var(--text-muted)" fontSize={10} width={110} interval={0} />
                   <RechartsTooltip
                     content={({ active, payload }) => {
                       if (active && payload && payload.length) {
@@ -2253,10 +2261,56 @@ const DashboardPage = () => {
   const handleDownloadCSV = () => {
     if (!reportData || reportData.length === 0) return;
 
-    const headers = Object.keys(reportData[0]);
+    // If currently in Graphical View, include aggregated chart metrics summary in CSV export
+    const currentViewMode = reportViewModes[reportType] || "tabular";
     const csvRows = [];
-    
-    csvRows.push(headers.join(","));
+
+    if (currentViewMode === "graphical") {
+      csvRows.push(`"Report Type: ${reportTypeMap[reportType]} (Graphical View Summary)"`);
+      csvRows.push(`"Period: ${reportFromDate.replace('T', ' ')} to ${reportToDate.replace('T', ' ')}"`);
+      csvRows.push("");
+
+      if (reportType === "alerts") {
+        const offlineCount = reportData.filter(d => d.event === "device_offline").length;
+        const ackCount = reportData.filter(d => d.acknowledged === "Yes").length;
+        const unackCount = reportData.filter(d => d.acknowledged === "No").length;
+        csvRows.push(`"Summary Metric","Value"`);
+        csvRows.push(`"Total Camera Events","${reportData.length}"`);
+        csvRows.push(`"Device Offline Outages","${offlineCount}"`);
+        csvRows.push(`"Acknowledged Outages","${ackCount}"`);
+        csvRows.push(`"Unacknowledged Outages","${unackCount}"`);
+        csvRows.push("");
+      } else if (reportType === "live_alerts") {
+        const counts = {};
+        reportData.forEach(d => {
+          const cls = d.classification || "UNKNOWN";
+          counts[cls] = (counts[cls] || 0) + 1;
+        });
+        csvRows.push(`"Alert Classification","Count"`);
+        Object.entries(counts).forEach(([cls, cnt]) => {
+          csvRows.push(`"${cls}","${cnt}"`);
+        });
+        csvRows.push(`"Total Analytics Alerts","${reportData.length}"`);
+        csvRows.push("");
+      } else if (reportType === "health") {
+        const onlineCount = reportData.filter(d => d.current_status === "online").length;
+        const offlineCount = reportData.filter(d => d.current_status === "offline" || d.current_status?.toLowerCase().includes("offline")).length;
+        csvRows.push(`"Fleet Health Status","Device Count"`);
+        csvRows.push(`"Online Devices","${onlineCount}"`);
+        csvRows.push(`"Offline Devices","${offlineCount}"`);
+        csvRows.push(`"Total Devices","${reportData.length}"`);
+        csvRows.push("");
+      } else if (reportType === "history") {
+        csvRows.push(`"Camera Name","IP Address","Cam Up (hrs)","Cam Down (hrs)","Rec Up (hrs)","Rec Down (hrs)"`);
+        reportData.forEach(row => {
+          csvRows.push(`"${row.camera_name}","${row.ip_address}","${row.cam_up_hrs}","${row.cam_down_hrs}","${row.rec_up_hrs}","${row.rec_down_hrs}"`);
+        });
+        csvRows.push("");
+      }
+    }
+
+    const headers = Object.keys(reportData[0]);
+    csvRows.push(headers.map(h => `"${h.replace(/_/g, " ").toUpperCase()}"`).join(","));
 
     for (const row of reportData) {
       const values = headers.map(header => {
@@ -2279,25 +2333,67 @@ const DashboardPage = () => {
     document.body.removeChild(link);
   };
 
-  const handleDownloadPDF = () => {
+  const handleDownloadPDF = async () => {
     if (!reportData || reportData.length === 0) return;
     const doc = new jsPDF();
+
     // Title
     doc.setFontSize(16);
     doc.text(`${reportTypeMap[reportType]} Report`, 14, 15);
+
     // Download Date/Time in top right
- doc.setFontSize(10);
- doc.setTextColor(100);
-const now = new Date();
-const downloadTime = `Downloaded: ${now.toLocaleDateString()} ${now.toLocaleTimeString()}`;
-const textWidth = doc.getTextWidth(downloadTime);
-const pageWidth = doc.internal.pageSize.width;
- doc.text(downloadTime, pageWidth - textWidth - 14, 15);
-// Selected Date Range
-const fromToText = `Selected Period: ${reportFromDate.replace('T', ' ')} to ${reportToDate.replace('T', ' ')}`;
- doc.text(fromToText, 14, 22);
- doc.setTextColor(0); // reset color
-    
+    doc.setFontSize(10);
+    doc.setTextColor(100);
+    const now = new Date();
+    const downloadTime = `Downloaded: ${now.toLocaleDateString()} ${now.toLocaleTimeString()}`;
+    const textWidth = doc.getTextWidth(downloadTime);
+    const pageWidth = doc.internal.pageSize.width;
+    doc.text(downloadTime, pageWidth - textWidth - 14, 15);
+
+    // Selected Date Range
+    const fromToText = `Selected Period: ${reportFromDate.replace('T', ' ')} to ${reportToDate.replace('T', ' ')}`;
+    doc.text(fromToText, 14, 22);
+    doc.setTextColor(0); // reset color
+
+    let currentY = 28;
+
+    // Capture all charts together in one grid container image so they stay on one single page
+    const chartsGridEl = document.querySelector(".report-charts-grid");
+    if (chartsGridEl) {
+      try {
+        const html2canvas = (await import("html2canvas")).default;
+        doc.setFontSize(12);
+        doc.setTextColor(30, 41, 59);
+        doc.text("Graphical Performance Analytics", 14, currentY);
+        currentY += 6;
+
+        const canvas = await html2canvas(chartsGridEl, {
+          scale: 2,
+          backgroundColor: "#171a21",
+          logging: false,
+          useCORS: true
+        });
+        const imgData = canvas.toDataURL("image/png");
+        const imgWidth = 182; // page width (210) minus margins (14*2)
+        const imgHeight = Math.min((canvas.height * imgWidth) / canvas.width, 190); // cap max height so it fits on page 1
+
+        doc.addImage(imgData, "PNG", 14, currentY, imgWidth, imgHeight);
+        currentY += imgHeight + 8;
+      } catch (err) {
+        console.warn("Could not capture charts grid for PDF export:", err);
+      }
+    }
+
+    if (currentY + 30 > 280) {
+      doc.addPage();
+      currentY = 15;
+    }
+
+    doc.setFontSize(12);
+    doc.setTextColor(30, 41, 59);
+    doc.text("Tabular Data Records", 14, currentY);
+    currentY += 4;
+
     const keys = Object.keys(reportData[0]);
     const headers = keys.map(k => k.replace(/_/g, " ").toUpperCase());
     const rows = reportData.map(row => keys.map(k => {
@@ -2308,7 +2404,7 @@ const fromToText = `Selected Period: ${reportFromDate.replace('T', ' ')} to ${re
     doc.autoTable({
       head: [headers],
       body: rows,
-      startY: 28,
+      startY: currentY,
       theme: "striped",
       styles: { fontSize: 8 }
     });
@@ -2317,6 +2413,10 @@ const fromToText = `Selected Period: ${reportFromDate.replace('T', ' ')} to ${re
 
   const handleDownloadExcel = () => {
     if (!reportData || reportData.length === 0) return;
+    const wb = XLSX.utils.book_new();
+    const currentViewMode = reportViewModes[reportType] || "tabular";
+
+    // Primary sheet: Tabular Records
     const keys = Object.keys(reportData[0]);
     const mappedData = reportData.map(row => {
       const obj = {};
@@ -2328,8 +2428,37 @@ const fromToText = `Selected Period: ${reportFromDate.replace('T', ' ')} to ${re
     });
 
     const ws = XLSX.utils.json_to_sheet(mappedData);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Report");
+    XLSX.utils.book_append_sheet(wb, ws, "Tabular Data");
+
+    // Optional secondary sheet: Graphical Summary Metrics
+    if (currentViewMode === "graphical" || true) {
+      const summaryRows = [];
+      summaryRows.push({ Metric: "Report Title", Details: reportTypeMap[reportType] });
+      summaryRows.push({ Metric: "From Date", Details: reportFromDate.replace('T', ' ') });
+      summaryRows.push({ Metric: "To Date", Details: reportToDate.replace('T', ' ') });
+      summaryRows.push({ Metric: "Total Records Generated", Details: reportData.length });
+
+      if (reportType === "alerts") {
+        summaryRows.push({ Metric: "Device Offline Events", Details: reportData.filter(d => d.event === "device_offline").length });
+        summaryRows.push({ Metric: "Acknowledged Alerts", Details: reportData.filter(d => d.acknowledged === "Yes").length });
+      } else if (reportType === "live_alerts") {
+        const counts = {};
+        reportData.forEach(d => {
+          const cls = d.classification || "UNKNOWN";
+          counts[cls] = (counts[cls] || 0) + 1;
+        });
+        Object.entries(counts).forEach(([cls, count]) => {
+          summaryRows.push({ Metric: `Alert Type: ${cls}`, Details: count });
+        });
+      } else if (reportType === "health") {
+        summaryRows.push({ Metric: "Online Devices", Details: reportData.filter(d => d.current_status === "online").length });
+        summaryRows.push({ Metric: "Offline Devices", Details: reportData.filter(d => d.current_status === "offline").length });
+      }
+
+      const summaryWs = XLSX.utils.json_to_sheet(summaryRows);
+      XLSX.utils.book_append_sheet(wb, summaryWs, "Graphical Summary");
+    }
+
     XLSX.writeFile(wb, `${reportType}_report_${new Date().toISOString().slice(0,10)}.xlsx`);
   };
 

@@ -1328,6 +1328,8 @@
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   font-size: 12px;
+  pointer-events: none;
+  z-index: 1000;
 }
 
 .custom-chart-tooltip p,
@@ -1649,13 +1651,22 @@
   }
 }
 
-/* Hide charts in print mode by default unless inside print layout */
+/* Print media query styling */
 @media print {
   .reports-view-panel.inactive-slide-out {
-    display: none !important;
+    display: block !important;
   }
   .report-charts-grid {
-    display: none !important; /* Printing usually focuses on tabular view */
+    display: grid !important;
+    page-break-inside: avoid;
+    margin-bottom: 20px;
+  }
+  .report-chart-card {
+    break-inside: avoid;
+    page-break-inside: avoid;
+    border: 1px solid #ccc !important;
+    background: #ffffff !important;
+    color: #000000 !important;
   }
 }
 
