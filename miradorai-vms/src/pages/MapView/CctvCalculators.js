@@ -161,3 +161,114 @@ export function getHardwareRecommendations(cameraCount) {
     switches: `${switches} x 8-Port PoE Switch${switches > 1 ? "es" : ""}`
   };
 }
+
+/**
+ * Computes the visibility polygon from an origin, limited by a base polygon and obstructed by obstacles.
+ * @param {object} origin - { x, y } camera location
+ * @param {Array} basePoly - Array of { x, y } representing the base FOV/DORI area
+ * @param {Array} obstaclePolygons - Array of polygons (each an array of { x, y }) representing obstacles
+ * @returns {Array} Array of { x, y } vertices representing the visibility polygon
+ */
+export function computeVisibilityPolygon(origin, basePoly, obstaclePolygons) {
+  if (!basePoly || basePoly.length < 3) return basePoly || [];
+
+  function getIntersection(p1, p2, p3, p4) {
+    const denom = (p4.y - p3.y) * (p2.x - p1.x) - (p4.x - p3.x) * (p2.y - p1.y);
+    if (denom === 0) return null;
+    const ua = ((p4.x - p3.x) * (p1.y - p3.y) - (p4.y - p3.y) * (p1.x - p3.x)) / denom;
+    const ub = ((p2.x - p1.x) * (p1.y - p3.y) - (p2.y - p1.y) * (p1.x - p3.x)) / denom;
+    if (ua >= 0 && ua <= 1 && ub >= 0 && ub <= 1) {
+      return { x: p1.x + ua * (p2.x - p1.x), y: p1.y + ua * (p2.y - p1.y), t: ua };
+    }
+    return null;
+  }
+
+  const baseSegments = [];
+  for (let i = 0; i < basePoly.length; i++) {
+    baseSegments.push([basePoly[i], basePoly[(i + 1) % basePoly.length]]);
+  }
+
+  const obstacleSegments = [];
+  if (obstaclePolygons) {
+    for (const poly of obstaclePolygons) {
+      if (!poly || poly.length < 2) continue;
+      for (let i = 0; i < poly.length; i++) {
+        obstacleSegments.push([poly[i], poly[(i + 1) % poly.length]]);
+      }
+    }
+  }
+
+  const angles = new Set();
+  const targets = [];
+  
+  for (const pt of basePoly) {
+    targets.push(pt);
+  }
+  if (obstaclePolygons) {
+    for (const poly of obstaclePolygons) {
+      if (!poly) continue;
+      for (const pt of poly) {
+        targets.push(pt);
+      }
+    }
+  }
+
+  for (const pt of targets) {
+    const angle = Math.atan2(pt.y - origin.y, pt.x - origin.x);
+    angles.add(angle);
+    angles.add(angle - 0.0001);
+    angles.add(angle + 0.0001);
+  }
+
+  if (angles.size === 0) {
+    for (let i = 0; i < 8; i++) {
+      angles.add((i * Math.PI) / 4);
+    }
+  }
+
+  const sortedAngles = Array.from(angles).sort((a, b) => a - b);
+  const visPoints = [];
+
+  for (const angle of sortedAngles) {
+    const dx = Math.cos(angle);
+    const dy = Math.sin(angle);
+    const rayEnd = { x: origin.x + dx * 100000, y: origin.y + dy * 100000 };
+
+    let baseInt = null;
+    let minBaseT = Infinity;
+    for (const seg of baseSegments) {
+      const intersect = getIntersection(origin, rayEnd, seg[0], seg[1]);
+      if (intersect && intersect.t < minBaseT) {
+        minBaseT = intersect.t;
+        baseInt = intersect;
+      }
+    }
+
+    if (!baseInt) continue;
+
+    let limitT = minBaseT;
+    let finalPt = baseInt;
+
+    for (const seg of obstacleSegments) {
+      const intersect = getIntersection(origin, rayEnd, seg[0], seg[1]);
+      if (intersect && intersect.t < limitT) {
+        limitT = intersect.t;
+        finalPt = intersect;
+      }
+    }
+
+    visPoints.push({ x: finalPt.x, y: finalPt.y });
+  }
+
+  const cleanPoints = [];
+  for (let i = 0; i < visPoints.length; i++) {
+    const p = visPoints[i];
+    const prev = cleanPoints[cleanPoints.length - 1];
+    if (prev && Math.abs(prev.x - p.x) < 0.01 && Math.abs(prev.y - p.y) < 0.01) {
+      continue;
+    }
+    cleanPoints.push(p);
+  }
+
+  return cleanPoints;
+}
