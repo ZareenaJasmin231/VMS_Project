@@ -70,11 +70,20 @@ async def get_camera_analytics(device_id: str):
     if mqtt_logs_col is None:
         return {"analytics": [], "error": "Database not connected"}
 
-    # Match by IP or serial (device_id could be either)
+    # Match by IP or serial.
+    # Axis native MQTT stores ip as underscore-format (192_168_1_100).
+    # VMS-published events (Bosch/Dahua/Hikvision) also use underscore format.
+    # We accept both dot and underscore from the caller.
+    ip_dot   = device_id.replace("_", ".")
+    ip_slug  = device_id.replace(".", "_")
+
     query = {
         "$or": [
-            {"ip": device_id},
+            {"ip":     device_id},
+            {"ip":     ip_dot},
+            {"ip":     ip_slug},
             {"serial": device_id},
+            {"serial": ip_slug},
         ]
     }
 

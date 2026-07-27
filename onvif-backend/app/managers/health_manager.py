@@ -5,6 +5,8 @@ from app.core.database import db, watch_collection, analytics_col
 from app.managers.stream_manager import devices
 from app.adapters.bosch_adapter import pull_bosch_events
 from app.adapters.dahua_adapter import pull_dahua_events
+from app.adapters.hikvision_adapter import pull_hikvision_events
+from app.core import mqtt_publisher
 
 from app.core.ws_manager import ws_manager
 
@@ -108,7 +110,9 @@ async def analytics_poll_loop(ip: str, port: int, username: str, password: str, 
     print(f"[ANALYTICS] ▶ Started polling for {ip} ({manufacturer})")
 
     consecutive_failures = 0
-    is_dahua = "dahua" in manufacturer.lower()
+    mfr_lower    = manufacturer.lower()
+    is_hikvision = any(k in mfr_lower for k in ("hikvision", "hikvisio", "hik"))
+    is_dahua     = "dahua" in mfr_lower
 
     while True:
         try:
@@ -124,7 +128,13 @@ async def analytics_poll_loop(ip: str, port: int, username: str, password: str, 
                 continue
 
             async with _analytics_semaphore:
-                if is_dahua:
+                if is_hikvision:
+                    result = await asyncio.to_thread(
+                        pull_hikvision_events,
+                        ip, port, username, password
+                    )
+                    source_name = "hikvision"
+                elif is_dahua:
                     result = await asyncio.to_thread(
                         pull_dahua_events,
                         ip, port, username, password
@@ -175,13 +185,18 @@ async def analytics_poll_loop(ip: str, port: int, username: str, password: str, 
                         res = analytics_col.insert_one(alert)
                         alert_id = str(res.inserted_id)
                         clean_alert = {**alert, "_id": alert_id}
-                        # Broadcast analytics alert via WS
+                        # Broadcast analytics alert via WS (real-time)
                         await ws_manager.broadcast("alerts", "analytics_alert", clean_alert, event_id=alert_id)
 
-                    if watch_collection is not None:
-                        watch_collection.insert_one(alert)
+                    # ── Publish to Mosquitto so mqtt_to_db_worker saves
+                    # to mqtt_logs (unified pipeline for all brands) ──
+                    published = mqtt_publisher.publish_alert(source_name, ip, alert)
+                    if not published:
+                        # Fallback: write directly if MQTT broker unreachable
+                        if watch_collection is not None:
+                            watch_collection.insert_one(alert)
 
-                    print(f"[{source_name.upper()} UI ALERT] {ip} → {alert['type']}")
+                    print(f"[{source_name.upper()} UI ALERT] {ip} → {alert['type']} (mqtt={'ok' if published else 'direct'})") 
                 consecutive_failures = 0
 
             elif not result["success"]:
