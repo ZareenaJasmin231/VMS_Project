@@ -20,7 +20,7 @@ import os
 
 camera_analytics_router = APIRouter()
 
-MONGO_URI = os.environ.get("MONGO_URI", "mongodb://mongo:27017/")
+MONGO_URI = os.environ.get("MONGO_URI", "mongodb://localhost:27017/")
 
 try:
     _mongo = mongo_client

@@ -22,7 +22,7 @@ import os
 
 STARTUP_ID = str(uuid.uuid4())
 
-MONGO_URI = os.environ.get("MONGO_URI", "mongodb://mongo:27017/")
+MONGO_URI = os.environ.get("MONGO_URI", "mongodb://localhost:27017/")
 
 CACHED_DISCOVERED_DEVICES = []
 _discovery_in_progress = False
@@ -61,7 +61,7 @@ async def run_discovery_pipeline():
             ip       = device.get("ip")
 
             if not rtsp_url:
-                print(f"[BACKGROUND-DISCOVERY] ⏭ {ip} — no RTSP URL found, skipping OME")
+                print(f"[BACKGROUND-DISCOVERY] ⏭ {ip} — no RTSP URL found, skipping MediaMTX")
                 device["ws_url"]        = None
                 device["stream_key"]    = None
                 device["stream_status"] = "credentials_required"
@@ -70,7 +70,7 @@ async def run_discovery_pipeline():
             from urllib.parse import urlparse
             parsed = urlparse(rtsp_url)
             if not parsed.username:
-                print(f"[BACKGROUND-DISCOVERY] ⚠ {ip} — no credentials in RTSP URL, skipping OME")
+                print(f"[BACKGROUND-DISCOVERY] ⚠ {ip} — no credentials in RTSP URL, skipping MediaMTX")
                 device["ws_url"]        = None
                 device["stream_key"]    = None
                 device["stream_status"] = "credentials_required"
@@ -87,7 +87,7 @@ async def run_discovery_pipeline():
                 status_code = 200 if status == "ok" else 0
  
             if status_code in (200, 201, 409):
-                device["ws_url"]        = f"http://host.docker.internal:8889/{stream_name}"
+                device["ws_url"]        = f"http://localhost:8889/{stream_name}"
                 device["stream_key"]    = stream_name
                 device["stream_status"] = "streaming"
  
@@ -167,8 +167,6 @@ def health():
     mediamtx_ok = False
     try:
         mtx_url = os.environ.get("MEDIAMTX_API_URL", "http://127.0.0.1:9997/v3/paths/list")
-        if "host.docker.internal" in mtx_url:
-            mtx_url = mtx_url.replace("host.docker.internal", "127.0.0.1")
         req = urllib.request.Request(mtx_url, method="GET")
         with urllib.request.urlopen(req, timeout=1) as response:
             if response.status == 200:

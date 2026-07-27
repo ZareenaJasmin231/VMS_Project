@@ -531,19 +531,13 @@ def discover_onvif_devices_simple(
     discovered_devices: dict[str, dict] = {}
     lock = threading.Lock()
 
-    # ── Try host proxy first (fixes Docker Desktop Windows NAT issue) ──────
+    # ── Try host proxy scan agent ───────────────────────────────────
     open_ips: dict[str, int] = {}
     try:
         import urllib.request, json as _json
-        try:
-            url = "http://127.0.0.1:19999"
-            with urllib.request.urlopen(url, timeout=90) as r:
-                ips = _json.loads(r.read()).get("ips", [])
-        except Exception:
-            url = "http://host.docker.internal:19999"
-            with urllib.request.urlopen(url, timeout=90) as r:
-                ips = _json.loads(r.read()).get("ips", [])
-                
+        url = "http://127.0.0.1:19999"
+        with urllib.request.urlopen(url, timeout=90) as r:
+            ips = _json.loads(r.read()).get("ips", [])
         if ips:
             open_ips = {ip: 554 for ip in ips}
             print(f"[DISCOVERY] Host proxy found {len(open_ips)} IPs: {list(open_ips)}")
@@ -677,7 +671,7 @@ def discover_all(
         merged[d['ip']] = d
 
     # Filter out any devices where the manufacturer is unknown/unverified.
-    # This prevents streaming servers (like OvenMediaEngine), database hosts, or other non-camera VMs 
+    # This prevents streaming servers (like MediaMTX), database hosts, or other non-camera VMs 
     # from leaking into the auto-discovered camera list.
     result = [
         d for d in merged.values()

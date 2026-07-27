@@ -3,7 +3,7 @@ import shutil
 from datetime import datetime, timezone
 from app.core.database import mongo_client
 
-MONGO_URI = os.environ.get("MONGO_URI", "mongodb://mongo:27017/")
+MONGO_URI = os.environ.get("MONGO_URI", "mongodb://localhost:27017/")
 MONGO_DB_NAME = os.environ.get("MONGO_DB_NAME", "vms_db")
 client = mongo_client
 db = client[MONGO_DB_NAME] if client else None

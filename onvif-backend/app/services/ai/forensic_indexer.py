@@ -220,7 +220,6 @@ def _classify_person_appearance(frame_bgr, x1, y1, x2, y2) -> dict:
     }
 
 
-# ── Path resolver (Linux Docker ↔ Windows) ────────────────────────────────────
 def _resolve_local_path(path: str) -> str:
     if not path:
         return ""

@@ -6,7 +6,7 @@ from typing import List, Optional, Any, Dict
 from app.core.security import verify_token
 import os
 
-MONGO_URI = os.environ.get("MONGO_URI", "mongodb://mongo:27017/")
+MONGO_URI = os.environ.get("MONGO_URI", "mongodb://localhost:27017/")
 _client   = mongo_client
 _db = _client["vms_db"] if _client else None
 designer_col = _db["designer_layouts"] if _db is not None else None

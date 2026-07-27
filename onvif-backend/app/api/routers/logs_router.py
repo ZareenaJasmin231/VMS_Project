@@ -7,7 +7,7 @@ from app.core.database import mongo_client
 import os
 
 # Connect to Mongo
-MONGO_URI = os.environ.get("MONGO_URI", "mongodb://mongo:27017/")
+MONGO_URI = os.environ.get("MONGO_URI", "mongodb://localhost:27017/")
 try:
     mongo_client = mongo_client
     db = mongo_client["vms_db"]
