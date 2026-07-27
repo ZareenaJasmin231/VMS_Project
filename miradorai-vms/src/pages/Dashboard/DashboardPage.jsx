@@ -2210,7 +2210,8 @@ const DashboardPage = () => {
                 camera_hours_up: cam.camera_hours_up || 0,
                 camera_hours_down: cam.camera_hours_down || 0,
                 recording_hours_up: cam.recording_hours_up || 0,
-                recording_hours_down: cam.recording_hours_down || 0
+                recording_hours_down: cam.recording_hours_down || 0,
+                storage_consumed_bytes: cam.storage_consumed_bytes || 0
               };
             }
             // If duplicate IP exists, use the values (don't sum — they represent the same camera)
@@ -2230,7 +2231,8 @@ const DashboardPage = () => {
             cam_up_hrs: formatHours(cam.camera_hours_up),
             cam_down_hrs: formatHours(cam.camera_hours_down),
             rec_up_hrs: formatHours(cam.recording_hours_up),
-            rec_down_hrs: formatHours(cam.recording_hours_down)
+            rec_down_hrs: formatHours(cam.recording_hours_down),
+            storage_consumed: (cam.storage_consumed_bytes / (1024 * 1024 * 1024)).toFixed(2) + " GB"
           }));
           
           setReportData(formatted);
@@ -2299,9 +2301,9 @@ const DashboardPage = () => {
         csvRows.push(`"Total Devices","${reportData.length}"`);
         csvRows.push("");
       } else if (reportType === "history") {
-        csvRows.push(`"Camera Name","IP Address","Cam Up (hrs)","Cam Down (hrs)","Rec Up (hrs)","Rec Down (hrs)"`);
+        csvRows.push(`"Camera Name","IP Address","Cam Up (hrs)","Cam Down (hrs)","Rec Up (hrs)","Rec Down (hrs)","Storage"`);
         reportData.forEach(row => {
-          csvRows.push(`"${row.camera_name}","${row.ip_address}","${row.cam_up_hrs}","${row.cam_down_hrs}","${row.rec_up_hrs}","${row.rec_down_hrs}"`);
+          csvRows.push(`"${row.camera_name}","${row.ip_address}","${row.cam_up_hrs}","${row.cam_down_hrs}","${row.rec_up_hrs}","${row.rec_down_hrs}","${row.storage_consumed}"`);
         });
         csvRows.push("");
       }
@@ -3573,6 +3575,7 @@ const DashboardPage = () => {
                               <th>Cam Down (hrs)</th>
                               <th>Rec Up (hrs)</th>
                               <th>Rec Down (hrs)</th>
+                              <th>Storage</th>
                             </>
                           )}
                         </tr>
@@ -3646,6 +3649,7 @@ const DashboardPage = () => {
                                 <td style={{ color: "#ef4444", fontWeight: "600" }}>{row.cam_down_hrs}</td>
                                 <td style={{ color: "#22c55e", fontWeight: "600" }}>{row.rec_up_hrs}</td>
                                 <td style={{ color: "#ef4444", fontWeight: "600" }}>{row.rec_down_hrs}</td>
+                                <td style={{ color: "var(--teal)", fontWeight: "600" }}>{row.storage_consumed}</td>
                               </>
                             )}
                           </tr>

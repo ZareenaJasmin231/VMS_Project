@@ -100,10 +100,11 @@ async def get_camera_history(
             }},
             {"$group": {
                 "_id": "$camera_id",
-                "total_duration": {"$sum": "$duration_seconds"}
+                "total_duration": {"$sum": "$duration_seconds"},
+                "total_size": {"$sum": "$file_size"}
             }}
         ]))
-        rec_durations = {item["_id"]: item["total_duration"] for item in rec_agg if item["_id"]}
+        rec_durations = {item["_id"]: {"duration": item["total_duration"], "size": item.get("total_size", 0)} for item in rec_agg if item["_id"]}
 
     # 2. Bulk initial states before start_dt
     initial_states = {}
@@ -182,7 +183,10 @@ async def get_camera_history(
             total_window_hours = 0
             
         # 1. Recording UP/DOWN calculation based on bulk durations
-        rec_duration = rec_durations.get(cam_id, 0.0)
+        rec_data = rec_durations.get(cam_id, {"duration": 0.0, "size": 0})
+        rec_duration = rec_data["duration"]
+        storage_bytes = rec_data["size"]
+        
         rec_up = min(total_window_hours, rec_duration / 3600.0)
         rec_down = max(0.0, total_window_hours - rec_up)
         
@@ -258,6 +262,7 @@ async def get_camera_history(
             "camera_hours_down": round(cam_down, 2),
             "recording_hours_up": round(rec_up, 2),
             "recording_hours_down": round(rec_down, 2),
+            "storage_consumed_bytes": storage_bytes,
             "camera_events": [format_event(e) for e in cam_history_events],
             "recording_events": []
         })
