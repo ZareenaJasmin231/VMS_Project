@@ -141,10 +141,17 @@ async def get_alerts(
             .limit(limit)
         )
 
+        # ── Sources that share the same flat document schema ─────────
+        # All are written via mqtt_to_db_worker after being published to
+        # Mosquitto by mqtt_publisher.py (unified pipeline).
+        FLAT_SOURCES = {"bosch", "dahua", "hikvision", "external_ai"}
+
         formatted = []
         for d in docs:
-            # Bosch alerts are flat (written directly by _analytics_poll_loop)
-            if d.get("source") == "bosch":
+            source = d.get("source", "")
+
+            # Bosch / Dahua / Hikvision — flat doc written by mqtt_to_db_worker
+            if source in FLAT_SOURCES:
                 t = d.get("type")
                 if not t or str(t).strip().lower() == "none":
                     t = "Object Detection"
@@ -157,12 +164,14 @@ async def get_alerts(
                     "time":        d.get("time"),
                     "scenario":    s,
                     "type":        t,
+                    "human":       d.get("human"),
+                    "total":       d.get("total"),
                     "status":      d.get("status", "Active"),
                     "received_at": d.get("received_at"),
                     "topic":       d.get("topic", ""),
-                    "source":      d.get("source"),
+                    "source":      source,
                 })
-            elif d.get("source") == "software_motion":
+            elif source == "software_motion":
                 formatted.append({
                     "ip":           d.get("ip"),
                     "serial":       d.get("serial"),
@@ -177,7 +186,7 @@ async def get_alerts(
                     "face_url":     d.get("face_url"),
                 })
             else:
-                # Original MQTT/Axis nested format
+                # Original MQTT / Axis nested format
                 msg  = d.get("message", {})
                 data = msg.get("data", {})
                 
