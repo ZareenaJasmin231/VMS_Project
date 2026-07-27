@@ -1572,8 +1572,128 @@ export default function LiveViewPage() {
               <span className="lv-live-dot" />
               <span>{onlineCams.length} online</span>
             </div>
+            
+            <div className="lv-filter-group" style={{ marginLeft: "16px" }}>
+              <div className="lv-filter-item">
+                {isEditingName ? (
+                  <input
+                    type="text"
+                    className="lv-station-name-input"
+                    value={stationName}
+                    onChange={(e) => {
+                      setStationName(e.target.value);
+                      sessionStorage.setItem("miradorai_workstation_name", e.target.value);
+                    }}
+                    onBlur={() => setIsEditingName(false)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") setIsEditingName(false);
+                    }}
+                    autoFocus
+                  />
+                ) : (
+                  <span onClick={() => setIsEditingName(true)} style={{ cursor: "pointer", flex: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", display: "flex", alignItems: "center", gap: "6px" }}>
+                    {stationName}
+                    <svg className="lv-chevron-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="10" height="10" style={{ marginLeft: "4px" }}>
+                      <path d="M6 9l6 6 6-6" />
+                    </svg>
+                  </span>
+                )}
+              </div>
+
+              <div className="lv-filter-divider" />
+
+              <div className="lv-filter-item lv-dropdown-container">
+                <span className="lv-blue-dot" style={{ background: "#3fb950", marginRight: "6px" }} />
+                <span style={{ color: "#3fb950", cursor: "pointer", flex: 1, whiteSpace: "nowrap", display: "flex", alignItems: "center" }} onClick={() => setModeDropdownOpen(!modeDropdownOpen)}>
+                  {streamMode === "hls" ? "Buffered" : "Real-time"}
+                  <svg className={`lv-chevron-icon ${modeDropdownOpen ? 'open' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="10" height="10" style={{ marginLeft: '8px' }} onClick={(e) => { e.stopPropagation(); setModeDropdownOpen(!modeDropdownOpen); }}>
+                    <path d="M6 9l6 6 6-6" />
+                  </svg>
+                </span>
+                {modeDropdownOpen && (
+                  <div className="lv-filter-dropdown">
+                    <button
+                      className={`lv-filter-dropdown-item ${streamMode === "webrtc" ? "selected" : ""}`}
+                      onClick={() => { setStreamMode("webrtc"); setModeDropdownOpen(false); }}
+                    >
+                      Real-time
+                    </button>
+                    <button
+                      className={`lv-filter-dropdown-item ${streamMode === "hls" ? "selected" : ""}`}
+                      onClick={() => { setStreamMode("hls"); setModeDropdownOpen(false); }}
+                    >
+                      Buffered
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              <div className="lv-filter-divider" />
+
+              <div className="lv-filter-item lv-dropdown-container" ref={dropdownRef}>
+                <span style={{ cursor: "pointer", flex: 1, whiteSpace: "nowrap", display: "flex", alignItems: "center" }} onClick={() => setGridDropdownOpen(!gridDropdownOpen)}>
+                  {currentGridOption.label.replace(' Grid', '')}
+                  <svg className={`lv-chevron-icon ${gridDropdownOpen ? 'open' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="10" height="10" style={{ marginLeft: '8px', opacity: 0.8 }} onClick={(e) => { e.stopPropagation(); setGridDropdownOpen(!gridDropdownOpen); }}>
+                    <path d="M6 9l6 6 6-6" />
+                  </svg>
+                </span>
+                {gridDropdownOpen && (
+                  <div className="lv-filter-dropdown">
+                    {GRID_OPTIONS.map((opt) => (
+                      <button
+                        key={opt.id}
+                        className={`lv-filter-dropdown-item ${layout === opt.id ? "selected" : ""}`}
+                        onClick={() => { handleLayoutChange(opt.id); setGridDropdownOpen(false); }}
+                      >
+                        {opt.label.replace(' Grid', '')}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
           <div className="lv-top-header__right">
+            <div className="lv-filter-group" style={{ marginRight: "12px" }}>
+              <div className="lv-filter-item lv-dropdown-container" onClick={(e) => { e.stopPropagation(); setShowSequenceModal(true); }}>
+                <span style={{ whiteSpace: "nowrap", cursor: "pointer" }}>
+                  + Sequence
+                </span>
+              </div>
+
+              <div className="lv-filter-divider" />
+
+              <div className="lv-filter-item">
+                <button
+                  onClick={() => setIsTourActive(!isTourActive)}
+                  title={isTourActive ? "Pause Tour" : "Start Auto Sequence Tour"}
+                  type="button"
+                  className={`lv-tour-btn ${isTourActive ? "active" : ""}`}
+                  style={{ background: 'none', border: 'none', padding: 0, marginRight: '6px', cursor: 'pointer', color: isTourActive ? '#3fb950' : 'inherit', opacity: 0.8, display: 'flex' }}
+                >
+                  {isTourActive ? (
+                    <svg viewBox="0 0 24 24" fill="currentColor" width="12" height="12"><rect x="5" y="4" width="4" height="16" rx="1"/><rect x="15" y="4" width="4" height="16" rx="1"/></svg>
+                  ) : (
+                    <svg viewBox="0 0 24 24" fill="currentColor" width="12" height="12"><path d="M6 4l15 8-15 8z"/></svg>
+                  )}
+                </button>
+                <span style={{ opacity: 0.9, marginRight: '4px' }}>Dwell</span>
+                <input
+                  type="number"
+                  className="lv-dwell-input"
+                  value={dwellTime}
+                  min="3"
+                  max="300"
+                  onChange={(e) => {
+                    const val = Math.max(3, parseInt(e.target.value) || 3);
+                    setDwellTime(val);
+                    localStorage.setItem("miradorai_dwell_time", String(val));
+                  }}
+                  disabled={isTourActive || activeSequenceId !== "all"}
+                />
+                <span style={{ fontWeight: "500", color: "var(--text-secondary)", marginLeft: '2px' }}>s</span>
+              </div>
+            </div>
             <button
               className="lv-icon-btn"
               onClick={toggleGridFullscreen}
@@ -1602,129 +1722,6 @@ export default function LiveViewPage() {
               </svg>
               {totalAlertsCount > 0 && <span className="lv-alert-badge-dot" />}
             </button>
-          </div>
-        </div>
-
-        <div className="lv-filter-bar">
-          <div className="lv-filter-group">
-            <div className="lv-filter-item">
-              {isEditingName ? (
-                <input
-                  type="text"
-                  className="lv-station-name-input"
-                  value={stationName}
-                  onChange={(e) => {
-                    setStationName(e.target.value);
-                    sessionStorage.setItem("miradorai_workstation_name", e.target.value);
-                  }}
-                  onBlur={() => setIsEditingName(false)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") setIsEditingName(false);
-                  }}
-                  autoFocus
-                />
-              ) : (
-                <span onClick={() => setIsEditingName(true)} style={{ cursor: "pointer", flex: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", display: "flex", alignItems: "center", gap: "6px" }}>
-                  {stationName}
-                  <svg className="lv-chevron-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="10" height="10" style={{ marginLeft: "4px" }}>
-                    <path d="M6 9l6 6 6-6" />
-                  </svg>
-                </span>
-              )}
-            </div>
-
-            <div className="lv-filter-divider" />
-
-            <div className="lv-filter-item lv-dropdown-container">
-              <span className="lv-blue-dot" style={{ background: "#3fb950", marginRight: "6px" }} />
-              <span style={{ color: "#3fb950", cursor: "pointer", flex: 1, whiteSpace: "nowrap", display: "flex", alignItems: "center" }} onClick={() => setModeDropdownOpen(!modeDropdownOpen)}>
-                {streamMode === "hls" ? "Buffered" : "Real-time"}
-                <svg className={`lv-chevron-icon ${modeDropdownOpen ? 'open' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="10" height="10" style={{ marginLeft: '8px' }} onClick={(e) => { e.stopPropagation(); setModeDropdownOpen(!modeDropdownOpen); }}>
-                  <path d="M6 9l6 6 6-6" />
-                </svg>
-              </span>
-              {modeDropdownOpen && (
-                <div className="lv-filter-dropdown">
-                  <button
-                    className={`lv-filter-dropdown-item ${streamMode === "webrtc" ? "selected" : ""}`}
-                    onClick={() => { setStreamMode("webrtc"); setModeDropdownOpen(false); }}
-                  >
-                    Real-time
-                  </button>
-                  <button
-                    className={`lv-filter-dropdown-item ${streamMode === "hls" ? "selected" : ""}`}
-                    onClick={() => { setStreamMode("hls"); setModeDropdownOpen(false); }}
-                  >
-                    Buffered
-                  </button>
-                </div>
-              )}
-            </div>
-
-            <div className="lv-filter-divider" />
-
-            <div className="lv-filter-item lv-dropdown-container" ref={dropdownRef}>
-              <span style={{ cursor: "pointer", flex: 1, whiteSpace: "nowrap", display: "flex", alignItems: "center" }} onClick={() => setGridDropdownOpen(!gridDropdownOpen)}>
-                {currentGridOption.label.replace(' Grid', '')}
-                <svg className={`lv-chevron-icon ${gridDropdownOpen ? 'open' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="10" height="10" style={{ marginLeft: '8px', opacity: 0.8 }} onClick={(e) => { e.stopPropagation(); setGridDropdownOpen(!gridDropdownOpen); }}>
-                  <path d="M6 9l6 6 6-6" />
-                </svg>
-              </span>
-              {gridDropdownOpen && (
-                <div className="lv-filter-dropdown">
-                  {GRID_OPTIONS.map((opt) => (
-                    <button
-                      key={opt.id}
-                      className={`lv-filter-dropdown-item ${layout === opt.id ? "selected" : ""}`}
-                      onClick={() => { handleLayoutChange(opt.id); setGridDropdownOpen(false); }}
-                    >
-                      {opt.label.replace(' Grid', '')}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div className="lv-filter-group" style={{ marginLeft: "auto" }}>
-            <div className="lv-filter-item lv-dropdown-container" onClick={(e) => { e.stopPropagation(); setShowSequenceModal(true); }}>
-              <span style={{ whiteSpace: "nowrap", cursor: "pointer" }}>
-                + Sequence
-              </span>
-            </div>
-
-            <div className="lv-filter-divider" />
-
-            <div className="lv-filter-item">
-              <button
-                onClick={() => setIsTourActive(!isTourActive)}
-                title={isTourActive ? "Pause Tour" : "Start Auto Sequence Tour"}
-                type="button"
-                className={`lv-tour-btn ${isTourActive ? "active" : ""}`}
-                style={{ background: 'none', border: 'none', padding: 0, marginRight: '6px', cursor: 'pointer', color: isTourActive ? '#3fb950' : 'inherit', opacity: 0.8, display: 'flex' }}
-              >
-                {isTourActive ? (
-                  <svg viewBox="0 0 24 24" fill="currentColor" width="12" height="12"><rect x="5" y="4" width="4" height="16" rx="1"/><rect x="15" y="4" width="4" height="16" rx="1"/></svg>
-                ) : (
-                  <svg viewBox="0 0 24 24" fill="currentColor" width="12" height="12"><path d="M6 4l15 8-15 8z"/></svg>
-                )}
-              </button>
-              <span style={{ opacity: 0.9, marginRight: '4px' }}>Dwell</span>
-              <input
-                type="number"
-                className="lv-dwell-input"
-                value={dwellTime}
-                min="3"
-                max="300"
-                onChange={(e) => {
-                  const val = Math.max(3, parseInt(e.target.value) || 3);
-                  setDwellTime(val);
-                  localStorage.setItem("miradorai_dwell_time", String(val));
-                }}
-                disabled={isTourActive || activeSequenceId !== "all"}
-              />
-              <span style={{ fontWeight: "500", color: "#c9d1d9", marginLeft: '2px' }}>s</span>
-            </div>
           </div>
         </div>
       </div>
@@ -2113,7 +2110,7 @@ function SequenceManagerModal({ sequences, setSequences, activeCams, onClose }) 
             <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "12px" }}>
               <button
                 type="button"
-                className="seq-modal-add-btn"
+                className="btn-primary"
                 onClick={handleStartCreate}
               >
                 + Create Sequence

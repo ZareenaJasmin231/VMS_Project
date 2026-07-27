@@ -110,10 +110,10 @@
 .lv-filter-group {
   display: flex;
   align-items: center;
-  background: #11151c; /* Very dark pill background */
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
   border-radius: 8px;
-  height: 100%;
+  height: 42px;
 }
 
 .lv-filter-item {
@@ -121,16 +121,16 @@
   align-items: center;
   padding: 0 16px;
   height: 100%;
-  font-size: 14.5px;
-  font-weight: 500;
-  color: #c9d1d9;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
   position: relative;
   cursor: pointer;
   transition: background 0.15s;
 }
 
 .lv-filter-item:hover {
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--bg-hover);
 }
 
 .lv-filter-group .lv-filter-item:first-child {
@@ -146,7 +146,7 @@
 .lv-filter-divider {
   width: 1px;
   height: 100%;
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--border);
 }
 
 .lv-blue-dot {
@@ -212,7 +212,7 @@
   width: 26px;
   background: transparent;
   border: none;
-  color: #c9d1d9;
+  color: var(--text-primary);
   font-size: 14.5px;
   font-weight: 500;
   outline: none;

@@ -642,7 +642,7 @@ const CameraEventsCharts = ({ reportData, reportFromDate, reportToDate }) => {
                 name="Time" 
                 domain={['dataMin - 60000', 'dataMax + 60000']} 
                 tickFormatter={(tick) => new Date(tick).toLocaleDateString(undefined, {month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'})}
-                stroke="var(--text-muted)"
+                stroke="#ffffff" tick={{ fill: '#ffffff' }}
                 fontSize={11}
               />
               <YAxis 
@@ -651,7 +651,7 @@ const CameraEventsCharts = ({ reportData, reportFromDate, reportToDate }) => {
                 name="Camera IP" 
                 ticks={uniqueIps.map((_, i) => i)}
                 tickFormatter={(tick) => uniqueIps[tick] || ""}
-                stroke="var(--text-muted)"
+                stroke="#ffffff" tick={{ fill: '#ffffff' }}
                 fontSize={11}
                 domain={[0, Math.max(uniqueIps.length - 1, 1)]}
               />
@@ -696,8 +696,8 @@ const CameraEventsCharts = ({ reportData, reportFromDate, reportToDate }) => {
         {topOffenders.length > 0 ? (
           <ResponsiveContainer width="100%" height={260}>
             <BarChart data={topOffenders} layout="vertical" margin={{ top: 10, right: 20, left: 30, bottom: 5 }}>
-              <XAxis type="number" stroke="var(--text-muted)" fontSize={11} allowDecimals={false} />
-              <YAxis type="category" dataKey="ip" stroke="var(--text-muted)" fontSize={11} width={110} interval={0} />
+              <XAxis type="number" stroke="#ffffff" tick={{ fill: '#ffffff' }} fontSize={11} allowDecimals={false} />
+              <YAxis type="category" dataKey="ip" stroke="#ffffff" tick={{ fill: '#ffffff' }} fontSize={11} width={110} interval={0} />
               <RechartsTooltip
                 content={({ active, payload }) => {
                   if (active && payload && payload.length) {
@@ -1022,8 +1022,8 @@ const AnalyticsAlertsCharts = ({ reportData, reportFromDate, reportToDate }) => 
         {timeSeriesData.length > 0 ? (
           <ResponsiveContainer width="100%" height={260}>
             <LineChart data={timeSeriesData} margin={{ top: 10, right: 20, left: 10, bottom: 0 }}>
-              <XAxis dataKey="label" stroke="var(--text-muted)" fontSize={11} />
-              <YAxis stroke="var(--text-muted)" fontSize={11} />
+              <XAxis dataKey="label" stroke="#ffffff" tick={{ fill: '#ffffff' }} fontSize={11} />
+              <YAxis stroke="#ffffff" tick={{ fill: '#ffffff' }} fontSize={11} />
               <RechartsTooltip
                 position={{ y: 0 }}
                 wrapperStyle={{ pointerEvents: 'none', zIndex: 100 }}
@@ -1132,8 +1132,8 @@ const AnalyticsAlertsCharts = ({ reportData, reportFromDate, reportToDate }) => 
             ) : (
               <ResponsiveContainer width="100%" height={230}>
                 <BarChart data={top10Hotspots} layout="vertical" margin={{ top: 5, right: 20, left: 30, bottom: 5 }}>
-                  <XAxis type="number" stroke="var(--text-muted)" fontSize={11} allowDecimals={false} />
-                  <YAxis type="category" dataKey="ip" stroke="var(--text-muted)" fontSize={11} width={110} interval={0} />
+                  <XAxis type="number" stroke="#ffffff" tick={{ fill: '#ffffff' }} fontSize={11} allowDecimals={false} />
+                  <YAxis type="category" dataKey="ip" stroke="#ffffff" tick={{ fill: '#ffffff' }} fontSize={11} width={110} interval={0} />
                   <RechartsTooltip
                     content={({ active, payload }) => {
                       if (active && payload && payload.length) {
@@ -1369,8 +1369,8 @@ const DeviceHealthCharts = ({ reportData }) => {
             currentViewMode === "histogram" ? (
               <ResponsiveContainer width="100%" height={230}>
                 <BarChart data={latencyHistogramData} margin={{ top: 15, right: 20, left: 10, bottom: 5 }}>
-                  <XAxis dataKey="name" stroke="var(--text-muted)" fontSize={9} />
-                  <YAxis stroke="var(--text-muted)" fontSize={11} allowDecimals={false} />
+                  <XAxis dataKey="name" stroke="#ffffff" tick={{ fill: '#ffffff' }} fontSize={9} />
+                  <YAxis stroke="#ffffff" tick={{ fill: '#ffffff' }} fontSize={11} allowDecimals={false} />
                   <RechartsTooltip
                     content={({ active, payload }) => {
                       if (active && payload && payload.length) {
@@ -1399,8 +1399,8 @@ const DeviceHealthCharts = ({ reportData }) => {
                       <line x1="0" y1="0" x2="0" y2="6" stroke="#475569" strokeWidth="2.5" />
                     </pattern>
                   </defs>
-                  <XAxis dataKey="name" stroke="var(--text-muted)" fontSize={9} />
-                  <YAxis stroke="var(--text-muted)" fontSize={11} label={{ value: 'Latency (ms)', angle: -90, position: 'insideLeft', fill: 'var(--text-muted)', fontSize: 11 }} />
+                  <XAxis dataKey="name" stroke="#ffffff" tick={{ fill: '#ffffff' }} fontSize={9} />
+                  <YAxis stroke="#ffffff" tick={{ fill: '#ffffff' }} fontSize={11} label={{ value: 'Latency (ms)', angle: -90, position: 'insideLeft', fill: '#ffffff', fontSize: 11 }} />
                   <ReferenceLine y={50} stroke="#ef4444" strokeDasharray="3 3" />
                   <RechartsTooltip
                     content={({ active, payload }) => {
@@ -1451,8 +1451,8 @@ const DeviceHealthCharts = ({ reportData }) => {
         {filteredReboots.length > 0 ? (
           <ResponsiveContainer width="100%" height={260}>
             <BarChart data={filteredReboots.slice(0, 10)} layout="vertical" margin={{ top: 10, right: 20, left: 30, bottom: 5 }}>
-              <XAxis type="number" stroke="var(--text-muted)" fontSize={11} allowDecimals={false} />
-              <YAxis type="category" dataKey="name" stroke="var(--text-muted)" fontSize={11} width={110} interval={0} />
+              <XAxis type="number" stroke="#ffffff" tick={{ fill: '#ffffff' }} fontSize={11} allowDecimals={false} />
+              <YAxis type="category" dataKey="name" stroke="#ffffff" tick={{ fill: '#ffffff' }} fontSize={11} width={110} interval={0} />
               <RechartsTooltip
                 content={({ active, payload }) => {
                   if (active && payload && payload.length) {
@@ -1677,8 +1677,8 @@ const CameraHistoryCharts = ({ reportData }) => {
             currentViewMode === "histogram" ? (
               <ResponsiveContainer width="100%" height={230}>
                 <BarChart data={camHistogramData} margin={{ top: 15, right: 20, left: 10, bottom: 5 }}>
-                  <XAxis dataKey="name" stroke="var(--text-muted)" fontSize={9} />
-                  <YAxis stroke="var(--text-muted)" fontSize={11} allowDecimals={false} />
+                  <XAxis dataKey="name" stroke="#ffffff" tick={{ fill: '#ffffff' }} fontSize={9} />
+                  <YAxis stroke="#ffffff" tick={{ fill: '#ffffff' }} fontSize={11} allowDecimals={false} />
                   <RechartsTooltip
                     content={({ active, payload }) => {
                       if (active && payload && payload.length) {
@@ -1702,8 +1702,8 @@ const CameraHistoryCharts = ({ reportData }) => {
             ) : (
               <ResponsiveContainer width="100%" height={230}>
                 <BarChart data={filteredCamData.slice(0, 15)} layout="vertical" margin={{ top: 5, right: 20, left: 30, bottom: 5 }}>
-                  <XAxis type="number" stroke="var(--text-muted)" fontSize={11} label={{ value: 'Hours', position: 'insideBottom', offset: -5, fill: 'var(--text-muted)' }} />
-                  <YAxis type="category" dataKey="name" stroke="var(--text-muted)" fontSize={10} width={110} interval={0} />
+                  <XAxis type="number" stroke="#ffffff" tick={{ fill: '#ffffff' }} fontSize={11} label={{ value: 'Hours', position: 'insideBottom', offset: -5, fill: '#ffffff' }} />
+                  <YAxis type="category" dataKey="name" stroke="#ffffff" tick={{ fill: '#ffffff' }} fontSize={10} width={110} interval={0} />
                   <RechartsTooltip
                     content={({ active, payload }) => {
                       if (active && payload && payload.length) {
@@ -1768,8 +1768,8 @@ const CameraHistoryCharts = ({ reportData }) => {
             currentViewMode === "histogram" ? (
               <ResponsiveContainer width="100%" height={230}>
                 <BarChart data={recHistogramData} margin={{ top: 15, right: 20, left: 10, bottom: 5 }}>
-                  <XAxis dataKey="name" stroke="var(--text-muted)" fontSize={9} />
-                  <YAxis stroke="var(--text-muted)" fontSize={11} allowDecimals={false} />
+                  <XAxis dataKey="name" stroke="#ffffff" tick={{ fill: '#ffffff' }} fontSize={9} />
+                  <YAxis stroke="#ffffff" tick={{ fill: '#ffffff' }} fontSize={11} allowDecimals={false} />
                   <RechartsTooltip
                     content={({ active, payload }) => {
                       if (active && payload && payload.length) {
@@ -1793,8 +1793,8 @@ const CameraHistoryCharts = ({ reportData }) => {
             ) : (
               <ResponsiveContainer width="100%" height={230}>
                 <BarChart data={filteredRecData.slice(0, 15)} layout="vertical" margin={{ top: 5, right: 20, left: 30, bottom: 5 }}>
-                  <XAxis type="number" stroke="var(--text-muted)" fontSize={11} label={{ value: 'Hours', position: 'insideBottom', offset: -5, fill: 'var(--text-muted)' }} />
-                  <YAxis type="category" dataKey="name" stroke="var(--text-muted)" fontSize={10} width={110} interval={0} />
+                  <XAxis type="number" stroke="#ffffff" tick={{ fill: '#ffffff' }} fontSize={11} label={{ value: 'Hours', position: 'insideBottom', offset: -5, fill: '#ffffff' }} />
+                  <YAxis type="category" dataKey="name" stroke="#ffffff" tick={{ fill: '#ffffff' }} fontSize={10} width={110} interval={0} />
                   <RechartsTooltip
                     content={({ active, payload }) => {
                       if (active && payload && payload.length) {
@@ -2339,11 +2339,14 @@ const DashboardPage = () => {
 
     // Title
     doc.setFontSize(16);
+    doc.setTextColor(0, 0, 0);
+    doc.setFont("helvetica", "bold");
     doc.text(`${reportTypeMap[reportType]} Report`, 14, 15);
 
     // Download Date/Time in top right
     doc.setFontSize(10);
-    doc.setTextColor(100);
+    doc.setTextColor(0, 0, 0);
+    doc.setFont("helvetica", "normal");
     const now = new Date();
     const downloadTime = `Downloaded: ${now.toLocaleDateString()} ${now.toLocaleTimeString()}`;
     const textWidth = doc.getTextWidth(downloadTime);
@@ -2353,45 +2356,14 @@ const DashboardPage = () => {
     // Selected Date Range
     const fromToText = `Selected Period: ${reportFromDate.replace('T', ' ')} to ${reportToDate.replace('T', ' ')}`;
     doc.text(fromToText, 14, 22);
-    doc.setTextColor(0); // reset color
-
+    
     let currentY = 28;
 
-    // Capture all charts together in one grid container image so they stay on one single page
-    const chartsGridEl = document.querySelector(".report-charts-grid");
-    if (chartsGridEl) {
-      try {
-        const html2canvas = (await import("html2canvas")).default;
-        doc.setFontSize(12);
-        doc.setTextColor(30, 41, 59);
-        doc.text("Graphical Performance Analytics", 14, currentY);
-        currentY += 6;
-
-        const canvas = await html2canvas(chartsGridEl, {
-          scale: 2,
-          backgroundColor: "#171a21",
-          logging: false,
-          useCORS: true
-        });
-        const imgData = canvas.toDataURL("image/png");
-        const imgWidth = 182; // page width (210) minus margins (14*2)
-        const imgHeight = Math.min((canvas.height * imgWidth) / canvas.width, 190); // cap max height so it fits on page 1
-
-        doc.addImage(imgData, "PNG", 14, currentY, imgWidth, imgHeight);
-        currentY += imgHeight + 8;
-      } catch (err) {
-        console.warn("Could not capture charts grid for PDF export:", err);
-      }
-    }
-
-    if (currentY + 30 > 280) {
-      doc.addPage();
-      currentY = 15;
-    }
-
     doc.setFontSize(12);
-    doc.setTextColor(30, 41, 59);
+    doc.setTextColor(0, 0, 0);
+    doc.setFont("helvetica", "bold");
     doc.text("Tabular Data Records", 14, currentY);
+    doc.setFont("helvetica", "normal");
     currentY += 4;
 
     const keys = Object.keys(reportData[0]);
@@ -2405,9 +2377,70 @@ const DashboardPage = () => {
       head: [headers],
       body: rows,
       startY: currentY,
-      theme: "striped",
-      styles: { fontSize: 8 }
+      theme: "grid",
+      styles: { 
+        fontSize: 8, 
+        textColor: [0, 0, 0],
+        lineColor: [200, 200, 200],
+        lineWidth: 0.1
+      },
+      headStyles: { 
+        fillColor: [220, 230, 241],
+        textColor: [0, 0, 0], 
+        fontStyle: 'bold' 
+      },
+      didParseCell: function(data) {
+        if (data.section === 'body') {
+           const colHeader = headers[data.column.index].toLowerCase();
+           if (colHeader.includes('camera') || colHeader === 'ip' || colHeader === 'device') {
+              data.cell.styles.fontStyle = 'bold';
+           }
+        }
+      }
     });
+
+    currentY = doc.lastAutoTable.finalY + 10;
+
+    // Capture all charts together in one grid container image so they stay on one single page
+    const chartsGridEl = document.querySelector(".report-charts-grid");
+    if (chartsGridEl) {
+      try {
+        const html2canvas = (await import("html2canvas")).default;
+        
+        if (currentY + 20 > 280) {
+          doc.addPage();
+          currentY = 15;
+        }
+
+        doc.setFontSize(12);
+        doc.setTextColor(0, 0, 0);
+        doc.setFont("helvetica", "bold");
+        doc.text("Graphical Performance Analytics", 14, currentY);
+        doc.setFont("helvetica", "normal");
+        currentY += 6;
+
+        const canvas = await html2canvas(chartsGridEl, {
+          scale: 2,
+          backgroundColor: "#171a21",
+          logging: false,
+          useCORS: true
+        });
+        const imgData = canvas.toDataURL("image/png");
+        const imgWidth = 182; // page width (210) minus margins (14*2)
+        const imgHeight = Math.min((canvas.height * imgWidth) / canvas.width, 190); // cap max height so it fits on page 1
+
+        if (currentY + imgHeight > 280) {
+          doc.addPage();
+          currentY = 15;
+        }
+
+        doc.addImage(imgData, "PNG", 14, currentY, imgWidth, imgHeight);
+        currentY += imgHeight + 8;
+      } catch (err) {
+        console.warn("Could not capture charts grid for PDF export:", err);
+      }
+    }
+
     doc.save(`${reportType}_report_${new Date().toISOString().slice(0,10)}.pdf`);
   };
 

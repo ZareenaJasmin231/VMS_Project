@@ -1398,6 +1398,39 @@
     0 0 14px rgba(16, 185, 129, 0.5);
   transform: scaleY(1.08);
 }
+/* ── Toolbar ── */
+.lv-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 24px;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+  z-index: 10;
+}
+
+.lv-toolbar__left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.lv-page-title {
+  font-size: 30px;
+  font-weight: 700;
+  margin: 0;
+  background: linear-gradient(135deg, var(--text-primary) 0%, var(--teal) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  letter-spacing: -0.02em;
+}
+
+.lv-toolbar__stats {
+  display: flex;
+  align-items: center;
+}
 
 /* Match playback page subheading style with dashboard update badge */
 .lv-toolbar__count {
