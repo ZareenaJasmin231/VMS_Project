@@ -475,6 +475,23 @@ def get_vms_process_metrics():
         except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
             continue
 
+    # Detect duplicate FFmpeg processes for the same camera IP
+    ffmpeg_by_ip = {}
+    for f in ffmpeg_processes:
+        ip = f.get("camera_ip")
+        if ip and ip != "N/A":
+            ffmpeg_by_ip.setdefault(ip, []).append(f)
+
+    for ip, f_list in ffmpeg_by_ip.items():
+        if len(f_list) > 1:
+            # Keep the newest process (smallest uptime) as active, mark older duplicates as orphaned
+            sorted_f = sorted(f_list, key=lambda x: x.get("uptime_seconds", 0))
+            primary_pid = sorted_f[0]["pid"]
+            for item in f_list:
+                if item["pid"] != primary_pid:
+                    item["is_orphaned"] = True
+                    item["role"] = f"Stale Duplicate FFmpeg ({ip})"
+
     # Detect primary vs stale/orphaned infrastructure services
     infrastructure_services = []
     service_groups = {}
@@ -540,6 +557,7 @@ def kill_orphaned_ffmpeg_processes():
     
     target_procs = ffmpeg_procs + infra_procs
     killed_pids = []
+    failed_pids = []
     
     for f in target_procs:
         if f.get("is_orphaned"):
@@ -551,15 +569,22 @@ def kill_orphaned_ffmpeg_processes():
                         {"$set": {"manual_kill": True}}
                     )
                 p = psutil.Process(pid)
-                p.terminate()
+                p.kill()  # Use kill() to force terminate on Windows
                 killed_pids.append(pid)
             except Exception as e:
                 print(f"[PROCESS MONITOR] Failed to terminate stale process PID {pid}: {e}")
+                failed_pids.append({
+                    "pid": pid,
+                    "name": f.get("name", "ffmpeg.exe"),
+                    "error": str(e),
+                    "type": type(e).__name__
+                })
                 
     return {
         "success": True,
         "terminated_count": len(killed_pids),
-        "terminated_pids": killed_pids
+        "terminated_pids": killed_pids,
+        "failed_pids": failed_pids
     }
 
 def calculate_hardware_scaling_report(target_camera_counts=None):

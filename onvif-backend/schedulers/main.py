@@ -1,6 +1,8 @@
 import asyncio
 import threading
 from schedulers.email_report_worker import email_report_worker
+# from schedulers.storage_audit_worker import start_storage_audit
+
 # from schedulers.forensic_indexer_worker import start_background_indexer
 from schedulers.stream_health_worker import start_health_monitoring
 from schedulers.mqtt_to_db_worker import start_mqtt
@@ -39,7 +41,9 @@ def start():
 
         await asyncio.gather(
             email_report_worker(),
-            start_health_monitoring(devices, cameras_col)
+            start_health_monitoring(devices, cameras_col),
+            # start_storage_audit(),
+
         )
 
     try:

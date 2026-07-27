@@ -1,6 +1,8 @@
+import os
+
 import pymongo
 
-client = pymongo.MongoClient('mongodb://mongo:27017')
+client = pymongo.MongoClient(os.environ.get("MONGO_URI", "mongodb://localhost:27017"))
 db = client['vms_db']  # Replace with your database name
 pipeline = [
     {'$group': {'_id': '$camera_id', 'total_bytes': {'$sum': '$file_size'}}},

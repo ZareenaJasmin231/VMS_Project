@@ -37,9 +37,81 @@ def _get_uptime_info():
         return "N/A", "N/A"
 
 
+# def update_node_status(node_id, status, latency=None):
+#     node = nodes_col.find_one({"id": node_id})
+#     previous_status = node.get("status") if node else None
+
+#     update_data = {"status": status, "last_seen": datetime.utcnow()}
+#     if latency is not None:
+#         update_data["latency"] = latency
+
+#     nodes_col.update_one({"id": node_id}, {"$set": update_data})
+
+#     # Record uptime snapshot (tracks reboots and cumulative uptime)
+#     reboot_detected = record_uptime_snapshot(node_id, node.get("ip", ""), status, latency)
+#     if reboot_detected:
+#         alert_unexpected_reboot(node.get('model') or node.get('ip'), node.get('ip', ''))
+
+#     # Fire alert on transition to offline
+#     if previous_status and previous_status != status and status == "offline":
+#         alert = {
+#             "node_id": node_id,
+#             "ip": node.get("ip", ""),
+#             "model": node.get("model", ""),
+#             "type": node.get("type", ""),
+#             "event": "device_offline",
+#             "message": f"{node.get('model') or node.get('ip')} went OFFLINE",
+#             "timestamp": datetime.utcnow(),
+#             "acknowledged": False
+#         }
+#         alerts_col.insert_one(alert)
+
+#         uptime_events_col = db["uptime_events"] if db is not None else None
+#         if uptime_events_col is not None:
+#             uptime_events_col.insert_one({
+#                 "node_id": node_id,
+#                 "event_type": "camera",
+#                 "state": "down",
+#                 "timestamp": datetime.utcnow()
+#             })
+
+#         # ✅ Send email alert for device offline
+#         alert_device_offline(node.get('model') or node.get('ip'), node.get('ip', ''))
+
+#         try:
+#             _broadcast_safe({
+#                 "type": "ALERT",
+#                 "data": {**alert, "timestamp": alert["timestamp"].isoformat()}
+#             })
+#         except Exception as e:
+#             print(f"[HEALTH] Alert broadcast error: {e}")
+
+#     elif previous_status and previous_status != status and status == "online":
+#         uptime_events_col = db["uptime_events"] if db is not None else None
+#         if uptime_events_col is not None:
+#             uptime_events_col.insert_one({
+#                 "node_id": node_id,
+#                 "event_type": "camera",
+#                 "state": "up",
+#                 "timestamp": datetime.utcnow()
+#             })
+
+#     try:
+#         _broadcast_safe({
+#             "type": "NODE_UPDATE",
+#             "id": node_id,
+#             "data": {**update_data, "last_seen": update_data["last_seen"].isoformat()}
+#         })
+#     except Exception as e:
+#         print(f"[HEALTH] Broadcast error: {e}")
+
 def update_node_status(node_id, status, latency=None):
     node = nodes_col.find_one({"id": node_id})
-    previous_status = node.get("status") if node else None
+    if node is None:
+        print(f"[HEALTH] ⚠ Skipping update_node_status: node_id={node_id} not found (likely purged)")
+        return
+
+    previous_status = node.get("status")
 
     update_data = {"status": status, "last_seen": datetime.utcnow()}
     if latency is not None:
@@ -47,12 +119,10 @@ def update_node_status(node_id, status, latency=None):
 
     nodes_col.update_one({"id": node_id}, {"$set": update_data})
 
-    # Record uptime snapshot (tracks reboots and cumulative uptime)
     reboot_detected = record_uptime_snapshot(node_id, node.get("ip", ""), status, latency)
     if reboot_detected:
         alert_unexpected_reboot(node.get('model') or node.get('ip'), node.get('ip', ''))
 
-    # Fire alert on transition to offline
     if previous_status and previous_status != status and status == "offline":
         alert = {
             "node_id": node_id,
@@ -75,7 +145,6 @@ def update_node_status(node_id, status, latency=None):
                 "timestamp": datetime.utcnow()
             })
 
-        # ✅ Send email alert for device offline
         alert_device_offline(node.get('model') or node.get('ip'), node.get('ip', ''))
 
         try:
@@ -106,30 +175,63 @@ def update_node_status(node_id, status, latency=None):
         print(f"[HEALTH] Broadcast error: {e}")
 
 
+# def check_all_nodes():
+#     from .scanner import scanner
+#     nodes = list(nodes_col.find({}))
+
+#     def worker(node):
+#         ip = node.get("ip")
+#         if not ip:
+#             return
+#         latency = scanner.ping_device(ip)
+#         if latency >= 0:
+#             status = "online"
+#         else:
+#             # Fallback check: check if RTSP, ONVIF or HTTP ports are reachable
+#             is_reachable = False
+#             for port in [554, 8080, 80]:
+#                 if scanner.probe_port(ip, port, timeout=0.5):
+#                     is_reachable = True
+#                     break
+#             if is_reachable:
+#                 status = "online"
+#                 latency = 5.0  # Nominal latency for ping-blocked devices
+#             else:
+#                 status = "offline"
+#         update_node_status(node["id"], status, latency)
+
+#     threads = [threading.Thread(target=worker, args=(n,)) for n in nodes]
+#     for t in threads:
+#         t.start()
+#     for t in threads:
+#         t.join(timeout=5)
+
 def check_all_nodes():
     from .scanner import scanner
     nodes = list(nodes_col.find({}))
 
     def worker(node):
-        ip = node.get("ip")
-        if not ip:
-            return
-        latency = scanner.ping_device(ip)
-        if latency >= 0:
-            status = "online"
-        else:
-            # Fallback check: check if RTSP, ONVIF or HTTP ports are reachable
-            is_reachable = False
-            for port in [554, 8080, 80]:
-                if scanner.probe_port(ip, port, timeout=0.5):
-                    is_reachable = True
-                    break
-            if is_reachable:
+        try:
+            ip = node.get("ip")
+            if not ip:
+                return
+            latency = scanner.ping_device(ip)
+            if latency >= 0:
                 status = "online"
-                latency = 5.0  # Nominal latency for ping-blocked devices
             else:
-                status = "offline"
-        update_node_status(node["id"], status, latency)
+                is_reachable = False
+                for port in [554, 8080, 80]:
+                    if scanner.probe_port(ip, port, timeout=0.5):
+                        is_reachable = True
+                        break
+                if is_reachable:
+                    status = "online"
+                    latency = 5.0
+                else:
+                    status = "offline"
+            update_node_status(node["id"], status, latency)
+        except Exception as e:
+            print(f"[HEALTH] worker() error for node {node.get('id', '?')}: {e}")
 
     threads = [threading.Thread(target=worker, args=(n,)) for n in nodes]
     for t in threads:

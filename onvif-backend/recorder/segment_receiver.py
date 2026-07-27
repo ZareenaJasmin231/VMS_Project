@@ -369,8 +369,13 @@ async def receive_segment(camera_id: str, date: str, time_str: str, index: int, 
             )
 
     buf = bytearray()
-    async for chunk in request.stream():
-        buf.extend(chunk)
+    from starlette.requests import ClientDisconnect
+    try:
+        async for chunk in request.stream():
+            buf.extend(chunk)
+    except ClientDisconnect:
+        print(f"[RECEIVER] ⚠ Client disconnected during upload for {key} (index {index})")
+        return Response(status_code=499, content="Client Disconnected")
         
     q = _get_or_create_queue(key)
     try:

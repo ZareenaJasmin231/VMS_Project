@@ -210,8 +210,10 @@ def main():
                             recorder.trigger_motion_local(stream_name, face_url)
                     
                     # Check if the RTSP URL of the running recorder differs from the assigned one
-                    current_recorded_rtsp = recorder._camera_data.get(stream_name, {}).get("recording_rtsp") or recorder._camera_data.get(stream_name, {}).get("rtsp_url")
-                    rtsp_changed = current_recorded_rtsp != cam_info["rtsp_url"]
+                    # current_recorded_rtsp = recorder._camera_data.get(stream_name, {}).get("recording_rtsp") or recorder._camera_data.get(stream_name, {}).get("rtsp_url")
+                    # rtsp_changed = current_recorded_rtsp != cam_info["rtsp_url"]
+                    current_recorded_rtsp = recorder._recorders[stream_name].rtsp_url if is_running else None
+                    rtsp_changed = current_recorded_rtsp and current_recorded_rtsp != cam_info["rtsp_url"]
                     
                     # Check if stream profiles changed
                     current_profiles = recorder._camera_data.get(stream_name, {}).get("stream_profiles")

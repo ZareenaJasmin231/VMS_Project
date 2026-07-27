@@ -1150,7 +1150,9 @@ export default function LiveViewPage() {
                 name: cam.name || cam.camera_name || `AI Cam (${camIp})`,
                 ip: camIp,
                 rtsp_url: cam.rtsp_url || "",
-                source: cam.source || "AI_WEBHOOK",
+                // source: cam.source || "AI_WEBHOOK",
+                source: cam.source || "",
+
                 reader_id: cam.reader_id,
                 enabled: cam.enabled !== false,
                 status: cam.status || "Active",

@@ -65,13 +65,18 @@ export const AuthProvider = ({ children }) => {
         body: JSON.stringify({ email, password, role }),
       });
 
-      const data = await res.json();
-
-      if (!res.ok) {
-        return { success: false, error: data.detail || "Signup failed" };
+      let data = null;
+      try {
+        data = await res.json();
+      } catch (jsonErr) {
+        // Response was not JSON
       }
 
-      return { success: true, message: data.message };
+      if (!res.ok) {
+        return { success: false, error: data?.detail || data?.message || `Server error (${res.status})` };
+      }
+
+      return { success: true, message: data?.message || "Account created successfully!" };
     } catch (err) {
       console.error("[AUTH] Signup error:", err);
       return { success: false, error: "Cannot connect to server. Please try again." };
@@ -96,9 +101,15 @@ export const AuthProvider = ({ children }) => {
         body: JSON.stringify({ email, password, role: assignedRole }),
       });
 
-      const data = await res.json();
+      let data = null;
+      try {
+        data = await res.json();
+      } catch (jsonErr) {
+        // Response was not JSON
+      }
+
       if (!res.ok) {
-        return { success: false, error: data.detail || data.message || "Login failed" };
+        return { success: false, error: data?.detail || data?.message || `Server error (${res.status})` };
       }
 
       setUser(data.user);
@@ -144,13 +155,18 @@ export const AuthProvider = ({ children }) => {
         body: JSON.stringify({ email }),
       });
 
-      const data = await res.json();
-
-      if (!res.ok) {
-        return { success: false, error: data.detail || "Request failed" };
+      let data = null;
+      try {
+        data = await res.json();
+      } catch (jsonErr) {
+        // Response was not JSON
       }
 
-      return { success: true, message: data.message };
+      if (!res.ok) {
+        return { success: false, error: data?.detail || data?.message || `Server error (${res.status})` };
+      }
+
+      return { success: true, message: data?.message };
     } catch (err) {
       console.error("[AUTH] Forgot password error:", err);
       return { success: false, error: "Cannot connect to server. Please try again." };
@@ -184,13 +200,18 @@ export const AuthProvider = ({ children }) => {
         }),
       });
 
-      const data = await res.json();
-
-      if (!res.ok) {
-        return { success: false, error: data.detail || "Reset failed" };
+      let data = null;
+      try {
+        data = await res.json();
+      } catch (jsonErr) {
+        // Response was not JSON
       }
 
-      return { success: true, message: data.message };
+      if (!res.ok) {
+        return { success: false, error: data?.detail || data?.message || `Server error (${res.status})` };
+      }
+
+      return { success: true, message: data?.message };
     } catch (err) {
       console.error("[AUTH] Reset password error:", err);
       return { success: false, error: "Cannot connect to server. Please try again." };

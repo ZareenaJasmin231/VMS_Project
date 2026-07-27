@@ -3,6 +3,14 @@ import os
 os.environ["OPENCV_OPENCL_RUNTIME"] = "disabled"
 os.environ["OPENCV_OPENCL_DEVICE"] = "disabled"
 
+import requests
+# Global requests timeout patch to prevent third-party libraries from hanging indefinitely on network requests
+_orig_send = requests.Session.send
+def _patched_send(self, request, **kwargs):
+    kwargs.setdefault('timeout', 8)
+    return _orig_send(self, request, **kwargs)
+requests.Session.send = _patched_send
+
 try:
     import cv2
     cv2.ocl.setUseOpenCL(False)

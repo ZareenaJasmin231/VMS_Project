@@ -78,7 +78,9 @@ def load_devices():
             except Exception:
                 pass
 
-            docs = list(cameras_col.find({}, {"_id": 0}))
+            # docs = list(cameras_col.find({}, {"_id": 0}))
+            docs = list(cameras_col.find({"is_deleted": {"$ne": True}}, {"_id": 0}))
+
             if docs:
                 unique_cams = {}
                 for d in docs:

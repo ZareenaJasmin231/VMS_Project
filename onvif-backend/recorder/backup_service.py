@@ -11,7 +11,7 @@ from app.core.database import recordings_col
 from app.utils.minio_client import minio_client, MINIO_BUCKET
 
 backup_router = APIRouter(prefix="/api/backup", tags=["backup"], dependencies=[Depends(verify_token)])
-HOST_AGENT = "http://host.docker.internal:9500"
+HOST_AGENT = "http://localhost:9500"
 
 async def _agent(path: str):
     try:
@@ -119,7 +119,7 @@ def collect_files_in_range(
     """
     Walk base_dir/<cam_folder>/<YYYY-MM-DD>/ and collect .enc/.meta files
     whose DATE FOLDER name falls within [start_dt, end_dt].
-    Uses folder name for date — NOT mtime (mtime is unreliable in Docker volumes).
+    Uses folder name for date — NOT mtime (mtime is unreliable in network volumes).
     """
     files = []
     try:
@@ -438,8 +438,6 @@ async def test_network_connection(config: NetworkConfig):
         status_code=400,
         detail=(
             "❌ /network_backup not accessible inside container. "
-            "Check docker-compose volume: C:/vmsrecording_backup:/network_backup "
-            "then run: docker-compose down && docker-compose up -d"
         ),
     )
 
@@ -470,7 +468,7 @@ async def update_auto_config(req: AutoConfigRequest):
             )
         raise HTTPException(
             status_code=400,
-            detail="❌ /network_backup not accessible. Check C:/vmsrecording_backup volume in docker-compose.",
+            detail="❌ /network_backup not accessible. Check the network backup volume configuration.",
         )
     cfg = load_config()
     cfg["auto"]["enabled"] = req.enabled

@@ -57,6 +57,7 @@ import RaidMgmtPage from "../../pages/StorageManagement";
 // ✅ REPORTS
 import CameraHistoryReport from "../../pages/reports/CameraHistoryReport";
 import ReportsPlaceholderPage from "../../pages/reports/ReportsPlaceholderPage";
+import RecycleBinPage from "../../pages/devices/RecycleBinPage";
 
 // const RecordingReportPage = (props) => <ReportsPlaceholderPage {...props} reportName="Recording Report" />;
 const StorageReportPage = (props) => <ReportsPlaceholderPage {...props} reportName="Storage Report" />;
@@ -80,7 +81,7 @@ const MAP = {
   "time-sync": TimeSyncPage,
   "camera-features": CameraFeaturesPage,
   "masking": MaskingPage,
-
+  "recycle-bin": RecycleBinPage,
   // ================= STORAGE =================
   "storage-mgmt": StorageMgmtPage,
   "storage-selection": StorageSelPage,

@@ -2,7 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 from app.services.license_manager import license_manager
 import json
-from app.core.database import cameras_col, db as _db
+from datetime import datetime
+from app.core.database import cameras_col, recordings_col, analytics_col, db as _db
 from app.core.security import verify_token
 from app.managers.stream_manager import normalize_stream_name, get_devices_by_ip, devices, save_devices
 from app.services.camera.onvif_service import (
@@ -70,7 +71,7 @@ async def enable_camera_by_ip(ip: str):
     to_enable_count = sum(1 for d in matched if not d.get("enabled", False))
     if to_enable_count > 0:
         max_cameras = license_manager.get_max_cameras()
-        active_count = cameras_col.count_documents({"enabled": True}) if cameras_col is not None else len([d for d in devices if d.get("enabled") is True])
+        active_count = cameras_col.count_documents({"enabled": True, "is_deleted": {"$ne": True}}) if cameras_col is not None else len([d for d in devices if d.get("enabled") is True])
         if active_count + to_enable_count > max_cameras:
             return JSONResponse(
                 status_code=409,
@@ -155,10 +156,68 @@ async def delete_camera_by_ip(ip: str):
     devices = [d for d in devices if d.get("ip") != ip and d.get("ip_address") != ip]
     save_devices(devices)
     if cameras_col is not None:
-        result = cameras_col.delete_many({"$or": [{"ip": ip}, {"ip_address": ip}]})
-        print(f"[DELETE] 🗑 MongoDB: removed {result.deleted_count} document(s) for IP {ip}")
+        now = datetime.utcnow()
+        update_doc = {
+            "$set": {
+                "is_deleted": True,
+                "deleted_at": now
+            }
+        }
+        result = cameras_col.update_many({"$or": [{"ip": ip}, {"ip_address": ip}]}, update_doc)
+        print(f"[DELETE] 🗑 MongoDB: soft-deleted {result.modified_count} camera(s) for IP {ip}")
+        
+        if recordings_col is not None:
+            rec_res = recordings_col.update_many({"camera_ip": ip}, update_doc)
+            print(f"[DELETE] Cascade: soft-deleted {rec_res.modified_count} recordings for IP {ip}")
+        if analytics_col is not None:
+            al_res = analytics_col.update_many({"ip": ip}, update_doc)
+            print(f"[DELETE] Cascade: soft-deleted {al_res.modified_count} alerts for IP {ip}")
+            
     return {"success": True, "ip": ip, "streams_stopped": stopped}
 
+@router.delete("/cameras/{ip}/hard", dependencies=[Depends(verify_token)])
+async def hard_delete_camera(ip: str):
+    """
+    Permanently delete a cameras collection.
+    """
+    if cameras_col is not None:
+        result = cameras_col.delete_many({"$or": [{"ip": ip}, {"ip_address": ip}]})
+        # if recordings_col is not None:
+        #     recordings_col.delete_many({"camera_ip": ip})
+        # if analytics_col is not None:
+        #     analytics_col.delete_many({"ip": ip})
+        return {"success": True, "ip": ip, "deleted_count": result.deleted_count}
+    return {"success": False, "error": "Database not available"}
+
+@router.get("/cameras/trash", dependencies=[Depends(verify_token)])
+async def get_trashed_cameras():
+    """
+    Get all soft-deleted cameras for the recycle bin.
+    """
+    if cameras_col is None:
+        return []
+    docs = list(cameras_col.find({"is_deleted": True}, {"_id": 0}))
+    return docs
+
+@router.put("/cameras/{ip}/restore", dependencies=[Depends(verify_token)])
+async def restore_camera(ip: str):
+    """
+    Restore a soft-deleted camera and its children.
+    """
+    if cameras_col is not None:
+        update_doc = {
+            "$set": {"is_deleted": False},
+            "$unset": {"deleted_at": "", "deleted_by": ""}
+        }
+        result = cameras_col.update_many({"$or": [{"ip": ip}, {"ip_address": ip}]}, update_doc)
+        
+        if recordings_col is not None:
+            recordings_col.update_many({"camera_ip": ip}, update_doc)
+        if analytics_col is not None:
+            analytics_col.update_many({"ip": ip}, update_doc)
+            
+        return {"success": True, "ip": ip, "restored_count": result.modified_count}
+    return {"success": False, "error": "Database not available"}
 
 @router.delete("/cameras/by-stream/{stream_name}/delete", dependencies=[Depends(verify_token)])
 async def delete_camera_by_stream(stream_name: str):
@@ -306,7 +365,7 @@ async def onvif_probe(req: ProbeRequest):
             is_currently_active = existing.get("enabled", False) if existing else False
             if not is_currently_active:
                 max_cameras = license_manager.get_max_cameras()
-                active_count = cameras_col.count_documents({"enabled": True}) if cameras_col is not None else len([d for d in devices if d.get("enabled") is True])
+                active_count = cameras_col.count_documents({"enabled": True, "is_deleted": {"$ne": True}}) if cameras_col is not None else len([d for d in devices if d.get("enabled") is True])
                 if active_count >= max_cameras:
                     return JSONResponse(
                         status_code=409,
@@ -402,7 +461,7 @@ async def onvif_probe(req: ProbeRequest):
         result["ome_stream"]      = stream_name
         result["ome_response"]    = ome_response
         live_key = live_stream if live_stream else stream_name
-        result["ws_url"]          = f"http://host.docker.internal:8889/{live_key}"
+        result["ws_url"]          = f"http://localhost:8889/{live_key}"
         result["stream_key"]      = live_key
         result["status"]          = "streaming"
         result["rtsp_url"]        = rtsp
@@ -484,7 +543,7 @@ async def register_rtsp_stream(req: StreamRegisterRequest):
         return {
             "success":    True,
             "ome_stream": stream_name,
-            "ws_url":     f"http://host.docker.internal:8889/{live_key}",
+            "ws_url":     f"http://localhost:8889/{live_key}",
             "stream_key": live_key,
             "status":     "streaming",
             "rtsp_url":   rtsp,
@@ -492,7 +551,7 @@ async def register_rtsp_stream(req: StreamRegisterRequest):
     is_currently_active = existing.get("enabled", False) if existing else False
     if not is_currently_active:
         max_cameras = license_manager.get_max_cameras()
-        active_count = cameras_col.count_documents({"enabled": True}) if cameras_col is not None else len([d for d in devices if d.get("enabled") is True])
+        active_count = cameras_col.count_documents({"enabled": True, "is_deleted": {"$ne": True}}) if cameras_col is not None else len([d for d in devices if d.get("enabled") is True])
         if active_count >= max_cameras:
             return JSONResponse(
                 status_code=409,
@@ -585,7 +644,7 @@ async def register_rtsp_stream(req: StreamRegisterRequest):
     return {
         "success":    True,
         "ome_stream": stream_name,
-        "ws_url":     f"http://host.docker.internal:8889/{live_key}",
+        "ws_url":     f"http://localhost:8889/{live_key}",
         "stream_key": live_key,
         "status":     "streaming",
         "rtsp_url":   rtsp,
@@ -611,6 +670,28 @@ async def assign_streams(req: StreamAssignRequest):
         (d for d in devices if d.get("ip") == host and (d.get("rtsp_url") == req.live_rtsp or d.get("recording_rtsp") == req.recording_rtsp)),
         next((d for d in devices if d.get("ip") == host), None)
     )
+        # --- INJECT CREDENTIALS INTO RAW ONVIF RTSP URLs ---
+    import urllib.parse
+    cam_user = req.username or (existing.get("username") if existing else "")
+    cam_pass = existing.get("password") if existing else ""
+
+    def inject_credentials(rtsp_str, user, pwd):
+        if not rtsp_str or not user or not pwd: return rtsp_str
+        if f"{urllib.parse.quote_plus(user)}:" in rtsp_str or f"{user}:" in rtsp_str:
+            return rtsp_str
+        if rtsp_str.startswith("rtsp://"):
+            parts = rtsp_str.split("rtsp://", 1)
+            safe_user = urllib.parse.quote_plus(user)
+            safe_pwd = urllib.parse.quote_plus(pwd)
+            return f"rtsp://{safe_user}:{safe_pwd}@{parts[1]}"
+        return rtsp_str
+
+    req.live_rtsp = inject_credentials(req.live_rtsp, cam_user, cam_pass)
+    req.recording_rtsp = inject_credentials(req.recording_rtsp, cam_user, cam_pass)
+    
+    print(f"[ASSIGN] After credential injection: live_rtsp={req.live_rtsp!r}")
+    print(f"[ASSIGN] After credential injection: rec_rtsp={req.recording_rtsp!r}")
+    # ---------------------------------------------------    
     
     stream_name = existing.get("ome_stream") if existing else base_stream_name
     current_live_rtsp = existing.get("rtsp_url") if existing else None
@@ -687,7 +768,7 @@ async def assign_streams(req: StreamAssignRequest):
     return {
         "success":           True,
         "ome_stream":        stream_name,
-        "ws_url":            f"http://host.docker.internal:8889/{live_key}",
+        "ws_url":            f"http://localhost:8889/{live_key}",
         "stream_key":        live_key,
         "live_rtsp":         req.live_rtsp,
         "recording_rtsp":    req.recording_rtsp,
@@ -702,7 +783,7 @@ async def assign_streams(req: StreamAssignRequest):
 @router.get("/cameras/by-ip/{ip}", dependencies=[Depends(verify_token)])
 async def get_camera_by_ip(ip: str):
     if cameras_col is not None:
-        doc = cameras_col.find_one({"$or": [{"ip": ip}, {"ip_address": ip}]}, {"_id": 0})
+        doc = cameras_col.find_one({"$or": [{"ip": ip}, {"ip_address": ip}], "is_deleted": {"$ne": True}}, {"_id": 0})
         if doc:
             return doc
     dev = next((d for d in devices if d.get("ip") == ip or d.get("ip_address") == ip), None)
@@ -723,7 +804,7 @@ async def get_encoder_options(ip: str, port: int = 80, username: str = "", passw
     db_encodings = None
     db_resolutions = None
     if cameras_col is not None:
-        cam_doc = cameras_col.find_one({"$or": [{"ip": ip}, {"ip_address": ip}]}, {"_id": 0, "stream_profiles": 1, "manufacturer": 1})
+        cam_doc = cameras_col.find_one({"$or": [{"ip": ip}, {"ip_address": ip}], "is_deleted": {"$ne": True}}, {"_id": 0, "stream_profiles": 1, "manufacturer": 1})
         if cam_doc:
             for prof in cam_doc.get("stream_profiles") or []:
                 if prof.get("token") == profile_token:
@@ -964,7 +1045,7 @@ async def get_devices():
 async def get_cameras_from_db():
     if cameras_col is None:
         return []
-    docs = list(cameras_col.find({}, {"_id": 0}))
+    docs = list(cameras_col.find({"is_deleted": {"$ne": True}}, {"_id": 0}))
     return docs
 
 

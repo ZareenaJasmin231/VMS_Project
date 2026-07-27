@@ -102,6 +102,7 @@ const SETTINGS_NAV = {
     { label: "RAID Management", page: "raid-mgmt", icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" y1="6" x2="6" y2="6"/><line x1="6" y1="18" x2="6" y2="18"/></svg>` },
     { label: "Recording Method", page: "rec-method", icon: ICONS.recording },
     { label: "Privacy Masking", page: "masking", icon: ICONS.masking },
+    // { label: "Recycle Bin", page: "recycle-bin", icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>` },
     { label: "Schedules", page: "schedules", icon: ICONS.recording },
     { label: "Backup", page: "backup", icon: ICONS.backup },
     { label: "Viewing Stations", page: "viewing-stations", icon: ICONS.client },

@@ -59,6 +59,12 @@ def create_database_indexes(db_instance):
         lifecycle_col.create_index([("pid", ASCENDING), ("status", ASCENDING)])
         lifecycle_col.create_index([("service", ASCENDING), ("start_time", DESCENDING)])
 
+        # 9. Soft Delete Indexes
+        db_instance["cameras"].create_index("is_deleted")
+        db_instance["recordings"].create_index("is_deleted")
+        db_instance["analytics_events"].create_index("is_deleted")
+        db_instance["users"].create_index("is_deleted")
+
         print("[MONGO] All database indexes created successfully.")
     except Exception as err:
         print(f"[MONGO] Warning creating indexes: {err}")

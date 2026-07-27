@@ -464,9 +464,25 @@ export default function StreamProfilesPage() {
     const cameraKey = data.ip || String(data.id);
     const overrides = loadOverrides();
     const cameraOverrides = overrides[cameraKey] || {};
-    const profs = (data.stream_profiles || []).map(p =>
+    let profs = (data.stream_profiles || []).map(p =>
       cameraOverrides[p.token] ? { ...p, ...cameraOverrides[p.token] } : p
     );
+
+    // If no ONVIF profiles exist but we have an RTSP URL (e.g., manually added camera),
+    // construct a synthetic profile so the user can still proceed.
+    if (profs.length === 0 && data.rtsp_url) {
+      profs = [{
+        name: "Manual RTSP Stream",
+        token: "manual_rtsp",
+        label: "MAIN",
+        rtsp_url: data.rtsp_url,
+        encoding: data.live_codec || "Unknown",
+        resolution: data.resolution || "Unknown",
+        fps: data.fps || null,
+        bitrate: data.bitrate || null,
+      }];
+    }
+
     setProfiles(profs);
     if (!profs.length) { setLoading(false); return; }
     const savedRec = data.active_rec_profile || data.active_rec_token || null;
@@ -514,8 +530,15 @@ export default function StreamProfilesPage() {
   const handleApply = async () => {
     if (recIdx === null) return;
     const recProfile  = profiles[recIdx];
-    const liveProfile = recProfile;
-    if (!liveProfile?.rtsp_url || !recProfile?.rtsp_url) {
+    // const liveProfile = recProfile;
+    // if (!liveProfile?.rtsp_url || !recProfile?.rtsp_url) {
+    // Do NOT overwrite the Live View profile with the recording profile.
+    // Preserve the camera's existing live stream settings.
+    const liveRtsp = camera.rtsp_url || recProfile?.rtsp_url;
+    const liveProfileName = camera.active_live_profile || recProfile?.name;
+    const liveCodec = camera.live_codec || recProfile?.encoding || "H.264";
+
+    if (!liveRtsp || !recProfile?.rtsp_url) {
       setApplyResult({ ok: false, msg: "Selected profile(s) have no RTSP URL." });
       setTimeout(() => setApplyResult(null), 4000);
       return;
@@ -533,11 +556,14 @@ export default function StreamProfilesPage() {
           model: camera.model || "",
           mac: camera.mac || "—",
           device_name: camera.device_name || camera.name || "",
-          live_rtsp: liveProfile.rtsp_url,
+          live_rtsp: liveRtsp,
+
           recording_rtsp: recProfile.rtsp_url,
-          live_profile: liveProfile.name,
+          live_profile: liveProfileName,
+
           recording_profile: recProfile.name,
-          live_codec: liveProfile.encoding || "H.264",
+          live_codec: liveCodec,
+
           resolution: recProfile.resolution,
           fps: recProfile.fps,
           bitrate: recProfile.bitrate,
@@ -552,13 +578,15 @@ export default function StreamProfilesPage() {
         if (idx !== -1) {
           if (data.ws_url)     devs[idx].ws_url     = data.ws_url;
           if (data.stream_key) devs[idx].stream_key = data.stream_key;
-          devs[idx].active_live_profile = liveProfile.name;
+          devs[idx].active_live_profile = liveProfileName;
+
           devs[idx].active_rec_profile  = recProfile.name;
           devs[idx].stream_profiles = profiles;
           localStorage.setItem("miradorai_devices", JSON.stringify(devs));
           window.dispatchEvent(new Event("storage"));
         }
-        setCamera((prev) => ({ ...prev, active_live_profile: liveProfile.name, active_rec_profile: recProfile.name, stream_profiles: profiles }));
+        setCamera((prev) => ({ ...prev, active_live_profile: liveProfileName, active_rec_profile: recProfile.name, stream_profiles: profiles }));
+
       } else {
         setApplyResult({ ok: false, msg: data?.error || `Server returned HTTP ${res.status}` });
       }

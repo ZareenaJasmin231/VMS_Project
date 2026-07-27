@@ -2207,16 +2207,13 @@ const DashboardPage = () => {
               uniqueCams[key] = {
                 name: cam.name || "—",
                 ip: cam.ip || "—",
-                camera_hours_up: 0,
-                camera_hours_down: 0,
-                recording_hours_up: 0,
-                recording_hours_down: 0
+                camera_hours_up: cam.camera_hours_up || 0,
+                camera_hours_down: cam.camera_hours_down || 0,
+                recording_hours_up: cam.recording_hours_up || 0,
+                recording_hours_down: cam.recording_hours_down || 0
               };
             }
-            uniqueCams[key].camera_hours_up += cam.camera_hours_up || 0;
-            uniqueCams[key].camera_hours_down += cam.camera_hours_down || 0;
-            uniqueCams[key].recording_hours_up += cam.recording_hours_up || 0;
-            uniqueCams[key].recording_hours_down += cam.recording_hours_down || 0;
+            // If duplicate IP exists, use the values (don't sum — they represent the same camera)
           });
 
           const formatHours = (decHours) => {

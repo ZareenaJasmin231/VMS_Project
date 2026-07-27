@@ -320,7 +320,7 @@ async def get_alerts_by_reader(reader_id: str):
         raise HTTPException(status_code=500, detail="Database connection unavailable")
 
     docs = list(col.find(
-        {"$or": [{"reader_id": reader_id}, {"camera_id": reader_id}, {"ip": reader_id}, {"ip_address": reader_id}]},
+        {"$or": [{"reader_id": reader_id}, {"camera_id": reader_id}, {"ip": reader_id}, {"ip_address": reader_id}], "is_deleted": {"$ne": True}},
         {"_id": 0}
     ))
     return {

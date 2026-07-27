@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import "./DiscoveryModal.css";
 
 const API_BASE = import.meta.env.VITE_API_URL;
@@ -26,21 +27,37 @@ export default function DiscoveryModal({
   const [isRegistering, setIsRegistering] = useState(false);
   const [regStatus, setRegStatus] = useState({});
   const [openDropdownId, setOpenDropdownId] = useState(null);
+  const [dropdownPos, setDropdownPos] = useState(null); // ← NEW: screen position for the portaled dropdown
   const [alertMsg, setAlertMsg] = useState("");
   const [collapsedBrands, setCollapsedBrands] = useState(new Set());
 
   const progressTimerRef = useRef(null);
   const dropdownRef = useRef(null);
 
+  const closeDropdown = () => {
+    setOpenDropdownId(null);
+    setDropdownPos(null);
+  };
+
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
-        setOpenDropdownId(null);
+        closeDropdown();
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  // Close the dropdown on scroll so a stale position never floats in the
+  // wrong place. capture:true is required because the inner
+  // .dm-brand-cams-list scroll event doesn't bubble to window normally.
+  useEffect(() => {
+    if (!openDropdownId) return;
+    const handleScroll = () => closeDropdown();
+    window.addEventListener("scroll", handleScroll, true);
+    return () => window.removeEventListener("scroll", handleScroll, true);
+  }, [openDropdownId]);
 
   const startProgressTicker = () => {
     let current = 0;
@@ -755,6 +772,7 @@ export default function DiscoveryModal({
                           {brandDevices.map((device, devIndex) => {
                             const camSetting = cameraCreds[device.id] || { name: getDeviceDisplayName(device), groupId: "default" };
                             const camTabBase = baseTab + devIndex * 2;
+                            const isThisOpen = openDropdownId === device.id;
                             return (
                               <div key={device.id} className="dm-brand-cam-item">
                                 <div className="dm-brand-cam-ip">{device.ip}</div>
@@ -768,13 +786,23 @@ export default function DiscoveryModal({
                                   autoComplete="off"
                                 />
 
-                                <div className="dm-custom-select" style={{ width: "120px" }} ref={openDropdownId === device.id ? dropdownRef : null}>
+                                <div className="dm-custom-select" style={{ width: "120px" }}>
                                   <button
                                     type="button"
                                     className="dm-select-btn"
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      setOpenDropdownId(openDropdownId === device.id ? null : device.id);
+                                      if (isThisOpen) {
+                                        closeDropdown();
+                                      } else {
+                                        const rect = e.currentTarget.getBoundingClientRect();
+                                        setDropdownPos({
+                                          top: rect.bottom + 4,
+                                          left: rect.left,
+                                          width: rect.width,
+                                        });
+                                        setOpenDropdownId(device.id);
+                                      }
                                     }}
                                   >
                                     <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
@@ -782,15 +810,28 @@ export default function DiscoveryModal({
                                         ? "Default" 
                                         : groups?.find(g => g.id === camSetting.groupId)?.name || "Default"}
                                     </span>
-                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: openDropdownId === device.id ? "rotate(180deg)" : "rotate(0)", transition: "transform .2s", color: "var(--text-muted)", flexShrink: 0, marginLeft: "4px" }}>
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: isThisOpen ? "rotate(180deg)" : "rotate(0)", transition: "transform .2s", color: "var(--text-muted)", flexShrink: 0, marginLeft: "4px" }}>
                                       <path d="M6 9l6 6 6-6"/>
                                     </svg>
                                   </button>
-                                  {openDropdownId === device.id && (
-                                    <ul className="dm-dropdown-menu">
+
+                                  {/* ── FIX: portaled to document.body so it can't be clipped by
+                                      .dm-brand-cams-list's overflow-y: auto ── */}
+                                  {isThisOpen && dropdownPos && createPortal(
+                                    <ul
+                                      className="dm-dropdown-menu"
+                                      ref={dropdownRef}
+                                      style={{
+                                        position: "fixed",
+                                        top: dropdownPos.top,
+                                        left: dropdownPos.left,
+                                        width: dropdownPos.width,
+                                        zIndex: 10000,
+                                      }}
+                                    >
                                       <li
                                         className={`dm-dropdown-item ${(!camSetting.groupId || camSetting.groupId === "default") ? "active" : ""}`}
-                                        onClick={() => { updateCameraCred(device.id, "groupId", "default"); setOpenDropdownId(null); }}
+                                        onClick={() => { updateCameraCred(device.id, "groupId", "default"); closeDropdown(); }}
                                       >
                                         Default
                                       </li>
@@ -798,12 +839,13 @@ export default function DiscoveryModal({
                                         <li
                                           key={g.id}
                                           className={`dm-dropdown-item ${camSetting.groupId === g.id ? "active" : ""}`}
-                                          onClick={() => { updateCameraCred(device.id, "groupId", g.id); setOpenDropdownId(null); }}
+                                          onClick={() => { updateCameraCred(device.id, "groupId", g.id); closeDropdown(); }}
                                         >
                                           {g.name}
                                         </li>
                                       ))}
-                                    </ul>
+                                    </ul>,
+                                    document.body
                                   )}
                                 </div>
                               </div>

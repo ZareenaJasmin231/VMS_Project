@@ -186,6 +186,19 @@ async def analytics_poll_loop(ip: str, port: int, username: str, password: str, 
 
             elif not result["success"]:
                 consecutive_failures += 1
+                err_msg = str(result.get("error", "")).lower()
+                
+                # If auth error or unsupported feature error, back off heavily (e.g. 5 minutes)
+                # to prevent lockouts and minimize log spam
+                if any(x in err_msg for x in ["authorized", "authorization", "password", "username"]):
+                    print(f"[ANALYTICS] ⚠️ Auth failure on {ip}: {result.get('error')}. Backing off for 5 minutes to avoid locking camera.")
+                    await asyncio.sleep(300)
+                    continue
+                elif "pullpoint" in err_msg or "device doesn't support service" in err_msg:
+                    print(f"[ANALYTICS] ⚠️ {ip} does not support ONVIF pullpoint: {result.get('error')}. Backing off for 5 minutes.")
+                    await asyncio.sleep(300)
+                    continue
+                
                 if consecutive_failures % 5 == 0:
                     print(f"[ANALYTICS] ✗ Failed to poll {ip} {consecutive_failures} times. Retrying in 10s...")
                     await asyncio.sleep(10)

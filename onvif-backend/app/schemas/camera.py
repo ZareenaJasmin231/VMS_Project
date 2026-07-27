@@ -1,9 +1,13 @@
 from pydantic import BaseModel, model_validator
 from typing import Optional, Any
+from datetime import datetime
 
 class BaseCameraRequest(BaseModel):
     ip:         str = ""
     ip_address: Optional[str] = None
+    is_deleted: bool = False
+    deleted_at: Optional[datetime] = None
+    deleted_by: Optional[str] = None
 
     @model_validator(mode='before')
     @classmethod

@@ -55,7 +55,12 @@ const ProcessMetricsPanel = ({ onOpenScalingReport }) => {
       });
       const result = await res.json();
       if (result.success) {
-        setActionMessage(`Successfully terminated ${result.terminated_count} zombie FFmpeg process(es).`);
+        let msg = `Successfully terminated ${result.terminated_count} zombie FFmpeg process(es).`;
+        if (result.failed_pids && result.failed_pids.length > 0) {
+          const firstErr = result.failed_pids[0];
+          msg += ` Failed to terminate ${result.failed_pids.length} process(es) due to Windows permission/AccessDenied errors (e.g. PID ${firstErr.pid} running under SYSTEM). Try restarting the backend API server as Administrator.`;
+        }
+        setActionMessage(msg);
         fetchMetrics();
       } else {
         setActionMessage(`Error: ${result.error || 'Failed to kill processes'}`);

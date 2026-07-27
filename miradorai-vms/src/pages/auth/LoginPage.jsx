@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { useAuth } from "../../context/AuthContext";
 import "./LoginPage.css";
 import useActivityLogger from "../../hooks/useActivityLogger";
+import SpecularButton from "../../components/shared/SpecularButton";
 
 const LoginPage = () => {
   const { login, signup, forgotPassword, resetPassword, oauthLogin, accounts } = useAuth();
@@ -273,13 +274,27 @@ const LoginPage = () => {
             {signInError && <div className="error-message">{signInError}</div>}
 
             {/* Sign In Button */}
-            <button
+            <SpecularButton
               type="submit"
-              className="btn-primary"
+              size="md"
+              radius={8}
+              tint="#10b981"
+              tintOpacity={0.10}
+              blur={4}
+              textColor="#f0fff8"
+              lineColor="#10b981"
+              baseColor="#0d3326"
+              intensity={1.2}
+              shineSize={12}
+              shineFade={38}
+              thickness={1}
+              followMouse
+              proximity={220}
               disabled={isLoading || !signInEmail || !signInPassword}
+              className="login-specular-btn"
             >
               {isLoading ? "Signing in..." : "Log in"}
-            </button>
+            </SpecularButton>
 
             {/* Google Login */}
             <button
@@ -318,14 +333,28 @@ const LoginPage = () => {
                   )}
                 </select>
                 <div className="google-chooser-actions">
-                  <button
+                  <SpecularButton
                     type="button"
-                    className="btn-primary"
+                    size="md"
+                    radius={8}
+                    tint="#10b981"
+                    tintOpacity={0.10}
+                    blur={4}
+                    textColor="#f0fff8"
+                    lineColor="#10b981"
+                    baseColor="#0d3326"
+                    intensity={1.2}
+                    shineSize={12}
+                    shineFade={38}
+                    thickness={1}
+                    followMouse
+                    proximity={220}
                     onClick={performGoogleLogin}
                     disabled={isLoading || !googleAccount}
+                    className="login-specular-btn"
                   >
                     Sign in with Google
-                  </button>
+                  </SpecularButton>
                   <button
                     type="button"
                     className="btn-secondary"
@@ -453,15 +482,27 @@ const LoginPage = () => {
             {signUpSuccess && <div className="success-message">{signUpSuccess}</div>}
 
             {/* Sign Up Button */}
-            <button
+            <SpecularButton
               type="submit"
-              className="btn-primary"
-              disabled={
-                isLoading || !signUpEmail || !signUpPassword || !signUpConfirm
-              }
+              size="md"
+              radius={8}
+              tint="#10b981"
+              tintOpacity={0.10}
+              blur={4}
+              textColor="#f0fff8"
+              lineColor="#10b981"
+              baseColor="#0d3326"
+              intensity={1.2}
+              shineSize={12}
+              shineFade={38}
+              thickness={1}
+              followMouse
+              proximity={220}
+              disabled={isLoading || !signUpEmail || !signUpPassword || !signUpConfirm}
+              className="login-specular-btn"
             >
               {isLoading ? "Creating Account..." : "Create Account"}
-            </button>
+            </SpecularButton>
 
             {/* Back to Sign In */}
             <div className="form-footer">
@@ -506,13 +547,27 @@ const LoginPage = () => {
                   <div className="success-message">{forgotSuccess}</div>
                 )}
 
-                <button
+                <SpecularButton
                   type="submit"
-                  className="btn-primary"
+                  size="md"
+                  radius={8}
+                  tint="#10b981"
+                  tintOpacity={0.10}
+                  blur={4}
+                  textColor="#f0fff8"
+                  lineColor="#10b981"
+                  baseColor="#0d3326"
+                  intensity={1.2}
+                  shineSize={12}
+                  shineFade={38}
+                  thickness={1}
+                  followMouse
+                  proximity={220}
                   disabled={isLoading || !forgotEmail}
+                  className="login-specular-btn"
                 >
                   {isLoading ? "Sending..." : "Send Reset Link"}
-                </button>
+                </SpecularButton>
               </>
             ) : (
               <>
@@ -565,13 +620,27 @@ const LoginPage = () => {
                   <div className="success-message">{forgotSuccess}</div>
                 )}
 
-                <button
+                <SpecularButton
                   type="submit"
-                  className="btn-primary"
+                  size="md"
+                  radius={8}
+                  tint="#10b981"
+                  tintOpacity={0.10}
+                  blur={4}
+                  textColor="#f0fff8"
+                  lineColor="#10b981"
+                  baseColor="#0d3326"
+                  intensity={1.2}
+                  shineSize={12}
+                  shineFade={38}
+                  thickness={1}
+                  followMouse
+                  proximity={220}
                   disabled={isLoading || !resetNewPassword || !resetConfirm}
+                  className="login-specular-btn"
                 >
                   {isLoading ? "Resetting..." : "Reset Password"}
-                </button>
+                </SpecularButton>
               </>
             )}
 

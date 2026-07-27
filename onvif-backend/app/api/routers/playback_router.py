@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Request, Response, Depends, HTTPException
+from fastapi import APIRouter, Request, Response, Depends, HTTPException, Query
+from typing import Optional
 import json, os, re, tempfile, urllib.parse
 from datetime import datetime, timezone, timedelta
 from fastapi.responses import FileResponse
@@ -500,6 +501,40 @@ def event_playback(ip: str, time: str, request: Request = None, stream: int = 0)
             headers={"Access-Control-Allow-Origin": "*"},
         )
 
+@router.post("/api/event-playback")
+async def event_playback_post(
+    request: Request,
+    ip: Optional[str] = Query(None),
+    time: Optional[str] = Query(None),
+    stream: int = Query(0)
+):
+    body_data = {}
+    content_type = request.headers.get("content-type", "").lower()
+    if "application/json" in content_type:
+        try:
+            body_data = await request.json()
+        except Exception:
+            pass
+    elif "application/x-www-form-urlencoded" in content_type or "multipart/form-data" in content_type:
+        try:
+            form = await request.form()
+            body_data = dict(form)
+        except Exception:
+            pass
+
+    final_ip = ip or body_data.get("ip")
+    final_time = time or body_data.get("time")
+
+    stream_val = body_data.get("stream", stream)
+    try:
+        final_stream = int(stream_val)
+    except (ValueError, TypeError):
+        final_stream = 0
+
+    if not final_ip or not final_time:
+        raise HTTPException(status_code=400, detail="Missing required query or body parameters: 'ip' and 'time'")
+
+    return event_playback(ip=str(final_ip), time=str(final_time), request=request, stream=final_stream)
 
 
 @router.get("/api/event-playback/snapshot")
@@ -773,6 +808,34 @@ def event_snapshot(ip: str, time: str):
             media_type="application/json",
             headers={"Access-Control-Allow-Origin": "*"},
         )
+
+@router.post("/api/event-playback/snapshot")
+async def event_snapshot_post(
+    request: Request,
+    ip: Optional[str] = Query(None),
+    time: Optional[str] = Query(None)
+):
+    body_data = {}
+    content_type = request.headers.get("content-type", "").lower()
+    if "application/json" in content_type:
+        try:
+            body_data = await request.json()
+        except Exception:
+            pass
+    elif "application/x-www-form-urlencoded" in content_type or "multipart/form-data" in content_type:
+        try:
+            form = await request.form()
+            body_data = dict(form)
+        except Exception:
+            pass
+
+    final_ip = ip or body_data.get("ip")
+    final_time = time or body_data.get("time")
+
+    if not final_ip or not final_time:
+        raise HTTPException(status_code=400, detail="Missing required query or body parameters: 'ip' and 'time'")
+
+    return event_snapshot(ip=str(final_ip), time=str(final_time))
 
 
 @router.get("/api/event-playback/hls/{ip}/{time_str}/{filename}")
@@ -1211,4 +1274,3 @@ async def manual_save_clip(request: Request):
 # ------------------------------------------------------------------
 # Register features router last (routes are defined above)
 # ------------------------------------------------------------------
-

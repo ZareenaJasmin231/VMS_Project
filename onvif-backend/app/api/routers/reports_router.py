@@ -66,7 +66,15 @@ async def get_camera_history(
         raise HTTPException(status_code=400, detail="Invalid date format. Use ISO format.")
 
     query = {}
-    all_cameras = list(cameras_col.find(query, {"_id": 0, "ip": 1, "name": 1, "model": 1}))
+    all_cameras_raw = list(cameras_col.find(query, {"_id": 0, "ip": 1, "name": 1, "model": 1}))
+    # Deduplicate cameras by IP to prevent double-counting in reports
+    seen_ips = set()
+    all_cameras = []
+    for cam in all_cameras_raw:
+        ip = cam.get("ip")
+        if ip and ip not in seen_ips:
+            seen_ips.add(ip)
+            all_cameras.append(cam)
 
     all_nodes = {n["id"]: n for n in nodes_col.find({})} if nodes_col is not None else {}
 
@@ -120,8 +128,8 @@ async def get_camera_history(
     if uptime_snapshots_col is not None:
         uptime_snapshots_by_node = {s["node_id"]: s for s in uptime_snapshots_col.find({})}
 
-    # 4. Bulk events in range
-    events_by_node = {}
+    # 4. Bulk events in range (with dedup for duplicate events from multiple monitors)
+    events_by_node_raw = {}
     if uptime_events_col is not None:
         events_list = list(uptime_events_col.find({
             "timestamp": {"$gte": start_dt, "$lte": end_dt}
@@ -129,7 +137,21 @@ async def get_camera_history(
         for ev in events_list:
             nid = ev.get("node_id")
             if nid:
-                events_by_node.setdefault(nid, []).append(ev)
+                events_by_node_raw.setdefault(nid, []).append(ev)
+    
+    # Deduplicate: remove consecutive events with same event_type + state
+    # (caused by health.py and stream_health.py both logging the same transition)
+    events_by_node = {}
+    for nid, evts in events_by_node_raw.items():
+        deduped = []
+        for ev in evts:
+            key = (ev.get("event_type"), ev.get("state"))
+            if deduped:
+                last_key = (deduped[-1].get("event_type"), deduped[-1].get("state"))
+                if key == last_key:
+                    continue  # Skip duplicate consecutive event
+            deduped.append(ev)
+        events_by_node[nid] = deduped
 
     def get_bulk_initial_state(node_id: str, event_type: str):
         state = initial_states.get((node_id, event_type))

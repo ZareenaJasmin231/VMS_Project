@@ -47,7 +47,7 @@ from app.managers.stream_manager import stop_worker_pool
 # ------------------------------------------------------------------
 # Config
 # ------------------------------------------------------------------
-MONGO_URI = os.environ.get("MONGO_URI", "mongodb://mongo:27017/")
+MONGO_URI = os.environ.get("MONGO_URI", "mongodb://localhost:27017/")
 KEY_FILE  = os.environ.get("VIDEO_KEY_FILE", "/app/data/video.key")
 
 if os.name == 'nt' and KEY_FILE == "/app/data/video.key":
@@ -805,6 +805,7 @@ def list_recordings(
         query["date"] = date
     # Only return .enc files, not .meta or .mp4
     query["file_path"] = {"$regex": "\\.enc$"}
+    query["is_deleted"] = {"$ne": True}
     docs = list(_collection.find(query).sort("created_at", -1))
     return [_doc_to_dict(d) for d in docs]
 
@@ -1407,6 +1408,7 @@ def list_camera_recordings(camera_id_or_path: str, date: str = Query(None)):
     query = {"camera_id": camera_id_or_path}
     if date:
         query["date"] = date
+    query["is_deleted"] = {"$ne": True}
     docs = list(_collection.find(query).sort("created_at", -1))
     
     if not docs:
@@ -1424,6 +1426,7 @@ def list_camera_recordings(camera_id_or_path: str, date: str = Query(None)):
             }
             if date:
                 query["date"] = date
+            query["is_deleted"] = {"$ne": True}
             docs = list(_collection.find(query).sort("created_at", -1))
         except Exception as e:
             print(f"[RECORDINGS] Fallback query failed for '{camera_id_or_path}': {e}")
@@ -1513,7 +1516,7 @@ def export_zip(request: ExportZipRequest, background_tasks: BackgroundTasks):
     all_docs     = []
     while current_date <= end:
         date_str = current_date.strftime("%Y-%m-%d")
-        docs     = list(_collection.find({"camera_id": request.camera_id, "date": date_str}))
+        docs     = list(_collection.find({"camera_id": request.camera_id, "date": date_str, "is_deleted": {"$ne": True}}))
         for doc in docs:
             doc_time = normalize_time(doc.get("start_time", ""))
             if req_start <= doc_time <= req_end:
@@ -1646,7 +1649,7 @@ def export_device(request: ExportDeviceRequest, background_tasks: BackgroundTask
     all_docs     = []
     while current_date <= end:
         date_str = current_date.strftime("%Y-%m-%d")
-        docs     = list(_collection.find({"camera_id": request.camera_id, "date": date_str}))
+        docs     = list(_collection.find({"camera_id": request.camera_id, "date": date_str, "is_deleted": {"$ne": True}}))
         for doc in docs:
             doc_time = normalize_time(doc.get("start_time", ""))
             if req_start <= doc_time <= req_end:

@@ -17,16 +17,21 @@ async def get_dashboard_summary():
     if cameras_col is None or analytics_col is None:
         return {}
 
-    total_cameras = cameras_col.count_documents({})
+    # total_cameras = cameras_col.count_documents({})
+    total_cameras = cameras_col.count_documents({"is_deleted": {"$ne": True}})
 
     active_streams = cameras_col.count_documents({
-        "enabled": {"$ne": False}
+        # "enabled": {"$ne": False}
+        "enabled": {"$ne": False},
+        "is_deleted": {"$ne": True}
     })
 
     today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
 
     alarms_today = analytics_col.count_documents({
-        "received_at": {"$gte": today_start}
+        # "received_at": {"$gte": today_start}
+        "received_at": {"$gte": today_start},
+        "is_deleted": {"$ne": True}
     })
 
     latest_health = _db["health_logs"].find_one(
@@ -80,7 +85,9 @@ async def get_dashboard_events(limit: int = 20):
     if analytics_col is None:
         return []
     docs = list(
-        analytics_col.find({}, {"_id": 0})
+        # analytics_col.find({}, {"_id": 0})
+        analytics_col.find({"is_deleted": {"$ne": True}}, {"_id": 0})
+        
         .sort("received_at", -1)
         .limit(limit)
     )
