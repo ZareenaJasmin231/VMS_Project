@@ -415,16 +415,46 @@ function WebRTCPlayer_MediaMTX({ streamKey, cameraId, onConnectChange, onError, 
       />
       {status === "connecting" && (
         <div style={centreStyle}>
-          <span style={{ fontSize: 11, color: "#94a3b8", letterSpacing: 1 }}>
-            ● CONNECTING…
-          </span>
+          <div className="loader" style={{ transform: "scale(0.5)" }}>
+            <div className="circle">
+              <div className="dot"></div>
+              <div className="outline"></div>
+            </div>
+            <div className="circle">
+              <div className="dot"></div>
+              <div className="outline"></div>
+            </div>
+            <div className="circle">
+              <div className="dot"></div>
+              <div className="outline"></div>
+            </div>
+            <div className="circle">
+              <div className="dot"></div>
+              <div className="outline"></div>
+            </div>
+          </div>
         </div>
       )}
       {status === "reconnecting" && (
         <div style={centreStyle}>
-          <span style={{ fontSize: 11, color: "#f59e0b", letterSpacing: 1 }}>
-            ● RECONNECTING…
-          </span>
+          <div className="loader" style={{ transform: "scale(0.5)" }}>
+            <div className="circle">
+              <div className="dot"></div>
+              <div className="outline"></div>
+            </div>
+            <div className="circle">
+              <div className="dot"></div>
+              <div className="outline"></div>
+            </div>
+            <div className="circle">
+              <div className="dot"></div>
+              <div className="outline"></div>
+            </div>
+            <div className="circle">
+              <div className="dot"></div>
+              <div className="outline"></div>
+            </div>
+          </div>
         </div>
       )}
       {status === "offline" && (

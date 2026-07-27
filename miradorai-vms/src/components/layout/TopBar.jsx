@@ -4,6 +4,7 @@ import { NAV_CONFIG } from "../../data/navConfig";
 import { useAuth } from "../../context/AuthContext";
 import { useTheme } from "../../context/ThemeContext";
 import logoImg from "../../assets/logo.jpg";
+import Dock from "../shared/Dock/Dock";
 import "./TopBar.css";
 import "./SupervisorModal.css";
 
@@ -213,7 +214,6 @@ export default function TopBar({
     { label: "User Management", page: "user-management", icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>` },
     { label: "Email Schedules", page: "email-schedules", icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>` },
     { label: "Logs",            page: "logs",            icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>` },
-    { label: "Recycle Bin",     page: "recycle-bin",     icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>` },
   ];
 
   const CLIENT_SETTINGS_ITEMS = [
@@ -265,7 +265,7 @@ export default function TopBar({
               <line x1="12" y1="8" x2="12.01" y2="8"></line>
             </svg>
             <div className="topbar__ai-tooltip">
-              <strong style={{ color: '#fff', display: 'block', marginBottom: '4px' }}>AI Analytics Dashboard</strong>
+              <strong style={{ color: 'var(--text-primary)', display: 'block', marginBottom: '4px' }}>AI Analytics Dashboard</strong>
               Access advanced AI-driven insights, behavioral metrics, and data visualizations.
             </div>
           </div>
@@ -288,94 +288,91 @@ export default function TopBar({
       {/* ===== RIGHT ===== */}
       <div className="topbar__right">
 
-        {/* Theme Toggle */}
-        <button
-          className="topbar__icon-btn"
-          title={`Switch to ${theme === "dark" ? "Light" : "Dark"} Mode`}
-          onClick={toggleTheme}
-        >
-          {theme === "dark" ? (
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="18" height="18">
-              <circle cx="12" cy="12" r="5"/>
-              <line x1="12" y1="1" x2="12" y2="3"/>
-              <line x1="12" y1="21" x2="12" y2="23"/>
-              <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
-              <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
-              <line x1="1" y1="12" x2="3" y2="12"/>
-              <line x1="21" y1="12" x2="23" y2="12"/>
-              <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
-              <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
-            </svg>
-          ) : (
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="18" height="18">
-              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
-            </svg>
+        {/* Dock Icons */}
+        <div className="topbar__settings-wrap" ref={settingsRef}>
+          <Dock
+            direction="horizontal"
+            panelHeight={48}
+            baseItemSize={36}
+            magnification={50}
+            distance={100}
+            className="topbar-dock"
+            items={[
+              {
+                icon: theme === "dark" ? (
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <circle cx="12" cy="12" r="5"/>
+                    <line x1="12" y1="1" x2="12" y2="3"/>
+                    <line x1="12" y1="21" x2="12" y2="23"/>
+                    <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+                    <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+                    <line x1="1" y1="12" x2="3" y2="12"/>
+                    <line x1="21" y1="12" x2="23" y2="12"/>
+                    <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+                    <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+                  </svg>
+                ) : (
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+                  </svg>
+                ),
+                label: `Theme`,
+                onClick: toggleTheme
+              },
+              {
+                icon: (
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <polyline points="23 4 23 10 17 10"/>
+                    <polyline points="1 20 1 14 7 14"/>
+                    <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
+                  </svg>
+                ),
+                label: "Refresh",
+                onClick: () => window.location.reload()
+              },
+              ...(role === "admin" ? [{
+                icon: (
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                    <circle cx="12" cy="7" r="4"/>
+                  </svg>
+                ),
+                label: "Profile",
+                onClick: () => navigate("/profile")
+              }] : []),
+              ...(settingsItems.length > 0 ? [{
+                icon: (
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <circle cx="12" cy="12" r="3"/>
+                    <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
+                  </svg>
+                ),
+                label: "Settings",
+                onClick: () => {
+                  setSettingsDropdownOpen(!settingsDropdownOpen);
+                  setUserMenuOpen(false);
+                }
+              }] : [])
+            ]}
+          />
+          {settingsDropdownOpen && (
+            <div className="topbar__settings-dropdown">
+              {settingsItems.map((si) => (
+                <button
+                  key={si.page}
+                  className="topbar__settings-dropdown-item"
+                  onClick={() => navigateTo(si.page)}
+                >
+                  <span dangerouslySetInnerHTML={{ __html: si.icon }} />
+                  <span>{si.label}</span>
+                </button>
+              ))}
+            </div>
           )}
-        </button>
-
-        {/* Refresh */}
-        <button
-          className="topbar__icon-btn"
-          title="Refresh"
-          onClick={() => window.location.reload()}
-        >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="18" height="18">
-            <polyline points="23 4 23 10 17 10"/>
-            <polyline points="1 20 1 14 7 14"/>
-            <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
-          </svg>
-        </button>
+        </div>
 
         {/* Divider */}
         <div className="topbar__divider" />
-
-        {/* Profile button */}
-        {role === "admin" && (
-          <button
-            className={`topbar__icon-btn ${activePage === "profile" ? "topbar__icon-btn--active" : ""}`}
-            title="Profile"
-            onClick={() => navigate("/profile")}
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="18" height="18">
-              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-              <circle cx="12" cy="7" r="4"/>
-            </svg>
-          </button>
-        )}
-
-        {/* Settings button */}
-        {settingsItems.length > 0 && (
-          <div className="topbar__settings-wrap" ref={settingsRef}>
-            <button
-              className={`topbar__icon-btn ${settingsDropdownOpen ? "topbar__icon-btn--active" : ""}`}
-              title="Settings"
-              onClick={() => {
-                setSettingsDropdownOpen(!settingsDropdownOpen);
-                setUserMenuOpen(false);
-              }}
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="18" height="18">
-                <circle cx="12" cy="12" r="3"/>
-                <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
-              </svg>
-            </button>
-
-            {settingsDropdownOpen && (
-              <div className="topbar__settings-dropdown">
-                {settingsItems.map((si) => (
-                  <button
-                    key={si.page}
-                    className="topbar__settings-dropdown-item"
-                    onClick={() => navigateTo(si.page)}
-                  >
-                    <span dangerouslySetInnerHTML={{ __html: si.icon }} />
-                    <span>{si.label}</span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
 
         {/* User menu */}
         <div className="topbar__user-wrap" ref={userRef}>

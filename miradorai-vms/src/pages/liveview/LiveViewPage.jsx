@@ -413,10 +413,22 @@ a
 }
 
 // ── AlertsPanel ───────────────────────────────────────────────────
-function AlertsPanel({ isOpen, onAlertCountUpdate, liveStatus, alertSource, setAlertSource, devices: devicesProp }) {
+function AlertsPanel({ isOpen, onAlertCountUpdate, onTotalAlertCountChange, liveStatus, alertSource, setAlertSource, devices: devicesProp }) {
   const [alerts,     setAlerts]     = useState([]);
   const [loading,    setLoading]    = useState(true);
   const [zoomedImage, setZoomedImage] = useState(null);
+
+  useEffect(() => {
+    onTotalAlertCountChange?.(alerts.length);
+    const counts = {};
+    alerts.forEach((alert) => {
+      const ip = (alert.ip || alert.serial || "").replace(/_/g, ".");
+      if (ip) {
+        counts[ip] = (counts[ip] || 0) + 1;
+      }
+    });
+    onAlertCountUpdate?.(counts);
+  }, [alerts, onTotalAlertCountChange, onAlertCountUpdate]);
 
   const normalizeIp = (ip) => (ip || "").replace(/_/g, ".");
 
@@ -431,14 +443,9 @@ function AlertsPanel({ isOpen, onAlertCountUpdate, liveStatus, alertSource, setA
         const filtered = (data.alerts || [])
           .filter((a) => {
              const t = (a.type || "").toLowerCase();
-             const s = (a.scenario || "").toLowerCase();
-             return !t.includes("motion") && !s.includes("motion") && t !== "unknown" && t !== "" && !t.includes("tns1:");
+             return t !== "unknown" && t !== "" && !t.includes("tns1:");
           })
-          .filter(isAlertAllowed)
-          .filter((a) => {
-            const ip = normalizeIp(a.ip);
-            return liveStatus && liveStatus[ip] === true;
-          });
+          .filter(isAlertAllowed);
         const perCamCounts = {};
         const finalAlerts = [];
         filtered.forEach((alert) => {
@@ -460,15 +467,6 @@ function AlertsPanel({ isOpen, onAlertCountUpdate, liveStatus, alertSource, setA
         });
 
         setAlerts(finalAlerts);
-
-        const counts = {};
-        filtered.forEach((alert) => {
-          const ip = normalizeIp(alert.ip);
-          if (ip) {
-            counts[ip] = (counts[ip] || 0) + 1;
-          }
-        });
-        onAlertCountUpdate?.(counts);
       } else {
         // External AI Alerts Mode — separate call per reader_id
         const activeCams = (devicesProp && devicesProp.length > 0) ? devicesProp : loadDevices();
@@ -514,10 +512,6 @@ function AlertsPanel({ isOpen, onAlertCountUpdate, liveStatus, alertSource, setA
 
         mapped.sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
         setAlerts(mapped);
-
-        const counts = {};
-        mapped.forEach(a => { if (a.ip) counts[a.ip] = (counts[a.ip] || 0) + 1; });
-        onAlertCountUpdate?.(counts);
       }
     } catch (e) {
       console.error("[Alerts] fetch failed:", e);
@@ -1150,9 +1144,7 @@ export default function LiveViewPage() {
                 name: cam.name || cam.camera_name || `AI Cam (${camIp})`,
                 ip: camIp,
                 rtsp_url: cam.rtsp_url || "",
-                // source: cam.source || "AI_WEBHOOK",
-                source: cam.source || "",
-
+                source: cam.source || "AI_WEBHOOK",
                 reader_id: cam.reader_id,
                 enabled: cam.enabled !== false,
                 status: cam.status || "Active",
@@ -1281,8 +1273,7 @@ export default function LiveViewPage() {
           .filter((a) => a.status === "Active")
           .filter((a) => {
              const t = (a.type || "").toLowerCase();
-             const s = (a.scenario || "").toLowerCase();
-             return !t.includes("motion") && !s.includes("motion");
+             return t !== "unknown" && t !== "" && !t.includes("tns1:");
           })
           .filter(isAlertAllowed)
           .forEach((alert) => {
@@ -1348,8 +1339,7 @@ export default function LiveViewPage() {
         .filter((a) => a.status === "Active")
         .filter((a) => {
            const t = (a.type || "").toLowerCase();
-           const s = (a.scenario || "").toLowerCase();
-           return !t.includes("motion") && !s.includes("motion");
+           return t !== "unknown" && t !== "" && !t.includes("tns1:");
         })
         .filter(isAlertAllowed)
         .filter((a) => (a.ip || "").replace(/_/g, ".") === normIp);
@@ -1574,23 +1564,50 @@ export default function LiveViewPage() {
   return (
     <div className="lv-page">
 
-      <div className="lv-toolbar">
-        <div className="lv-toolbar__left">
-          <h1 className="lv-page-title">Live View</h1>
-          <div className="lv-toolbar__stats">
-            <span className="lv-toolbar__stream-count">
-              {onlineCams.length} stream{onlineCams.length !== 1 ? "s" : ""} online
-            </span>
-            {disabledCount > 0 && (
-              <span className="lv-toolbar__disabled-badge">
-                {disabledCount} disabled
-              </span>
-            )}
-            <div className="lv-toolbar__station-badge">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="11" height="11">
-                <rect x="2" y="3" width="20" height="14" rx="2"/>
-                <path d="M8 21h8M12 17v4"/>
+      <div className="lv-top-bar-container">
+        <div className="lv-top-header">
+          <div className="lv-top-header__left">
+            <h1 className="lv-page-title">Live view</h1>
+            <div className="lv-online-status">
+              <span className="lv-live-dot" />
+              <span>{onlineCams.length} online</span>
+            </div>
+          </div>
+          <div className="lv-top-header__right">
+            <button
+              className="lv-icon-btn"
+              onClick={toggleGridFullscreen}
+              title={gridFullscreen ? "Exit Fullscreen" : "Fullscreen Grid"}
+              type="button"
+            >
+              {gridFullscreen ? (
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16">
+                  <path d="M4 14h6v6M20 10h-6V4M14 10l7-7M10 14l-7 7" />
+                </svg>
+              ) : (
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16">
+                  <path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3" />
+                </svg>
+              )}
+            </button>
+            <button
+              className={`lv-icon-btn ${alertsPanelOpen ? "active" : ""}`}
+              onClick={() => setAlertsPanelOpen(!alertsPanelOpen)}
+              title={alertsPanelOpen ? "Hide Alerts Panel" : "Show Alerts Panel"}
+              type="button"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16">
+                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+                <path d="M13.73 21a2 2 0 0 1-3.46 0" />
               </svg>
+              {totalAlertsCount > 0 && <span className="lv-alert-badge-dot" />}
+            </button>
+          </div>
+        </div>
+
+        <div className="lv-filter-bar">
+          <div className="lv-filter-group">
+            <div className="lv-filter-item">
               {isEditingName ? (
                 <input
                   type="text"
@@ -1607,229 +1624,108 @@ export default function LiveViewPage() {
                   autoFocus
                 />
               ) : (
-                <span 
-                  className="lv-station-name-text" 
-                  onClick={() => setIsEditingName(true)}
-                  title="Click to rename workstation"
-                  style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer" }}
-                >
+                <span onClick={() => setIsEditingName(true)} style={{ cursor: "pointer", flex: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", display: "flex", alignItems: "center", gap: "6px" }}>
                   {stationName}
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="12" height="12" style={{ opacity: 0.6 }}>
-                    <path d="M12 20h9M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/>
+                  <svg className="lv-chevron-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="10" height="10" style={{ marginLeft: "4px" }}>
+                    <path d="M6 9l6 6 6-6" />
                   </svg>
                 </span>
               )}
             </div>
-          </div>
-        </div>
-        <div className="lv-toolbar__right" style={{ gap: "10px" }}>
-          
-          <div className="lv-grid-dropdown-container">
-            <button
-              className={`lv-grid-dropdown-trigger ${modeDropdownOpen ? "active" : ""}`}
-              onClick={() => setModeDropdownOpen(!modeDropdownOpen)}
-              type="button"
-            >
-              <svg className="lv-grid-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
-                <path d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14v-4z" />
-                <rect x="3" y="6" width="12" height="12" rx="2" ry="2" />
-              </svg>
-              <span>{streamMode === "hls" ? "Buffered (HLS)" : "Real-Time (WebRTC)"}</span>
-              <svg className={`lv-chevron-icon ${modeDropdownOpen ? "open" : ""}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="10" height="10">
-                <path d="M6 9l6 6 6-6" />
-              </svg>
-            </button>
 
-            {modeDropdownOpen && (
-              <div className="lv-grid-dropdown-menu">
-                <button
-                  className={`lv-grid-dropdown-item ${streamMode === "webrtc" ? "selected" : ""}`}
-                  onClick={() => {
-                    setStreamMode("webrtc");
-                    setModeDropdownOpen(false);
-                  }}
-                  type="button"
-                >
-                  <span className="lv-grid-dropdown-item-label">Real-Time (RTSP/WebRTC)</span>
-                  {streamMode === "webrtc" && (
-                    <svg className="lv-check-icon" viewBox="0 0 24 24" fill="none" stroke="var(--teal)" strokeWidth="3" width="12" height="12">
-                      <polyline points="20 6 9 17 4 12" />
-                    </svg>
-                  )}
-                </button>
-                <button
-                  className={`lv-grid-dropdown-item ${streamMode === "hls" ? "selected" : ""}`}
-                  onClick={() => {
-                    setStreamMode("hls");
-                    setModeDropdownOpen(false);
-                  }}
-                  type="button"
-                >
-                  <span className="lv-grid-dropdown-item-label">Buffered (HLS)</span>
-                  {streamMode === "hls" && (
-                    <svg className="lv-check-icon" viewBox="0 0 24 24" fill="none" stroke="var(--teal)" strokeWidth="3" width="12" height="12">
-                      <polyline points="20 6 9 17 4 12" />
-                    </svg>
-                  )}
-                </button>
-              </div>
-            )}
-          </div>
+            <div className="lv-filter-divider" />
 
-          <div className="lv-grid-dropdown-container" ref={dropdownRef}>
-            <button
-              className={`lv-grid-dropdown-trigger ${gridDropdownOpen ? "active" : ""}`}
-              onClick={() => setGridDropdownOpen(!gridDropdownOpen)}
-              type="button"
-            >
-              <svg className="lv-grid-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
-                <rect x="3" y="3" width="7" height="7" />
-                <rect x="14" y="3" width="7" height="7" />
-                <rect x="14" y="14" width="7" height="7" />
-                <rect x="3" y="14" width="7" height="7" />
-              </svg>
-              <span>{currentGridOption.label}</span>
-              <svg className={`lv-chevron-icon ${gridDropdownOpen ? "open" : ""}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="10" height="10">
-                <path d="M6 9l6 6 6-6" />
-              </svg>
-            </button>
-
-            {gridDropdownOpen && (
-              <div className="lv-grid-dropdown-menu">
-                {GRID_OPTIONS.map((opt) => (
-                  <button
-                    key={opt.id}
-                    className={`lv-grid-dropdown-item ${layout === opt.id ? "selected" : ""}`}
-                    onClick={() => {
-                      handleLayoutChange(opt.id);
-                      setGridDropdownOpen(false);
-                    }}
-                    type="button"
-                  >
-                    <span className="lv-grid-dropdown-item-label">{opt.label}</span>
-                    {layout === opt.id && (
-                      <svg className="lv-check-icon" viewBox="0 0 24 24" fill="none" stroke="var(--teal)" strokeWidth="3" width="12" height="12">
-                        <polyline points="20 6 9 17 4 12" />
-                      </svg>
-                    )}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div className="lv-tour-controls" style={{ display: "flex", alignItems: "center", gap: "10px", background: "var(--bg-surface)", padding: "4px 12px", borderRadius: "8px", border: "1px solid var(--border)", height: "38px" }}>
-            <SequenceDropdown
-              value={activeSequenceId}
-              onChange={(val) => {
-                setActiveSequenceId(val);
-                setIsTourActive(false);
-              }}
-              sequences={sequences}
-            />
-
-            <button
-              onClick={() => setIsTourActive(!isTourActive)}
-              title={isTourActive ? "Pause Tour" : "Start Auto Sequence Tour"}
-              type="button"
-              className={`lv-tour-btn ${isTourActive ? "active" : ""}`}
-              style={{ background: "none", border: "none", color: isTourActive ? "var(--teal)" : "var(--text-secondary)", cursor: "pointer", display: "flex", alignItems: "center", padding: "4px", outline: "none" }}
-            >
-              {isTourActive ? (
-                <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><rect x="5" y="4" width="4" height="16" rx="1"/><rect x="15" y="4" width="4" height="16" rx="1"/></svg>
-              ) : (
-                <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-              )}
-            </button>
-
-            <span style={{ fontSize: "16px", color: "var(--text-primary)", fontWeight: "500", whiteSpace: "nowrap" }}>Dwell:</span>
-            <input
-              type="number"
-              value={dwellTime}
-              min="3"
-              max="300"
-              onChange={(e) => {
-                const val = Math.max(3, parseInt(e.target.value) || 3);
-                setDwellTime(val);
-                localStorage.setItem("miradorai_dwell_time", String(val));
-              }}
-              disabled={isTourActive || activeSequenceId !== "all"}
-              style={{
-                width: "46px",
-                background: activeSequenceId !== "all" ? "var(--bg-elevated)" : "var(--bg-base)",
-                border: "1px solid var(--border)",
-                borderRadius: "4px",
-                color: "var(--text-primary)",
-                fontSize: "16px",
-                fontWeight: "600",
-                textAlign: "center",
-                outline: "none",
-                padding: "2px 0",
-                height: "26px",
-                cursor: activeSequenceId !== "all" ? "not-allowed" : "text"
-              }}
-            />
-
-
-            <button
-              onClick={() => {
-                setIsTourActive(false);
-                setShowSequenceModal(true);
-              }}
-              title="Manage Camera Sequences"
-              type="button"
-              style={{
-                background: "none",
-                border: "none",
-                color: "var(--text-secondary)",
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                padding: "4px",
-                outline: "none",
-                marginLeft: "2px"
-              }}
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16">
-                <circle cx="12" cy="12" r="3"/>
-                <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
-              </svg>
-            </button>
-          </div>
-
-          <button
-            className={`lv-fullscreen-toggle-btn ${gridFullscreen ? "active" : ""}`}
-            onClick={toggleGridFullscreen}
-            title={gridFullscreen ? "Exit Fullscreen" : "Fullscreen Grid"}
-            type="button"
-          >
-            {gridFullscreen ? (
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
-                <path d="M4 14h6v6M20 10h-6V4M14 10l7-7M10 14l-7 7" />
-              </svg>
-            ) : (
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
-                <path d="M8 3H5a2 2 0 00-2 2v3M21 8V5a2 2 0 00-2-2h-3M3 16v3a2 2 0 002 2h3M16 21h3a2 2 0 002-2v-3" />
-              </svg>
-            )}
-            <span>Fullscreen</span>
-          </button>
-
-          <button
-            className={`lv-alerts-toggle-btn ${alertsPanelOpen ? "active" : ""}`}
-            onClick={() => setAlertsPanelOpen(!alertsPanelOpen)}
-            title={alertsPanelOpen ? "Hide Alerts Panel" : "Show Alerts Panel"}
-            type="button"
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" width="14" height="14">
-              <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0" />
-            </svg>
-            {totalAlertsCount > 0 && (
-              <span className="lv-alerts-bell-badge">
-                {totalAlertsCount}
+            <div className="lv-filter-item lv-dropdown-container">
+              <span className="lv-blue-dot" style={{ background: "#3fb950", marginRight: "6px" }} />
+              <span style={{ color: "#3fb950", cursor: "pointer", flex: 1, whiteSpace: "nowrap", display: "flex", alignItems: "center" }} onClick={() => setModeDropdownOpen(!modeDropdownOpen)}>
+                {streamMode === "hls" ? "Buffered" : "Real-time"}
+                <svg className={`lv-chevron-icon ${modeDropdownOpen ? 'open' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="10" height="10" style={{ marginLeft: '8px' }} onClick={(e) => { e.stopPropagation(); setModeDropdownOpen(!modeDropdownOpen); }}>
+                  <path d="M6 9l6 6 6-6" />
+                </svg>
               </span>
-            )}
-          </button>
+              {modeDropdownOpen && (
+                <div className="lv-filter-dropdown">
+                  <button
+                    className={`lv-filter-dropdown-item ${streamMode === "webrtc" ? "selected" : ""}`}
+                    onClick={() => { setStreamMode("webrtc"); setModeDropdownOpen(false); }}
+                  >
+                    Real-time
+                  </button>
+                  <button
+                    className={`lv-filter-dropdown-item ${streamMode === "hls" ? "selected" : ""}`}
+                    onClick={() => { setStreamMode("hls"); setModeDropdownOpen(false); }}
+                  >
+                    Buffered
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <div className="lv-filter-divider" />
+
+            <div className="lv-filter-item lv-dropdown-container" ref={dropdownRef}>
+              <span style={{ cursor: "pointer", flex: 1, whiteSpace: "nowrap", display: "flex", alignItems: "center" }} onClick={() => setGridDropdownOpen(!gridDropdownOpen)}>
+                {currentGridOption.label.replace(' Grid', '')}
+                <svg className={`lv-chevron-icon ${gridDropdownOpen ? 'open' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="10" height="10" style={{ marginLeft: '8px', opacity: 0.8 }} onClick={(e) => { e.stopPropagation(); setGridDropdownOpen(!gridDropdownOpen); }}>
+                  <path d="M6 9l6 6 6-6" />
+                </svg>
+              </span>
+              {gridDropdownOpen && (
+                <div className="lv-filter-dropdown">
+                  {GRID_OPTIONS.map((opt) => (
+                    <button
+                      key={opt.id}
+                      className={`lv-filter-dropdown-item ${layout === opt.id ? "selected" : ""}`}
+                      onClick={() => { handleLayoutChange(opt.id); setGridDropdownOpen(false); }}
+                    >
+                      {opt.label.replace(' Grid', '')}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="lv-filter-group" style={{ marginLeft: "auto" }}>
+            <div className="lv-filter-item lv-dropdown-container" onClick={(e) => { e.stopPropagation(); setShowSequenceModal(true); }}>
+              <span style={{ whiteSpace: "nowrap", cursor: "pointer" }}>
+                + Sequence
+              </span>
+            </div>
+
+            <div className="lv-filter-divider" />
+
+            <div className="lv-filter-item">
+              <button
+                onClick={() => setIsTourActive(!isTourActive)}
+                title={isTourActive ? "Pause Tour" : "Start Auto Sequence Tour"}
+                type="button"
+                className={`lv-tour-btn ${isTourActive ? "active" : ""}`}
+                style={{ background: 'none', border: 'none', padding: 0, marginRight: '6px', cursor: 'pointer', color: isTourActive ? '#3fb950' : 'inherit', opacity: 0.8, display: 'flex' }}
+              >
+                {isTourActive ? (
+                  <svg viewBox="0 0 24 24" fill="currentColor" width="12" height="12"><rect x="5" y="4" width="4" height="16" rx="1"/><rect x="15" y="4" width="4" height="16" rx="1"/></svg>
+                ) : (
+                  <svg viewBox="0 0 24 24" fill="currentColor" width="12" height="12"><path d="M6 4l15 8-15 8z"/></svg>
+                )}
+              </button>
+              <span style={{ opacity: 0.9, marginRight: '4px' }}>Dwell</span>
+              <input
+                type="number"
+                className="lv-dwell-input"
+                value={dwellTime}
+                min="3"
+                max="300"
+                onChange={(e) => {
+                  const val = Math.max(3, parseInt(e.target.value) || 3);
+                  setDwellTime(val);
+                  localStorage.setItem("miradorai_dwell_time", String(val));
+                }}
+                disabled={isTourActive || activeSequenceId !== "all"}
+              />
+              <span style={{ fontWeight: "500", color: "#c9d1d9", marginLeft: '2px' }}>s</span>
+            </div>
+          </div>
         </div>
       </div>
 

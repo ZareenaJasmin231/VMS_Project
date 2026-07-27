@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { getNavConfig } from "../../data/navConfig";
 import { useAuth } from "../../context/AuthContext";
 import logoImg from "../../assets/logo.jpg";
+import Dock from "../shared/Dock/Dock";
 import "./Sidebar.css";
 
 function SvgIcon({ html }) {
@@ -87,7 +88,31 @@ export default function Sidebar({ userRole }) {
       
 
       {/* Nav */}
-      <nav className="sidebar__nav" role="navigation" aria-label="Application menu">
+      {isCollapsed ? (
+        <div style={{ flex: 1, display: 'flex', justifyContent: 'center', paddingTop: '1rem' }}>
+          <Dock
+            direction="vertical"
+            panelHeight={68}
+            baseItemSize={40}
+            magnification={60}
+            distance={100}
+            className="sidebar-dock"
+            items={navConfig.map(({ section, page, icon, items }) => {
+              const isActive = activePath === toPath(page) || items?.some((i) => activePath === toPath(i.page));
+              return {
+                icon: <div dangerouslySetInnerHTML={{ __html: icon }} style={{ color: isActive ? 'var(--teal)' : 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center' }} />,
+                label: section,
+                onClick: () => {
+                  if (page) navigate(toPath(page));
+                  else if (items?.length) navigate(toPath(items[0].page));
+                },
+                className: isActive ? "sidebar__dock-item--active" : ""
+              };
+            })}
+          />
+        </div>
+      ) : (
+        <nav className="sidebar__nav" role="navigation" aria-label="Application menu">
         {navConfig.map(({ section, page, icon, items }) => {
           // Direct nav item (e.g. Live View, About)
           if (page) {
@@ -167,7 +192,8 @@ export default function Sidebar({ userRole }) {
             </div>
           );
         })}
-      </nav>
+        </nav>
+      )}
 
     </aside>
   );

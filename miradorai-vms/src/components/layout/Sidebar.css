@@ -12,6 +12,11 @@
 
 .sidebar--collapsed {
   width: 68px;
+  overflow: visible;
+}
+
+.sidebar--collapsed .sidebar__nav {
+  overflow: visible;
 }
 
 /* Logo */
