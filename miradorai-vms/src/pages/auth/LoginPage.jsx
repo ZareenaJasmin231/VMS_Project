@@ -5,8 +5,8 @@ import useActivityLogger from "../../hooks/useActivityLogger";
 import SpecularButton from "../../components/shared/SpecularButton";
 
 const LoginPage = () => {
-  const { login, signup, forgotPassword, resetPassword, oauthLogin, accounts } = useAuth();
-  const [activeForm, setActiveForm] = useState("signin"); // "signin" | "signup" | "forgot"
+  const { login, forgotPassword, resetPassword, oauthLogin, accounts } = useAuth();
+  const [activeForm, setActiveForm] = useState("signin"); // "signin" | "forgot"
   const [role, setRole] = useState("client");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -22,12 +22,6 @@ const LoginPage = () => {
   const [showGoogleChooser, setShowGoogleChooser] = useState(false);
   const [googleAccount, setGoogleAccount] = useState("");
 
-  // Sign Up Form
-  const [signUpEmail, setSignUpEmail] = useState("");
-  const [signUpPassword, setSignUpPassword] = useState("");
-  const [signUpConfirm, setSignUpConfirm] = useState("");
-  const [signUpError, setSignUpError] = useState("");
-  const [signUpSuccess, setSignUpSuccess] = useState("");
 
   // Forgot Password Form
   const [forgotEmail, setForgotEmail] = useState("");
@@ -107,34 +101,6 @@ const LoginPage = () => {
     setOauthMessage("");
   };
 
-  const handleSignUp = async (e) => {
-    e.preventDefault();
-    setSignUpError("");
-    setSignUpSuccess("");
-    setIsLoading(true);
-
-    await new Promise((resolve) => setTimeout(resolve, 500));
-
-    const result = await signup(signUpEmail, signUpPassword, signUpConfirm, role);
-
-    if (!result.success) {
-      setSignUpError(result.error);
-      setIsLoading(false);
-      return;
-    }
-
-    setSignUpSuccess(result.message);
-    setSignUpEmail("");
-    setSignUpPassword("");
-    setSignUpConfirm("");
-    setIsLoading(false);
-
-    setTimeout(() => {
-      setActiveForm("signin");
-      setSignUpSuccess("");
-    }, 2000);
-  };
-
   const handleForgotPassword = async (e) => {
     e.preventDefault();
     setForgotError("");
@@ -183,7 +149,6 @@ const LoginPage = () => {
         <div className="login-header">
           <h1 className="login-title">
             {activeForm === "signin" && "Log in"}
-            {activeForm === "signup" && "Create Account"}
             {activeForm === "forgot" && "Reset Password"}
           </h1>
           <p className="login-subtitle">MIRADOR VMS</p>
@@ -370,157 +335,9 @@ const LoginPage = () => {
             {oauthError && <div className="error-message">{oauthError}</div>}
             {oauthMessage && <div className="success-message">{oauthMessage}</div>}
 
-            {/* Sign Up Link */}
-            <div className="form-footer">
-              Don't have an account?{" "}
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveForm("signup");
-                  setSignInError("");
-                }}
-                className="link-btn"
-              >
-                Sign Up
-              </button>
-            </div>
           </form>
         )}
 
-        {/* Sign Up Form */}
-        {activeForm === "signup" && (
-          <form onSubmit={handleSignUp} className="auth-form">
-            {/* Role Selection */}
-            <div className="role-selector">
-              <label className="role-label">Register as:</label>
-              <div className="role-options">
-                <button
-                  type="button"
-                  className={`role-option ${role === "admin" ? "active" : ""}`}
-                  onClick={() => setRole("admin")}
-                >
-                  Admin
-                </button>
-                <button
-                  type="button"
-                  className={`role-option ${role === "client" ? "active" : ""}`}
-                  onClick={() => setRole("client")}
-                >
-                  Client
-                </button>
-                <button
-                  type="button"
-                  className={`role-option ${role === "operator" ? "active" : ""}`}
-                  onClick={() => setRole("operator")}
-                >
-                  Operator
-                </button>
-              </div>
-            </div>
-
-            {/* Email Input */}
-            <div className="form-group">
-              <label>Email</label>
-              <input
-                type="email"
-                placeholder="Type your email"
-                value={signUpEmail}
-                onChange={(e) => setSignUpEmail(e.target.value)}
-                disabled={isLoading}
-                required
-              />
-            </div>
-
-            {/* Password Input */}
-            <div className="form-group">
-              <label>Password</label>
-              <div className="password-input-wrapper">
-                <input
-                  type={showPassword ? "text" : "password"}
-                  placeholder="Type your password (min 6 chars)"
-                  value={signUpPassword}
-                  onChange={(e) => setSignUpPassword(e.target.value)}
-                  disabled={isLoading}
-                  required
-                />
-                <button
-                  type="button"
-                  className="password-toggle"
-                  onClick={() => setShowPassword(!showPassword)}
-                  disabled={isLoading}
-                >
-                  {showPassword ? "👁" : "🚫"}
-                </button>
-              </div>
-            </div>
-
-            {/* Confirm Password Input */}
-            <div className="form-group">
-              <label>Confirm Password</label>
-              <div className="password-input-wrapper">
-                <input
-                  type={showPassword ? "text" : "password"}
-                  placeholder="Confirm your password"
-                  value={signUpConfirm}
-                  onChange={(e) => setSignUpConfirm(e.target.value)}
-                  disabled={isLoading}
-                  required
-                />
-                <button
-                  type="button"
-                  className="password-toggle"
-                  onClick={() => setShowPassword(!showPassword)}
-                  disabled={isLoading}
-                >
-                  {showPassword ? "👁" : "🚫"}
-                </button>
-              </div>
-            </div>
-
-            {/* Error/Success */}
-            {signUpError && <div className="error-message">{signUpError}</div>}
-            {signUpSuccess && <div className="success-message">{signUpSuccess}</div>}
-
-            {/* Sign Up Button */}
-            <SpecularButton
-              type="submit"
-              size="md"
-              radius={8}
-              tint="#10b981"
-              tintOpacity={0.10}
-              blur={4}
-              textColor="#f0fff8"
-              lineColor="#10b981"
-              baseColor="#0d3326"
-              intensity={1.2}
-              shineSize={12}
-              shineFade={38}
-              thickness={1}
-              followMouse
-              proximity={220}
-              disabled={isLoading || !signUpEmail || !signUpPassword || !signUpConfirm}
-              className="login-specular-btn"
-            >
-              {isLoading ? "Creating Account..." : "Create Account"}
-            </SpecularButton>
-
-            {/* Back to Sign In */}
-            <div className="form-footer">
-              Already have an account?{" "}
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveForm("signin");
-                  setSignUpError("");
-                  setSignUpSuccess("");
-                }}
-                className="link-btn"
-              >
-                Sign In
-              </button>
-            </div>
-          </form>
-        )}
 
         {/* Forgot Password Form */}
         {activeForm === "forgot" && (

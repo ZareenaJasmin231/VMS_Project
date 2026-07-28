@@ -135,10 +135,11 @@ const MAP = {
 };
 
 // Pages that require supervisor unlock for CLIENT role
-const CLIENT_SUPERVISOR_PAGES = ["backup", "masking"];
+const CLIENT_SUPERVISOR_PAGES = ["media-player", "backup", "masking"];
+const CLIENT_BLOCKED_PAGES = ["designer-view", "topology-map", "network-health", "system-performance", "raid-mgmt", "viewing-stations", "user-management"];
 
 // Pages the OPERATOR role is allowed to access
-const OPERATOR_ALLOWED_PAGES = ["designer-view"];
+const OPERATOR_ALLOWED_PAGES = ["live-view", "map-view", "client-settings"];
 
 // Friendly names for the supervisor modal
 const SUPERVISOR_PAGE_NAMES = {
@@ -153,62 +154,47 @@ export default function PageRenderer({ activePage, onNavigate }) {
   const navigate = useNavigate();
   const role = user?.role;
 
-  const [showSupervisorModal, setShowSupervisorModal] = useState(false);
-  const [pendingPage, setPendingPage] = useState(null);
-
-  // --- Operator: hard-block any page not in their allowed list ---
+  // --- Redirects ---
   useEffect(() => {
     if (role === "operator" && !OPERATOR_ALLOWED_PAGES.includes(activePage)) {
-      navigate("/designer-view", { replace: true });
+      navigate("/live-view", { replace: true });
     }
   }, [activePage, role, navigate]);
 
-  // --- Admin check: hard-block user-management for non-admins ---
+  useEffect(() => {
+    if (role === "client" && CLIENT_BLOCKED_PAGES.includes(activePage)) {
+      navigate("/live-view", { replace: true });
+    }
+  }, [activePage, role, navigate]);
+
   useEffect(() => {
     if (activePage === "user-management" && role !== "admin") {
       navigate("/live-view", { replace: true });
     }
   }, [activePage, role, navigate]);
 
-  // --- Client: check if current page needs supervisor unlock ---
-  useEffect(() => {
-    if (role === "client" && CLIENT_SUPERVISOR_PAGES.includes(activePage) && !supervisorUnlocked) {
-      setPendingPage(activePage);
-      setShowSupervisorModal(true);
-    } else {
-      setShowSupervisorModal(false);
-      setPendingPage(null);
-    }
-  }, [activePage, role, supervisorUnlocked]);
-
-  // Handle supervisor modal success — modal already verified the password
-  const handleSupervisorSuccess = () => {
-    unlockSupervisor();
-    setShowSupervisorModal(false);
-    setPendingPage(null);
-  };
-
-  // Handle supervisor modal cancel — go back to live-view
-  const handleSupervisorCancel = () => {
-    setShowSupervisorModal(false);
-    setPendingPage(null);
-    navigate("/live-view", { replace: true });
-  };
-
-  // Render supervisor modal overlay instead of the page
-  if (showSupervisorModal && pendingPage) {
-    return (
-      <SupervisorModal
-        pageName={SUPERVISOR_PAGE_NAMES[pendingPage] || pendingPage}
-        onSuccess={handleSupervisorSuccess}
-        onCancel={handleSupervisorCancel}
-      />
-    );
-  }
-
-  // For operator, don't render a blocked page (redirect handled in useEffect)
+  // --- Synchronous rendering blocks (prevent flash of unauthorized content) ---
   if (role === "operator" && !OPERATOR_ALLOWED_PAGES.includes(activePage)) {
     return null;
+  }
+  if (role === "client" && CLIENT_BLOCKED_PAGES.includes(activePage)) {
+    return null;
+  }
+  if (activePage === "user-management" && role !== "admin") {
+    return null;
+  }
+
+  // --- Supervisor check ---
+  const needsSupervisor = role === "client" && CLIENT_SUPERVISOR_PAGES.includes(activePage) && !supervisorUnlocked;
+
+  if (needsSupervisor) {
+    return (
+      <SupervisorModal
+        pageName={SUPERVISOR_PAGE_NAMES[activePage] || activePage}
+        onSuccess={() => unlockSupervisor()}
+        onCancel={() => navigate("/live-view", { replace: true })}
+      />
+    );
   }
 
   // ✅ fallback to dashboard if page not found

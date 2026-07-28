@@ -3,7 +3,7 @@ from typing import Optional
 import re
 from datetime import datetime
 from app.schemas.auth import SignupRequest, LoginRequest, ForgotPasswordRequest, SupervisorPasswordRequest, SupervisorVerifyRequest, ResetPasswordRequest, AdminCreateUserRequest, AdminUpdateUserRequest
-from app.core.database import users_col, auth_logs_col, settings_col
+from app.core.database import users_col, auth_logs_col, settings_col, supervisor_col
 from app.core.security import create_token, verify_token, require_admin
 import bcrypt
 
@@ -62,10 +62,7 @@ def auth_login(req: LoginRequest, request: Request):
     if not verify_password(req.password, user["password"]):
         raise HTTPException(status_code=401, detail="Invalid email or password")
     
-    if user.get("role") != req.role:
-        actual_role = user.get("role", "unknown").capitalize()
-        attempted_role = req.role.capitalize()
-        raise HTTPException(status_code=403, detail=f"Account registered as {actual_role}. Cannot login as {attempted_role}.")  
+
 
 
 
@@ -109,7 +106,7 @@ def auth_forgot_password(req: ForgotPasswordRequest):
 
 @router.post("/supervisor-password")
 def auth_set_supervisor_password(req: SupervisorPasswordRequest, user=Depends(require_admin)):
-    if settings_col is None:
+    if supervisor_col is None:
         raise HTTPException(status_code=500, detail="Database not connected")
     if not req.password or not req.confirm_password:
         raise HTTPException(status_code=400, detail="Password and confirm password are required")
@@ -119,25 +116,26 @@ def auth_set_supervisor_password(req: SupervisorPasswordRequest, user=Depends(re
         raise HTTPException(status_code=400, detail="Passwords do not match")
 
     hashed_password = hash_password(req.password)
-    settings_col.update_one(
-        {"name": "supervisor_password"},
-        {"$set": {"value": hashed_password, "updatedAt": datetime.utcnow().isoformat()}},
-        upsert=True
-    )
+    supervisor_col.delete_many({})  # Only one supervisor password at a time
+    supervisor_col.insert_one({
+        "password": hashed_password,
+        "setBy": user.get('sub'),
+        "updatedAt": datetime.utcnow().isoformat()
+    })
     print(f"[AUTH] ✅ Supervisor password updated by: {user.get('sub')}")
     return {"success": True, "message": "Supervisor password saved."}
 
 
 @router.post("/verify-supervisor")
 def auth_verify_supervisor(req: SupervisorVerifyRequest):
-    if settings_col is None:
+    if supervisor_col is None:
         raise HTTPException(status_code=500, detail="Database not connected")
     if not req.password:
         raise HTTPException(status_code=400, detail="Password is required")
 
-    stored = settings_col.find_one({"name": "supervisor_password"})
-    if stored and stored.get("value"):
-        if verify_password(req.password, stored["value"]):
+    stored = supervisor_col.find_one({})
+    if stored and stored.get("password"):
+        if verify_password(req.password, stored["password"]):
             return {"success": True}
         raise HTTPException(status_code=401, detail="Incorrect supervisor password")
 
@@ -145,6 +143,23 @@ def auth_verify_supervisor(req: SupervisorVerifyRequest):
     if req.password == "supervisor123":
         return {"success": True}
     raise HTTPException(status_code=401, detail="Incorrect supervisor password")
+
+@router.get("/supervisor-status")
+def get_supervisor_status(user=Depends(require_admin)):
+    if supervisor_col is None:
+        raise HTTPException(status_code=500, detail="Database not connected")
+    stored = supervisor_col.find_one({}, {"_id": 0})
+    if stored and stored.get("password"):
+        return {"exists": True, "updatedAt": stored.get("updatedAt"), "setBy": stored.get("setBy")}
+    return {"exists": False}
+
+@router.delete("/supervisor-password")
+def delete_supervisor_password(user=Depends(require_admin)):
+    if supervisor_col is None:
+        raise HTTPException(status_code=500, detail="Database not connected")
+    supervisor_col.delete_many({})
+    print(f"[AUTH] 🗑 Supervisor password reset by: {user.get('sub')}")
+    return {"success": True, "message": "Supervisor password has been reset."}
 
 
 @router.post("/reset-password")
@@ -195,6 +210,10 @@ def create_user(req: AdminCreateUserRequest, user=Depends(require_admin)):
         raise HTTPException(status_code=400, detail="Role must be 'admin', 'client', or 'operator'")
     if users_col.find_one({"email": req.email, "is_deleted": {"$ne": True}}):
         raise HTTPException(status_code=400, detail="Email already registered")
+        
+    # If the email was previously soft-deleted, remove it to prevent DuplicateKeyError on the unique index
+    users_col.delete_many({"email": req.email, "is_deleted": True})
+    
     hashed_password = hash_password(req.password)
     user_doc = {
         "email":     req.email,
@@ -229,21 +248,6 @@ def update_user(email: str, req: AdminUpdateUserRequest, user=Depends(require_ad
         if len(req.password) < 6:
             raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
         update_fields["password"] = hash_password(req.password)
-        
-    if req.allowedCameras is not None:
-        update_fields["allowedCameras"] = req.allowedCameras
-        
-    if not update_fields:
-        return {"success": True, "message": "No changes requested."}
-        
-    update_fields["updatedAt"] = datetime.utcnow().isoformat()
-    try:
-        users_col.update_one({"email": email}, {"$set": update_fields})
-        print(f"[AUTH] ✅ Admin updated user: {email}")
-    except Exception as e:
-        print(f"[AUTH] ❌ Admin user update failed: {e}")
-        raise HTTPException(status_code=500, detail="Failed to update user")
-    return {"success": True, "message": "User updated successfully!"}
         
     if req.allowedCameras is not None:
         update_fields["allowedCameras"] = req.allowedCameras

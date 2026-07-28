@@ -22,13 +22,36 @@ function loadAlarms() {
 
 
 // ---- Supervisor Details Modal ----
-function SupervisorDetailsModal({ onClose }) {
+function SupervisorDetailsModal({ onClose, onStatusChange }) {
   const [newPass, setNewPass]   = useState("");
   const [confirm, setConfirm]   = useState("");
   const [showPass, setShowPass] = useState(false);
   const [saved, setSaved]       = useState(false);
   const [error, setError]       = useState("");
   const [loading, setLoading]   = useState(false);
+  const [status, setStatus]     = useState(null); // { exists, updatedAt, setBy }
+  const [statusLoading, setStatusLoading] = useState(true);
+
+  // Load supervisor password status on mount
+  useEffect(() => {
+    const fetchStatus = async () => {
+      try {
+        const token = localStorage.getItem("miradorai_token");
+        const res = await fetch(`${API_BASE}/api/auth/supervisor-status`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setStatus(data);
+        }
+      } catch (err) {
+        console.error("[AUTH] Supervisor status check failed:", err);
+      } finally {
+        setStatusLoading(false);
+      }
+    };
+    fetchStatus();
+  }, []);
 
   const handleSave = async (e) => {
     e.preventDefault();
@@ -60,7 +83,9 @@ function SupervisorDetailsModal({ onClose }) {
       setSaved(true);
       setNewPass("");
       setConfirm("");
-      setTimeout(() => setSaved(false), 2000);
+      setStatus({ exists: true, updatedAt: new Date().toISOString() });
+      if (onStatusChange) onStatusChange(true);
+      setTimeout(() => setSaved(false), 2500);
     } catch (err) {
       console.error("[AUTH] Supervisor save error:", err);
       setError(err.message || "Failed to save supervisor password.");
@@ -69,10 +94,36 @@ function SupervisorDetailsModal({ onClose }) {
     }
   };
 
+  const handleReset = async () => {
+    if (!window.confirm("Are you sure you want to reset the supervisor password? Clients will use the default fallback password until a new one is set.")) return;
+    setError("");
+    setLoading(true);
+    try {
+      const token = localStorage.getItem("miradorai_token");
+      const res = await fetch(`${API_BASE}/api/auth/supervisor-password`, {
+        method: "DELETE",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.detail || data.message || "Failed to reset supervisor password.");
+      }
+      setStatus({ exists: false });
+      if (onStatusChange) onStatusChange(false);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
+    } catch (err) {
+      console.error("[AUTH] Supervisor reset error:", err);
+      setError(err.message || "Failed to reset supervisor password.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="sv-overlay" role="dialog" aria-modal="true">
       <div className="sv-backdrop" onClick={onClose} />
-      <div className="sv-modal" style={{ maxWidth: 400 }}>
+      <div className="sv-modal" style={{ maxWidth: 420 }}>
         {/* Icon */}
         <div className="sv-icon-wrap">
           <svg className="sv-lock-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
@@ -81,13 +132,31 @@ function SupervisorDetailsModal({ onClose }) {
           </svg>
         </div>
         <h2 className="sv-title">Supervisor Password</h2>
-        <p className="sv-subtitle">
-          Set the password that clients must enter to access restricted pages (Playback, Backup, Masking).
-        </p>
+
+        {/* Status Indicator */}
+        {!statusLoading && (
+          <div style={{
+            display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+            padding: "8px 14px", borderRadius: 8, margin: "0 auto 12px",
+            background: status?.exists ? "rgba(16, 185, 129, 0.08)" : "rgba(245, 158, 11, 0.08)",
+            border: `1px solid ${status?.exists ? "rgba(16, 185, 129, 0.2)" : "rgba(245, 158, 11, 0.2)"}`,
+            fontSize: 12, fontWeight: 600, width: "fit-content",
+            color: status?.exists ? "#34d399" : "#fbbf24",
+          }}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
+              {status?.exists ? (
+                <><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></>
+              ) : (
+                <><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></>
+              )}
+            </svg>
+            {status?.exists ? "Password Configured" : "Not Configured — Using Default"}
+          </div>
+        )}
 
         <form onSubmit={handleSave} className="sv-form">
           <div className="sv-field">
-            <label className="sv-label">New Password</label>
+            <label className="sv-label">{status?.exists ? "Update Password" : "New Password"}</label>
             <div className="sv-input-wrap">
               <input
                 type={showPass ? "text" : "password"}
@@ -133,13 +202,18 @@ function SupervisorDetailsModal({ onClose }) {
           </div>
 
           {error && <div className="sv-error">{error}</div>}
-          {saved && <div className="sv-success">Password saved successfully!</div>}
+          {saved && <div className="sv-success">{status?.exists === false ? "Supervisor password has been reset." : "Password saved successfully!"}</div>}
 
           <div className="sv-actions">
             <button type="button" className="sv-btn-cancel" onClick={onClose}>Cancel</button>
-            <button type="submit" className="sv-btn-verify" disabled={!newPass || !confirm}>
+            {status?.exists && (
+              <button type="button" className="sv-btn-cancel" onClick={handleReset} disabled={loading} style={{ color: "#f87171", borderColor: "rgba(239,68,68,0.2)" }}>
+                Reset
+              </button>
+            )}
+            <button type="submit" className="sv-btn-verify" disabled={!newPass || !confirm || loading}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v14z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-              Save Password
+              {status?.exists ? "Update Password" : "Save Password"}
             </button>
           </div>
         </form>
@@ -164,6 +238,7 @@ export default function TopBar({
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [showSupervisorDetails, setShowSupervisorDetails] = useState(false);
   const [settingsDropdownOpen, setSettingsDropdownOpen] = useState(false);
+  const [supervisorConfigured, setSupervisorConfigured] = useState(null); // null=loading, true/false
   const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
@@ -171,6 +246,26 @@ export default function TopBar({
   
   const userRef = useRef(null);
   const settingsRef = useRef(null);
+
+  // Fetch supervisor password status on mount (admin only)
+  useEffect(() => {
+    if (role !== "admin") return;
+    const fetchSvStatus = async () => {
+      try {
+        const token = localStorage.getItem("miradorai_token");
+        const res = await fetch(`${API_BASE}/api/auth/supervisor-status`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setSupervisorConfigured(data.exists === true);
+        }
+      } catch (err) {
+        console.error("[AUTH] Supervisor status fetch failed:", err);
+      }
+    };
+    fetchSvStatus();
+  }, [role]);
 
   useEffect(() => {
     const update = () => {
@@ -209,7 +304,6 @@ export default function TopBar({
   const ADMIN_SETTINGS_ITEMS = [
     // { label: "Add Device",      page: "add-devices",     icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v8M8 12h8"/></svg>` },
     // { label: "Storage Management", page: "storage-mgmt", icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4.03 3-9 3S3 13.66 3 12"/><path d="M3 5v14c0 1.66 4.03 3 9 3s9-1.34 9-3V5"/></svg>` },
-    { label: "Client Settings", page: "client-settings", icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>` },
     { label: "User Settings",   page: "user-settings",   icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="8" r="4"/><path d="M20 21a8 8 0 10-16 0"/></svg>` },
     { label: "User Management", page: "user-management", icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>` },
     { label: "Email Schedules", page: "email-schedules", icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>` },
@@ -340,7 +434,7 @@ export default function TopBar({
                 label: "Profile",
                 onClick: () => navigate("/profile")
               }] : []),
-              ...(settingsItems.length > 0 ? [{
+              ...([{
                 icon: (
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <circle cx="12" cy="12" r="3"/>
@@ -349,10 +443,15 @@ export default function TopBar({
                 ),
                 label: "Settings",
                 onClick: () => {
+                  // Client and Operator: go directly to client settings
+                  if (role === "client" || role === "operator") {
+                    navigate("/client-settings");
+                    return;
+                  }
                   setSettingsDropdownOpen(!settingsDropdownOpen);
                   setUserMenuOpen(false);
                 }
-              }] : [])
+              }])
             ]}
           />
           {settingsDropdownOpen && (
@@ -431,6 +530,15 @@ export default function TopBar({
                         <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
                       </svg>
                       <span>Supervisor Details</span>
+                      {/* Status dot */}
+                      {supervisorConfigured !== null && (
+                        <span style={{
+                          width: 8, height: 8, borderRadius: "50%", flexShrink: 0,
+                          background: supervisorConfigured ? "#34d399" : "#fbbf24",
+                          boxShadow: supervisorConfigured ? "0 0 6px rgba(52,211,153,0.4)" : "0 0 6px rgba(251,191,36,0.4)",
+                          marginLeft: 4,
+                        }} title={supervisorConfigured ? "Password configured" : "Not configured"} />
+                      )}
                       <span className="topbar__supervisor-badge">ADMIN</span>
                     </div>
                   </>
@@ -499,7 +607,10 @@ export default function TopBar({
 
       {/* Supervisor Details Modal (admin only) */}
       {showSupervisorDetails && (
-        <SupervisorDetailsModal onClose={() => setShowSupervisorDetails(false)} />
+        <SupervisorDetailsModal
+          onClose={() => setShowSupervisorDetails(false)}
+          onStatusChange={(configured) => setSupervisorConfigured(configured)}
+        />
       )}
     </header>
   );

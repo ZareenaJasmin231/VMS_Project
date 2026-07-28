@@ -6,6 +6,7 @@ export function ThemeProvider({ children }) {
   const [theme, setTheme] = useState(() => localStorage.getItem("miradorai_theme") || "dark");
 
   useEffect(() => {
+    document.documentElement.removeAttribute("style"); // Clear any stale inline styles
     document.documentElement.setAttribute("data-theme", theme);
     localStorage.setItem("miradorai_theme", theme);
   }, [theme]);

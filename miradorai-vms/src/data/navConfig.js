@@ -75,20 +75,19 @@ const ADMIN_ONLY_NAV = [
 
 // ================= CLIENT NAVIGATION =================
 const CLIENT_NAV = [
+  // Dashboard
+  {
+    section: "Dashboard",
+    page: "dashboard",
+    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>`,
+  },
   { section: "Live View", page: "live-view", icon: ICONS.liveView },
-  // { section: "Forensic Search", page: "forensic-search", icon: ICONS.forensicSearch },
+  {
+    section: "Map View",
+    page: "map-view",
+    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>`,
+  },
   { section: "Playback", page: "media-player", icon: ICONS.playback },
-  // { section: "Infrastructure", page: "infrastructure", icon: ICONS.infrastructure },
-  // {
-  //   section: "Map View",
-  //   page: "map-view",
-  //   icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>`,
-  // },
-  // {
-  //   section: "Designer View",
-  //   page: "designer-view",
-  //   icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M8 8h8v8H8z"/><path d="M3 12h5M16 12h5"/></svg>`,
-  // },
 ];
 
 // ================= SETTINGS NAVIGATION =================
@@ -113,9 +112,14 @@ const SETTINGS_NAV = {
 // OPERATOR nav — Designer View only (Add Device and About moved to TopBar/Settings dropdown)
 const OPERATOR_NAV = [
   {
-    section: "Designer View",
-    page: "designer-view",
-    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M8 8h8v8H8z"/><path d="M3 12h5M16 12h5"/></svg>`,
+    section: "Live View",
+    page: "live-view",
+    icon: ICONS.liveView,
+  },
+  {
+    section: "Map View",
+    page: "map-view",
+    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>`,
   },
 ];
 
@@ -125,7 +129,7 @@ export const getNavConfig = (role = "client") => {
     ...SETTINGS_NAV,
     items: SETTINGS_NAV.items.filter(item => {
       if (role === "client") {
-        return item.page === "add-devices" || item.page === "cameras";
+        return !["raid-mgmt", "viewing-stations", "user-management"].includes(item.page);
       }
       if (item.page === "user-management") {
         return role === "admin";
