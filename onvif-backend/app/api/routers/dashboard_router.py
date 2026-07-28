@@ -9,6 +9,7 @@ import os
 from datetime import datetime, timedelta
 from recorder import rtsp_recorder as recorder
 from recorder import encrypt_service
+from app.api.routers.playback_router import event_snapshot as playback_snapshot
 
 router = APIRouter(prefix="/api", tags=["dashboard"])
 
@@ -221,17 +222,73 @@ async def get_alerts(
 @router.get("/alerts/thumbnail")
 def get_alert_thumbnail(ip: str, time: str, crop: int = 1, request: Request = None):
     """
-    Returns a JPEG crop/frame for an alert.
-    If the alert has a bounding box stored in the db, we crop around it.
+    Legacy alert thumbnail endpoint.
+    Proxy to the event playback snapshot endpoint so built-in alerts return the exact recorded frame.
     """
-    import re, tempfile, subprocess, os
-    from datetime import datetime, timezone, timedelta
-    
-    headers = {
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Methods": "GET, OPTIONS",
-        "Access-Control-Allow-Headers": "*",
-    }
+    if not ip or not time:
+        return Response(
+            content=b'{"error":"Missing ip or time"}',
+            status_code=400,
+            media_type="application/json",
+            headers={
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "GET, OPTIONS",
+                "Access-Control-Allow-Headers": "*",
+            }
+        )
+
+    try:
+        # First try to find a persisted snapshot for this alert in mqtt_logs
+        try:
+            mqtt_col = _db["mqtt_logs"]
+            # Find document with same ip and time (allow small variations)
+            candidates = list(mqtt_col.find({"ip": ip}).sort([("received_at", -1)]).limit(20))
+            found_doc = None
+            from datetime import datetime
+            try:
+                query_dt = datetime.fromisoformat(time.replace(" ", "T").replace("Z", "+00:00"))
+            except Exception:
+                query_dt = None
+            if query_dt:
+                for doc in candidates:
+                    doc_time = None
+                    if doc.get("time"):
+                        try:
+                            doc_time = datetime.fromisoformat(doc.get("time").replace(" ", "T").replace("Z", "+00:00"))
+                        except Exception:
+                            doc_time = None
+                    if doc_time and abs((doc_time - query_dt).total_seconds()) <= 5:
+                        found_doc = doc
+                        break
+            if not found_doc and candidates:
+                # fallback: use latest candidate
+                found_doc = candidates[0]
+
+            if found_doc and found_doc.get("snapshot_url"):
+                snap_url = found_doc.get("snapshot_url")
+                # If it's an internal /api/snapshots path, map to filesystem
+                if snap_url.startswith("/api/snapshots/"):
+                    fname = snap_url.split("/api/snapshots/", 1)[1]
+                    snapshots_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "static", "snapshots")
+                    fpath = os.path.join(snapshots_dir, fname)
+                    if os.path.exists(fpath):
+                        return Response(content=open(fpath, "rb").read(), media_type="image/jpeg", headers={"Access-Control-Allow-Origin": "*"})
+        except Exception as lookup_err:
+            print(f"[ALERT THUMBNAIL] Snapshot lookup error: {lookup_err}")
+
+        return playback_snapshot(ip=ip, time=time)
+    except Exception as e:
+        print(f"[ALERT THUMBNAIL] Proxy failed: {e}")
+        return Response(
+            content=b'{"error":"Snapshot proxy failed"}',
+            status_code=500,
+            media_type="application/json",
+            headers={
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "GET, OPTIONS",
+                "Access-Control-Allow-Headers": "*",
+            }
+        )
 
     # Helper function for fallback SVG silhouette
     def fallback_svg(alert_type="Alert"):
@@ -282,13 +339,76 @@ def get_alert_thumbnail(ip: str, time: str, crop: int = 1, request: Request = No
         alert_type_str = "Alert"
         try:
             ip_norm = ip.strip().replace(".", "_")
-            alert_doc = _db["mqtt_logs"].find_one({
-                "ip": ip_norm,
-                "received_at": {"$regex": f"^{re.escape(time[:16])}"}
-            })
+            ip_dot = ip.strip()
+            ip_candidates = [v for v in {ip_norm, ip_dot} if v]
+
+            def parse_db_datetime(value):
+                if isinstance(value, datetime):
+                    return value
+                if not isinstance(value, str):
+                    return None
+                v = value.strip()
+                if " " in v:
+                    v = v.replace(" ", "T")
+                v = re.sub(r"([+-])(\d{2})(\d{2})$", r"\1\2:\3", v)
+                if v.endswith("Z"):
+                    try:
+                        return datetime.fromisoformat(v[:-1]).replace(tzinfo=timezone.utc)
+                    except ValueError:
+                        return None
+                try:
+                    return datetime.fromisoformat(v)
+                except ValueError:
+                    pass
+                if re.match(r"^\d{2}:\d{2}:\d{2}(\.\d+)?$", v):
+                    try:
+                        time_part = datetime.strptime(v.split(".")[0], "%H:%M:%S").time()
+                        return datetime(
+                            alert_local_naive.year,
+                            alert_local_naive.month,
+                            alert_local_naive.day,
+                            time_part.hour,
+                            time_part.minute,
+                            time_part.second
+                        )
+                    except Exception:
+                        return None
+                return None
+
+            def choose_best_alert_doc(docs):
+                best = None
+                best_diff = None
+                for doc in docs:
+                    parsed_dt = None
+                    for field in ("received_at", "time", "timestamp"):
+                        parsed_dt = parse_db_datetime(doc.get(field))
+                        if parsed_dt is not None:
+                            break
+                    if parsed_dt is None:
+                        continue
+                    if parsed_dt.tzinfo is None:
+                        parsed_dt = parsed_dt.replace(tzinfo=alert_dt.tzinfo or datetime.now().astimezone().tzinfo)
+                    diff = abs((parsed_dt - alert_dt).total_seconds())
+                    if best_diff is None or diff < best_diff:
+                        best_diff = diff
+                        best = doc
+                return best
+
+            date_prefix = alert_local_naive.strftime("%Y-%m-%d")
+            candidates = list(_db["mqtt_logs"].find({
+                "ip": {"$in": ip_candidates},
+                "received_at": {"$regex": f"^{re.escape(date_prefix)}"}
+            }).sort("received_at", -1).limit(100))
+            alert_doc = choose_best_alert_doc(candidates)
+
             if not alert_doc:
                 alert_doc = _db["mqtt_logs"].find_one({
-                    "ip": ip_norm,
+                    "ip": {"$in": ip_candidates},
+                    "received_at": {"$regex": f"^{re.escape(time[:16])}"}
+                })
+            if not alert_doc:
+                alert_doc = _db["mqtt_logs"].find_one({
+                    "ip": {"$in": ip_candidates},
                     "time": {"$regex": f"^{re.escape(time[:16])}"}
                 })
             

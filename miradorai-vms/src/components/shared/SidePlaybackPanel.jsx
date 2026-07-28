@@ -20,6 +20,20 @@ function getAuthHeaders() {
   return token ? { "Authorization": "Bearer " + token } : {};
 }
 
+// Helper: fetch live snapshot (base64 data URI) for an IP using brand snapshot API
+async function fetchLiveSnapshotForIp(ip) {
+  if (!ip) return null;
+  try {
+    const ipDot = (ip || "").replace(/_/g, ".");
+    const res = await fetch(`${API}/api/camera/brand/snapshot/${encodeURIComponent(ipDot)}`);
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data?.snapshot || null;
+  } catch (e) {
+    return null;
+  }
+}
+
 function extractHour(file) {
   const raw = file.start_time || file.name || "";
   const dashColon = raw.match(/^(\d{2})[-:]/);
@@ -166,6 +180,23 @@ export default function SidePlaybackPanel({ camera, onClose, alertSource = "buil
             })
             .slice(0, 99);
           setAlerts(filtered);
+
+                      // Non-blocking: fetch live snapshots for recent alerts and attach
+                      (async () => {
+                        try {
+                          const toFetch = filtered.slice(0, 20);
+                          await Promise.all(toFetch.map(async (a) => {
+                            if (a.isExternal) return;
+                            const ip = a.ip || a.serial || "";
+                            const snap = await fetchLiveSnapshotForIp(ip);
+                            if (snap) {
+                              setAlerts((prev) => prev.map((p) => (p === a ? { ...p, liveSnapshot: snap } : p)));
+                            }
+                          }));
+                        } catch (e) {
+                          // ignore
+                        }
+                      })();
         }
       }
     } catch (e) {
@@ -1004,9 +1035,48 @@ export default function SidePlaybackPanel({ camera, onClose, alertSource = "buil
                 const dateOnly = rawTime.includes("T")
                   ? rawTime.split("T")[0]
                   : "";
+                // Prefer persisted snapshot on the alert if available, else fallback to recorded extraction or external image
+                const alertIpRaw = (alert.ip || "").replace(/_/g, ".");
+                const persisted = alert.snapshot_url || alert.snapshotUrl || alert.snapshot || alert.face_url || alert.image || null;
+                const alertThumbnailUrl = persisted || (!alert.isExternal && alertIpRaw && rawTime
+                  ? `${API}/api/event-playback/snapshot?ip=${encodeURIComponent(alertIpRaw)}&time=${encodeURIComponent(rawTime)}`
+                  : null);
+                
 
                 return (
                   <div key={i} className="side-playback-alert-row">
+                    {(alert.liveSnapshot || alertThumbnailUrl) && (
+                      <div className="side-playback-alert-thumb-wrap" style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                        {alert.liveSnapshot && (
+                          <img
+                            src={alert.liveSnapshot}
+                            alt="Live snapshot"
+                            className="side-playback-alert-live-thumb"
+                            loading="lazy"
+                            onError={(e) => { e.currentTarget.style.display = "none"; }}
+                          />
+                        )}
+
+                        {alertThumbnailUrl && (
+                          <img
+                            src={alertThumbnailUrl}
+                            alt="Alert snapshot"
+                            className="side-playback-alert-thumb"
+                            loading="lazy"
+                            onError={(e) => {
+                              e.currentTarget.style.display = "none";
+                              if (e.currentTarget.parentElement) {
+                                // keep the live snapshot visible if it exists
+                                const live = e.currentTarget.parentElement.querySelector('.side-playback-alert-live-thumb');
+                                if (!live) {
+                                  e.currentTarget.parentElement.style.display = "none";
+                                }
+                              }
+                            }}
+                          />
+                        )}
+                      </div>
+                    )}
                     <div className="side-playback-alert-info">
                       {alert.isExternal ? (
                         <>
