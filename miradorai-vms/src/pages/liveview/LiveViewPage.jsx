@@ -467,7 +467,7 @@ function AlertsPanel({ isOpen, onAlertCountUpdate, onTotalAlertCountChange, live
   const fetchAlerts = useCallback(async () => {
     try {
       if (alertSource === "builtin") {
-        const res  = await fetch(`${API}/api/alerts?limit=500`, {
+        const res  = await fetch(`${API}/api/alerts?limit=5000`, {
           headers: getAuthHeaders()
         });
         if (!res.ok) return;
@@ -889,9 +889,9 @@ function CameraCell({ device, streamMode, onFullscreen, alertCount, onBadgeClick
             e.preventDefault();
             onBadgeClick?.();
           }}
-          title={`${alertCount} alert${alertCount !== 1 ? "s" : ""} — click to view`}
+          title={`${alertCount > 50 ? 50 : alertCount} alert${alertCount !== 1 ? "s" : ""} — click to view`}
         >
-          {alertCount > 50 ? "50+" : alertCount}
+          {alertCount > 50 ? 50 : alertCount}
         </div>
       )}
 

@@ -161,7 +161,7 @@ export default function SidePlaybackPanel({ camera, onClose, alertSource = "buil
           setAlerts(mapped);
         }
       } else {
-        const res = await fetch(`${API}/api/alerts?limit=500`, {
+        const res = await fetch(`${API}/api/alerts?camera_ip=${encodeURIComponent(cameraIp)}&limit=1000`, {
           headers: getAuthHeaders()
         });
         if (res.ok) {
@@ -178,7 +178,7 @@ export default function SidePlaybackPanel({ camera, onClose, alertSource = "buil
               const tB = new Date(b.time || b.received_at).getTime() || 0;
               return tB - tA;
             })
-            .slice(0, 99);
+            .slice(0, 50);
           setAlerts(filtered);
 
                       // Non-blocking: fetch live snapshots for recent alerts and attach
