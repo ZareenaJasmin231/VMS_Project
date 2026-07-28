@@ -7,6 +7,8 @@ import ManualSearchModal from "./ManualSearchModal";
 import StreamURLModal from "./StreamURLModal";
 import DiscoveryModal from "../../components/shared/DiscoveryModal";
 import CreateGroupModal from "./CreateGroupModal";
+import SpecularButton from "../../components/shared/SpecularButton";
+import { useTheme } from "../../context/ThemeContext";
 import "./AddDevicesPage.css";
 import "./CamerasPage.css";
 import useActivityLogger from "../../hooks/useActivityLogger";
@@ -299,6 +301,8 @@ function RemoveDeviceModal({ device, onClose, onConfirm }) {
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function AddDevicesPage({ onNavigate }) {
+  const { theme } = useTheme();
+  const { logActivity } = useActivityLogger();
   const [filter, setFilter] = useState("");
   const [activeGroup, setActiveGroup] = useState("all");
   const [showManualSearch, setShowManualSearch] = useState(false);
@@ -564,7 +568,7 @@ export default function AddDevicesPage({ onNavigate }) {
           rtsp_url: d.rtsp_url || null,
           ws_url: d.ws_url || null,
           stream_key: streamKey,
-          ome_stream: d.ome_stream || streamKey,
+          stream_key: d.stream_key || streamKey,
           sub_stream_key: d.sub_stream_key || null,
           sub_stream_rtsp: d.sub_stream_rtsp || null,
           stream_status: d.ws_url ? "streaming" : (d.stream_status || "not_registered"),
@@ -642,7 +646,7 @@ export default function AddDevicesPage({ onNavigate }) {
 
     const streamKey =
       probeData?.stream_key ||
-      probeData?.ome_stream ||
+      probeData?.stream_key ||
       `${ip.replace(/\./g, "_")}_cam${safeChannel}`;
 
     const updated = {
@@ -661,7 +665,7 @@ export default function AddDevicesPage({ onNavigate }) {
       rtsp_url: probeData?.rtsp_url || probeData?.stream_uri || null,
       ws_url: probeData?.ws_url || null,
       stream_key: streamKey,
-      ome_stream: probeData?.ome_stream || streamKey,
+      stream_key: probeData?.stream_key || streamKey,
       sub_stream_key: probeData?.sub_stream_key || null,
       sub_stream_rtsp: probeData?.sub_stream_rtsp || null,
       stream_status: probeData?.status || "error",
@@ -746,7 +750,7 @@ export default function AddDevicesPage({ onNavigate }) {
         });
         const data = res.ok ? await res.json() : null;
 
-        const streamKey = data?.ome_stream || data?.stream_key ||
+        const streamKey = data?.stream_key || data?.stream_key ||
           `${ip.replace(/\./g, "_")}_rtsp${i}`;
 
         const entry = {
@@ -872,10 +876,31 @@ export default function AddDevicesPage({ onNavigate }) {
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>
               Stream URL
             </button>
-            <button className="m-btn m-btn--primary" onClick={handleCreateGroup}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14"><path d="M12 5v14M5 12h14" strokeLinecap="round"/></svg>
-              Create Group
-            </button>
+            <SpecularButton
+              size="sm"
+              radius={8}
+              tint="#10b981"
+              tintOpacity={0.10}
+              blur={4}
+              textColor={theme === 'light' ? "#065f46" : "#f0fff8"}
+              lineColor="#10b981"
+              baseColor={theme === 'light' ? "#d1fae5" : "#0d3326"}
+              intensity={1.2}
+              shineSize={12}
+              shineFade={38}
+              thickness={1}
+              speed={0.35}
+              followMouse
+              proximity={220}
+              autoAnimate={false}
+              className="m-btn m-btn--primary"
+              onClick={handleCreateGroup}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14"><path d="M12 5v14M5 12h14" strokeLinecap="round"/></svg>
+                Create Group
+              </div>
+            </SpecularButton>
           </div>
         </div>
 
@@ -1242,7 +1267,7 @@ export default function AddDevicesPage({ onNavigate }) {
             <div className="modal-body" style={{ padding: "20px", background: "#090b0e" }}>
               {previewDevice.ws_url ? (
                 <div style={{ position: "relative", width: "100%", aspectRatio: "16/9", borderRadius: "8px", overflow: "hidden", border: "1px solid var(--border-light)" }}>
-                  <WebRTCPlayer_MediaMTX streamKey={previewDevice.stream_key || previewDevice.ome_stream || (previewDevice.ip ? previewDevice.ip.replace(/\./g, "_") : "")} cameraId={previewDevice.id} />
+                  <WebRTCPlayer_MediaMTX streamKey={previewDevice.stream_key || previewDevice.stream_key || (previewDevice.ip ? previewDevice.ip.replace(/\./g, "_") : "")} cameraId={previewDevice.id} />
                 </div>
               ) : (
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "12px", minHeight: "260px", color: "var(--text-secondary)" }}>

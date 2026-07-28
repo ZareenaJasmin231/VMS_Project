@@ -3,6 +3,8 @@ import SearchBar from "../../components/shared/SearchBar";
 import Modal from "../../components/shared/Modal";
 import { CAMERA_FEATURES_CONFIG } from "../../data/navConfig";
 import "./CamerasPage.css";
+import SpecularButton from "../../components/shared/SpecularButton";
+import { useTheme } from "../../context/ThemeContext";
 import MaskingPage from "./MaskingPage";
 import { useNavigate } from "react-router-dom";
 import useActivityLogger from "../../hooks/useActivityLogger";
@@ -33,6 +35,7 @@ const API_BASE = import.meta.env.VITE_API_URL;
 const INLINE_PAGES = ["masking"];
 
 export default function CamerasPage({ onNavigate, onCameraSelect }) {
+  const { theme } = useTheme();
   const [cameras, setCameras]           = useState(loadDevices);
   const [groups, setGroups]             = useState(loadGroups);
   const [filter, setFilter]             = useState("");
@@ -510,13 +513,28 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
 
                       {/* View All button */}
                       <td>
-                        <button
+                        <SpecularButton
+                          size="sm"
+                          radius={8}
+                          tint="#10b981"
+                          tintOpacity={0.10}
+                          blur={4}
+                          textColor={theme === 'light' ? "#065f46" : "#f0fff8"}
+                          lineColor="#10b981"
+                          baseColor={theme === 'light' ? "#d1fae5" : "#0d3326"}
+                          intensity={1.2}
+                          shineSize={12}
+                          shineFade={38}
+                          thickness={1}
+                          speed={0.35}
+                          followMouse
+                          proximity={220}
+                          autoAnimate={false}
                           className="ec-btn ec-btn--primary"
-                          style={{ whiteSpace: "nowrap" }}
                           onClick={() => openGroupPanel(group)}
                         >
-                          View All Cameras
-                        </button>
+                          <span style={{ whiteSpace: "nowrap" }}>View All Cameras</span>
+                        </SpecularButton>
                       </td>
                     </tr>
                   );

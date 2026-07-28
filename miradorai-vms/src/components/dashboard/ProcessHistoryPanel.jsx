@@ -1,7 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
+import SpecularButton from "./../shared/SpecularButton";
+import { useTheme } from "../../context/ThemeContext";
 import './ProcessMetricsPanel.css';
 
 const ProcessHistoryPanel = () => {
+  const { theme } = useTheme();
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [totalCount, setTotalCount] = useState(0);
@@ -247,22 +250,54 @@ const ProcessHistoryPanel = () => {
         <h3 className="vms-proc-title">Process Uptime & Downtime History Log</h3>
         
         <div className="vms-proc-actions">
-          <button 
-            className="vms-proc-btn vms-proc-btn-primary" 
+          <SpecularButton
+            size="sm"
+            radius={8}
+            tint="#10b981"
+            tintOpacity={0.10}
+            blur={4}
+            textColor={theme === 'light' ? "#065f46" : "#f0fff8"}
+            lineColor="#10b981"
+            baseColor={theme === 'light' ? "#d1fae5" : "#0d3326"}
+            intensity={1.2}
+            shineSize={12}
+            shineFade={38}
+            thickness={1}
+            speed={0.35}
+            followMouse
+            proximity={220}
+            autoAnimate={false}
+            className="vms-proc-btn vms-proc-btn-primary"
             onClick={() => fetchHistoryLogs()}
             disabled={loading}
           >
             Refresh History
-          </button>
+          </SpecularButton>
 
           {/* Download Report Dropdown */}
           <div className="vms-dropdown-wrapper" ref={dropdownRef}>
-            <button 
+            <SpecularButton
+              size="sm"
+              radius={8}
+              tint="#10b981"
+              tintOpacity={0.10}
+              blur={4}
+              textColor={theme === 'light' ? "#065f46" : "#f0fff8"}
+              lineColor="#10b981"
+              baseColor={theme === 'light' ? "#d1fae5" : "#0d3326"}
+              intensity={1.2}
+              shineSize={12}
+              shineFade={38}
+              thickness={1}
+              speed={0.35}
+              followMouse
+              proximity={220}
+              autoAnimate={false}
               className="vms-proc-btn vms-proc-btn-primary"
               onClick={() => setIsDownloadOpen(!isDownloadOpen)}
             >
               Download Report ▾
-            </button>
+            </SpecularButton>
 
             {isDownloadOpen && (
               <div className="vms-dropdown-menu">
@@ -338,12 +373,51 @@ const ProcessHistoryPanel = () => {
         </div>
 
         <div style={{ display: 'flex', alignItems: 'flex-end', gap: '8px' }}>
-          <button type="submit" className="vms-proc-btn vms-proc-btn-primary">
+          <SpecularButton
+            type="submit"
+            size="sm"
+            radius={8}
+            tint="#10b981"
+            tintOpacity={0.10}
+            blur={4}
+            textColor={theme === 'light' ? "#065f46" : "#f0fff8"}
+            lineColor="#10b981"
+            baseColor={theme === 'light' ? "#d1fae5" : "#0d3326"}
+            intensity={1.2}
+            shineSize={12}
+            shineFade={38}
+            thickness={1}
+            speed={0.35}
+            followMouse
+            proximity={220}
+            autoAnimate={false}
+            className="vms-proc-btn vms-proc-btn-primary"
+          >
             Filter
-          </button>
-          <button type="button" className="vms-proc-btn" onClick={handleResetFilter}>
+          </SpecularButton>
+          <SpecularButton
+            type="button"
+            size="sm"
+            radius={8}
+            tint="#10b981"
+            tintOpacity={0.10}
+            blur={4}
+            textColor={theme === 'light' ? "#065f46" : "#f0fff8"}
+            lineColor="#10b981"
+            baseColor={theme === 'light' ? "#f1f5f9" : "#1e293b"} // a bit different base color for Reset to look secondary
+            intensity={1.2}
+            shineSize={12}
+            shineFade={38}
+            thickness={1}
+            speed={0.35}
+            followMouse
+            proximity={220}
+            autoAnimate={false}
+            className="vms-proc-btn"
+            onClick={handleResetFilter}
+          >
             Reset
-          </button>
+          </SpecularButton>
         </div>
       </form>
 

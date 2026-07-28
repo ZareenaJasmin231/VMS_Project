@@ -5,6 +5,8 @@ import {
   FaDatabase, FaBolt, FaBrain, FaFolder, FaHdd, FaUsb,
   FaArrowRight
 } from 'react-icons/fa';
+import SpecularButton from "../../components/shared/SpecularButton";
+import { useTheme } from "../../context/ThemeContext";
 import './BackupPage.css';
 
 const API = (import.meta.env.VITE_API_URL || "") + "/api/backup";
@@ -185,6 +187,7 @@ const DestinationModal = ({ onConfirm, onCancel }) => {
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 export default function BackupPage() {
+  const { theme } = useTheme();
   const [cameras, setCameras]           = useState([]);
   const [logs, setLogs]                 = useState([]);
   const [status, setStatus]             = useState({
@@ -618,9 +621,29 @@ export default function BackupPage() {
               <button className="btn-secondary" style={{ padding: '6px 14px', fontSize: '15px', width: 'max-content' }} onClick={handleTestConnection} disabled={loading.test}>
                 <FaBolt /> Test
               </button>
-              <button className="btn-primary" style={{ padding: '6px 14px', fontSize: '15px', width: 'max-content' }} onClick={handleSaveNetwork} disabled={loading.saveNet}>
+              <SpecularButton
+                size="sm"
+                radius={8}
+                tint="#10b981"
+                tintOpacity={0.10}
+                blur={4}
+                textColor={theme === 'light' ? "#065f46" : "#f0fff8"}
+                lineColor="#10b981"
+                baseColor={theme === 'light' ? "#d1fae5" : "#0d3326"}
+                intensity={1.2}
+                shineSize={12}
+                shineFade={38}
+                thickness={1}
+                speed={0.35}
+                followMouse
+                proximity={220}
+                autoAnimate={false}
+                className="btn-primary"
+                onClick={handleSaveNetwork}
+                disabled={loading.saveNet}
+              >
                 Save Settings
-              </button>
+              </SpecularButton>
             </div>
           </SectionCard>
 
@@ -668,9 +691,33 @@ export default function BackupPage() {
                     </div>
                   </div>
                 )}
-                <button className="btn-primary" style={{ padding: '6px 14px', fontSize: '15px', width: 'max-content', alignSelf: 'flex-end' }} onClick={handleManualClick} disabled={loading.manual || status.status === 'Processing'}>
-                  <FaPlayCircle /> Export Records
-                </button>
+                <div style={{ alignSelf: 'flex-end' }}>
+                  <SpecularButton
+                    size="sm"
+                    radius={8}
+                    tint="#10b981"
+                    tintOpacity={0.10}
+                    blur={4}
+                    textColor={theme === 'light' ? "#065f46" : "#f0fff8"}
+                    lineColor="#10b981"
+                    baseColor={theme === 'light' ? "#d1fae5" : "#0d3326"}
+                    intensity={1.2}
+                    shineSize={12}
+                    shineFade={38}
+                    thickness={1}
+                    speed={0.35}
+                    followMouse
+                    proximity={220}
+                    autoAnimate={false}
+                    className="btn-primary"
+                    onClick={handleManualClick}
+                    disabled={loading.manual || status.status === 'Processing'}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <FaPlayCircle /> Export Records
+                    </div>
+                  </SpecularButton>
+                </div>
               </div>
           </SectionCard>
         </div>
@@ -816,7 +863,29 @@ export default function BackupPage() {
             )}
 
             <div style={{ display: 'flex', gap: 12, marginTop: 20, justifyContent: 'flex-end' }}>
-              <button className="btn-primary" style={{ padding: '6px 14px', fontSize: '15px', width: 'max-content' }} onClick={handleApplyRetention} disabled={loading.saveRetain || status.status === 'Processing'}>Apply Retention Rules</button>
+              <SpecularButton
+                size="sm"
+                radius={8}
+                tint="#10b981"
+                tintOpacity={0.10}
+                blur={4}
+                textColor={theme === 'light' ? "#065f46" : "#f0fff8"}
+                lineColor="#10b981"
+                baseColor={theme === 'light' ? "#d1fae5" : "#0d3326"}
+                intensity={1.2}
+                shineSize={12}
+                shineFade={38}
+                thickness={1}
+                speed={0.35}
+                followMouse
+                proximity={220}
+                autoAnimate={false}
+                className="btn-primary"
+                onClick={handleApplyRetention}
+                disabled={loading.saveRetain || status.status === 'Processing'}
+              >
+                Apply Retention Rules
+              </SpecularButton>
             </div>
           </SectionCard>
         </div>
