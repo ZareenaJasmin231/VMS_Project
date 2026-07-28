@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import SearchBar from "../../components/shared/SearchBar";
-
+import SpecularButton from "../../components/shared/SpecularButton";
+import { useTheme } from "../../context/ThemeContext";
 import "./Recordingmethodpage.css";
 
 const STREAM_API = import.meta.env.VITE_API_URL || "";
@@ -49,6 +50,7 @@ function stripRtspCredentials(url) {
 }
 
 export default function RecordingMethodPage() {
+  const { theme } = useTheme();
   const initialDevices = (() => {
     try {
       const saved = localStorage.getItem("miradorai_devices");
@@ -56,7 +58,7 @@ export default function RecordingMethodPage() {
         return JSON.parse(saved).map((localCam, idx) => ({
           ...localCam,
           group_id: localCam.group_id || "default",
-          ome_stream: localCam.ome_stream || (localCam.ip ? `${localCam.ip.replace(/\./g, "_")}_cam${localCam.channel || 0}` : `cam_${localCam.id || idx}`),
+          stream_key: localCam.stream_key || (localCam.ip ? `${localCam.ip.replace(/\./g, "_")}_cam${localCam.channel || 0}` : `cam_${localCam.id || idx}`),
         }));
       }
     } catch (e) {}
@@ -74,7 +76,7 @@ export default function RecordingMethodPage() {
         if (pVal === sortedMain[0]?.token) pVal = "MAIN_STREAM";
         else if (pVal === sortedSub[0]?.token) pVal = "SUB_STREAM";
       }
-      settings[cam.ome_stream] = {
+      settings[cam.stream_key] = {
         continuous: {
           ...DEFAULT_CONTINUOUS,
           profile: pVal,
@@ -208,20 +210,20 @@ export default function RecordingMethodPage() {
             ...localCam,
             ...backendCam,
             group_id: localCam.group_id || backendCam.group_id || "default",
-            ome_stream: backendCam.ome_stream || localCam.ome_stream || (localCam.ip ? `${localCam.ip.replace(/\./g, "_")}_cam${localCam.channel || 0}` : `cam_${localCam.id || idx}`),
+            stream_key: backendCam.stream_key || localCam.stream_key || (localCam.ip ? `${localCam.ip.replace(/\./g, "_")}_cam${localCam.channel || 0}` : `cam_${localCam.id || idx}`),
           };
         }
         return {
           ...localCam,
           group_id: localCam.group_id || "default",
-          ome_stream: localCam.ome_stream || (localCam.ip ? `${localCam.ip.replace(/\./g, "_")}_cam${localCam.channel || 0}` : `cam_${localCam.id || idx}`),
+          stream_key: localCam.stream_key || (localCam.ip ? `${localCam.ip.replace(/\./g, "_")}_cam${localCam.channel || 0}` : `cam_${localCam.id || idx}`),
         };
       });
 
       const backendOnly = backendData.filter(b => !localDevices.some(l => l.ip === b.ip)).map((b, idx) => ({
         ...b,
         group_id: b.group_id || "default",
-        ome_stream: b.ome_stream || (b.ip ? `${b.ip.replace(/\./g, "_")}_cam${b.channel || 0}` : `cam_${b.id || idx}`),
+        stream_key: b.stream_key || (b.ip ? `${b.ip.replace(/\./g, "_")}_cam${b.channel || 0}` : `cam_${b.id || idx}`),
       }));
 
       const finalData = [...combinedDevices, ...backendOnly];
@@ -283,7 +285,7 @@ export default function RecordingMethodPage() {
 
     // Check eligibility: camera must have at least 2 profiles to "switch"
     const ineligible = targets.filter(tid => {
-      const cam = devices.find(d => d.ome_stream === tid);
+      const cam = devices.find(d => d.stream_key === tid);
       return !cam || !cam.stream_profiles || cam.stream_profiles.length < 2;
     });
 
@@ -317,7 +319,7 @@ export default function RecordingMethodPage() {
       }
 
       const applyTasks = targets.map(async (tid) => {
-        const cam = devices.find(d => d.ome_stream === tid);
+        const cam = devices.find(d => d.stream_key === tid);
         if (!cam) return;
 
         const data = template.continuous;
@@ -381,7 +383,7 @@ export default function RecordingMethodPage() {
               model: cam.model,
               mac: cam.mac,
               device_name: cam.device_name || cam.name || "",
-              ome_stream: cam.ome_stream,
+              stream_key: cam.stream_key,
             }),
           });
         } else {
@@ -434,7 +436,7 @@ export default function RecordingMethodPage() {
   const toggleGroup = (gid) => {
     const isChecked = checkedGroups.includes(gid);
     const group = groupedData.find(g => g.group_id === gid);
-    const camIds = group?.cameras.map(c => c.ome_stream) || [];
+    const camIds = group?.cameras.map(c => c.stream_key) || [];
 
     if (isChecked) {
       setCheckedGroups(prev => prev.filter(id => id !== gid));
@@ -476,22 +478,23 @@ export default function RecordingMethodPage() {
                           setCheckedCams([]);
                         } else {
                           setCheckedGroups(allGids);
-                          const allCids = filteredGroups.flatMap(g => g.cameras.map(c => c.ome_stream));
+                          const allCids = filteredGroups.flatMap(g => g.cameras.map(c => c.stream_key));
                           setCheckedCams(allCids);
                         }
                       }}
                     />
                   </th>
                   <th style={{ color: "#ffffff" }}>Group Name</th>
-                  <th style={{ width: 120, color: "#ffffff" }}>Continuous</th>
-                  <th style={{ width: 120, color: "#ffffff" }}>Scheduled</th>
+                  <th style={{ width: 120, color: "#ffffff", textAlign: 'center' }}>Continuous</th>
+                  <th style={{ width: 120, color: "#ffffff", textAlign: 'center' }}>Scheduled</th>
+                  <th style={{ width: 130, color: "#ffffff", textAlign: 'center' }}>Motion Based</th>
                   <th style={{ width: 150, color: "#ffffff" }}></th>
                 </tr>
               </thead>
               <tbody>
                 {filteredGroups.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="m-table__empty" style={{ textAlign: "center", padding: "40px", color: "rgba(255,255,255,0.3)" }}>
+                    <td colSpan={6} className="m-table__empty" style={{ textAlign: "center", padding: "40px", color: "rgba(255,255,255,0.3)" }}>
                       {devices.length === 0
                         ? "No cameras enrolled. Go to Add Devices first."
                         : "No groups match your filter."}
@@ -500,16 +503,37 @@ export default function RecordingMethodPage() {
                 ) : filteredGroups.map(group => {
                   const continuousCount = group.cameras.filter(c => c.assigned_schedule_id === "Always" || !c.assigned_schedule_id).length;
                   const scheduledCount = group.cameras.length - continuousCount;
+                  const motionCount = group.cameras.filter(c => recSettings[c.stream_key]?.continuous?.motion_only || c.motion_only).length;
                   return (
                     <tr key={group.group_id} className={checkedGroups.includes(group.group_id) ? "selected" : ""}>
                       <td><input type="checkbox" checked={checkedGroups.includes(group.group_id)} onChange={() => toggleGroup(group.group_id)} /></td>
                       <td className="m-table__primary">{group.name}</td>
-                      <td><span className="count-badge continuous">{continuousCount}</span></td>
-                      <td><span className="count-badge scheduled">{scheduledCount}</span></td>
+                      <td style={{ textAlign: 'center' }}><span className="count-badge continuous">{continuousCount}</span></td>
+                      <td style={{ textAlign: 'center' }}><span className="count-badge scheduled">{scheduledCount}</span></td>
+                      <td style={{ textAlign: 'center' }}><span className="count-badge motion" style={{ background: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b', border: '1px solid rgba(245, 158, 11, 0.2)' }}>{motionCount}</span></td>
                       <td>
-                        <button className="m-btn m-btn--primary" style={{ whiteSpace: "nowrap" }} onClick={() => setSelectedGroup(group)}>
-                          View All Cameras
-                        </button>
+                        <SpecularButton
+                          size="sm"
+                          radius={8}
+                          tint="#10b981"
+                          tintOpacity={0.10}
+                          blur={4}
+                          textColor={theme === 'light' ? "#065f46" : "#f0fff8"}
+                          lineColor="#10b981"
+                          baseColor={theme === 'light' ? "#d1fae5" : "#0d3326"}
+                          intensity={1.2}
+                          shineSize={12}
+                          shineFade={38}
+                          thickness={1}
+                          speed={0.35}
+                          followMouse
+                          proximity={220}
+                          autoAnimate={false}
+                          className="m-btn m-btn--primary"
+                          onClick={() => setSelectedGroup(group)}
+                        >
+                          <span style={{ whiteSpace: "nowrap" }}>View All Cameras</span>
+                        </SpecularButton>
                       </td>
                     </tr>
                   );
@@ -527,14 +551,14 @@ export default function RecordingMethodPage() {
               <div className="rm-side-list">
                 {selectedGroup.cameras.map(cam => (
                   <div
-                    key={cam.ome_stream}
-                    className={`rm-side-item ${selectedId === cam.ome_stream ? "active" : ""} ${checkedCams.includes(cam.ome_stream) ? "checked" : ""}`}
-                    onClick={() => setSelectedId(cam.ome_stream)}
+                    key={cam.stream_key}
+                    className={`rm-side-item ${selectedId === cam.stream_key ? "active" : ""} ${checkedCams.includes(cam.stream_key) ? "checked" : ""}`}
+                    onClick={() => setSelectedId(cam.stream_key)}
                   >
                     <input
                       type="checkbox"
-                      checked={checkedCams.includes(cam.ome_stream)}
-                      onChange={(e) => { e.stopPropagation(); toggleCam(cam.ome_stream); }}
+                      checked={checkedCams.includes(cam.stream_key)}
+                      onChange={(e) => { e.stopPropagation(); toggleCam(cam.stream_key); }}
                     />
                     <div className="rm-item-info">
                       <div className="rm-item-header">
@@ -542,7 +566,7 @@ export default function RecordingMethodPage() {
                           {cam.name || "Unnamed Camera"}
                         </span>
                         <span className="rm-stream-badge">
-                          {(recSettings[cam.ome_stream]?.continuous?.profile || cam.active_rec_profile) === "MAIN_STREAM" ? "MAIN" : "SUB"}
+                          {(recSettings[cam.stream_key]?.continuous?.profile || cam.active_rec_profile) === "MAIN_STREAM" ? "MAIN" : "SUB"}
                         </span>
                       </div>
                       <div className="rm-item-sub">
@@ -749,14 +773,31 @@ export default function RecordingMethodPage() {
 
               <div className="rm-h-sep" style={{ color: "rgba(255, 255, 255, 0.5)" }}>|</div>
 
-              <button
+              <SpecularButton
+                size="md"
+                radius={8}
+                tint="#10b981"
+                tintOpacity={0.10}
+                blur={4}
+                textColor={theme === 'light' ? "#065f46" : "#f0fff8"}
+                lineColor="#10b981"
+                baseColor={theme === 'light' ? "#d1fae5" : "#0d3326"}
+                intensity={1.2}
+                shineSize={12}
+                shineFade={38}
+                thickness={1}
+                speed={0.35}
+                followMouse
+                proximity={220}
+                autoAnimate={false}
                 className="m-btn m-btn--primary"
                 onClick={handleApply}
                 disabled={loading}
-                style={{ minWidth: 120 }}
               >
-                {loading ? "Applying..." : (checkedCams.length > 1 ? `Apply to ${checkedCams.length} Cameras` : "Apply")}
-              </button>
+                <div style={{ minWidth: 120, textAlign: 'center' }}>
+                  {loading ? "Applying..." : (checkedCams.length > 1 ? `Apply to ${checkedCams.length} Cameras` : "Apply")}
+                </div>
+              </SpecularButton>
             </div>
           </div>
         )}

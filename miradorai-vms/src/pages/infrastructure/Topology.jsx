@@ -1,10 +1,12 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { useWebSocket } from '../../hooks/useWebSocket';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import ReactFlow, {
   addEdge, Background, Controls, MiniMap,
-  useNodesState, useEdgesState, Panel, MarkerType, Handle, Position
+  useNodesState, useEdgesState, Panel, MarkerType, Handle, Position,
+  EdgeLabelRenderer, getSmoothStepPath, BaseEdge
 } from 'reactflow';
 import 'reactflow/dist/style.css';
+import SpecularButton from "../../components/shared/SpecularButton";
+import { useTheme } from "../../context/ThemeContext";
 import './Topology.css';
 
 const API_BASE = (import.meta.env.VITE_API_URL || "") + "/api/infrastructure";
@@ -330,9 +332,9 @@ const CustomNode = ({ data }) => {
           <div className="topo-node__pulse" style={{ backgroundColor: statusColor(data.status), position: 'absolute', top: -10, right: -10, width: 14, height: 14, borderRadius: '50%', boxShadow: `0 0 10px ${statusColor(data.status)}`, zIndex: 10 }} />
           <Icon type={data.type} size={80} model={data.model} subtype={data.camera_type} />
         </div>
-        <div className="topo-node-badge" style={{ marginTop: 8, textAlign: 'center', padding: '2px 8px', borderRadius: 12, backdropFilter: 'blur(4px)' }}>
-          <div className="topo-node-ip" style={{ fontSize: 13, fontWeight: 'bold' }}>{data.ip}</div>
-          <div className="topo-node-type" style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{deviceTypeLabel(data.type)}</div>
+        <div style={{ marginTop: 8, textAlign: 'center', background: 'rgba(17, 24, 39, 0.7)', padding: '2px 8px', borderRadius: 12, backdropFilter: 'blur(4px)' }}>
+          <div style={{ fontSize: 13, fontWeight: 'bold', color: '#e5e7eb' }}>{data.ip}</div>
+          <div style={{ fontSize: 11, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{deviceTypeLabel(data.type)}</div>
         </div>
         <Handle type="source" position={Position.Bottom} style={{ background: '#555', border: 'none' }} />
       </div>
@@ -404,6 +406,409 @@ const CustomNode = ({ data }) => {
 
 const nodeTypes = { custom: CustomNode };
 
+// ─── Custom Connection Edge ───────────────────────────────────────────────────
+const ConnectionEdge = ({
+  id,
+  sourceX,
+  sourceY,
+  targetX,
+  targetY,
+  sourcePosition,
+  targetPosition,
+  style = {},
+  markerEnd,
+  data
+}) => {
+  const [edgePath, labelX, labelY] = getSmoothStepPath({
+    sourceX, sourceY, sourcePosition, targetX, targetY, targetPosition
+  });
+
+  const cType = (data?.cableType || '').toLowerCase();
+  
+  let edgeStyle = { ...style, strokeWidth: 2, fill: 'none' };
+  
+  // Apply styling based on cable type
+  if (cType.includes('fiber')) {
+    // Fiber - double line effect or thicker glowing
+    edgeStyle.strokeWidth = 4;
+    edgeStyle.strokeDasharray = '4 2'; // just to make it distinct if we can't easily do double lines in one path
+  } else if (cType.includes('wireless')) {
+    edgeStyle.strokeDasharray = '2 4';
+    edgeStyle.strokeWidth = 2;
+  } else if (data?.status === 'Fault') {
+    edgeStyle.strokeDasharray = '5 5';
+    edgeStyle.stroke = '#ef4444'; // Red for fault
+  } else {
+    // CAT cables - solid
+    edgeStyle.strokeWidth = 3;
+  }
+
+  // Disconnected state
+  if (data?.status === 'Disconnected') {
+    edgeStyle.strokeDasharray = '4 4';
+    edgeStyle.stroke = '#6b7280';
+    edgeStyle.opacity = 0.5;
+  }
+
+  return (
+    <>
+      <BaseEdge id={id} path={edgePath} style={edgeStyle} markerEnd={markerEnd} />
+      <EdgeLabelRenderer>
+        <div
+          style={{
+            position: 'absolute',
+            transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
+            pointerEvents: 'all',
+          }}
+          className="nodrag nopan"
+        >
+          <div className="connection-edge-label" onClick={(e) => {
+             // Let ReactFlow's onEdgeClick handle this, but stop propagation if needed
+          }}>
+            {data?.poeEnabled && <Icon type="zap" size={12} />}
+            <span>{data?.cableType || 'Cable'}</span>
+            <span style={{ color: '#9ca3af' }}>{data?.linkSpeed}</span>
+          </div>
+        </div>
+      </EdgeLabelRenderer>
+    </>
+  );
+};
+
+const edgeTypes = { connection: ConnectionEdge };
+
+// ─── Connection Modal ─────────────────────────────────────────────────────────
+const ConnectionModal = ({ isOpen, onClose, onSave, onUpdate, onDelete, sourceNode, targetNode, nodes, existingConnections }) => {
+  if (!isOpen) return null;
+  const [draftConnections, setDraftConnections] = useState([]);
+
+  const [selectedSource, setSelectedSource] = useState('');
+  const [selectedTarget, setSelectedTarget] = useState('');
+  const [cableType, setCableType] = useState('CAT6');
+  const [connector, setConnector] = useState('RJ45');
+  const [sourcePort, setSourcePort] = useState('ETH0');
+  const [destinationPort, setDestinationPort] = useState('ETH0');
+  const [length, setLength] = useState('');
+  const [linkSpeed, setLinkSpeed] = useState('1 Gbps');
+  const [poeEnabled, setPoeEnabled] = useState(false);
+  const [remarks, setRemarks] = useState('');
+  const [error, setError] = useState('');
+
+  const [editingId, setEditingId] = useState(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      if (sourceNode && targetNode) {
+        setSelectedSource(sourceNode.id);
+        setSelectedTarget(targetNode.id);
+      } else {
+        setSelectedSource('');
+        setSelectedTarget('');
+      }
+      setDraftConnections([]);
+      setEditingId(null);
+      setError('');
+    }
+  }, [isOpen, sourceNode, targetNode]);
+
+  const loadIntoForm = (connEdge) => {
+    setEditingId(connEdge.data?.id || connEdge.id);
+    setSelectedSource(connEdge.source);
+    setSelectedTarget(connEdge.target);
+    setCableType(connEdge.data?.cableType || 'CAT6');
+    setConnector(connEdge.data?.connectorType || 'RJ45');
+    setSourcePort(connEdge.data?.sourcePort || 'ETH0');
+    setDestinationPort(connEdge.data?.destinationPort || 'ETH0');
+    setLength(connEdge.data?.length?.toString() || '');
+    setLinkSpeed(connEdge.data?.linkSpeed || '1 Gbps');
+    setPoeEnabled(connEdge.data?.poeEnabled || false);
+    setRemarks(connEdge.data?.remarks || '');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleUpdate = () => {
+    if (!selectedSource || !selectedTarget) return setError('Source and Dest required');
+    onUpdate(editingId, {
+      sourceDeviceId: selectedSource,
+      destinationDeviceId: selectedTarget,
+      cableType,
+      connectorType: connector,
+      sourcePort,
+      destinationPort,
+      length: length ? parseInt(length) : null,
+      linkSpeed,
+      poeEnabled,
+      status: 'Healthy',
+      remarks
+    });
+    setEditingId(null);
+    setSelectedSource('');
+    setSelectedTarget('');
+    setRemarks('');
+  };
+
+  const handleAddDraft = () => {
+    if (!selectedSource) return setError('Source Device is required');
+    if (!selectedTarget) return setError('Destination Device is required');
+    if (selectedSource === selectedTarget) return setError('Source and Destination cannot be the same');
+    if (!cableType) return setError('Cable Type is required');
+    if (!connector) return setError('Connector Type is required');
+    
+    setError('');
+    setDraftConnections(prev => [...prev, {
+      id: `C${prev.length + 1}`,
+      sourceDeviceId: selectedSource,
+      destinationDeviceId: selectedTarget,
+      cableType,
+      connectorType: connector,
+      sourcePort,
+      destinationPort,
+      length: length ? parseInt(length) : null,
+      linkSpeed,
+      poeEnabled,
+      status: 'Healthy',
+      remarks
+    }]);
+    
+    setSourcePort('ETH0');
+    setDestinationPort('ETH0');
+    setRemarks('');
+  };
+
+  const handleRemoveDraft = (draftId) => {
+    setDraftConnections(prev => prev.filter(c => c.id !== draftId));
+  };
+
+  const handleSaveAll = () => {
+    if (draftConnections.length === 0) {
+      if (selectedSource && selectedTarget) {
+        onSave([{
+          sourceDeviceId: selectedSource,
+          destinationDeviceId: selectedTarget,
+          cableType,
+          connectorType: connector,
+          sourcePort,
+          destinationPort,
+          length: length ? parseInt(length) : null,
+          linkSpeed,
+          poeEnabled,
+          status: 'Healthy',
+          remarks
+        }]);
+        return;
+      }
+      return setError('No connections added to draft.');
+    }
+    onSave(draftConnections);
+  };
+
+  return (
+    <div className="connection-modal-overlay" onClick={onClose}>
+      <div className="connection-modal" onClick={e => e.stopPropagation()} style={{ maxHeight: '90vh', overflowY: 'auto', width: '650px' }}>
+        <div className="connection-modal-header">
+          <h3>{editingId ? 'Edit Physical Connection' : 'New Physical Connection'}</h3>
+          <button className="close-btn" onClick={onClose}><Icon type="x" size={16} /></button>
+        </div>
+        <div className="connection-modal-body">
+          {error && <div style={{ color: '#ef4444', fontSize: 13, background: 'rgba(239,68,68,0.1)', padding: '8px 12px', borderRadius: 6 }}>{error}</div>}
+          
+          <div className="connection-form-row">
+            <div className="connection-form-group">
+              <label>Source Device</label>
+              <select value={selectedSource} onChange={e => setSelectedSource(e.target.value)}>
+                <option value="">-- Select Source --</option>
+                {nodes.map(n => (
+                  <option key={n.id} value={n.id}>{deviceTypeLabel(n.data?.type)} - {n.data?.ip || n.data?.label || n.id}</option>
+                ))}
+              </select>
+            </div>
+            <div className="connection-form-group">
+              <label>Destination Device</label>
+              <select value={selectedTarget} onChange={e => setSelectedTarget(e.target.value)}>
+                <option value="">-- Select Destination --</option>
+                {nodes.map(n => (
+                  <option key={n.id} value={n.id}>{deviceTypeLabel(n.data?.type)} - {n.data?.ip || n.data?.label || n.id}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          
+          <div className="connection-form-row">
+            <div className="connection-form-group">
+              <label>Source Port</label>
+              <input type="text" value={sourcePort} onChange={e => setSourcePort(e.target.value)} placeholder="e.g. ETH0" />
+            </div>
+            <div className="connection-form-group">
+              <label>Destination Port</label>
+              <input type="text" value={destinationPort} onChange={e => setDestinationPort(e.target.value)} placeholder="e.g. Gi0/12" />
+            </div>
+          </div>
+
+          <div className="connection-form-row">
+            <div className="connection-form-group">
+              <label>Cable Type</label>
+              <select value={cableType} onChange={e => setCableType(e.target.value)}>
+                <option value="CAT5e">CAT5e</option>
+                <option value="CAT6">CAT6</option>
+                <option value="CAT6A">CAT6A</option>
+                <option value="OM3 Fiber">OM3 Fiber</option>
+                <option value="OM4 Fiber">OM4 Fiber</option>
+                <option value="Single Mode Fiber (SMF)">Single Mode Fiber (SMF)</option>
+                <option value="DAC">DAC</option>
+                <option value="Wireless">Wireless</option>
+              </select>
+            </div>
+            <div className="connection-form-group">
+              <label>Connector</label>
+              <select value={connector} onChange={e => setConnector(e.target.value)}>
+                <option value="RJ45">RJ45</option>
+                <option value="LC">LC</option>
+                <option value="SC">SC</option>
+                <option value="SFP+">SFP+</option>
+                <option value="SFP28">SFP28</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="connection-form-row">
+            <div className="connection-form-group">
+              <label>Link Speed</label>
+              <select value={linkSpeed} onChange={e => setLinkSpeed(e.target.value)}>
+                <option value="Auto">Auto</option>
+                <option value="100 Mbps">100 Mbps</option>
+                <option value="1 Gbps">1 Gbps</option>
+                <option value="10 Gbps">10 Gbps</option>
+              </select>
+            </div>
+            <div className="connection-form-group">
+              <label>Length (m)</label>
+              <input type="number" value={length} onChange={e => setLength(e.target.value)} placeholder="e.g. 35" />
+            </div>
+          </div>
+
+          <div className="connection-form-row" style={{ alignItems: 'center', gap: 8, marginTop: 4 }}>
+            <input type="checkbox" id="poeCheckbox" checked={poeEnabled} onChange={e => setPoeEnabled(e.target.checked)} style={{ width: 16, height: 16 }} />
+            <label htmlFor="poeCheckbox" style={{ fontSize: 14, fontWeight: 600, color: '#e5e7eb', cursor: 'pointer' }}>PoE Enabled</label>
+          </div>
+
+          <div className="connection-form-group">
+            <label>Remarks</label>
+            <input type="text" value={remarks} onChange={e => setRemarks(e.target.value)} placeholder="e.g. Outdoor Shielded Cable" />
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12, gap: 10 }}>
+            {editingId ? (
+              <>
+                <button className="topo-btn" onClick={() => { setEditingId(null); setSelectedSource(''); setSelectedTarget(''); setRemarks(''); }}>Cancel Edit</button>
+                <button className="topo-btn topo-btn--primary" style={{ background: '#10b981' }} onClick={handleUpdate}>
+                  <Icon type="check" size={14} /> Update Connection
+                </button>
+              </>
+            ) : (
+              <button className="topo-btn topo-btn--primary" style={{ background: '#3b82f6' }} onClick={handleAddDraft}>
+                <Icon type="plus" size={14} /> Add to Draft
+              </button>
+            )}
+          </div>
+
+          {draftConnections.length > 0 && (
+            <div style={{ marginTop: 20 }}>
+              <div style={{ fontSize: 13, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8, fontWeight: 700 }}>
+                Drafted Connections ({draftConnections.length})
+              </div>
+              <div style={{ background: '#111827', borderRadius: 8, border: '1px solid #374151', overflow: 'hidden' }}>
+                <table style={{ width: '100%', textAlign: 'left', borderCollapse: 'collapse', fontSize: 13 }}>
+                  <thead style={{ background: '#1f2937', color: '#9ca3af' }}>
+                    <tr>
+                      <th style={{ padding: '8px 12px' }}>ID</th>
+                      <th style={{ padding: '8px 12px' }}>Source ➔ Target</th>
+                      <th style={{ padding: '8px 12px' }}>Cable</th>
+                      <th style={{ padding: '8px 12px' }}>Remarks</th>
+                      <th style={{ padding: '8px 12px' }}></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {draftConnections.map(c => {
+                      const sNode = nodes.find(n => n.id === c.sourceDeviceId);
+                      const tNode = nodes.find(n => n.id === c.destinationDeviceId);
+                      const sLabel = sNode?.data?.ip || sNode?.id;
+                      const tLabel = tNode?.data?.ip || tNode?.id;
+                      return (
+                        <tr key={c.id} style={{ borderTop: '1px solid #374151' }}>
+                          <td style={{ padding: '8px 12px', color: '#6366f1', fontWeight: 700 }}>{c.id}</td>
+                          <td style={{ padding: '8px 12px' }}>{sLabel} <span style={{ color: '#6b7280' }}>➔</span> {tLabel}</td>
+                          <td style={{ padding: '8px 12px' }}>{c.cableType}</td>
+                          <td style={{ padding: '8px 12px', color: '#9ca3af' }}>{c.remarks}</td>
+                          <td style={{ padding: '8px 12px', textAlign: 'right' }}>
+                            <button className="topo-btn-clear" style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer' }} onClick={() => handleRemoveDraft(c.id)}>
+                              <Icon type="x" size={14} />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {existingConnections && existingConnections.length > 0 && !editingId && (
+            <div style={{ marginTop: 24 }}>
+              <div style={{ fontSize: 13, color: '#10b981', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8, fontWeight: 700 }}>
+                Saved Physical Connections ({existingConnections.length})
+              </div>
+              <div style={{ background: '#111827', borderRadius: 8, border: '1px solid #374151', overflow: 'hidden' }}>
+                <table style={{ width: '100%', textAlign: 'left', borderCollapse: 'collapse', fontSize: 13 }}>
+                  <thead style={{ background: '#1f2937', color: '#9ca3af' }}>
+                    <tr>
+                      <th style={{ padding: '8px 12px' }}>Source ➔ Target</th>
+                      <th style={{ padding: '8px 12px' }}>Cable</th>
+                      <th style={{ padding: '8px 12px' }}>Remarks</th>
+                      <th style={{ padding: '8px 12px', textAlign: 'right' }}>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {existingConnections.map(c => {
+                      const sNode = nodes.find(n => n.id === c.source);
+                      const tNode = nodes.find(n => n.id === c.target);
+                      const sLabel = sNode?.data?.ip || sNode?.id || c.source;
+                      const tLabel = tNode?.data?.ip || tNode?.id || c.target;
+                      const dbId = c.data?.id || c.id;
+                      return (
+                        <tr key={c.id} style={{ borderTop: '1px solid #374151' }}>
+                          <td style={{ padding: '8px 12px' }}>{sLabel} <span style={{ color: '#6b7280' }}>➔</span> {tLabel}</td>
+                          <td style={{ padding: '8px 12px' }}>{c.data?.cableType || 'Unknown'}</td>
+                          <td style={{ padding: '8px 12px', color: '#9ca3af' }}>{c.data?.remarks || ''}</td>
+                          <td style={{ padding: '8px 12px', textAlign: 'right', display: 'flex', justifyContent: 'flex-end', gap: 6 }}>
+                            <button className="topo-btn-clear" style={{ background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.3)', color: '#3b82f6', cursor: 'pointer', padding: '4px 8px', borderRadius: 4 }} onClick={() => loadIntoForm(c)}>
+                              Edit
+                            </button>
+                            <button className="topo-btn-clear" style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', color: '#ef4444', cursor: 'pointer', padding: '4px 8px', borderRadius: 4 }} onClick={() => onDelete(dbId)}>
+                              Delete
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+        </div>
+        <div className="connection-modal-footer">
+          <button className="topo-btn" onClick={onClose}>Cancel</button>
+          <button className="topo-btn topo-btn--primary" onClick={handleSaveAll}>
+            Save All Connections
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const MetricCard = ({ icon, label, value, unit, percent, color, sub }) => (
   <div className="metric-card">
     <div className="metric-card__icon" style={{ color }}><Icon type={icon} size={16} /></div>
@@ -445,10 +850,10 @@ const BellAlertButton = ({ alerts, onAck }) => {
         onClick={() => setOpen(o => !o)}
         style={{
           position: 'relative',
-          background: open ? 'rgba(99,102,241,0.15)' : 'var(--bg-surface)',
-          border: `1px solid ${open ? '#6366f1' : 'var(--border-light)'}`,
+          background: open ? 'rgba(99,102,241,0.15)' : 'rgba(17,24,39,0.85)',
+          border: `1px solid ${open ? '#6366f1' : '#374151'}`,
           borderRadius: 10,
-          color: unreadCount > 0 ? '#f59e0b' : 'var(--text-secondary)',
+          color: unreadCount > 0 ? '#f59e0b' : '#9ca3af',
           cursor: 'pointer',
           width: 38,
           height: 38,
@@ -477,7 +882,7 @@ const BellAlertButton = ({ alerts, onAck }) => {
             alignItems: 'center',
             justifyContent: 'center',
             padding: '0 4px',
-            border: '2px solid var(--bg-surface)',
+            border: '2px solid #111827',
             lineHeight: 1,
           }}>
             {unreadCount > 99 ? '99+' : unreadCount}
@@ -487,32 +892,32 @@ const BellAlertButton = ({ alerts, onAck }) => {
 
       {/* Popup */}
       {open && (
-        <div className="bell-alert-popup" style={{
+        <div style={{
           position: 'absolute',
           top: 46,
           right: 0,
           width: 360,
           maxHeight: 480,
-          background: 'var(--bg-surface)',
-          border: '1px solid var(--border-light)',
+          background: '#111827',
+          border: '1px solid #1f2937',
           borderRadius: 12,
-          boxShadow: '0 20px 60px rgba(0,0,0,0.15)',
+          boxShadow: '0 20px 60px rgba(0,0,0,0.6)',
           zIndex: 9999,
           display: 'flex',
           flexDirection: 'column',
           overflow: 'hidden',
         }}>
           {/* Popup header */}
-          <div className="bell-alert-header" style={{
+          <div style={{
             padding: '12px 16px',
-            borderBottom: '1px solid var(--border-light)',
+            borderBottom: '1px solid #1f2937',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <Icon type="bell" size={14} />
-              <span style={{ color: 'var(--text-primary)', fontWeight: 600, fontSize: 17 }}>Alerts</span>
+              <span style={{ color: '#e5e7eb', fontWeight: 600, fontSize: 17 }}>Alerts</span>
               {unreadCount > 0 && (
                 <span style={{
                   background: '#ef4444',
@@ -528,7 +933,7 @@ const BellAlertButton = ({ alerts, onAck }) => {
             </div>
             <button
               onClick={() => setOpen(false)}
-              style={{ background: 'none', border: 'none', color: "var(--text-muted)", cursor: 'pointer', padding: 2 }}
+              style={{ background: 'none', border: 'none', color: "rgba(255, 255, 255, 0.5)", cursor: 'pointer', padding: 2 }}
             >
               <Icon type="x" size={14} />
             </button>
@@ -770,9 +1175,9 @@ const CameraStreamPanel = ({ d, liveData, isRefreshing, onRefresh }) => {
 
       {!hasAnyStreamData && !isRefreshing && (
         <div style={{
-          background: 'var(--bg-elevated)', borderRadius: 6, padding: '8px 10px',
-          color: "var(--text-secondary)", fontSize: 14, marginBottom: 8,
-          border: '1px solid var(--border-light)', display: 'flex', alignItems: 'center', gap: 6
+          background: '#1f2937', borderRadius: 6, padding: '8px 10px',
+          color: "rgba(255, 255, 255, 0.5)", fontSize: 14, marginBottom: 8,
+          border: '1px solid #374151', display: 'flex', alignItems: 'center', gap: 6
         }}>
           <Icon type="alert" size={12}/>
           Stream data not yet polled. Click Refresh or wait for the next cycle.
@@ -782,32 +1187,32 @@ const CameraStreamPanel = ({ d, liveData, isRefreshing, onRefresh }) => {
       <div className="stream-grid">
         <div className="stream-stat">
           <span className="stream-label">Bitrate</span>
-          <span className="stream-val" style={{ color: cam.stream_bitrate_mbps != null ? 'var(--text-primary)' : 'var(--text-muted)' }}>
+          <span className="stream-val" style={{ color: cam.stream_bitrate_mbps != null ? '#e5e7eb' : '#4b5563' }}>
             {cam.stream_bitrate_mbps != null ? `${cam.stream_bitrate_mbps} Mbps` : '—'}
           </span>
         </div>
         <div className="stream-stat">
           <span className="stream-label">FPS</span>
-          <span className="stream-val" style={{ color: cam.stream_fps != null ? 'var(--text-primary)' : 'var(--text-muted)' }}>
+          <span className="stream-val" style={{ color: cam.stream_fps != null ? '#e5e7eb' : '#4b5563' }}>
             {cam.stream_fps != null ? cam.stream_fps : '—'}
           </span>
         </div>
         <div className="stream-stat">
           <span className="stream-label">Status</span>
           <span className={`stream-val ${cam.stream_status === 'healthy' ? 'txt-green' : cam.stream_status ? 'txt-red' : ''}`}
-                style={{ color: !cam.stream_status ? 'var(--text-muted)' : undefined }}>
+                style={{ color: !cam.stream_status ? '#4b5563' : undefined }}>
             {cam.stream_status || '—'}
           </span>
         </div>
         <div className="stream-stat">
           <span className="stream-label">Resolution</span>
-          <span className="stream-val" style={{ color: cam.stream_resolution != null ? 'var(--text-primary)' : 'var(--text-muted)' }}>
+          <span className="stream-val" style={{ color: cam.stream_resolution != null ? '#e5e7eb' : '#4b5563' }}>
             {cam.stream_resolution || '—'}
           </span>
         </div>
         <div className="stream-stat">
           <span className="stream-label">Codec</span>
-          <span className="stream-val" style={{ color: cam.codec != null ? 'var(--text-primary)' : 'var(--text-muted)' }}>
+          <span className="stream-val" style={{ color: cam.codec != null ? '#e5e7eb' : '#4b5563' }}>
             {cam.codec || '—'}
           </span>
         </div>
@@ -915,6 +1320,7 @@ const normalizeNodeType = (node) => {
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function Topology() {
+  const { theme } = useTheme();
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [scannedNodes, setScannedNodes]   = useState([]); // Store ALL scanned nodes from backend!
@@ -928,6 +1334,12 @@ export default function Topology() {
   const [sidebarOpen, setSidebarOpen]   = useState(false);
   const [confirmModal, setConfirmModal] = useState({ isOpen: false });
   const [activeTemplate, setActiveTemplate] = useState(null);
+  
+  const memoizedNodeTypes = useMemo(() => nodeTypes, []);
+  const memoizedEdgeTypes = useMemo(() => edgeTypes, []);
+  
+  const [connectionModal, setConnectionModal] = useState({ isOpen: false, sourceNode: null, targetNode: null });
+  const [selectedEdge, setSelectedEdge] = useState(null);
 
   const [templatesDropdownOpen, setTemplatesDropdownOpen] = useState(false);
   const templatesDropdownRef = useRef(null);
@@ -1051,9 +1463,9 @@ export default function Topology() {
       // Clear connected edges
       const connectedEdges = edges.filter(e => e.source === nodeId || e.target === nodeId);
       await Promise.all(connectedEdges.map(e => 
-        fetch(`${API_BASE}/edges?source=${e.source}&target=${e.target}`, {
+        fetch(`${API_BASE}/connections/${e.data?.id || e.id}`, {
           method: 'DELETE'
-        })
+        }).catch(() => {})
       ));
 
       setNodes(nds => nds.filter(n => n.id !== nodeId));
@@ -1118,55 +1530,21 @@ export default function Topology() {
       });
 
       const edgeSeen = new Set();
-      const uniqueEdges = (data.edges || []).filter(e => {
-        const key = `${e.source}|${e.target}`;
+      const uniqueEdges = (data.connections || []).filter(e => {
+        const key = `${e.sourceDeviceId}|${e.destinationDeviceId}`;
         if (edgeSeen.has(key)) return false;
         edgeSeen.add(key);
         return true;
       });
 
-      const reactEdges = uniqueEdges.map((e, idx) => {
-        const targetNode = uniqueNodes.find(n => n.id === e.target);
-        const targetType = targetNode?.type;
-        
-        let strokeColor = '#818cf8'; // Neon Indigo default
-        let strokeWidth = 2;
-        
-        if (targetType === 'camera') {
-          strokeColor = '#10b981'; // Neon Green
-        } else if (targetType === 'server' || targetType === 'nvr') {
-          strokeColor = '#3b82f6'; // Neon Blue
-          strokeWidth = 2.5;
-        } else if (targetType === 'switch' || targetType === 'poe-switch' || targetType === 'core-switch') {
-          strokeColor = '#f59e0b'; // Neon Amber
-          strokeWidth = 2.5;
-        }
-
-        const isCameraTarget = targetType === 'camera';
-
+      const reactEdges = uniqueEdges.map((e) => {
         return {
-          id: `e-${e.source}-${e.target}`, // Use stable ID instead of index
-          source: e.source, 
-          target: e.target,
-          animated: true, // Make ALL lines animated and alive!
-          label: e.port_label || '',
-          type: 'smoothstep', // Clean orthogonal step layout
-          style: { 
-            stroke: strokeColor, 
-            strokeWidth: strokeWidth,
-            filter: `drop-shadow(0px 0px 3px ${strokeColor}66)` // Neon glowing drop-shadow
-          },
-          ...(isCameraTarget ? {
-            markerStart: {
-              type: MarkerType.ArrowClosed,
-              color: strokeColor
-            }
-          } : {
-            markerEnd: {
-              type: MarkerType.ArrowClosed,
-              color: strokeColor
-            }
-          })
+          id: e.id || `conn-${e.sourceDeviceId}-${e.destinationDeviceId}`,
+          source: e.sourceDeviceId, 
+          target: e.destinationDeviceId,
+          animated: true,
+          type: 'connection',
+          data: e,
         };
       });
 
@@ -1218,22 +1596,19 @@ export default function Topology() {
     } catch {}
   }, []);
 
-  const { isConnected: isWsConnected } = useWebSocket(['alerts', 'camera_status', 'system_metrics']);
-
   useEffect(() => {
     fetchTopology(); fetchMetrics(); fetchAlerts(); fetchBandwidth();
-    const pollMs = isWsConnected ? 30000 : 10000;
-    const intervalMetrics = setInterval(fetchMetrics, pollMs);
-    const intervalTopo = setInterval(fetchTopology, pollMs);
-    const intervalAlerts = setInterval(fetchAlerts, pollMs);
-    const intervalBw = setInterval(fetchBandwidth, pollMs);
+    const intervalMetrics = setInterval(fetchMetrics, 10000);
+    const intervalTopo = setInterval(fetchTopology, 2000);
+    const intervalAlerts = setInterval(fetchAlerts, 5000);
+    const intervalBw = setInterval(fetchBandwidth, 2000);
     return () => {
       clearInterval(intervalMetrics);
       clearInterval(intervalTopo);
       clearInterval(intervalAlerts);
       clearInterval(intervalBw);
     };
-  }, [fetchTopology, fetchMetrics, fetchAlerts, fetchBandwidth, isWsConnected]);
+  }, [fetchTopology, fetchMetrics, fetchAlerts, fetchBandwidth]);
 
   // Keep selectedNode data in sync when nodes refresh
   useEffect(() => {
@@ -1250,58 +1625,50 @@ export default function Topology() {
   }, []);
 
   const onConnect = useCallback((params) => {
+    const sourceNode = scannedNodes.find(n => n.id === params.source);
     const targetNode = scannedNodes.find(n => n.id === params.target);
-    const targetType = targetNode?.type;
-    
-    let strokeColor = '#818cf8'; // Neon Indigo default
-    let strokeWidth = 2;
-    
-    if (targetType === 'camera') {
-      strokeColor = '#10b981'; // Neon Green
-    } else if (targetType === 'server' || targetType === 'nvr') {
-      strokeColor = '#3b82f6'; // Neon Blue
-      strokeWidth = 2.5;
-    } else if (targetType === 'switch' || targetType === 'poe-switch' || targetType === 'core-switch') {
-      strokeColor = '#f59e0b'; // Neon Amber
-      strokeWidth = 2.5;
+    if (!sourceNode || !targetNode) return;
+    setConnectionModal({ isOpen: true, sourceNode, targetNode });
+  }, [scannedNodes]);
+
+  const handleSaveConnection = async (connDataList) => {
+    try {
+      await Promise.all(connDataList.map(connData =>
+        fetch(`${API_BASE}/connections`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(connData)
+        })
+      ));
+      setConnectionModal({ isOpen: false, sourceNode: null, targetNode: null });
+      fetchTopology();
+    } catch (err) {
+      console.error('Failed to save connection:', err);
     }
+  };
 
-    const isCameraTarget = targetType === 'camera';
+  const handleUpdateConnection = async (id, connData) => {
+    try {
+      await fetch(`${API_BASE}/connections/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(connData)
+      });
+      fetchTopology();
+    } catch (err) { console.error(err); }
+  };
 
-    const customEdge = {
-      ...params,
-      id: `e-${Date.now()}`,
-      animated: true,
-      type: 'smoothstep',
-      style: { 
-        stroke: strokeColor, 
-        strokeWidth: strokeWidth,
-        filter: `drop-shadow(0px 0px 3px ${strokeColor}66)`
-      },
-      ...(isCameraTarget ? {
-        markerStart: {
-          type: MarkerType.ArrowClosed,
-          color: strokeColor
-        }
-      } : {
-        markerEnd: {
-          type: MarkerType.ArrowClosed,
-          color: strokeColor
-        }
-      })
-    };
-
-    setEdges(eds => addEdge(customEdge, eds));
-    fetch(`${API_BASE}/edges`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ source: params.source, target: params.target })
-    });
-  // }, [setEdges]);
-    }, [setEdges, scannedNodes]);
-
-
+  const handleDeleteConnection = async (id) => {
+    if (window.confirm('Delete this physical connection?')) {
+      try {
+        await fetch(`${API_BASE}/connections/${id}`, { method: 'DELETE' });
+        fetchTopology();
+      } catch (err) { console.error(err); }
+    }
+  };
   const handleNodeClick = useCallback((_, node) => {
     setSelectedNode(node);
+    setSelectedEdge(null);
     setActiveTab('details');
     setSidebarOpen(true);
     setDeviceLiveData(null);
@@ -1318,8 +1685,17 @@ export default function Topology() {
     }
   }, [fetchDeviceLiveData]);
 
+  const handleEdgeClick = useCallback((_, edge) => {
+    setSelectedNode(null);
+    setSelectedEdge(edge);
+    setActiveTab('details');
+    setSidebarOpen(true);
+    setDeviceLiveData(null);
+  }, []);
+
   const closeSidebar = useCallback(() => {
     setSelectedNode(null);
+    setSelectedEdge(null);
     setSidebarOpen(false);
     setDeviceLiveData(null);
   }, []);
@@ -1579,7 +1955,7 @@ export default function Topology() {
           })
         };
       });
-      setEdges(reactEdges);
+      setEdges(prev => [...prev.filter(e => e.type === 'connection'), ...reactEdges]);
       setScanning(false); // unlock UI immediately
 
       // Background persistence
@@ -1652,9 +2028,9 @@ export default function Topology() {
     gap: 5,
     padding: '3px 10px',
     borderRadius: 20,
-    border: `1px solid ${active ? activeColor : 'var(--border-light)'}`,
-    background: active ? `${activeColor}22` : 'var(--bg-elevated)',
-    color: active ? activeColor : 'var(--text-secondary)',
+    border: `1px solid ${active ? activeColor : 'transparent'}`,
+    background: active ? `${activeColor}22` : 'rgba(255,255,255,0.04)',
+    color: active ? activeColor : '#9ca3af',
     cursor: 'pointer',
     fontSize: 15,
     fontWeight: active ? 700 : 500,
@@ -1784,8 +2160,8 @@ export default function Topology() {
         </div>
 
         {/* ── DEVICE TYPE FILTER CHIPS ── */}
-        <div style={{ borderTop: '1px solid var(--border-light)', padding: '8px 12px 0 12px', marginTop: 2 }}>
-          <div style={{ color: "var(--text-secondary)", fontSize: 13, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 6 }}>
+        <div style={{ borderTop: '1px solid #1f2937', padding: '8px 12px 0 12px', marginTop: 2 }}>
+          <div style={{ color: "rgba(255, 255, 255, 0.5)", fontSize: 13, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 6 }}>
             Filter by Type
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
@@ -1812,16 +2188,15 @@ export default function Topology() {
                     display: 'flex',
                     alignItems: 'center',
                     gap: 6,
-                    color: active ? 'var(--teal)' : 'var(--text-primary)',
-                    fontWeight: active ? 700 : 600,
+                    color: active ? '#818cf8' : '#9ca3af',
+                    fontWeight: active ? 700 : 500,
                   }}>
                     <Icon type={type} size={11}/>
                     <span>{deviceTypeLabel(type)}</span>
                     <span style={{
                       marginLeft: 'auto',
-                      background: active ? 'var(--teal)' : 'var(--bg-elevated)',
-                      color: active ? '#fff' : 'var(--text-secondary)',
-                      border: '1px solid var(--border-light)',
+                      background: active ? '#6366f1' : '#1f2937',
+                      color: active ? '#fff' : '#6b7280',
                       borderRadius: 10,
                       padding: '0 6px',
                       fontSize: 13,
@@ -1920,9 +2295,9 @@ export default function Topology() {
         <ReactFlow
           nodes={visibleNodes} edges={edges}
           onNodesChange={onNodesChange} onEdgesChange={onEdgesChange}
-          onConnect={onConnect} onNodeClick={handleNodeClick}
-          onNodeDragStop={onNodeDragStop} nodeTypes={nodeTypes} fitView>
-          <Background color="var(--border-light)" gap={20} />
+          onConnect={onConnect} onNodeClick={handleNodeClick} onEdgeClick={handleEdgeClick}
+          onNodeDragStop={onNodeDragStop} nodeTypes={memoizedNodeTypes} edgeTypes={memoizedEdgeTypes} fitView>
+          <Background color="#1f2937" gap={20} />
           <Controls />
           <MiniMap nodeStrokeWidth={3} zoomable pannable maskColor="rgba(0,0,0,0.1)" />
 
@@ -1950,9 +2325,54 @@ export default function Topology() {
 
           <Panel position="top-left" className="topo-toolbar-unified">
             <div className="unified-toolbar-row">
-              <button className="topo-btn topo-btn--primary" onClick={triggerScan} disabled={scanning}>
+              <SpecularButton
+                size="sm"
+                radius={8}
+                tint="#10b981"
+                tintOpacity={0.10}
+                blur={4}
+                textColor={theme === 'light' ? "#065f46" : "#f0fff8"}
+                lineColor="#10b981"
+                baseColor={theme === 'light' ? "#d1fae5" : "#0d3326"}
+                intensity={1.2}
+                shineSize={12}
+                shineFade={38}
+                thickness={1}
+                speed={0.35}
+                followMouse
+                proximity={220}
+                autoAnimate={false}
+                className="topo-btn topo-btn--primary"
+                onClick={triggerScan}
+                disabled={scanning}
+              >
                 {scanning ? 'Scanning…' : 'Scan Network'}
-              </button>
+              </SpecularButton>
+              <SpecularButton
+                size="sm"
+                radius={8}
+                tint="#10b981"
+                tintOpacity={0.10}
+                blur={4}
+                textColor={theme === 'light' ? "#065f46" : "#f0fff8"}
+                lineColor="#10b981"
+                baseColor={theme === 'light' ? "#d1fae5" : "#0d3326"}
+                intensity={1.2}
+                shineSize={12}
+                shineFade={38}
+                thickness={1}
+                speed={0.35}
+                followMouse
+                proximity={220}
+                autoAnimate={false}
+                className="topo-btn topo-btn--primary"
+                onClick={() => setConnectionModal({ isOpen: true, sourceNode: null, targetNode: null })}
+                disabled={scanning}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Icon type="zap" size={14} /> Give Connection
+                </div>
+              </SpecularButton>
               <button className="topo-btn" onClick={placeAllDevices} disabled={scanning || scannedNodes.length === 0}>
                 Place All
               </button>
@@ -1978,8 +2398,8 @@ export default function Topology() {
                     position: 'absolute',
                     top: 'calc(100% + 6px)',
                     left: 0,
-                    background: 'var(--bg-surface)',
-                    border: '1px solid var(--border-light)',
+                    background: '#111827',
+                    border: '1px solid #1f2937',
                     borderRadius: 8,
                     padding: '4px',
                     boxShadow: '0 10px 25px rgba(0,0,0,0.5)',
@@ -2075,11 +2495,11 @@ export default function Topology() {
       </div>
 
       {/* ── RIGHT SIDEBAR ── */}
-      {sidebarOpen && selectedNode && d && (
+      {sidebarOpen && (selectedNode || selectedEdge) && (
         <div className="topology-sidebar">
           <div className="sidebar-header">
             <h3>
-              {deviceTypeLabel(d?.type)}
+              {selectedEdge ? 'Physical Connection' : deviceTypeLabel(d?.type)}
               {deviceRefreshing && (
                 <span style={{ fontSize: 13, color: '#6366f1', marginLeft: 8, fontWeight: 400 }}>
                   fetching…
@@ -2089,17 +2509,52 @@ export default function Topology() {
             <button className="close-btn" onClick={closeSidebar}>×</button>
           </div>
           <div className="sidebar-tabs">
-            <button className={`stab ${activeTab==='details' ?'stab--active':''}`} onClick={() => setActiveTab('details')}>Details</button>
-            {/* <button className={`stab ${activeTab==='network' ?'stab--active':''}`} onClick={() => setActiveTab('network')}>Network</button> */}
-            <button className={`stab ${activeTab==='metrics' ?'stab--active':''}`} onClick={() => setActiveTab('metrics')}>System</button>
-            <button className={`stab ${activeTab==='alerts'  ?'stab--active':''}`} onClick={() => setActiveTab('alerts')}>
-              Alerts {selectedNodeAlerts.length > 0 && <span className="alert-badge">{selectedNodeAlerts.length}</span>}
-            </button>
+            {selectedEdge ? (
+              <button className="stab stab--active">Connection Details</button>
+            ) : (
+              <>
+                <button className={`stab ${activeTab==='details' ?'stab--active':''}`} onClick={() => setActiveTab('details')}>Details</button>
+                <button className={`stab ${activeTab==='metrics' ?'stab--active':''}`} onClick={() => setActiveTab('metrics')}>System</button>
+                <button className={`stab ${activeTab==='alerts'  ?'stab--active':''}`} onClick={() => setActiveTab('alerts')}>
+                  Alerts {selectedNodeAlerts.length > 0 && <span className="alert-badge">{selectedNodeAlerts.length}</span>}
+                </button>
+              </>
+            )}
           </div>
 
           <div className="sidebar-content">
+            {selectedEdge && (
+              <>
+                <div className="section-title">Connection Properties</div>
+                <div className="detail-row"><label>Cable Type</label><span>{selectedEdge.data?.cableType || 'Unknown'}</span></div>
+                <div className="detail-row"><label>Connector</label><span>{selectedEdge.data?.connectorType || 'Unknown'}</span></div>
+                <div className="detail-row"><label>Speed</label><span>{selectedEdge.data?.linkSpeed || 'Unknown'}</span></div>
+                <div className="detail-row"><label>Length</label><span>{selectedEdge.data?.length ? `${selectedEdge.data.length}m` : 'N/A'}</span></div>
+                <div className="detail-row"><label>PoE</label><span>{selectedEdge.data?.poeEnabled ? 'Yes' : 'No'}</span></div>
+                <div className="detail-row"><label>Remarks</label><span>{selectedEdge.data?.remarks || 'N/A'}</span></div>
+                
+                <div className="section-title" style={{ marginTop: 12 }}>Endpoints</div>
+                <div className="detail-row"><label>Source Device</label><span>{scannedNodes.find(n => n.id === selectedEdge.source)?.ip || selectedEdge.source}</span></div>
+                <div className="detail-row"><label>Source Port</label><span>{selectedEdge.data?.sourcePort || 'Unknown'}</span></div>
+                <div className="detail-row"><label>Dest Device</label><span>{scannedNodes.find(n => n.id === selectedEdge.target)?.ip || selectedEdge.target}</span></div>
+                <div className="detail-row"><label>Dest Port</label><span>{selectedEdge.data?.destinationPort || 'Unknown'}</span></div>
+                
+                <div style={{ marginTop: 20 }}>
+                  <button className="topo-btn topo-btn-clear" style={{ width: '100%', justifyContent: 'center' }} onClick={async () => {
+                    if (window.confirm('Delete this connection?')) {
+                      await fetch(`${API_BASE}/connections/${selectedEdge.data?.id || selectedEdge.id}`, { method: 'DELETE' });
+                      setSidebarOpen(false);
+                      setSelectedEdge(null);
+                      fetchTopology();
+                    }
+                  }}>
+                    Delete Connection
+                  </button>
+                </div>
+              </>
+            )}
 
-            {activeTab === 'details' && d && (
+            {!selectedEdge && activeTab === 'details' && d && (
               <>
                 <div className="section-title">Identity</div>
                 <div className="detail-row"><label>IP Address</label><span>{d.ip || '—'}</span></div>
@@ -2110,6 +2565,37 @@ export default function Topology() {
                   <label>Status</label>
                   <span className={`status-pill ${d.status || 'offline'}`}>{(d.status || 'offline').toUpperCase()}</span>
                 </div>
+
+                {(() => {
+                  const nodeConnections = edges.filter(e => e.type === 'connection' && (e.source === d.id || e.target === d.id));
+                  if (nodeConnections.length === 0) return null;
+                  return (
+                    <>
+                      <div className="section-title" style={{ marginTop: 24, marginBottom: 12 }}>Physical Connections</div>
+                      {nodeConnections.map(c => {
+                        const isSource = c.source === d.id;
+                        const remoteId = isSource ? c.target : c.source;
+                        const remoteNode = scannedNodes.find(n => n.id === remoteId);
+                        const remoteName = remoteNode?.ip || remoteNode?.label || remoteId;
+                        return (
+                          <div key={c.id} style={{ background: '#111827', padding: '10px 12px', borderRadius: '8px', border: '1px solid #374151', marginBottom: '8px' }}>
+                            <div style={{ fontSize: '13px', color: '#9ca3af', marginBottom: 4 }}>
+                              Connected to <span style={{ color: '#e5e7eb', fontWeight: 600 }}>{remoteName}</span>
+                            </div>
+                            <div style={{ fontSize: '12px', color: '#6b7280' }}>
+                              Cable: <span style={{ color: '#9ca3af' }}>{c.data?.cableType || 'Unknown'}</span> ({c.data?.linkSpeed || 'Unknown'})
+                            </div>
+                            {c.data?.remarks && (
+                              <div style={{ fontSize: '12px', color: '#6366f1', fontStyle: 'italic', marginTop: '6px' }}>
+                                "{c.data.remarks}"
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </>
+                  );
+                })()}
 
                 {/* Canvas Staging Controls */}
                 <div style={{ marginTop: 12, marginBottom: 12 }}>
@@ -2401,6 +2887,19 @@ export default function Topology() {
           </div>
         </div>
       )}
+
+      {/* ── PHYSICAL CONNECTION MODAL ── */}
+      <ConnectionModal
+        isOpen={connectionModal.isOpen}
+        onClose={() => setConnectionModal({ isOpen: false, sourceNode: null, targetNode: null })}
+        onSave={handleSaveConnection}
+        onUpdate={handleUpdateConnection}
+        onDelete={handleDeleteConnection}
+        sourceNode={connectionModal.sourceNode}
+        targetNode={connectionModal.targetNode}
+        nodes={nodes}
+        existingConnections={edges.filter(e => e.type === 'connection')}
+      />
     </div>
   );
 }

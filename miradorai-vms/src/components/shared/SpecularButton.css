@@ -1,4 +1,4 @@
-.specular-button {
+button.specular-button {
   --sb-radius: 18px;
   --sb-tint: #ffffff;
   --sb-tint-opacity: 0;
@@ -9,14 +9,14 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border: none;
+  border: none !important;
   margin: 0;
   font-family: inherit;
   font-weight: 500;
   letter-spacing: 0.01em;
   line-height: 1;
-  color: var(--sb-text-color);
-  background: color-mix(in srgb, var(--sb-tint) calc(var(--sb-tint-opacity) * 100%), transparent);
+  color: var(--sb-text-color) !important;
+  background: color-mix(in srgb, var(--sb-tint) calc(var(--sb-tint-opacity) * 100%), transparent) !important;
   border-radius: var(--sb-radius);
   backdrop-filter: blur(var(--sb-blur));
   -webkit-backdrop-filter: blur(var(--sb-blur));
@@ -28,35 +28,35 @@
   transition: transform 0.15s ease;
 }
 
-.specular-button:active {
+button.specular-button:active {
   transform: scale(0.97);
 }
 
-.specular-button:focus-visible {
+button.specular-button:focus-visible {
   outline: 2px solid color-mix(in srgb, var(--sb-text-color) 60%, transparent);
   outline-offset: 3px;
 }
 
-.specular-button:disabled {
+button.specular-button:disabled {
   opacity: 0.55;
   cursor: default;
 }
 
-.specular-button:disabled:active {
+button.specular-button:disabled:active {
   transform: none;
 }
 
-.specular-button--sm {
+button.specular-button--sm {
   font-size: 0.85rem;
   padding: 10px 22px;
 }
 
-.specular-button--md {
+button.specular-button--md {
   font-size: 1rem;
   padding: 14px 30px;
 }
 
-.specular-button--lg {
+button.specular-button--lg {
   font-size: 1.15rem;
   padding: 18px 40px;
 }

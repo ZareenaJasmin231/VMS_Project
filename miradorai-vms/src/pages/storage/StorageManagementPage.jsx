@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import SearchBar from "../../components/shared/SearchBar";
+import SpecularButton from "../../components/shared/SpecularButton";
+import { useTheme } from "../../context/ThemeContext";
 import "./StorageManagementPage.css";
 
 const BACKEND = import.meta.env.VITE_API_URL || "";
@@ -21,6 +23,7 @@ function toContainerPath(displayPath) {
 
 // ── Component ────────────────────────────────────────────────────────────────
 export default function StorageManagementPage() {
+  const { theme } = useTheme();
   const [rows, setRows]                 = useState([]);
   const [selected, setSelected]         = useState(null);
   const [loading, setLoading]           = useState(true);
@@ -390,13 +393,29 @@ export default function StorageManagementPage() {
             )}
 
             <div className="sm-field-row" style={{ justifyContent: "flex-end", marginTop: "auto", paddingTop: 10 }}>
-              <button
+              <SpecularButton
+                size="md"
+                radius={8}
+                tint="#10b981"
+                tintOpacity={0.10}
+                blur={4}
+                textColor={theme === 'light' ? "#065f46" : "#f0fff8"}
+                lineColor="#10b981"
+                baseColor={theme === 'light' ? "#d1fae5" : "#0d3326"}
+                intensity={1.2}
+                shineSize={12}
+                shineFade={38}
+                thickness={1}
+                speed={0.35}
+                followMouse
+                proximity={220}
+                autoAnimate={false}
                 className="sm-btn sm-btn--primary"
                 disabled={!!allocError}
                 onClick={handleApply}
               >
                 Save Allocation
-              </button>
+              </SpecularButton>
             </div>
           </div>
 
@@ -431,13 +450,29 @@ export default function StorageManagementPage() {
             {applyMsg && <div className="sm-apply-msg">{applyMsg}</div>}
 
             <div className="sm-field-row" style={{ justifyContent: "flex-end", marginTop: "auto", paddingTop: 10 }}>
-              <button
+              <SpecularButton
+                size="md"
+                radius={8}
+                tint="#10b981"
+                tintOpacity={0.10}
+                blur={4}
+                textColor={theme === 'light' ? "#065f46" : "#f0fff8"}
+                lineColor="#10b981"
+                baseColor={theme === 'light' ? "#d1fae5" : "#0d3326"}
+                intensity={1.2}
+                shineSize={12}
+                shineFade={38}
+                thickness={1}
+                speed={0.35}
+                followMouse
+                proximity={220}
+                autoAnimate={false}
                 className="sm-btn sm-btn--primary"
                 disabled={!!allocError}
                 onClick={handleApply}
               >
                 Save Parent Folder
-              </button>
+              </SpecularButton>
             </div>
           </div>
 
