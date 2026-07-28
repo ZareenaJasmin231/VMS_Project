@@ -432,6 +432,38 @@ function AlertsPanel({ isOpen, onAlertCountUpdate, onTotalAlertCountChange, live
 
   const normalizeIp = (ip) => (ip || "").replace(/_/g, ".");
 
+  const buildAlertThumbnailUrl = (alert) => {
+    // Prefer persisted snapshot if present on the alert document
+    if (alert?.snapshot_url) return alert.snapshot_url;
+    if (alert?.snapshotUrl) return alert.snapshotUrl;
+    if (alert?.snapshot) return alert.snapshot;
+
+    const ip = normalizeIp(alert.ip || alert.serial || "");
+    const time = alert.time || alert.received_at || "";
+    if (!ip || !time) return null;
+    return `${API}/api/event-playback/snapshot?ip=${encodeURIComponent(ip)}&time=${encodeURIComponent(time)}`;
+  };
+
+  const buildAlertThumbnailAltUrl = (alert) => {
+    const ip = normalizeIp(alert.ip || alert.serial || "");
+    const time = alert.time || alert.received_at || "";
+    if (!ip || !time) return null;
+    return `${API}/api/event-playback/snapshot?ip=${encodeURIComponent(ip)}&time=${encodeURIComponent(time)}`;
+  };
+ 
+  const fetchLiveSnapshotForIp = async (ip) => {
+    if (!ip) return null;
+    try {
+      const ipDot = (ip || "").replace(/_/g, ".");
+      const res = await fetch(`${API}/api/camera/brand/snapshot/${encodeURIComponent(ipDot)}`);
+      if (!res.ok) return null;
+      const data = await res.json();
+      return data?.snapshot || null; // data.snapshot is a data:image/... base64 string
+    } catch (e) {
+      return null;
+    }
+  };
+
   const fetchAlerts = useCallback(async () => {
     try {
       if (alertSource === "builtin") {
@@ -449,6 +481,10 @@ function AlertsPanel({ isOpen, onAlertCountUpdate, onTotalAlertCountChange, live
         const perCamCounts = {};
         const finalAlerts = [];
         filtered.forEach((alert) => {
+          if (!alert.isExternal) {
+            alert.thumbnailUrl = buildAlertThumbnailUrl(alert);
+            alert.thumbnailAltUrl = buildAlertThumbnailAltUrl(alert);
+          }
           const ip = normalizeIp(alert.ip);
           if (ip) {
             perCamCounts[ip] = (perCamCounts[ip] || 0) + 1;
@@ -467,6 +503,24 @@ function AlertsPanel({ isOpen, onAlertCountUpdate, onTotalAlertCountChange, live
         });
 
         setAlerts(finalAlerts);
+
+        // Fire off live snapshot fetches for the top recent alerts (non-blocking)
+        (async () => {
+          try {
+            const toFetch = finalAlerts.slice(0, 30); // limit concurrent calls
+            await Promise.all(toFetch.map(async (a) => {
+              if (a.isExternal) return;
+              const ip = a.ip || a.serial || "";
+              const snap = await fetchLiveSnapshotForIp(ip);
+              if (snap) {
+                setAlerts((prev) => prev.map((p) => ((p === a) ? { ...p, liveSnapshot: snap } : p)));
+              }
+            }));
+          } catch (e) {
+            // ignore
+          }
+        })();
+
       } else {
         // External AI Alerts Mode — separate call per reader_id
         const activeCams = (devicesProp && devicesProp.length > 0) ? devicesProp : loadDevices();
@@ -525,12 +579,28 @@ function AlertsPanel({ isOpen, onAlertCountUpdate, onTotalAlertCountChange, live
   useEffect(() => {
     const alertEnvelope = eventsByTopic.alerts;
     if (alertEnvelope && alertEnvelope.data) {
-      const newAlert = alertEnvelope.data;
-      setAlerts((prev) => {
-        const exists = prev.some((a) => (a.alert_id || a._id) === (newAlert.alert_id || newAlert._id));
-        if (exists) return prev;
-        return [newAlert, ...prev].slice(0, 500);
-      });
+      const payload = alertEnvelope.data;
+      const newAlert = {
+        ...payload,
+        thumbnailUrl: buildAlertThumbnailUrl(payload),
+        thumbnailAltUrl: buildAlertThumbnailAltUrl(payload)
+      };
+
+      // fetch live snapshot for real-time alert (non-blocking)
+      (async () => {
+        try {
+          if (!newAlert.isExternal) {
+            const ip = newAlert.ip || newAlert.serial || "";
+            const snap = await fetchLiveSnapshotForIp(ip);
+            if (snap) newAlert.liveSnapshot = snap;
+          }
+        } catch (e) {}
+        setAlerts((prev) => {
+          const exists = prev.some((a) => (a.alert_id || a._id) === (newAlert.alert_id || newAlert._id));
+          if (exists) return prev;
+          return [newAlert, ...prev].slice(0, 500);
+        });
+      })();
     }
   }, [eventsByTopic.alerts]);
 
@@ -590,7 +660,8 @@ function AlertsPanel({ isOpen, onAlertCountUpdate, onTotalAlertCountChange, live
 
             const cameraName = getCameraNameByIpOrSerial(alert.ip || alert.serial);
             const displayId = (alert.ip || alert.serial || "Unknown").replace(/_/g, ".");
-
+            const thumbnailUrl = alert.image || alert.thumbnailUrl || null;
+ 
             return (
               <div
                 key={i}
@@ -711,7 +782,7 @@ function AlertsPanel({ isOpen, onAlertCountUpdate, onTotalAlertCountChange, live
                     )}
                   </div>
 
-                  {alert.image && (
+                  {thumbnailUrl && (
                     <div
                       className="lv-alert-card__thumbnail-container"
                       style={{ 
@@ -726,7 +797,7 @@ function AlertsPanel({ isOpen, onAlertCountUpdate, onTotalAlertCountChange, live
                         alignSelf: "center"
                       }}
                       onClick={() => setZoomedImage({
-                        url: alert.image,
+                        url: thumbnailUrl,
                         cameraName: cameraName,
                         ip: displayId,
                         type: alert.type || "—",
@@ -734,11 +805,22 @@ function AlertsPanel({ isOpen, onAlertCountUpdate, onTotalAlertCountChange, live
                       })}
                     >
                       <img
-                        src={alert.image}
+                        src={thumbnailUrl}
                         alt="Alert snapshot"
                         className="lv-alert-card__thumbnail"
                         style={{ width: "100%", height: "100%", objectFit: "cover" }}
                         loading="lazy"
+                        onError={(e) => {
+                          const altUrl = alert.thumbnailAltUrl;
+                          if (altUrl && altUrl !== e.currentTarget.src) {
+                            e.currentTarget.src = altUrl;
+                            return;
+                          }
+                          e.currentTarget.style.display = "none";
+                          if (e.currentTarget.parentElement) {
+                            e.currentTarget.parentElement.style.display = "none";
+                          }
+                        }}
                       />
                     </div>
                   )}
