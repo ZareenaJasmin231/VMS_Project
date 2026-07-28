@@ -1144,7 +1144,17 @@ export default function LiveViewPage() {
   const [popupIp,      setPopupIp]      = useState(null);
   const [popupAlerts,  setPopupAlerts]  = useState([]);
   const [activeRecorders, setActiveRecorders] = useState([]);
-  const [alertsPanelOpen, setAlertsPanelOpen] = useState(false);
+  const [alertsPanelOpen, setAlertsPanelOpenState] = useState(() => {
+    return localStorage.getItem("miradorai_live_alerts_open") === "true";
+  });
+
+  const setAlertsPanelOpen = useCallback((val) => {
+    setAlertsPanelOpenState(prev => {
+      const newVal = typeof val === 'function' ? val(prev) : val;
+      localStorage.setItem("miradorai_live_alerts_open", String(newVal));
+      return newVal;
+    });
+  }, []);
   const [totalAlertsCount, setTotalAlertsCount] = useState(0);
   const [sidePlaybackCam, setSidePlaybackCam] = useState(null);
   const [alertSource, setAlertSource] = useState("builtin"); // 'builtin' | 'external'
@@ -1954,7 +1964,6 @@ export default function LiveViewPage() {
                             alertCount={alertCounts[cam?.ip] || 0}
                             onBadgeClick={() => {
                               setSidePlaybackCam(cam);
-                              setAlertsPanelOpen(false);
                               window.dispatchEvent(new Event("collapse-sidebar"));
                             }}
                             isRecording={
