@@ -2,6 +2,9 @@ import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { useAuth } from "../../context/AuthContext";
 import { useImageConfig, buildCSSFilter } from "../../hooks/useImageConfig";
 import { useDigitalZoom } from "../../hooks/useDigitalZoom";
+import SpecularButton from "../../components/shared/SpecularButton";
+import AnimatedDownloadButton from "../../components/shared/AnimatedDownloadButton";
+import { useTheme } from "../../context/ThemeContext";
 import "./MediaPlayerPage.css";
 
 const STREAM_API = import.meta.env.VITE_API_URL || "";
@@ -61,6 +64,7 @@ function loadDevices() {
 
 export default function MediaPlayerPage() {
   const { user, supervisorUnlocked } = useAuth();
+  const { theme } = useTheme();
 
   const videoRef = useRef(null);
   const playerWrap = useRef(null);
@@ -96,7 +100,7 @@ export default function MediaPlayerPage() {
   const actualRecordingCount = useMemo(() => {
     return filteredCameras.filter((cam) => {
       if (cam.enabled === false) return false;
-      return activeRecorders.includes(cam.stream_key) || activeRecorders.includes(cam.ome_stream);
+      return activeRecorders.includes(cam.stream_key) || activeRecorders.includes(cam.stream_key);
     }).length;
   }, [activeRecorders, filteredCameras]);
 
@@ -1117,25 +1121,41 @@ export default function MediaPlayerPage() {
                 style={{ display: "none" }}
                 onChange={handleBrowseFile}
               />
-              <label htmlFor="mp-browse-input" className="mp-action-btn mp-browse-btn">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" width="13" height="13">
-                  <path d="M8 5v14l11-7z" />
-                </svg>
-                Play
-              </label>
-
-              <button
-                className="mp-action-btn mp-export-btn-side"
-                onClick={() => setShowExportModal(true)}
-                title="Export recordings by date range"
+              <SpecularButton
+                size="md"
+                radius={8}
+                tint="#10b981"
+                tintOpacity={0.10}
+                blur={4}
+                textColor={theme === 'light' ? "#065f46" : "#f0fff8"}
+                lineColor="#10b981"
+                baseColor={theme === 'light' ? "#d1fae5" : "#0d3326"}
+                intensity={1.2}
+                shineSize={12}
+                shineFade={38}
+                thickness={1}
+                speed={0.35}
+                followMouse
+                proximity={220}
+                autoAnimate={false}
+                className="mp-action-btn mp-browse-btn"
+                onClick={() => browseInputRef.current && browseInputRef.current.click()}
               >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" width="13" height="13">
-                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                  <polyline points="7 10 12 15 17 10" />
-                  <line x1="12" y1="15" x2="12" y2="3" />
-                </svg>
-                Export
-              </button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" width="13" height="13">
+                    <path d="M8 5v14l11-7z" />
+                  </svg>
+                  Play
+                </div>
+              </SpecularButton>
+
+              <AnimatedDownloadButton
+                onClick={() => setShowExportModal(true)}
+                tooltip="Export recordings"
+                text="Export"
+                style={{ '--width': '120px', '--height': '44px', borderRadius: '8px', fontSize: '1rem' }}
+              />
+
 
               {/* <button
                 className="mp-action-btn mp-verify-btn-side"

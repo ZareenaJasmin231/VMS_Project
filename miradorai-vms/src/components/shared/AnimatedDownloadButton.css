@@ -1,0 +1,139 @@
+.animated-download-btn {
+  --width: 100px;
+  --height: 35px;
+  --gap-between-tooltip-to-button: 14px;
+  
+  /* Theme-aware variables */
+  --button-color: var(--teal, #10b981);
+  --button-hover-color: var(--teal-dim, #059669);
+  --tooltip-bg: var(--bg-elevated, #181c25);
+  --tooltip-border: var(--border, #1e2533);
+  --tooltip-text: var(--text-primary, #f8fafc);
+  
+  width: var(--width);
+  height: var(--height);
+  background: var(--button-color);
+  position: relative;
+  text-align: center;
+  border-radius: var(--radius-md, 0.45em);
+  font-family: inherit;
+  transition: background var(--transition, 0.3s);
+  border: 1px solid transparent;
+  cursor: pointer;
+  padding: 0;
+  display: inline-block;
+  outline: none;
+  color: #fff;
+}
+
+.animated-download-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.animated-download-btn::before {
+  position: absolute;
+  content: attr(data-tooltip);
+  width: max-content;
+  max-width: 220px;
+  padding: 8px 12px;
+  background-color: var(--tooltip-bg);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--tooltip-text);
+  border: 1px solid var(--tooltip-border);
+  border-radius: var(--radius-sm, 6px);
+  bottom: calc(var(--height) + var(--gap-between-tooltip-to-button) + 10px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 50;
+  text-align: center;
+  line-height: 1.4;
+  box-shadow: var(--shadow-md, 0 8px 24px rgba(0,0,0,0.6));
+}
+
+.animated-download-btn::after {
+  position: absolute;
+  content: '';
+  width: 0;
+  height: 0;
+  border: 8px solid transparent;
+  border-top-color: var(--tooltip-bg);
+  left: calc(50% - 8px);
+  bottom: calc(100% + var(--gap-between-tooltip-to-button) - 8px);
+  z-index: 51; /* Arrow sits above the border of the tooltip if any */
+}
+
+/* Small hack to render a border for the arrow */
+.animated-download-btn-arrow-border {
+  /* Using a pseudo element for border is hard, so we'll just rely on the tooltip arrow blending in */
+}
+
+.animated-download-btn::after, .animated-download-btn::before {
+  opacity: 0;
+  visibility: hidden;
+  transition: all var(--transition, 0.2s);
+}
+
+.animated-download-btn-text {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.animated-download-btn-wrapper, .animated-download-btn-text, .animated-download-btn-icon {
+  overflow: hidden;
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  left: 0;
+  top: 0;
+  color: inherit;
+}
+
+.animated-download-btn-text {
+  top: 0
+}
+
+.animated-download-btn-text, .animated-download-btn-icon {
+  transition: top var(--transition, 0.4s);
+}
+
+.animated-download-btn-icon {
+  color: inherit;
+  top: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.animated-download-btn-icon svg {
+  width: 20px;
+  height: 20px;
+}
+
+.animated-download-btn:hover:not(:disabled) {
+  background: var(--button-hover-color);
+}
+
+.animated-download-btn:hover:not(:disabled) .animated-download-btn-text {
+  top: -100%;
+}
+
+.animated-download-btn:hover:not(:disabled) .animated-download-btn-icon {
+  top: 0;
+}
+
+.animated-download-btn:hover:not(:disabled):before, .animated-download-btn:hover:not(:disabled):after {
+  opacity: 1;
+  visibility: visible;
+}
+
+.animated-download-btn:hover:not(:disabled):after {
+  bottom: calc(var(--height) + var(--gap-between-tooltip-to-button) - 16px);
+}
+
+.animated-download-btn:hover:not(:disabled):before {
+  bottom: calc(var(--height) + var(--gap-between-tooltip-to-button) - 2px);
+}

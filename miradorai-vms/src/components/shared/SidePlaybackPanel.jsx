@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import Hls from "hls.js";
+import AnimatedDownloadButton from "./AnimatedDownloadButton";
 import { useDigitalZoom } from "../../hooks/useDigitalZoom";
 import "./SidePlaybackPanel.css";
 
@@ -862,11 +863,12 @@ export default function SidePlaybackPanel({ camera, onClose, alertSource = "buil
               </svg>
             </button>
 
-            <button className="side-playback-btn" onClick={handleDownloadVideo} disabled={!playingFile && !playingAlert} title="Download File or Alert Segment">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="13" height="13">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
-              </svg>
-            </button>
+            <AnimatedDownloadButton 
+              onClick={handleDownloadVideo} 
+              disabled={!playingFile && !playingAlert} 
+              tooltip="Download Video" 
+              style={{ '--width': '100px', '--height': '28px', fontSize: '12px' }} 
+            />
           </div>
 
           {/* Integrated Mini-Timeline Timescale with motion highlights */}

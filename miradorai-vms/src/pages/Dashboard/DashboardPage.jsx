@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import SpecularButton from "../../components/shared/SpecularButton";
+import AnimatedDownloadButton from "../../components/shared/AnimatedDownloadButton";
 import { useNavigate } from "react-router-dom";
 import { useWebSocket } from "../../hooks/useWebSocket";
 import "./DashboardPage.css";
@@ -1977,7 +1978,7 @@ const DashboardPage = () => {
 
   const recordingCount = cameras.filter((cam) => {
     if (cam.enabled === false) return false;
-    return activeRecorders.includes(cam.stream_key) || activeRecorders.includes(cam.ome_stream);
+    return activeRecorders.includes(cam.stream_key) || activeRecorders.includes(cam.stream_key);
   }).length;
 
   const enabledCount = cameras.filter((cam) => cam.enabled !== false).length;
@@ -3030,8 +3031,8 @@ const DashboardPage = () => {
                   title="Click to view failed recordings"
                 >
                   <span className="widget-item-label" style={{ textDecoration: "underline" }}>Failed Recordings</span>
-                  <span className={`widget-item-value ${cameras.filter(cam => cam.enabled !== false && !activeRecorders.includes(cam.ome_stream) && !activeRecorders.includes(cam.stream_key)).length > 0 ? "unhealthy" : "healthy"}`}>
-                    {cameras.filter(cam => cam.enabled !== false && !activeRecorders.includes(cam.ome_stream) && !activeRecorders.includes(cam.stream_key)).length}
+                  <span className={`widget-item-value ${cameras.filter(cam => cam.enabled !== false && !activeRecorders.includes(cam.stream_key) && !activeRecorders.includes(cam.stream_key)).length > 0 ? "unhealthy" : "healthy"}`}>
+                    {cameras.filter(cam => cam.enabled !== false && !activeRecorders.includes(cam.stream_key) && !activeRecorders.includes(cam.stream_key)).length}
                   </span>
                 </div>
                 <div className="widget-item-row">
@@ -3463,16 +3464,13 @@ const DashboardPage = () => {
             
             {reportData.length > 0 && (
               <div className="report-actions-dropdown">
-                <button
+                <AnimatedDownloadButton
                   type="button"
                   onClick={() => setActionsDropdownOpen(!actionsDropdownOpen)}
-                  className="report-btn-secondary"
-                  style={{ display: "flex", alignItems: "center", gap: "6px" }}
-                >
-                  <Download size={14} />
-                  <span>Export / Print</span>
-                  <ChevronDown size={14} style={{ transform: actionsDropdownOpen ? "rotate(180deg)" : "rotate(0)", transition: "transform .2s" }} />
-                </button>
+                  tooltip="Export / Print"
+                  text="Export / Print"
+                  style={{ '--width': '150px', '--height': '44px', borderRadius: '8px', fontSize: '1rem' }}
+                />
                 {actionsDropdownOpen && (
                   <ul className="report-actions-menu" style={{
                     position: "absolute",
@@ -3752,7 +3750,7 @@ const DashboardPage = () => {
             
             <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
               {(() => {
-                const failedCamerasList = cameras.filter(cam => cam.enabled !== false && !activeRecorders.includes(cam.ome_stream) && !activeRecorders.includes(cam.stream_key));
+                const failedCamerasList = cameras.filter(cam => cam.enabled !== false && !activeRecorders.includes(cam.stream_key) && !activeRecorders.includes(cam.stream_key));
                 
                 const handleRestartCamera = async (cam) => {
                   if (!cam.ip && !cam.ip_address) return;

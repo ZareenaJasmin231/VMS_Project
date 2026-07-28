@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import SpecularButton from "./../shared/SpecularButton";
+import AnimatedDownloadButton from "./../shared/AnimatedDownloadButton";
 import { useTheme } from "../../context/ThemeContext";
 import './ProcessMetricsPanel.css';
 
@@ -276,28 +277,12 @@ const ProcessHistoryPanel = () => {
 
           {/* Download Report Dropdown */}
           <div className="vms-dropdown-wrapper" ref={dropdownRef}>
-            <SpecularButton
-              size="sm"
-              radius={8}
-              tint="#10b981"
-              tintOpacity={0.10}
-              blur={4}
-              textColor={theme === 'light' ? "#065f46" : "#f0fff8"}
-              lineColor="#10b981"
-              baseColor={theme === 'light' ? "#d1fae5" : "#0d3326"}
-              intensity={1.2}
-              shineSize={12}
-              shineFade={38}
-              thickness={1}
-              speed={0.35}
-              followMouse
-              proximity={220}
-              autoAnimate={false}
-              className="vms-proc-btn vms-proc-btn-primary"
+            <AnimatedDownloadButton
               onClick={() => setIsDownloadOpen(!isDownloadOpen)}
-            >
-              Download Report ▾
-            </SpecularButton>
+              tooltip="Download Report"
+              text="Download Report ▾"
+              style={{ '--width': '160px', '--height': '32px' }}
+            />
 
             {isDownloadOpen && (
               <div className="vms-dropdown-menu">

@@ -789,7 +789,7 @@ function CameraCell({ device, streamMode, onFullscreen, alertCount, onBadgeClick
   // We prefer the sub_stream_key for grid cells to save bandwidth.
   // If the camera is known to be H.265, we default to the transcoder path (_h264)
   // to avoid the initial 400 Bad Request error. The player will handle fallback.
-  const baseStreamKey = device.sub_stream_key || device.ome_stream || device.stream_key || device.live_stream || (device.ip ? device.ip.replace(/\./g, "_") : "");
+  const baseStreamKey = device.sub_stream_key || device.stream_key || device.stream_key || device.live_stream || (device.ip ? device.ip.replace(/\./g, "_") : "");
   const activeCodec = String(device.live_codec || device.codec || "").toUpperCase();
   const isH265 = ["H.265", "H265", "HEVC"].includes(activeCodec);
   const streamKeyToUse = isH265 ? `${baseStreamKey}_h264` : baseStreamKey;
@@ -828,18 +828,20 @@ function CameraCell({ device, streamMode, onFullscreen, alertCount, onBadgeClick
           <span className="lv-cell__ip">{device.ip}</span>
 
           {/* PTZ Toggle Button */}
-          <button
-            className={`lv-ptz-toggle-btn ${ptzOpen ? "active" : ""}`}
-            onClick={(e) => { e.stopPropagation(); setPtzOpen((v) => !v); }}
-            title={ptzOpen ? "Hide PTZ Controls" : "Show PTZ Controls"}
-            type="button"
-          >
-            {/* PTZ crosshair icon */}
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="13" height="13">
-              <circle cx="12" cy="12" r="3"/>
-              <path d="M12 2v4M12 18v4M2 12h4M18 12h4"/>
-            </svg>
-          </button>
+          {(device.ptz === "Yes" || device.ptz === true) && (
+            <button
+              className={`lv-ptz-toggle-btn ${ptzOpen ? "active" : ""}`}
+              onClick={(e) => { e.stopPropagation(); setPtzOpen((v) => !v); }}
+              title={ptzOpen ? "Hide PTZ Controls" : "Show PTZ Controls"}
+              type="button"
+            >
+              {/* PTZ crosshair icon */}
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="13" height="13">
+                <circle cx="12" cy="12" r="3"/>
+                <path d="M12 2v4M12 18v4M2 12h4M18 12h4"/>
+              </svg>
+            </button>
+          )}
 
           <button
             className="lv-cell__fs-btn"
@@ -1093,7 +1095,7 @@ export default function LiveViewPage() {
   }, []);
 
   // ── Sync sub_stream_key from backend on mount ─────────────────────────────
-  // The backend is the authority for sub_stream_key/ome_stream. localStorage
+  // The backend is the authority for sub_stream_key/stream_key. localStorage
   // entries saved before sub-stream support was added will be missing these
   // fields. This one-time fetch merges them in without disrupting anything else.
   useEffect(() => {
@@ -1120,7 +1122,7 @@ export default function LiveViewPage() {
               (backend.reader_id && d.reader_id !== backend.reader_id) ||
               (backend.sub_stream_key && d.sub_stream_key !== backend.sub_stream_key) ||
               (backend.sub_stream_rtsp && d.sub_stream_rtsp !== backend.sub_stream_rtsp) ||
-              (backend.ome_stream && d.ome_stream !== backend.ome_stream) ||
+              (backend.stream_key && d.stream_key !== backend.stream_key) ||
               (backend.source && d.source !== backend.source);
             if (!needsUpdate) return d;
             changed = true;
@@ -1128,7 +1130,7 @@ export default function LiveViewPage() {
               ...d,
               source:          backend.source          || d.source,
               reader_id:       backend.reader_id       || d.reader_id,
-              ome_stream:      backend.ome_stream      || d.ome_stream,
+              stream_key:      backend.stream_key      || d.stream_key,
               sub_stream_key:  backend.sub_stream_key  || d.sub_stream_key  || null,
               sub_stream_rtsp: backend.sub_stream_rtsp || d.sub_stream_rtsp || null,
             };
@@ -1148,7 +1150,7 @@ export default function LiveViewPage() {
                 reader_id: cam.reader_id,
                 enabled: cam.enabled !== false,
                 status: cam.status || "Active",
-                ome_stream: cam.ome_stream || camIp.replace(/\./g, "_")
+                stream_key: cam.stream_key || camIp.replace(/\./g, "_")
               });
             }
           }
@@ -1734,7 +1736,7 @@ export default function LiveViewPage() {
               <div className="lv-fullscreen-overlay__info">
                 {fsLive && <span className="lv-live-dot" />}
                 <span className="lv-fullscreen-overlay__name">{fsDevice.name}</span>
-                {fsLive && showRec && (activeRecorders.includes(fsDevice?.stream_key) || activeRecorders.includes(fsDevice?.ome_stream)) && (
+                {fsLive && showRec && (activeRecorders.includes(fsDevice?.stream_key) || activeRecorders.includes(fsDevice?.stream_key)) && (
                   <span className="lv-rec-dot" />
                 )}
                 <span className="lv-fullscreen-overlay__ip">{fsDevice.ip}</span>
@@ -1768,7 +1770,7 @@ export default function LiveViewPage() {
             </div>
             <div className="lv-fullscreen-overlay__player" style={{ position: "relative" }}>
               {fsStreamMode === "webrtc" ? (() => {
-                const baseFsKey = fsDevice.ome_stream || fsDevice.stream_key || fsDevice.live_stream || "";
+                const baseFsKey = fsDevice.stream_key || fsDevice.stream_key || fsDevice.live_stream || "";
                 const activeCodec = String(fsDevice.live_codec || fsDevice.codec || "").toUpperCase();
                 const isH265 = ["H.265", "H265", "HEVC"].includes(activeCodec);
                 const fsStreamKeyToUse = isH265 ? `${baseFsKey}_h264` : baseFsKey;
@@ -1784,8 +1786,8 @@ export default function LiveViewPage() {
                 );
               })() : (
                 <HlsPlayer
-                  key={`fs-hls-${fsDevice.ome_stream || fsDevice.stream_key || fsDevice.live_stream}`}
-                  streamKey={fsDevice.ome_stream || fsDevice.stream_key || fsDevice.live_stream}
+                  key={`fs-hls-${fsDevice.stream_key || fsDevice.stream_key || fsDevice.live_stream}`}
+                  streamKey={fsDevice.stream_key || fsDevice.stream_key || fsDevice.live_stream}
                   onConnectChange={setFsLive}
                 />
               )}
@@ -1876,7 +1878,7 @@ export default function LiveViewPage() {
                             isRecording={
                               cam && (
                                 activeRecorders.includes(cam.stream_key) ||
-                                activeRecorders.includes(cam.ome_stream) ||
+                                activeRecorders.includes(cam.stream_key) ||
                                 activeRecorders.includes(cam.ip) ||
                                 (cam.ip && activeRecorders.includes(cam.ip.replace(/\./g, "_"))) ||
                                 activeRecorders.includes(cam.reader_id) ||
