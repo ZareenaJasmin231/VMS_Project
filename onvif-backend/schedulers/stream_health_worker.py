@@ -65,14 +65,14 @@ async def check_stream_health(devices: list, cameras_col) -> list:
             print(f"[HEALTH] DB update failed: {e}")
         
         if not status['exists'] or not status['connected']:
-            print(f"[HEALTH] ⚠ Stream {stream_name} is DOWN")
+            print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] [HEALTH] ⚠ Stream {stream_name} is DOWN")
             failed_streams.append({
                 'stream_name': stream_name,
                 'rtsp_url': rtsp_url,
                 'status': status
             })
         else:
-            print(f"[HEALTH] ✓ {stream_name}: OK ({status['bytesOut']} bytes)")
+            print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] [HEALTH] ✓ {stream_name}: OK ({status['bytesOut']} bytes)")
     
     return failed_streams
 

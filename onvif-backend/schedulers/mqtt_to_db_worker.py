@@ -105,7 +105,7 @@ def on_message(client, userdata, msg):
         }
 
         result = collection.insert_one(document)
-        print(f"[SAVED/{brand.upper()}] {result.inserted_id} | ip={ip_addr} | type={document['type']}")
+        print(f"[{datetime.now(IST).strftime('%Y-%m-%d %H:%M:%S')}] [SAVED/{brand.upper()}] {result.inserted_id} | ip={ip_addr} | type={document['type']}")
         return
 
     # ── External AI System alerts ──────────────────────────
@@ -155,7 +155,7 @@ def on_message(client, userdata, msg):
         }
 
         result = collection.insert_one(document)
-        print(f"[SAVED/AI] {result.inserted_id} | ip={cam_ip} | type={alert_type}")
+        print(f"[{datetime.now(IST).strftime('%Y-%m-%d %H:%M:%S')}] [SAVED/AI] {result.inserted_id} | ip={cam_ip} | type={alert_type}")
         return
 
     # ── Axis-native MQTT events (existing logic) ────────────────────
@@ -245,7 +245,7 @@ def on_message(client, userdata, msg):
     }
 
     result = collection.insert_one(document)
-    print(f"[SAVED] {result.inserted_id} | type={event_type} | scenario={event_name}")
+    print(f"[{datetime.now(IST).strftime('%Y-%m-%d %H:%M:%S')}] [SAVED] {result.inserted_id} | type={event_type} | scenario={event_name}")
 
 
 # ── Run Client ─────────────────────────────────────────────────────
