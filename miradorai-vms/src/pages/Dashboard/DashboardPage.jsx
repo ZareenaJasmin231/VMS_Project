@@ -3,6 +3,7 @@ import SpecularButton from "../../components/shared/SpecularButton";
 import AnimatedDownloadButton from "../../components/shared/AnimatedDownloadButton";
 import { useNavigate } from "react-router-dom";
 import { useWebSocket } from "../../hooks/useWebSocket";
+import { useTheme } from "../../context/ThemeContext";
 import "./DashboardPage.css";
 import {
   Camera,
@@ -1914,7 +1915,9 @@ const parseEvents = (uiLogsList, infraAlertsList) => {
 
 const DashboardPage = () => {
   const navigate = useNavigate();
+  const { theme } = useTheme();
   const { isConnected: isWsConnected, systemMetrics, eventsByTopic } = useWebSocket(['alerts', 'camera_status', 'system_metrics']);
+
   const [summary, setSummary] = useState({
     total_cameras: 0,
     active_streams: 0,
@@ -3458,6 +3461,8 @@ const DashboardPage = () => {
               disabled={reportLoading}
               onClick={handleGenerateReport}
               type="button"
+              textColor={theme === 'light' ? "#065f46" : "#f0fff8"}
+              baseColor={theme === 'light' ? "#d1fae5" : "#0d3326"}
             >
               {reportLoading ? "Generating..." : "Generate Report"}
             </SpecularButton>
@@ -3470,6 +3475,8 @@ const DashboardPage = () => {
                   tooltip="Export / Print"
                   text="Export / Print"
                   style={{ '--width': '150px', '--height': '44px', borderRadius: '8px', fontSize: '1rem' }}
+                  textColor={theme === 'light' ? "#065f46" : "#f0fff8"}
+                  baseColor={theme === 'light' ? "#d1fae5" : "#0d3326"}
                 />
                 {actionsDropdownOpen && (
                   <ul className="report-actions-menu" style={{

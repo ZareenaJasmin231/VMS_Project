@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, memo } from "react";
 import { useImageConfig } from "../../hooks/useImageConfig";
 import { Volume2, VolumeX } from "lucide-react";
 import { useDigitalZoom } from "../../hooks/useDigitalZoom";
+import LiveSpinner from "./LiveSpinner";
 
 // ─── SDP Bandwidth Injection ──────────────────────────────────────────────────
 // Inserts a b=TIAS (Transport Independent Application Specific) line into
@@ -78,6 +79,7 @@ function WebRTCPlayer_MediaMTX({ streamKey, cameraId, onConnectChange, onError, 
 
   const [currentStreamKey, setCurrentStreamKey] = useState(streamKey);
   const [hasFallenBack, setHasFallenBack] = useState(false);
+  const [isVideoPlaying, setIsVideoPlaying] = useState(false);
 
   useEffect(() => {
     setCurrentStreamKey(streamKey);
@@ -166,6 +168,7 @@ function WebRTCPlayer_MediaMTX({ streamKey, cameraId, onConnectChange, onError, 
           applyBitrateLimit(pc, maxBitrateRef.current);
         } else if (["failed", "disconnected", "closed"].includes(pc.connectionState)) {
           setStatus("reconnecting");
+          setIsVideoPlaying(false);
           onConnectChange?.(false);
 
           if (!reconnectTimeoutRef.current) {
@@ -412,49 +415,12 @@ function WebRTCPlayer_MediaMTX({ streamKey, cameraId, onConnectChange, onError, 
           }`.trim() || "none",
           transition: "filter 0.1s ease",
         }}
+        onPlaying={() => setIsVideoPlaying(true)}
+        onWaiting={() => setIsVideoPlaying(false)}
       />
-      {status === "connecting" && (
+      {(status === "connecting" || status === "reconnecting" || (status === "connected" && !isVideoPlaying)) && (
         <div style={centreStyle}>
-          <div className="loader" style={{ transform: "scale(0.5)" }}>
-            <div className="circle">
-              <div className="dot"></div>
-              <div className="outline"></div>
-            </div>
-            <div className="circle">
-              <div className="dot"></div>
-              <div className="outline"></div>
-            </div>
-            <div className="circle">
-              <div className="dot"></div>
-              <div className="outline"></div>
-            </div>
-            <div className="circle">
-              <div className="dot"></div>
-              <div className="outline"></div>
-            </div>
-          </div>
-        </div>
-      )}
-      {status === "reconnecting" && (
-        <div style={centreStyle}>
-          <div className="loader" style={{ transform: "scale(0.5)" }}>
-            <div className="circle">
-              <div className="dot"></div>
-              <div className="outline"></div>
-            </div>
-            <div className="circle">
-              <div className="dot"></div>
-              <div className="outline"></div>
-            </div>
-            <div className="circle">
-              <div className="dot"></div>
-              <div className="outline"></div>
-            </div>
-            <div className="circle">
-              <div className="dot"></div>
-              <div className="outline"></div>
-            </div>
-          </div>
+          <LiveSpinner />
         </div>
       )}
       {status === "offline" && (

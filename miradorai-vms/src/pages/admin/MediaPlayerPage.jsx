@@ -1154,6 +1154,8 @@ export default function MediaPlayerPage() {
                 tooltip="Export recordings"
                 text="Export"
                 style={{ '--width': '120px', '--height': '44px', borderRadius: '8px', fontSize: '1rem' }}
+                textColor={theme === 'light' ? "#065f46" : "#f0fff8"}
+                baseColor={theme === 'light' ? "#d1fae5" : "#0d3326"}
               />
 
 

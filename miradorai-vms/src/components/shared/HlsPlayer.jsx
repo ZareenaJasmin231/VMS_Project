@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, memo } from "react";
 import Hls from "hls.js";
 import { Volume2, VolumeX } from "lucide-react";
 import { useImageConfig } from "../../hooks/useImageConfig";
+import LiveSpinner from "./LiveSpinner";
 
 function HlsPlayer({ streamKey, streamUrl, muted = true, autoplay = true, className = "", onConnectChange }) {
   const videoRef = useRef(null);
@@ -13,6 +14,7 @@ function HlsPlayer({ streamKey, streamUrl, muted = true, autoplay = true, classN
   const [isMuted, setIsMuted] = useState(muted);
   const [hovered, setHovered] = useState(false);
   const [btnHovered, setBtnHovered] = useState(false);
+  const [isVideoPlaying, setIsVideoPlaying] = useState(false);
 
   // Still apply standard image CSS filters if available, but NOT digital zoom (disables WebRTC specific zoom)
   const { cssFilter, cssTransform } = useImageConfig(streamKey);
@@ -35,6 +37,7 @@ function HlsPlayer({ streamKey, streamUrl, muted = true, autoplay = true, classN
     const url = streamUrl || `${HLS_BASE_URL}/${activeStreamKey}/index.m3u8`;
 
     setStatus("connecting");
+    setIsVideoPlaying(false);
     onConnectChange?.(false);
 
     if (Hls.isSupported()) {
@@ -70,6 +73,7 @@ function HlsPlayer({ streamKey, streamUrl, muted = true, autoplay = true, classN
                 return;
               }
               setStatus("reconnecting");
+              setIsVideoPlaying(false);
               setTimeout(() => {
                 if (hlsRef.current) hlsRef.current.startLoad();
               }, 5000);
@@ -80,6 +84,7 @@ function HlsPlayer({ streamKey, streamUrl, muted = true, autoplay = true, classN
             default:
               hls.destroy();
               setStatus("failed");
+              setIsVideoPlaying(false);
               setErrorMsg("Stream failed");
               onConnectChange?.(false);
               break;
@@ -102,11 +107,13 @@ function HlsPlayer({ streamKey, streamUrl, muted = true, autoplay = true, classN
           return;
         }
         setStatus("failed");
+        setIsVideoPlaying(false);
         setErrorMsg("Stream failed");
         onConnectChange?.(false);
       });
     } else {
       setStatus("failed");
+      setIsVideoPlaying(false);
       setErrorMsg("HLS not supported");
       onConnectChange?.(false);
     }
@@ -161,51 +168,13 @@ function HlsPlayer({ streamKey, streamUrl, muted = true, autoplay = true, classN
           transform: cssTransform || "none",
           transition: "filter 0.1s ease",
         }}
+        onPlaying={() => setIsVideoPlaying(true)}
+        onWaiting={() => setIsVideoPlaying(false)}
       />
       
-
-      {status === "connecting" && (
+      {(status === "connecting" || status === "reconnecting" || (status === "connected" && !isVideoPlaying)) && (
         <div style={centreStyle}>
-          <div className="loader" style={{ transform: "scale(0.5)" }}>
-            <div className="circle">
-              <div className="dot"></div>
-              <div className="outline"></div>
-            </div>
-            <div className="circle">
-              <div className="dot"></div>
-              <div className="outline"></div>
-            </div>
-            <div className="circle">
-              <div className="dot"></div>
-              <div className="outline"></div>
-            </div>
-            <div className="circle">
-              <div className="dot"></div>
-              <div className="outline"></div>
-            </div>
-          </div>
-        </div>
-      )}
-      {status === "reconnecting" && (
-        <div style={centreStyle}>
-          <div className="loader" style={{ transform: "scale(0.5)" }}>
-            <div className="circle">
-              <div className="dot"></div>
-              <div className="outline"></div>
-            </div>
-            <div className="circle">
-              <div className="dot"></div>
-              <div className="outline"></div>
-            </div>
-            <div className="circle">
-              <div className="dot"></div>
-              <div className="outline"></div>
-            </div>
-            <div className="circle">
-              <div className="dot"></div>
-              <div className="outline"></div>
-            </div>
-          </div>
+          <LiveSpinner />
         </div>
       )}
       {status === "failed" && (
