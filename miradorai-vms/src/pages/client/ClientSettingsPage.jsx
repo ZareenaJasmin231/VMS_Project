@@ -104,50 +104,12 @@ function applyTheme(themeId) {
     resolved = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
   }
 
-  // Remove old theme attribute
-  root.removeAttribute("data-theme");
+  // Set the data-theme attribute, which global.css uses to swap variables
   root.setAttribute("data-theme", resolved);
 
-  const vars = resolved === "light" ? {
-    "--bg-base":        "#f0f2f5",
-    "--bg-surface":     "#ffffff",
-    "--bg-elevated":    "#f8f9fb",
-    "--bg-hover":       "#edf0f5",
-    "--bg-active":      "#dde3ee",
-    "--border":         "#d0d6e0",
-    "--border-light":   "#c0c8d8",
-    "--text-primary":   "#111827",
-    "--text-secondary": "#374151",
-    "--text-muted":     "#6b7280",
-    "--teal":           "#009e7f",
-    "--teal-dim":       "#007d65",
-    "--teal-glow":      "rgba(0,158,127,0.15)",
-    "--teal-subtle":    "rgba(0,158,127,0.08)",
-  } : {
-    "--bg-base":        "#0d0f14",
-    "--bg-surface":     "#13161e",
-    "--bg-elevated":    "#1a1e28",
-    "--bg-hover":       "#1f2433",
-    "--bg-active":      "#1e2d3d",
-    "--border":         "#252a38",
-    "--border-light":   "#2e3548",
-    "--text-primary":   "#e8eaf0",
-    "--text-secondary": "#8892a4",
-    "--text-muted":     "#505870",
-    "--teal":           "#00c8a0",
-    "--teal-dim":       "#00a882",
-    "--teal-glow":      "rgba(0,200,160,0.15)",
-    "--teal-subtle":    "rgba(0,200,160,0.08)",
-  };
-
-  Object.entries(vars).forEach(([key, val]) => {
-    root.style.setProperty(key, val);
-  });
-
-  // Force body background update too
-  document.body.style.background = vars["--bg-base"];
-  document.body.style.color = vars["--text-primary"];
-
+  // Remove any stale inline style variables that might have been injected previously
+  root.removeAttribute("style");
+  
   localStorage.setItem("miradorai_theme", themeId);
 }
 
@@ -172,7 +134,16 @@ function SettingRow({ label, hint, children }) {
   );
 }
 
+import { useAuth } from "../../context/AuthContext";
+
 export default function ClientSettingsPage() {
+  const { user } = useAuth();
+  const role = user?.role || "client";
+  
+  // Format role for display: "operator" -> "Operator", "admin" -> "Admin"
+  const roleDisplay = role === "admin" ? "Admin" : 
+                      role === "operator" ? "Operator" : "Client";
+
   const [theme,          setTheme]          = useState(() => localStorage.getItem("miradorai_theme") || "dark");
   const [runOnStart,     setRunOnStart]     = useState(false);
   const [showWhatsNew,   setShowWhatsNew]   = useState(true);
@@ -200,7 +171,7 @@ export default function ClientSettingsPage() {
     <div className="page-shell">
       <div className="page-header">
         <div>
-          <h1 className="page-title">Client <span>Settings</span></h1>
+          <h1 className="page-title">{roleDisplay} <span>Settings</span></h1>
           <p className="page-desc">
             These settings apply to all MIRADOR VMS users on this computer.
           </p>
