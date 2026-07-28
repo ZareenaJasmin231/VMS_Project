@@ -27,10 +27,10 @@ async def get_dashboard_summary():
     })
 
     today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    today_start_iso = today_start.isoformat()
 
     alarms_today = analytics_col.count_documents({
-        # "received_at": {"$gte": today_start}
-        "received_at": {"$gte": today_start},
+        "received_at": {"$gte": today_start_iso},
         "is_deleted": {"$ne": True}
     })
 

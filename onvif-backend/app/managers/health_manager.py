@@ -104,10 +104,21 @@ async def camera_health_collector():
 
         await asyncio.sleep(10)            
 
-_analytics_semaphore = asyncio.Semaphore(5)
+
+# Semaphore initialized lazily inside the event loop to avoid cross-loop errors on Python 3.10+
+_analytics_semaphore = None
+
 
 async def analytics_poll_loop(ip: str, port: int, username: str, password: str, manufacturer: str = "bosch"):
-    print(f"[ANALYTICS] ▶ Started polling for {ip} ({manufacturer})")
+    global _analytics_semaphore
+    # Create semaphore inside running event loop (lazy init prevents RuntimeError on module import)
+    if _analytics_semaphore is None:
+        _analytics_semaphore = asyncio.Semaphore(5)
+
+    print(f"[ANALYTICS] Started polling for {ip} ({manufacturer})")
+
+    from app.services.license_manager import license_manager
+    from app.core.database import analytics_subs_col
 
     consecutive_failures = 0
     mfr_lower    = manufacturer.lower()
@@ -115,118 +126,125 @@ async def analytics_poll_loop(ip: str, port: int, username: str, password: str, 
     is_dahua     = "dahua" in mfr_lower
 
     while True:
+        sleep_time = 5  # default poll interval on success
         try:
-            from app.services.license_manager import license_manager
-            from app.core.database import analytics_subs_col
-
             # Enforce max analytics modules limit
             max_analytics = license_manager.get_max_analytics()
             active_count = analytics_subs_col.count_documents({"enabled": True}) if analytics_subs_col is not None else 0
             if active_count > max_analytics:
-                print(f"[ANALYTICS] ⚠️ License limit exceeded: active={active_count}, max={max_analytics}. Suspending poll loop for {ip}.")
+                print(f"[ANALYTICS] License limit exceeded: active={active_count}, max={max_analytics}. Suspending {ip}.")
                 await asyncio.sleep(30)
                 continue
 
             async with _analytics_semaphore:
                 if is_hikvision:
-                    result = await asyncio.to_thread(
-                        pull_hikvision_events,
-                        ip, port, username, password
-                    )
+                    poll_coro = asyncio.to_thread(pull_hikvision_events, ip, port, username, password)
                     source_name = "hikvision"
                 elif is_dahua:
-                    result = await asyncio.to_thread(
-                        pull_dahua_events,
-                        ip, port, username, password
-                    )
+                    poll_coro = asyncio.to_thread(pull_dahua_events, ip, port, username, password)
                     source_name = "dahua"
                 else:
-                    result = await asyncio.to_thread(
-                        pull_bosch_events,
-                        ip, port, username, password
-                    )
+                    poll_coro = asyncio.to_thread(pull_bosch_events, ip, port, username, password)
                     source_name = "bosch"
 
-            if result["success"] and result["events"]:
-                for ev in result["events"]:
-                    event_type = ev.get("event_type", "Object Detection")
-                    
-                    if not license_manager.is_analytics_enabled(event_type):
-                        print(f"[ANALYTICS] ⚠️ Skipped event type: {event_type} on {ip} (not licensed)")
-                        continue
+                result = await asyncio.wait_for(poll_coro, timeout=20.0)
 
-                    alert = {
-                        "ip": ip,
-                        "serial": ip.replace(".", "_"),
-                        "type":        event_type,
-                        "scenario":    ev.get("scenario_name", "Detect Any Object"),
-                        "status": "Active",
-                        "source": source_name,
-                        "topic": ev.get("topic", ""),
-                        "raw": ev.get("raw", {}),
-                        "time": datetime.now().isoformat(),
-                        "received_at": datetime.now().isoformat(),
-                    }
-
-                    if "occupancy" in alert["type"].lower():
-                        count_val = ev.get("count")
-                        if count_val is None:
-                            raw_data = ev.get("raw", {})
-                            count_val = raw_data.get("Value") or raw_data.get("Active") or raw_data.get("State") or raw_data.get("Occupancy") or raw_data.get("Count")
-                        if count_val is not None:
-                            try:
-                                alert["total"] = int(count_val)
-                                alert["human"] = int(count_val)
-                            except ValueError:
-                                alert["total"] = count_val
-                                alert["human"] = count_val
-
-                    if analytics_col is not None:
-                        res = analytics_col.insert_one(alert)
-                        alert_id = str(res.inserted_id)
-                        clean_alert = {**alert, "_id": alert_id}
-                        # Broadcast analytics alert via WS (real-time)
-                        await ws_manager.broadcast("alerts", "analytics_alert", clean_alert, event_id=alert_id)
-
-                    # ── Publish to Mosquitto so mqtt_to_db_worker saves
-                    # to mqtt_logs (unified pipeline for all brands) ──
-                    published = mqtt_publisher.publish_alert(source_name, ip, alert)
-                    if not published:
-                        # Fallback: write directly if MQTT broker unreachable
-                        if watch_collection is not None:
-                            watch_collection.insert_one(alert)
-
-                    print(f"[{source_name.upper()} UI ALERT] {ip} → {alert['type']} (mqtt={'ok' if published else 'direct'})") 
+            if result.get("success"):
                 consecutive_failures = 0
 
-            elif not result["success"]:
+                if result.get("events"):
+                    for ev in result["events"]:
+                        event_type = ev.get("event_type", "Object Detection")
+                        
+                        if not license_manager.is_analytics_enabled(event_type):
+                            print(f"[ANALYTICS] Skipped event type: {event_type} on {ip} (not licensed)")
+                            continue
+
+                        now_iso = datetime.now().isoformat()
+                        alert = {
+                            "ip":          ip,
+                            "serial":      ip.replace(".", "_"),
+                            "type":        event_type,
+                            "scenario":    ev.get("scenario_name", "Detect Any Object"),
+                            "status":      "Active",
+                            "source":      source_name,
+                            "topic":       ev.get("topic", ""),
+                            "raw":         ev.get("raw", {}),
+                            "time":        now_iso,
+                            "received_at": now_iso,
+                        }
+
+                        if "occupancy" in alert["type"].lower():
+                            count_val = ev.get("count")
+                            if count_val is None:
+                                raw_data = ev.get("raw", {})
+                                count_val = (raw_data.get("Value") or raw_data.get("Active") or
+                                             raw_data.get("State") or raw_data.get("Occupancy") or
+                                             raw_data.get("Count"))
+                            if count_val is not None:
+                                try:
+                                    alert["total"] = int(count_val)
+                                    alert["human"] = int(count_val)
+                                except ValueError:
+                                    alert["total"] = count_val
+                                    alert["human"] = count_val
+
+                        if analytics_col is not None:
+                            res = analytics_col.insert_one(alert)
+                            alert_id = str(res.inserted_id)
+                            clean_alert = {**alert, "_id": alert_id}
+                            await ws_manager.broadcast("alerts", "analytics_alert", clean_alert, event_id=alert_id)
+
+                        # Publish to Mosquitto; fall back to direct DB write if broker unreachable
+                        published = mqtt_publisher.publish_alert(source_name, ip, alert)
+                        if not published and watch_collection is not None:
+                            watch_collection.insert_one(alert)
+
+                        print(f"[{source_name.upper()} UI ALERT] {ip} -> {alert['type']} (mqtt={'ok' if published else 'direct'})")
+
+            elif not result.get("success"):
                 consecutive_failures += 1
                 err_msg = str(result.get("error", "")).lower()
-                
-                # If auth error or unsupported feature error, back off heavily (e.g. 5 minutes)
-                # to prevent lockouts and minimize log spam
+
+                # Auth failure: back off 5 minutes to avoid account lockout
                 if any(x in err_msg for x in ["authorized", "authorization", "password", "username"]):
-                    print(f"[ANALYTICS] ⚠️ Auth failure on {ip}: {result.get('error')}. Backing off for 5 minutes to avoid locking camera.")
+                    print(f"[ANALYTICS] Auth failure on {ip}: {result.get('error')}. Backing off 5 min.")
                     await asyncio.sleep(300)
                     continue
-                elif "pullpoint" in err_msg or "device doesn't support service" in err_msg:
-                    print(f"[ANALYTICS] ⚠️ {ip} does not support ONVIF pullpoint: {result.get('error')}. Backing off for 5 minutes.")
+
+                # Device doesn't support pullpoint: back off 5 minutes
+                if ("pullpoint" in err_msg or
+                        "device doesn`t support service" in err_msg or
+                        "device doesn't support service" in err_msg):
+                    print(f"[ANALYTICS] {ip} does not support ONVIF pullpoint. Backing off 5 min.")
                     await asyncio.sleep(300)
                     continue
-                
+
+                # Camera account locked by previous failed logins: back off 30s
+                if "account has been locked" in err_msg:
+                    await asyncio.sleep(30)
+                    continue
+
+                # Transient subscription failure (camera busy): back off 15s
+                if "subscribe creation failed" in err_msg:
+                    await asyncio.sleep(15)
+                    continue
+
+                # General failure: exponential backoff 5s → 10s → 20s → 40s → 60s (capped)
+                sleep_time = min(60, 5 * (2 ** min(consecutive_failures - 1, 3)))
                 if consecutive_failures % 5 == 0:
-                    print(f"[ANALYTICS] ✗ Failed to poll {ip} {consecutive_failures} times. Retrying in 10s...")
-                    await asyncio.sleep(10)
-                    continue
+                    print(f"[ANALYTICS] Failed to poll {ip} {consecutive_failures} times. Retry in {sleep_time}s...")
 
         except asyncio.CancelledError:
-            print(f"[ANALYTICS] ⏹ Stopped for {ip}")
+            print(f"[ANALYTICS] Stopped for {ip}")
             break
-        except Exception as e:
-            print(f"[ANALYTICS] ❌ {ip}: {e}")
+        except asyncio.TimeoutError:
+            print(f"[ANALYTICS] Timeout polling {ip} (>20s)")
             consecutive_failures += 1
-            if consecutive_failures % 5 == 0:
-                await asyncio.sleep(10)
-                continue
+            sleep_time = min(60, 5 * (2 ** min(consecutive_failures - 1, 3)))
+        except Exception as e:
+            print(f"[ANALYTICS] Error polling {ip}: {e}")
+            consecutive_failures += 1
+            sleep_time = min(60, 5 * (2 ** min(consecutive_failures - 1, 3)))
 
-        await asyncio.sleep(5)
+        await asyncio.sleep(sleep_time)

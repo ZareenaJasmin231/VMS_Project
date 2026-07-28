@@ -1,5 +1,17 @@
 import os
+import sys
 from pathlib import Path
+
+# ── Force UTF-8 output encoding on Windows ────────────────────────────────────
+# Windows defaults to cp1252 which cannot encode emoji characters used in logs.
+# This must be done before any other imports that may write to stdout/stderr.
+os.environ.setdefault("PYTHONIOENCODING", "utf-8")
+if hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
 
 # Disable OpenCV OpenCL globally to prevent Intel igdfcl64.dll crashes
 os.environ["OPENCV_OPENCL_RUNTIME"] = "disabled"

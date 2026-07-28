@@ -238,12 +238,16 @@ async def _startup_phase_2():
             register_stream(stream_name, rtsp_url, codec=codec, sub_stream_rtsp=sub_rtsp)
 
     if analytics_subs_col is not None:
+        valid_analytics_ips = []
         for device in my_devices:
             manuf = str(device.get("manufacturer", "")).lower()
             model = str(device.get("model", "")).lower()
             ip    = device.get("ip")
+            username = device.get("username", "")
             
-            if ip and ("bosch" in manuf or "bosch" in model or "dahua" in manuf or "dahua" in model):
+            # Only poll cameras that are explicitly known ONVIF brands AND have credentials
+            if ip and username and ("bosch" in manuf or "bosch" in model or "dahua" in manuf or "dahua" in model):
+                valid_analytics_ips.append(ip)
                 existing_sub = analytics_subs_col.find_one({"ip": ip})
                 if not existing_sub or not existing_sub.get("enabled"):
                     print(f"[ANALYTICS] 🔗 Auto-subscribed camera: {ip} ({manuf})")
@@ -252,7 +256,7 @@ async def _startup_phase_2():
                         {"$set": {
                             "ip":       ip,
                             "port":     device.get("port", 80),
-                            "username": device.get("username", ""),
+                            "username": username,
                             "password": device.get("password", ""),
                             "manufacturer": manuf,
                             "enabled":  True,
@@ -262,6 +266,11 @@ async def _startup_phase_2():
                     )
                 else:
                     analytics_subs_col.update_one({"ip": ip}, {"$set": {"manufacturer": manuf}})
+
+        # Purge stale subscriptions (e.g. cameras deleted from system, or changed to unknown/RTSP-only)
+        deleted = analytics_subs_col.delete_many({"ip": {"$nin": valid_analytics_ips}})
+        if deleted.deleted_count > 0:
+            print(f"[ANALYTICS] 🗑 Purged {deleted.deleted_count} stale/non-ONVIF subscriptions")
 
         active_subs = list(analytics_subs_col.find({"enabled": True}))
         for sub in active_subs:

@@ -97,8 +97,19 @@ class LoggerWrapper:
 
         sys.__stdout__.write(message)
 
-    def flush(self):
-        pass
+    def isatty(self):
+        return getattr(sys.__stdout__, "isatty", lambda: False)()
+
+    def fileno(self):
+        return getattr(sys.__stdout__, "fileno", lambda: 1)()
+
+    @property
+    def encoding(self):
+        return getattr(sys.__stdout__, "encoding", "utf-8") or "utf-8"
+
+    @property
+    def errors(self):
+        return getattr(sys.__stdout__, "errors", "replace") or "replace"
 
 sys.stdout = LoggerWrapper()
 
