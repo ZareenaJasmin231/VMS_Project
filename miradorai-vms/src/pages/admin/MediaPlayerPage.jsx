@@ -62,6 +62,126 @@ function loadDevices() {
   catch { return []; }
 }
 
+const VideoTimelineStrip = ({ src, duration }) => {
+  const [bgUrl, setBgUrl] = useState('');
+  
+  useEffect(() => {
+    if (!src || !duration || duration < 1) return;
+    let cancelled = false;
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    const video = document.createElement('video');
+    video.src = src;
+    video.muted = true;
+    
+    // Capture 8 frames for the strip
+    const numFrames = 8;
+    let currentFrame = 0;
+    
+    video.addEventListener('loadeddata', () => {
+      if (cancelled) return;
+      canvas.width = (video.videoWidth || 320) * numFrames;
+      canvas.height = video.videoHeight || 180;
+      video.currentTime = (duration / numFrames) * 0.5;
+    });
+    
+    video.addEventListener('seeked', () => {
+      if (cancelled) return;
+      const w = video.videoWidth || 320;
+      const h = video.videoHeight || 180;
+      ctx.drawImage(video, currentFrame * w, 0, w, h);
+      currentFrame++;
+      if (currentFrame < numFrames) {
+        video.currentTime = (currentFrame + 0.5) * (duration / numFrames);
+      } else {
+        setBgUrl(canvas.toDataURL('image/jpeg', 0.6));
+      }
+    });
+    
+    video.addEventListener('error', () => {
+       // Ignore error silently to not break UI
+    });
+    
+    video.load();
+    return () => { cancelled = true; video.src = ""; };
+  }, [src, duration]);
+
+  if (!bgUrl) return null;
+  return (
+    <div style={{
+      position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+      backgroundImage: `url(${bgUrl})`,
+      backgroundSize: 'cover',
+      backgroundPosition: 'center',
+      borderRadius: '4px',
+      opacity: 0.6,
+      pointerEvents: 'none'
+    }} />
+  );
+};
+
+const TrimTimeline = ({ src, duration, trimStart, trimEnd, onTrimStartChange, onTrimEndChange }) => {
+  const trackRef = useRef(null);
+  
+  const handlePointerDown = (e, type) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const track = trackRef.current;
+    if (!track || !duration) return;
+    
+    const handleMove = (moveEvent) => {
+      const rect = track.getBoundingClientRect();
+      let pct = (moveEvent.clientX - rect.left) / rect.width;
+      pct = Math.max(0, Math.min(1, pct));
+      const val = pct * duration;
+      
+      if (type === 'start') {
+        onTrimStartChange(Math.min(val, trimEnd));
+      } else {
+        onTrimEndChange(Math.max(val, trimStart));
+      }
+    };
+    
+    const handleUp = () => {
+      window.removeEventListener('pointermove', handleMove);
+      window.removeEventListener('pointerup', handleUp);
+    };
+    
+    window.addEventListener('pointermove', handleMove);
+    window.addEventListener('pointerup', handleUp);
+  };
+
+  const startPct = duration ? (trimStart / duration) * 100 : 0;
+  const endPct = duration ? (trimEnd / duration) * 100 : 100;
+
+  return (
+    <div className="mp-trim-timeline-wrapper">
+      <div className="mp-trim-timeline-track" ref={trackRef}>
+        <VideoTimelineStrip src={src} duration={duration} />
+        
+        <div 
+          className="mp-trim-timeline-selection" 
+          style={{ left: `${startPct}%`, right: `${100 - endPct}%` }}
+        />
+        <div 
+          className="mp-trim-timeline-handle left"
+          style={{ left: `${startPct}%` }}
+          onPointerDown={(e) => handlePointerDown(e, 'start')}
+        >
+          <div className="mp-trim-handle-grip" />
+        </div>
+        <div 
+          className="mp-trim-timeline-handle right"
+          style={{ left: `${endPct}%` }}
+          onPointerDown={(e) => handlePointerDown(e, 'end')}
+        >
+          <div className="mp-trim-handle-grip" />
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export default function MediaPlayerPage() {
   const { user, supervisorUnlocked } = useAuth();
   const { theme } = useTheme();
@@ -180,6 +300,13 @@ export default function MediaPlayerPage() {
   const [exportEndTime, setExportEndTime] = useState("23:59");
   const [exporting, setExporting] = useState(false);
 
+  // ── Download Video Modal ────────────────────────────────────────
+  const [showDownloadModal, setShowDownloadModal] = useState(false);
+  const [downloadFilename, setDownloadFilename] = useState("");
+  const [downloadTrimStart, setDownloadTrimStart] = useState(0);
+  const [downloadTrimEnd, setDownloadTrimEnd] = useState(100);
+  const [isDownloading, setIsDownloading] = useState(false);
+  
   // ── Verify Signature Modal ──────────────────────────────────────
   const [showVerifyModal, setShowVerifyModal] = useState(false);
   const [verifyVideoFile, setVerifyVideoFile] = useState(null);
@@ -750,35 +877,53 @@ export default function MediaPlayerPage() {
   };
 
   // ── Download current video segment ────────────────────────────
-  const handleDownloadVideo = async () => {
+  const openDownloadModal = () => {
     if (!playingFile) return;
-
     const safeTime = playingFile.start_time.replace(/[:\/]/g, "-");
     const safeDate = playingFile.date.replace(/[:\/]/g, "-");
-    const filename = `${playingFile.camera_id}_${safeDate}_${safeTime}.zip`;
-    const url = `${STREAM_API}/api/recordings/download`
+    const defaultFilename = `${playingFile.camera_id}_${safeDate}_${safeTime}.zip`;
+    
+    setDownloadFilename(defaultFilename);
+    setDownloadTrimStart(0);
+    setDownloadTrimEnd(duration || 0);
+    setShowDownloadModal(true);
+  };
+
+  const confirmDownloadVideo = async () => {
+    if (!playingFile) return;
+    
+    setShowDownloadModal(false);
+
+    let url = `${STREAM_API}/api/recordings/download`
       + `?camera_id=${encodeURIComponent(playingFile.camera_id)}`
       + `&date=${encodeURIComponent(playingFile.date)}`
       + `&start_time=${encodeURIComponent(playingFile.start_time)}`;
 
+    if (downloadTrimStart > 0 || (duration > 0 && downloadTrimEnd < duration)) {
+        url += `&trim_start=${downloadTrimStart}&trim_end=${downloadTrimEnd}`;
+    }
+    
+    if (downloadFilename) {
+        url += `&filename=${encodeURIComponent(downloadFilename)}`;
+    }
+
     try {
-      // showSaveFilePicker MUST be called synchronously inside the click handler
-      // (before any await), otherwise the browser blocks it as outside a user gesture.
       if (window.showSaveFilePicker) {
         let handle;
         try {
           handle = await window.showSaveFilePicker({
-            suggestedName: filename,
-            types: [{ description: "MP4 Video", accept: { "video/mp4": [".mp4"] } }],
+            suggestedName: downloadFilename || "download.zip",
+            types: [{ description: "ZIP Archive", accept: { "application/zip": [".zip"] } }],
           });
         } catch (pickerErr) {
-          if (pickerErr.name === "AbortError") return; // User cancelled
-          // showSaveFilePicker not allowed — fall through to blob download
+          if (pickerErr.name === "AbortError") {
+            return;
+          }
           handle = null;
         }
 
         if (handle) {
-          // Now fetch the blob and write to the chosen location
+          showToast("Download started in the background. Please wait...", "success");
           const response = await fetch(url, { headers: authHeaders() });
           if (!response.ok) throw new Error(`Server returned ${response.status}: ${response.statusText}`);
           const blob = await response.blob();
@@ -786,12 +931,12 @@ export default function MediaPlayerPage() {
           const writable = await handle.createWritable();
           await writable.write(blob);
           await writable.close();
-          showToast("Video saved successfully! ✓");
+          showToast("Download complete.", "success");
           return;
         }
       }
 
-      // Fallback: fetch as blob → blob URL anchor download
+      showToast("Download started in the background. Please wait...", "success");
       const response = await fetch(url, { headers: authHeaders() });
       if (!response.ok) throw new Error(`Server returned ${response.status}: ${response.statusText}`);
       const blob = await response.blob();
@@ -800,12 +945,12 @@ export default function MediaPlayerPage() {
       const blobUrl = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = blobUrl;
-      a.download = filename;
+      a.download = downloadFilename || "download.zip";
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       setTimeout(() => URL.revokeObjectURL(blobUrl), 5000);
-      showToast("Video download started! ✓");
+      showToast("Download complete.", "success");
 
     } catch (err) {
       console.error("Download error:", err);
@@ -1427,7 +1572,7 @@ export default function MediaPlayerPage() {
 
                 <button
                   className="mp-ctrl-btn mp-download-btn"
-                  onClick={handleDownloadVideo}
+                  onClick={openDownloadModal}
                   disabled={!playingFile}
                   title="Download current video segment"
                 >
@@ -1530,6 +1675,125 @@ export default function MediaPlayerPage() {
         </>
       )}
       </div>
+
+      {/* ── Download Video Modal ── */}
+      {showDownloadModal && (
+        <div
+          className="mp-trim-modal-overlay"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowDownloadModal(false);
+          }}
+        >
+          <div className="mp-trim-modal">
+            <div className="mp-trim-modal-header">
+              <h2 className="mp-trim-modal-title">Trim & Download</h2>
+            </div>
+            
+            <div className="mp-trim-modal-body">
+              <div className="mp-trim-preview-container">
+                 <video 
+                   className="mp-trim-preview-video"
+                   src={(() => {
+                     const s = videoRef.current?.src || '';
+                     if (!s || s.startsWith('blob:')) return s;
+                     return s.includes('?') ? `${s}&_clone=preview` : `${s}?_clone=preview`;
+                   })()}
+                   controls
+                   ref={(el) => {
+                      if (el && Math.abs(el.currentTime - downloadTrimStart) > 1 && el.paused) {
+                         // Only seek if significantly off, avoiding lag loops
+                         el.currentTime = downloadTrimStart;
+                      }
+                   }}
+                 />
+              </div>
+
+              <div className="mp-trim-form-row">
+                <div className="mp-trim-form-group">
+                  <label>File Name</label>
+                  <input 
+                    type="text" 
+                    value={downloadFilename} 
+                    onChange={(e) => setDownloadFilename(e.target.value)} 
+                    className="mp-trim-input" 
+                  />
+                </div>
+                <div className="mp-trim-form-group" style={{ flex: 0.3 }}>
+                  <label>Trim Start (s)</label>
+                  <input 
+                    type="number" 
+                    min={0} 
+                    max={duration || 0}
+                    step={0.1}
+                    value={downloadTrimStart} 
+                    onChange={(e) => {
+                      let val = e.target.value;
+                      if (val === '') {
+                        setDownloadTrimStart('');
+                        return;
+                      }
+                      val = Number(val);
+                      setDownloadTrimStart(val);
+                      if (val > downloadTrimEnd) setDownloadTrimEnd(val);
+                      const pv = document.querySelector('.mp-trim-preview-video');
+                      if (pv) pv.currentTime = val;
+                    }} 
+                    onBlur={() => {
+                      if (downloadTrimStart === '') setDownloadTrimStart(0);
+                    }}
+                    className="mp-trim-input" 
+                  />
+                </div>
+                <div className="mp-trim-form-group" style={{ flex: 0.3 }}>
+                  <label>Trim End (s)</label>
+                  <input 
+                    type="number" 
+                    min={0} 
+                    max={duration || 0}
+                    step={0.1}
+                    value={downloadTrimEnd} 
+                    onChange={(e) => {
+                      let val = e.target.value;
+                      if (val === '') {
+                        setDownloadTrimEnd('');
+                        return;
+                      }
+                      val = Number(val);
+                      setDownloadTrimEnd(val);
+                      if (val < downloadTrimStart) setDownloadTrimStart(val);
+                      const pv = document.querySelector('.mp-trim-preview-video');
+                      if (pv) pv.currentTime = val;
+                    }} 
+                    onBlur={() => {
+                      if (downloadTrimEnd === '') setDownloadTrimEnd(duration || 0);
+                    }}
+                    className="mp-trim-input" 
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="mp-trim-modal-footer">
+              <SpecularButton 
+                onClick={() => setShowDownloadModal(false)} 
+                textColor="#10b981"
+                lineColor="#10b981"
+                baseColor="#064e3b"
+              >
+                Cancel
+              </SpecularButton>
+              <SpecularButton 
+                onClick={confirmDownloadVideo} 
+                textColor="#10b981"
+                lineColor="#10b981"
+                baseColor="#064e3b"
+              >
+                Save & Download
+              </SpecularButton>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Export Modal (Date Range Only) ── */}
       {showExportModal && (

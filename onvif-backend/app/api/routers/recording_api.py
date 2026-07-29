@@ -349,10 +349,11 @@ def remux_ts_to_mp4(ts_data: bytes) -> bytes:
             print(f"[REMUX] Remuxing failed: {e}")
     return ts_data
 
-def convert_video_format(video_data: bytes, output_format: str) -> bytes:
+def convert_video_format(video_data: bytes, output_format: str, trim_start: float = None, trim_end: float = None) -> bytes:
     """
     Synchronously convert video bytes (MPEG-TS or MP4) to the desired output format ('mp4', 'avi', 'asf') using ffmpeg.
     Uses copy mode (-c copy) for speed and resource efficiency.
+    Supports trimming the output.
     """
     from app.utils.ffmpeg_utils import run_ffmpeg_sync
     
@@ -363,24 +364,53 @@ def convert_video_format(video_data: bytes, output_format: str) -> bytes:
     # Detect if input is MPEG-TS
     is_ts = len(video_data) > 0 and video_data[0] == 0x47
     
-    if is_ts and output_format == "mp4":
-        cmd = [FFMPEG_BIN, "-y", "-loglevel", "quiet", "-i", "pipe:0", "-c", "copy", "-f", "mp4", "-movflags", "frag_keyframe+empty_moov+default_base_moof", "pipe:1"]
-    elif output_format == "avi":
-        cmd = [FFMPEG_BIN, "-y", "-loglevel", "quiet", "-i", "pipe:0", "-c", "copy", "-f", "avi", "pipe:1"]
-    elif output_format == "asf":
-        cmd = [FFMPEG_BIN, "-y", "-loglevel", "quiet", "-i", "pipe:0", "-c", "copy", "-f", "asf", "pipe:1"]
-    else:
-        # Already MP4 and requested MP4
+    is_trimming = trim_start is not None or trim_end is not None
+    
+    if output_format == "mp4" and not is_ts and not is_trimming:
+        # Already MP4 and requested MP4, and no trimming
         return video_data
-        
+
+    tmp_path = None
+    if is_trimming:
+        import tempfile
+        import os
+        fd, tmp_path = tempfile.mkstemp(suffix=".ts" if is_ts else ".mp4")
+        with os.fdopen(fd, 'wb') as f:
+            f.write(video_data)
+        cmd = [FFMPEG_BIN, "-y", "-loglevel", "quiet"]
+        if trim_start is not None:
+            cmd.extend(["-ss", str(trim_start)])
+        cmd.extend(["-i", tmp_path])
+        if trim_end is not None:
+            duration = float(trim_end) - (float(trim_start) if trim_start else 0.0)
+            if duration > 0:
+                cmd.extend(["-t", str(duration)])
+        # Frame-accurate cut with fast re-encoding
+        cmd.extend(["-c:v", "libx264", "-preset", "veryfast", "-c:a", "aac"])
+    else:
+        cmd = [FFMPEG_BIN, "-y", "-loglevel", "quiet", "-i", "pipe:0", "-c", "copy"]
+
+    if output_format == "mp4":
+        cmd.extend(["-f", "mp4", "-movflags", "frag_keyframe+empty_moov+default_base_moof", "pipe:1"])
+    elif output_format == "avi":
+        cmd.extend(["-f", "avi", "pipe:1"])
+    elif output_format == "asf":
+        cmd.extend(["-f", "asf", "pipe:1"])
+
     try:
-        success, stdout_data, stderr_data = run_ffmpeg_sync(cmd, timeout=30, input_data=video_data, capture_stdout=True)
+        success, stdout_data, stderr_data = run_ffmpeg_sync(cmd, timeout=60, input_data=None if is_trimming else video_data, capture_stdout=True)
         if success and len(stdout_data) > 0:
             return stdout_data
         else:
             print(f"[CONVERSION] FFmpeg failed or produced empty output for format {output_format}. Stderr: {stderr_data.decode(errors='replace')}")
     except Exception as e:
         print(f"[CONVERSION] Exception during format conversion to {output_format}: {e}")
+    finally:
+        if tmp_path and os.path.exists(tmp_path):
+            try:
+                os.remove(tmp_path)
+            except:
+                pass
         
     return video_data
 
@@ -751,7 +781,7 @@ def delete_schedule(sch_id: str):
     )
     # Re-sync with recorder
     for cam in _db["cameras"].find({"assigned_schedule_id": "always"}):
-        recorder.update_camera_data(cam["ome_stream"], {"assigned_schedule_id": "always"})
+        recorder.update_camera_data(cam["stream_key"], {"assigned_schedule_id": "always"})
 
     return {"message": "Schedule deleted and assignments reset"}
 
@@ -759,7 +789,7 @@ def delete_schedule(sch_id: str):
 def assign_schedule(req: AssignScheduleRequest):
     # Update camera in 'cameras' collection
     _db["cameras"].update_one(
-        {"ome_stream": req.camera_id},
+        {"stream_key": req.camera_id},
         {"$set": {
             "assigned_schedule_id": req.schedule_id,
             "motion_only": req.motion_only
@@ -1173,6 +1203,9 @@ def download_recording(
     date:       str = Query(...),
     start_time: str = Query(...),
     format:     str = Query("mp4"),
+    trim_start: float = Query(None),
+    trim_end:   float = Query(None),
+    filename:   str = Query(None),
     background_tasks: BackgroundTasks = None,
 ):
     format = format.lower()
@@ -1196,7 +1229,7 @@ def download_recording(
     try:
         stream = _decrypt(enc_path)
         data   = stream.getvalue()
-        data   = convert_video_format(data, format)
+        data   = convert_video_format(data, format, trim_start=trim_start, trim_end=trim_end)
     except Exception as e:
         print(f"[DOWNLOAD] ❌ {enc_path}: {e}")
         raise HTTPException(status_code=500, detail=f"Decryption failed: {e}")
@@ -1205,11 +1238,18 @@ def download_recording(
         raise HTTPException(status_code=500, detail="Decryption produced empty output — key mismatch?")
 
     # Sanitize filename: replace colons/slashes that break VLC on Windows
-    safe_time = start_time.replace(":", "-").replace("/", "-")
-    safe_date = date.replace("/", "-")
-    safe_cam  = re.sub(r'[^\w\-.]', '_', camera_id)
-    base_filename  = f"{safe_cam}_{safe_date}_{safe_time}"
-    filename  = f"{base_filename}.{format}"
+    if filename:
+        # User provided filename, sanitize it slightly
+        base_filename = re.sub(r'[^\w\-.]', '_', filename)
+        if base_filename.endswith(f".{format}"):
+            base_filename = base_filename[:-len(f".{format}")]
+    else:
+        safe_time = start_time.replace(":", "-").replace("/", "-")
+        safe_date = date.replace("/", "-")
+        safe_cam  = re.sub(r'[^\w\-.]', '_', camera_id)
+        base_filename  = f"{safe_cam}_{safe_date}_{safe_time}"
+        
+    out_filename  = f"{base_filename}.{format}"
     sig_filename = f"{base_filename}.sig"
 
     try:
@@ -1221,7 +1261,7 @@ def download_recording(
         temp_zip.close()
         
         with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_STORED) as zf:
-            zf.writestr(filename, data)
+            zf.writestr(out_filename, data)
             zf.writestr(sig_filename, signature)
             zf.writestr("public_key.pem", public_key)
             

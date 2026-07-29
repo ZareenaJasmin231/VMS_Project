@@ -1669,3 +1669,165 @@
 [data-theme="light"] .mp-overlay-top {
   background: linear-gradient(to bottom, rgba(0, 0, 0, 0.45) 0%, transparent 100%);
 }
+
+/* -- Trim Preview Modal ------------------------- */
+.mp-trim-modal-overlay {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(4px);
+  z-index: 999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mp-trim-modal {
+  background: var(--bg-panel);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  width: 90%;
+  max-width: 800px;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+  overflow: hidden;
+  animation: modal-pop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.mp-trim-modal-header {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.mp-trim-modal-title {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0;
+  color: var(--text-primary);
+}
+
+.mp-trim-modal-body {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.mp-trim-preview-container {
+  width: 100%;
+  background: #000;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  position: relative;
+  aspect-ratio: 16 / 9;
+}
+
+.mp-trim-preview-video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+/* -- Custom Dual-Thumb Timeline -- */
+.mp-trim-timeline-wrapper {
+  position: relative;
+  height: 100px;
+  display: flex;
+  align-items: center;
+  user-select: none;
+}
+
+.mp-trim-timeline-track {
+  position: relative;
+  width: 100%;
+  height: 80px;
+  background: var(--bg-deep);
+  border-radius: 4px;
+  border: 1px solid var(--border-subtle);
+  overflow: visible;
+}
+
+.mp-trim-timeline-selection {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: rgba(45, 212, 191, 0.2); /* Less intense teal */
+  border-top: 2px solid rgba(45, 212, 191, 0.8);
+  border-bottom: 2px solid rgba(45, 212, 191, 0.8);
+  pointer-events: none;
+}
+
+.mp-trim-timeline-handle {
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  width: 12px;
+  background: rgba(45, 212, 191, 1);
+  border-radius: 4px;
+  cursor: ew-resize;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  box-shadow: 0 0 4px rgba(0,0,0,0.5);
+}
+
+.mp-trim-timeline-handle:hover {
+  background: rgba(20, 184, 166, 1);
+}
+
+.mp-trim-handle-grip {
+  width: 4px;
+  height: 32px;
+  background: var(--bg-panel);
+  border-radius: 2px;
+}
+
+.mp-trim-form-row {
+  display: flex;
+  gap: 16px;
+  align-items: flex-end;
+}
+
+.mp-trim-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+}
+
+.mp-trim-form-group label {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.mp-trim-input {
+  background: var(--bg-raised);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-primary);
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  outline: none;
+  font-family: var(--font-body);
+}
+
+.mp-trim-input:focus {
+  border-color: rgba(45, 212, 191, 0.6);
+  background: var(--bg-hover);
+}
+
+.mp-trim-modal-footer {
+  padding: 16px 20px;
+  border-top: 1px solid var(--border-subtle);
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  background: var(--bg-raised);
+}
+
