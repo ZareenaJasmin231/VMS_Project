@@ -93,8 +93,8 @@ export default function Sidebar({ userRole }) {
           <Dock
             direction="vertical"
             panelHeight={68}
-            baseItemSize={40}
-            magnification={60}
+            baseItemSize={44}
+            magnification={64}
             distance={100}
             className="sidebar-dock"
             items={navConfig.map(({ section, page, icon, items }) => {

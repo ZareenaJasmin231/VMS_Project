@@ -3,7 +3,8 @@
 
 // ================= CORE NAVIGATION =================
 const ICONS = {
-  liveView: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>`,
+  dashboard: `<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" clip-rule="evenodd" d="M2 4h20v16H2V4zm2 2v12h16V6H4z" fill="currentColor"/><polyline points="6,15.5 10,9.5 14,14 18,8.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="6" cy="15.5" r="1.8" fill="currentColor"/><circle cx="10" cy="9.5" r="1.8" fill="currentColor"/><circle cx="14" cy="14" r="1.8" fill="currentColor"/><circle cx="18" cy="8.5" r="1.8" fill="currentColor"/></svg>`,
+  liveView: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4.9 19.1C1 15.2 1 8.8 4.9 4.9"/><path d="M7.8 16.2c-2.3-2.3-2.3-6.1 0-8.5"/><circle cx="12" cy="12" r="3" fill="currentColor"/><path d="M16.2 7.8c2.3 2.3 2.3 6.1 0 8.5"/><path d="M19.1 4.9C23 8.8 23 15.1 19.1 19"/></svg>`,
   addDevice: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><path d="M12 8v8M8 12h8"/></svg>`,
   cameras: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>`,
   cameraGroups: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>`,
@@ -11,10 +12,10 @@ const ICONS = {
   forensicSearch: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/><path d="M11 8v6M8 11h6"/></svg>`,
   recording: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>`,
   storage: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v6c0 1.66 4.03 3 9 3s9-1.34 9-3V5"/><path d="M3 11v6c0 1.66 4.03 3 9 3s9-1.34 9-3v-6"/></svg>`,
-  playback: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>`,
+  playback: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><defs><mask id="mirador-play-mask"><rect width="24" height="24" fill="white" /><polygon points="10 8.5 15 12 10 15.5" fill="none" stroke="black" stroke-width="1.5" stroke-linejoin="round" /></mask></defs><circle cx="12" cy="12" r="7" fill="currentColor" stroke="none" mask="url(#mirador-play-mask)" /><circle cx="12" cy="12" r="10" stroke-dasharray="26 7 4 6 3 6 4 6.8" stroke-dashoffset="13" /></svg>`,
   backup: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 16v-8M8 12l4-4 4 4"/><path d="M20.39 18.39A5 5 0 0018 9h-1.26A8 8 0 103 16.3"/></svg>`,
   client: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`,
-  infrastructure: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" y1="6" x2="6" y2="6"/><line x1="6" y1="18" x2="6" y2="18"/><path d="M12 10v4M12 10h4M12 14h4"/></svg>`,
+  infrastructure: `<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><mask id="infra-mask"><rect x="0" y="0" width="24" height="24" fill="white" /><circle cx="12" cy="6" r="1.5" fill="black" /><path d="M12 18l-2.5-1 M12 18l2.5-1 M12 18v3 M4 18l-2.5-1 M4 18l2.5-1 M4 18v3 M20 18l-2.5-1 M20 18l2.5-1 M20 18v3" stroke="black" stroke-width="1.2" stroke-linecap="round" /></mask><g mask="url(#infra-mask)"><polygon points="12,16 14.5,17 14.5,20 12,21 9.5,20 9.5,17" fill="currentColor" /><polygon points="4,16 6.5,17 6.5,20 4,21 1.5,20 1.5,17" fill="currentColor" /><polygon points="20,16 22.5,17 22.5,20 20,21 17.5,20 17.5,17" fill="currentColor" /><rect x="10.8" y="2" width="2.4" height="8" rx="0.3" fill="currentColor" /><rect x="10.8" y="2" width="2.4" height="8" rx="0.3" fill="currentColor" transform="rotate(45 12 6)" /><rect x="10.8" y="2" width="2.4" height="8" rx="0.3" fill="currentColor" transform="rotate(90 12 6)" /><rect x="10.8" y="2" width="2.4" height="8" rx="0.3" fill="currentColor" transform="rotate(135 12 6)" /><circle cx="12" cy="6" r="3.2" fill="currentColor" /></g><path d="M7 6H4v8.5 M17 6h3v8.5 M12 11v3.5" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" /></svg>`,
   about: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>`,
   settings: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>`,
 };
@@ -25,7 +26,7 @@ const CORE_NAV = [
   {
     section: "Dashboard",
     page: "dashboard",
-    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>`,
+    icon: ICONS.dashboard,
   },
 
   // ✅ LIVE VIEW
@@ -68,7 +69,7 @@ const ADMIN_ONLY_NAV = [
     items: [
       { label: "Topology Map", page: "topology-map", icon: ICONS.infrastructure },
       { label: "Network Health", page: "network-health", icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M22 12h-4l-3 9L9 3l-3 9H2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>` },
-      { label: "System Performance", page: "system-performance", icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><path d="M15 2v2M9 2v2M15 20v2M9 20v2M2 15h2M2 9h2M20 15h2M20 9h2"/></svg>` },
+      { label: "System Performance", page: "system-performance", icon: `<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M 3 14 Q 9 14 17 6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" /><polygon points="15,4 21,2 19,8" fill="currentColor" stroke="currentColor" stroke-width="1" stroke-linejoin="round" /><line x1="4.5" y1="15.5" x2="4.5" y2="21" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" /><line x1="9.5" y1="13.5" x2="9.5" y2="21" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" /><line x1="14.5" y1="10.5" x2="14.5" y2="21" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" /><line x1="19.5" y1="8" x2="19.5" y2="21" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" /></svg>` },
     ],
   },
 ];
@@ -79,7 +80,7 @@ const CLIENT_NAV = [
   {
     section: "Dashboard",
     page: "dashboard",
-    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>`,
+    icon: ICONS.dashboard,
   },
   { section: "Live View", page: "live-view", icon: ICONS.liveView },
   {
