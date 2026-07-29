@@ -2,9 +2,11 @@ import urllib.parse
 from pymongo import MongoClient
 import requests
 
+import os
+
 def backfill():
-    client = MongoClient("mongodb://localhost:27017/")
-    db = client.vms_db
+    client = MongoClient(os.environ.get("MONGO_URI", "mongodb://localhost:27017/"))
+    db = client[os.environ.get("MONGO_DB_NAME")]
     cameras = list(db.cameras.find({}))
     updated = 0
     for cam in cameras:

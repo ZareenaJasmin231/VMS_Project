@@ -24,7 +24,8 @@ try:
     MONGO_URI = os.environ.get("MONGO_URI", "mongodb://localhost:27017/")
     _mongo    = mongo_client
     _mongo.server_info()
-    _masks_col = _mongo["vms_db"]["masks"]
+    _db_name = os.environ.get("MONGO_DB_NAME")
+    _masks_col = _mongo[_db_name]["masks"]
     print("[MASKS] ✅ MongoDB backend ready")
 except Exception as e:
     print(f"[MASKS] ⚠ MongoDB unavailable ({e}) — using JSON fallback")

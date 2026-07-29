@@ -17,7 +17,8 @@ MONGO_URI = os.environ.get("MONGO_URI", "mongodb://localhost:27017/")
 
 # Shared MongoDB client — reused across all motion detector threads
 _shared_mongo = mongo_client
-_shared_db = _shared_mongo["vms_db"]
+_db_name = os.environ.get("MONGO_DB_NAME")
+_shared_db = _shared_mongo[_db_name]
 
 class CameraMotionDetector(threading.Thread):
     def __init__(self, stream_name: str, rtsp_url: str, camera_data: dict):
@@ -238,7 +239,10 @@ class CameraMotionDetector(threading.Thread):
                                         "time": self.motion_start_time.isoformat(),
                                         "motion_start": self.motion_start_time.isoformat(),
                                         "received_at": datetime.utcnow().isoformat() + "Z",
-                                        "face_url": face_file_url
+                                        "face_url": face_file_url,
+                                        # Persisted snapshot metadata (capture-and-store at alert time)
+                                        "snapshot_url": face_file_url if face_file_url else None,
+                                        "snapshot_time": (self.motion_start_time.isoformat() if face_file_url else None)
                                     }
                                     result = _shared_db["mqtt_logs"].insert_one(alert_doc)
                                     self.current_motion_doc_id = result.inserted_id
