@@ -76,44 +76,52 @@
   padding: 18px 20px 14px;
   border-bottom: 1px solid var(--border-light);
 }
-.modal-title { font-size: 15px; font-weight: 600; color: var(--text-primary); margin: 0; }
+.modal-title { font-size: 15px; font-weight: 600; color: #ffffff; margin: 0; }
+[data-theme="light"] .modal-title { color: var(--text-primary); }
 .modal-close {
   width: 28px; height: 28px;
   display: flex; align-items: center; justify-content: center;
   background: none; border: none; border-radius: 6px;
-  color: var(--text-muted); cursor: pointer;
+  color: rgba(255, 255, 255, 0.7); cursor: pointer;
   transition: background 0.1s, color 0.1s;
 }
-.modal-close:hover { background: var(--bg-hover); color: var(--text-primary); }
+.modal-close:hover { background: var(--bg-hover); color: #ffffff; }
+[data-theme="light"] .modal-close { color: var(--text-muted); }
+[data-theme="light"] .modal-close:hover { color: var(--text-primary); }
 .modal-close svg { width: 16px; height: 16px; }
 .modal-body { padding: 18px 20px; display: flex; flex-direction: column; gap: 13px; }
 .modal-field { display: flex; flex-direction: column; gap: 5px; }
 .modal-label {
   font-size: 11.5px; font-weight: 500;
-  color: var(--text-muted);
+  color: #ffffff !important;
   text-transform: uppercase; letter-spacing: 0.04em;
 }
+[data-theme="light"] .modal-label { color: var(--text-muted); }
 .modal-input {
   background: var(--bg-elevated);
   border: 1px solid var(--border-light);
   border-radius: 6px;
   padding: 8px 10px;
   font-size: 13px;
-  color: var(--text-primary);
+  color: #ffffff;
   outline: none;
   font-family: inherit;
   transition: border-color 0.15s;
 }
 .modal-input:focus { border-color: var(--teal); }
-.modal-input::placeholder { color: var(--text-muted); }
+.modal-input::placeholder { color: rgba(255, 255, 255, 0.6); }
+[data-theme="light"] .modal-input { color: var(--text-primary); }
+[data-theme="light"] .modal-input::placeholder { color: var(--text-muted); }
 .modal-footer {
   display: flex; justify-content: flex-end; gap: 8px;
   padding: 14px 20px 18px;
   border-top: 1px solid var(--border-light);
 }
 .modal-btn { padding: 8px 16px; border-radius: 6px; font-size: 13px; font-weight: 500; cursor: pointer; transition: background 0.15s; }
-.modal-btn--cancel { background: none; border: 1px solid var(--border-light); color: var(--text-secondary); }
-.modal-btn--cancel:hover { background: var(--bg-hover); color: var(--text-primary); }
+.modal-btn--cancel { background: none; border: 1px solid var(--border-light); color: #ffffff; }
+.modal-btn--cancel:hover { background: var(--bg-hover); color: #ffffff; }
+[data-theme="light"] .modal-btn--cancel { color: var(--text-secondary); }
+[data-theme="light"] .modal-btn--cancel:hover { color: var(--text-primary); }
 .modal-btn--save { background: var(--teal, #10b981); border: 1px solid transparent; color: #fff; }
 .modal-btn--save:hover { opacity: 0.9; }
 
@@ -227,10 +235,12 @@
 .adp-dropdown-menu::-webkit-scrollbar-thumb { background: var(--border-light); border-radius: 3px; }
 .adp-dropdown-menu::-webkit-scrollbar-thumb:hover { background: var(--border); }
 .adp-dropdown-item {
-  padding: 8px 12px; color: var(--text-primary); font-size: 12px; cursor: pointer;
+  padding: 8px 12px; color: #ffffff; font-size: 12px; cursor: pointer;
   border-radius: 4px; display: flex; align-items: center; transition: all .15s;
 }
-.adp-dropdown-item:hover { background: var(--bg-hover); color: var(--text-primary); }
+.adp-dropdown-item:hover { background: var(--bg-hover); color: #ffffff; }
+[data-theme="light"] .adp-dropdown-item { color: var(--text-primary); }
+[data-theme="light"] .adp-dropdown-item:hover { color: var(--text-primary); }
 .adp-dropdown-item.active { background: var(--teal-subtle); color: var(--teal); font-weight: 500; }
 
 .adp-dropdown-delete-btn {

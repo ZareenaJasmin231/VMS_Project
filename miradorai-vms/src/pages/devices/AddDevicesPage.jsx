@@ -140,6 +140,7 @@ function ContextMenu({ x, y, onEdit, onRemove, onStreamProfiles, onClose }) {
 // ─── Edit Device Modal ────────────────────────────────────────────────────────
 // Group reassignment is kept here — useful for moving a camera after the fact.
 function EditDeviceModal({ device, groups, onClose, onSave }) {
+  const { theme } = useTheme();
   const [form, setForm] = useState({
     name: device.name || "",
     ip: device.ip || "",
@@ -200,7 +201,7 @@ function EditDeviceModal({ device, groups, onClose, onSave }) {
                 onClick={() => setDropdownOpen(!dropdownOpen)}
               >
                 <span>{form.group_id === "default" ? "Default" : groups.find(g => g.id === form.group_id)?.name || "Default"}</span>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: dropdownOpen ? "rotate(180deg)" : "rotate(0)", transition: "transform .2s", marginLeft: "8px", color: "var(--text-muted)" }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: dropdownOpen ? "rotate(180deg)" : "rotate(0)", transition: "transform .2s", marginLeft: "8px", opacity: 0.7 }}>
                   <path d="M6 9l6 6 6-6" />
                 </svg>
               </button>
@@ -226,11 +227,39 @@ function EditDeviceModal({ device, groups, onClose, onSave }) {
             </div>
           </div>
         </div>
-        <div className="modal-footer">
-          <button className="modal-btn modal-btn--cancel" onClick={onClose}>Cancel</button>
-          <button className="modal-btn modal-btn--save" onClick={() => { onSave({ ...device, ...form }); onClose(); }}>
+        <div className="modal-footer" style={{ gap: "12px" }}>
+          <SpecularButton
+            onClick={onClose}
+            size="sm"
+            radius={6}
+            tint="#475569"
+            tintOpacity={0.1}
+            blur={4}
+            textColor={theme === 'light' ? "#334155" : "#ffffff"}
+            lineColor="#64748b"
+            baseColor={theme === 'light' ? "#f1f5f9" : "#1e293b"}
+            intensity={1.2}
+            shineSize={12}
+            shineFade={38}
+          >
+            Cancel
+          </SpecularButton>
+          <SpecularButton
+            onClick={() => { onSave({ ...device, ...form }); onClose(); }}
+            size="sm"
+            radius={6}
+            tint="#3b82f6"
+            tintOpacity={0.1}
+            blur={4}
+            textColor={theme === 'light' ? "#1e40af" : "#ffffff"}
+            lineColor="#3b82f6"
+            baseColor={theme === 'light' ? "#dbeafe" : "#1e3a8a"}
+            intensity={1.2}
+            shineSize={12}
+            shineFade={38}
+          >
             Save Changes
-          </button>
+          </SpecularButton>
         </div>
       </div>
     </div>
