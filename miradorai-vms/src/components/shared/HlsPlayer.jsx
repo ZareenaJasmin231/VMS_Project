@@ -11,7 +11,6 @@ function HlsPlayer({ streamKey, streamUrl, muted = true, autoplay = true, classN
 
   const [status, setStatus] = useState("connecting");
   const [errorMsg, setErrorMsg] = useState("");
-  const [isMuted, setIsMuted] = useState(muted);
   const [hovered, setHovered] = useState(false);
   const [btnHovered, setBtnHovered] = useState(false);
   const [isVideoPlaying, setIsVideoPlaying] = useState(false);
@@ -158,7 +157,7 @@ function HlsPlayer({ streamKey, streamUrl, muted = true, autoplay = true, classN
       <video
         ref={videoRef}
         playsInline
-        muted={isMuted}
+        muted={muted}
         style={{
           width: "100%",
           height: "100%",
@@ -182,35 +181,6 @@ function HlsPlayer({ streamKey, streamUrl, muted = true, autoplay = true, classN
           <span style={{ color: "#ef4444", fontSize: 20 }}>⚠</span>
           <span style={{ color: "#94a3b8", fontSize: 11 }}>{errorMsg || "Connection failed"}</span>
         </div>
-      )}
-      {status === "connected" && hovered && (
-        <button
-          style={{
-            position: "absolute",
-            bottom: "8px",
-            left: "8px",
-            background: btnHovered ? "rgba(20, 184, 166, 0.95)" : "rgba(15, 23, 42, 0.75)",
-            backdropFilter: "blur(8px)",
-            border: "1px solid rgba(255, 255, 255, 0.15)",
-            borderRadius: "50%",
-            width: "32px",
-            height: "32px",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            color: "#ffffff",
-            cursor: "pointer",
-            zIndex: 20,
-            outline: "none",
-            boxShadow: "0 4px 12px rgba(0, 0, 0, 0.5)",
-          }}
-          onClick={(e) => { e.stopPropagation(); setIsMuted(!isMuted); }}
-          onMouseEnter={() => setBtnHovered(true)}
-          onMouseLeave={() => setBtnHovered(false)}
-          title={isMuted ? "Unmute" : "Mute"}
-        >
-          {isMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
-        </button>
       )}
     </div>
   );

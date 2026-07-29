@@ -64,13 +64,12 @@ async function applyBitrateLimit(pc, maxKbps) {
 //   - Fullscreen view: pass 10000 (10 Mbps)
 //   - Not passed:      no throttle applied (full native camera bitrate)
 // ─────────────────────────────────────────────────────────────────────────────
-function WebRTCPlayer_MediaMTX({ streamKey, cameraId, onConnectChange, onError, maxBitrate, badgeMode = "normal" }) {
+function WebRTCPlayer_MediaMTX({ streamKey, cameraId, onConnectChange, onError, maxBitrate, badgeMode = "normal", muted = true }) {
   const videoRef = useRef(null);
   const containerRef = useRef(null);
 
   const [status, setStatus] = useState("connecting");
   const [errorMsg, setErrorMsg] = useState("");
-  const [isMuted, setIsMuted] = useState(true);
   const [hovered, setHovered] = useState(false);
   const [btnHovered, setBtnHovered] = useState(false);
   const [receivedMbps, setReceivedMbps] = useState(null);
@@ -307,11 +306,6 @@ function WebRTCPlayer_MediaMTX({ streamKey, cameraId, onConnectChange, onError, 
     return () => clearInterval(interval);
   }, [status]);
 
-  const toggleMute = (e) => {
-    e.stopPropagation();
-    setIsMuted((prev) => !prev);
-  };
-
   const wrapStyle = {
     position: "relative",
     width: "100%",
@@ -403,7 +397,7 @@ function WebRTCPlayer_MediaMTX({ streamKey, cameraId, onConnectChange, onError, 
         ref={videoRef}
         autoPlay
         playsInline
-        muted={isMuted}
+        muted={muted}
         style={{
           width: "100%",
           height: "100%",
@@ -454,16 +448,6 @@ function WebRTCPlayer_MediaMTX({ streamKey, cameraId, onConnectChange, onError, 
                 : `${(receivedMbps * 1000).toFixed(0)} Kbps`
               : "— Mbps"}
           </div>
-          {/* ── Mute button ─────────────────────────────────────────────────── */}
-          <button
-            style={volumeBtnStyle}
-            onClick={toggleMute}
-            onMouseEnter={() => setBtnHovered(true)}
-            onMouseLeave={() => setBtnHovered(false)}
-            title={isMuted ? "Unmute" : "Mute"}
-          >
-            {isMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
-          </button>
         </>
       )}
     </div>

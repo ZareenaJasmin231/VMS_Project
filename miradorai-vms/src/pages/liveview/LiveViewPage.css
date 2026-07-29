@@ -786,6 +786,111 @@
 .lv-alert-card__badge--on  { background: var(--teal-subtle); color: var(--teal); }
 .lv-alert-card__badge--off { background: var(--bg-elevated); color: var(--text-secondary); }
 
+.lv-cam__bottom-right-controls {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  z-index: 300;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  pointer-events: none;
+}
+
+/* ── Alert badge on camera cell ──────────────────── */
+.lv-cam__alert-badge {
+  position: relative;
+  background: #E24B4A;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 600;
+  border-radius: 999px;
+  min-width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 6px;
+  pointer-events: auto;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.15s, box-shadow 0.15s;
+  box-shadow: 0 2px 8px rgba(226, 75, 74, 0.5);
+  user-select: none;
+}
+
+/* ── Mute toggle switch ──────────────────────────── */
+.lv-cam__mute-btn {
+  pointer-events: auto;
+}
+
+.toggleSwitch {
+  width: 32px;
+  height: 32px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(39, 39, 39, 0.85);
+  border-radius: 50%;
+  cursor: pointer;
+  transition-duration: .3s;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+  backdrop-filter: blur(2px);
+}
+
+.muteCheckboxInput {
+  display: none;
+}
+
+.toggleSwitch .speaker {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+  transition-duration: .3s;
+}
+
+.toggleSwitch .speaker svg {
+  width: 14px;
+}
+
+.toggleSwitch .mute-speaker {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  z-index: 3;
+  transition-duration: .3s;
+}
+
+.toggleSwitch .mute-speaker svg {
+  width: 14px;
+}
+
+.muteCheckboxInput:checked + .toggleSwitch .speaker {
+  opacity: 0;
+  transition-duration: .3s;
+}
+
+.muteCheckboxInput:checked + .toggleSwitch .mute-speaker {
+  opacity: 1;
+  transition-duration: .3s;
+}
+
+.muteCheckboxInput:active + .toggleSwitch {
+  transform: scale(0.85);
+}
+
+.muteCheckboxInput:hover + .toggleSwitch {
+  background-color: rgba(61, 61, 61, 0.95);
+}
+
 .lv-alert-card__row {
   display: flex;
   align-items: center;
@@ -833,30 +938,6 @@
   }
 }
 
-/* ── Alert badge on camera cell ──────────────────── */
-.lv-cam__alert-badge {
-  position: absolute;
-  bottom: 8px;
-  right: 8px;
-  z-index: 300;
-  background: #E24B4A;
-  color: #fff;
-  font-size: 15px;
-  font-weight: 600;
-  border-radius: 999px;
-  min-width: 22px;
-  height: 22px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0 6px;
-  /* CRITICAL: must be auto so clicks register */
-  pointer-events: auto;
-  cursor: pointer;
-  transition: background 0.15s, transform 0.15s, box-shadow 0.15s;
-  box-shadow: 0 2px 8px rgba(226, 75, 74, 0.5);
-  user-select: none;
-}
 .lv-cam__alert-badge:hover {
   background: #c0392b;
   transform: scale(1.15);
