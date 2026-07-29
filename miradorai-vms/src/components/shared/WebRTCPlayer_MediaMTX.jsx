@@ -448,12 +448,6 @@ function WebRTCPlayer_MediaMTX({ streamKey, cameraId, onConnectChange, onError, 
             <svg width="10" height="10" viewBox="0 0 10 10" style={{ flexShrink: 0 }}>
               <circle cx="5" cy="5" r="5" fill={bwColor} opacity="0.95" />
             </svg>
-            {videoResolution && (
-              <>
-                <span style={{ color: '#94a3b8' }}>{videoResolution}</span>
-                <span style={{ color: '#475569', margin: '0 1px' }}>·</span>
-              </>
-            )}
             {receivedMbps !== null
               ? receivedMbps >= 1
                 ? `${receivedMbps.toFixed(1)} Mbps`
