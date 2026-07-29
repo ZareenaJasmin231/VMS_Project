@@ -811,11 +811,6 @@ function AlertsPanel({ isOpen, onAlertCountUpdate, onTotalAlertCountChange, live
                         style={{ width: "100%", height: "100%", objectFit: "cover" }}
                         loading="lazy"
                         onError={(e) => {
-                          const altUrl = alert.thumbnailAltUrl;
-                          if (altUrl && altUrl !== e.currentTarget.src) {
-                            e.currentTarget.src = altUrl;
-                            return;
-                          }
                           e.currentTarget.style.display = "none";
                           if (e.currentTarget.parentElement) {
                             e.currentTarget.parentElement.style.display = "none";
@@ -854,6 +849,7 @@ function CameraCell({ device, streamMode, onFullscreen, alertCount, onBadgeClick
   const [isLive, setIsLive] = useState(false);
   const [localStreamMode, setLocalStreamMode] = useState(streamMode);
   const [ptzOpen, setPtzOpen] = useState(false);
+  const [isMuted, setIsMuted] = useState(true);
 
   useEffect(() => {
     setLocalStreamMode(streamMode);
@@ -881,19 +877,39 @@ function CameraCell({ device, streamMode, onFullscreen, alertCount, onBadgeClick
       className={`lv-cam ${alertCount > 0 ? "lv-cam--alert" : ""}`}
       style={{ position: "relative" }}
     >
-      {alertCount > 0 && (
-        <div
-          className="lv-cam__alert-badge"
-          onClick={(e) => {
-            e.stopPropagation();
-            e.preventDefault();
-            onBadgeClick?.();
-          }}
-          title={`${alertCount > 50 ? 50 : alertCount} alert${alertCount !== 1 ? "s" : ""} — click to view`}
-        >
-          {alertCount > 50 ? 50 : alertCount}
+      <div className="lv-cam__bottom-right-controls">
+        <div className="lv-cam__mute-btn" onClick={(e) => e.stopPropagation()}>
+          <input type="checkbox" id={`mute-${device.id || device.ip}`} className="muteCheckboxInput" checked={isMuted} onChange={() => setIsMuted(!isMuted)} />
+          <label htmlFor={`mute-${device.id || device.ip}`} className="toggleSwitch">
+            <div className="speaker">
+              <svg xmlns="http://www.w3.org/2000/svg" version="1.0" viewBox="0 0 75 75">
+                <path d="M39.389,13.769 L22.235,28.606 L6,28.606 L6,47.699 L21.989,47.699 L39.389,62.75 L39.389,13.769z" style={{stroke:"#fff",strokeWidth:5,strokeLinejoin:"round",fill:"#fff"}}></path>
+                <path d="M48,27.6a19.5,19.5 0 0 1 0,21.4M55.1,20.5a30,30 0 0 1 0,35.6M61.6,14a38.8,38.8 0 0 1 0,48.6" style={{fill:"none",stroke:"#fff",strokeWidth:5,strokeLinecap:"round"}}></path>
+              </svg>
+            </div>
+            <div className="mute-speaker">
+              <svg version="1.0" viewBox="0 0 75 75" stroke="#fff" strokeWidth="5">
+                <path d="m39,14-17,15H6V48H22l17,15z" fill="#fff" strokeLinejoin="round"></path>
+                <path d="m49,26 20,24m0-24-20,24" fill="#fff" strokeLinecap="round"></path>
+              </svg>
+            </div>
+          </label>
         </div>
-      )}
+
+        {alertCount > 0 && (
+          <div
+            className="lv-cam__alert-badge"
+            onClick={(e) => {
+              e.stopPropagation();
+              e.preventDefault();
+              onBadgeClick?.();
+            }}
+            title={`${alertCount > 50 ? 50 : alertCount} alert${alertCount !== 1 ? "s" : ""} — click to view`}
+          >
+            {alertCount > 50 ? 50 : alertCount}
+          </div>
+        )}
+      </div>
 
       <div className="lv-cell__header">
         {isLive && <span className="lv-live-dot" />}
@@ -949,12 +965,14 @@ function CameraCell({ device, streamMode, onFullscreen, alertCount, onBadgeClick
                 onConnectChange={setIsLive}
                 maxBitrate={maxBitrate}
                 badgeMode={badgeMode}
+                muted={isMuted}
               />
             ) : (
               <HlsPlayer
                 key={`hls-${streamKeyToUse}`}
                 streamKey={streamKeyToUse}
                 onConnectChange={setIsLive}
+                muted={isMuted}
               />
             )}
             <MaskOverlay ip={device.ip} />
