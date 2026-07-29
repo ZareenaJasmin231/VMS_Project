@@ -5,7 +5,7 @@ import './AnimatedDownloadButton.css';
 export default function AnimatedDownloadButton({ 
   onClick, 
   disabled, 
-  tooltip = "Size: 20Mb", 
+  tooltip = null, 
   text = "Download", 
   style, 
   className = "",
@@ -23,7 +23,7 @@ export default function AnimatedDownloadButton({
     <SpecularButton 
       type={type}
       className={`animated-download-btn ${className}`} 
-      data-tooltip={tooltip} 
+      data-tooltip={tooltip || undefined} 
       onClick={onClick} 
       disabled={disabled}
       style={style}

@@ -1,0 +1,75 @@
+.dtp-container-box {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 38px;
+  background: #111318;
+  border: 1px solid #24262c;
+  border-radius: 8px;
+  padding: 0 4px;
+  position: relative;
+  box-sizing: border-box;
+  transition: border-color 120ms ease-out, box-shadow 120ms ease-out;
+}
+
+.dtp-container-box:hover {
+  border-color: #3a3d45;
+}
+
+.dtp-container-box.active {
+  border-color: #7c9eff;
+  box-shadow: 0 0 0 2px rgba(124, 158, 255, 0.15);
+}
+
+.dtp-segment {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 6px;
+  background: transparent;
+  border: none;
+  color: #f2f2f0;
+  font-size: var(--font-size-content, 16px);
+  font-family: var(--font-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
+  font-weight: 500;
+  cursor: pointer;
+  outline: none;
+  transition: background-color 120ms ease-out;
+  white-space: nowrap;
+}
+
+.dtp-segment:hover,
+.dtp-segment.active {
+  background: #1e2026;
+}
+
+.dtp-segment-text {
+  flex: 1;
+  text-align: left;
+  font-size: var(--font-size-content, 16px);
+  font-weight: 500;
+}
+
+.dtp-divider {
+  width: 1px;
+  height: 18px;
+  background: #24262c;
+  flex-shrink: 0;
+}
+
+.dtp-popover-dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  z-index: 9999;
+}
+
+.dtp-popover-dropdown.date-pos {
+  left: 0;
+}
+
+.dtp-popover-dropdown.time-pos {
+  right: 0;
+}

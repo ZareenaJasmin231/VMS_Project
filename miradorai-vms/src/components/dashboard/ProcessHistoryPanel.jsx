@@ -1,4 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
+import DatePicker from "../shared/DatePicker";
+import TimePicker from "../shared/TimePicker";
+import DateTimePicker from "../shared/DateTimePicker";
 import SpecularButton from "./../shared/SpecularButton";
 import AnimatedDownloadButton from "./../shared/AnimatedDownloadButton";
 import { useTheme } from "../../context/ThemeContext";
@@ -300,25 +303,19 @@ const ProcessHistoryPanel = () => {
 
       {/* Filter Controls Bar */}
       <form className="vms-proc-controls" onSubmit={handleApplyFilter} style={{ background: 'var(--bg-surface, #121824)', padding: '14px', borderRadius: '8px', border: '1px solid var(--border, #1e293b)', gap: '12px', flexWrap: 'wrap' }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', minWidth: '220px' }}>
           <label style={{ fontSize: '11px', color: 'var(--text-muted, #94a3b8)', fontWeight: 600, letterSpacing: '0.03em' }}>FROM DATE & TIME</label>
-          <input 
-            type="datetime-local" 
-            className="vms-proc-search-input" 
+          <DateTimePicker 
             value={startDate} 
-            onChange={(e) => setStartDate(e.target.value)} 
-            style={{ width: '190px', colorScheme: 'dark', background: 'var(--bg-base, #0b0f17)', border: '1px solid var(--border, #1e293b)', color: '#ffffff' }}
+            onChange={(val) => setStartDate(val)} 
           />
         </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', minWidth: '220px' }}>
           <label style={{ fontSize: '11px', color: 'var(--text-muted, #94a3b8)', fontWeight: 600, letterSpacing: '0.03em' }}>TO DATE & TIME</label>
-          <input 
-            type="datetime-local" 
-            className="vms-proc-search-input" 
+          <DateTimePicker 
             value={endDate} 
-            onChange={(e) => setEndDate(e.target.value)} 
-            style={{ width: '190px', colorScheme: 'dark', background: 'var(--bg-base, #0b0f17)', border: '1px solid var(--border, #1e293b)', color: '#ffffff' }}
+            onChange={(val) => setEndDate(val)} 
           />
         </div>
 

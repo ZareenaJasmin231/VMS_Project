@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import DatePicker from "../../components/shared/DatePicker";
 import {
   FaServer, FaShieldAlt, FaHistory, FaCheckCircle,
   FaExclamationTriangle, FaPlayCircle, FaDownload,
@@ -663,17 +664,17 @@ export default function BackupPage() {
                   </div>
                 </div>
                 <div className="form-grid" style={{ gridTemplateColumns: 'repeat(2, 1fr)', gap: '15px' }}>
-                  <div className="input-group">
+                  <div className="input-group backup-input-wrapper">
                     <label>Start Date</label>
-                    <input type="date" className="backup-input" value={manual.start_date} onChange={e => setManual(m => ({ ...m, start_date: e.target.value }))} />
+                    <DatePicker value={manual.start_date} onChange={val => setManual(m => ({ ...m, start_date: val }))} />
                   </div>
                   <div className="input-group">
                     <label>Start Time</label>
                     <input type="time" className="backup-input" step="1" value={manual.start_time} onChange={e => setManual(m => ({ ...m, start_time: e.target.value }))} />
                   </div>
-                  <div className="input-group">
+                  <div className="input-group backup-input-wrapper">
                     <label>End Date</label>
-                    <input type="date" className="backup-input" value={manual.end_date} onChange={e => setManual(m => ({ ...m, end_date: e.target.value }))} />
+                    <DatePicker value={manual.end_date} onChange={val => setManual(m => ({ ...m, end_date: val }))} />
                   </div>
                   <div className="input-group">
                     <label>End Time</label>

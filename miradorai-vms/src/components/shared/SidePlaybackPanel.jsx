@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import Hls from "hls.js";
-
+import DatePicker from "./DatePicker";
 import { useDigitalZoom } from "../../hooks/useDigitalZoom";
 import "./SidePlaybackPanel.css";
 
@@ -958,12 +958,10 @@ export default function SidePlaybackPanel({ camera, onClose, alertSource = "buil
           <div className="side-playback-archive-panel">
             <div className="side-playback-filter-row">
               <span className="side-playback-filter-label">Select Date</span>
-              <input
-                type="date"
-                className="side-playback-date-input"
+              <DatePicker
                 value={selectedDate}
-                onChange={(e) => {
-                  setSelectedDate(e.target.value);
+                onChange={(val) => {
+                  setSelectedDate(val);
                   setPlayingFile(null);
                   setVideoUrl(null);
                 }}

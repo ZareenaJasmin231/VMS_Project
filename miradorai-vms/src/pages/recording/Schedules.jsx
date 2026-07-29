@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import DatePicker from "../../components/shared/DatePicker";
 import SearchBar from "../../components/shared/SearchBar";
 import "./Schedules.css";
 
@@ -602,8 +603,10 @@ export default function Schedules() {
         <div className="exc-sp-body">
           {selected && (
             <>
-              <ExceptionCalendar
-                exceptions={selected.exceptions}
+              <DatePicker
+                mode="multiple"
+                isPopover={false}
+                value={selected.exceptions || []}
                 onChange={(exceptions) => updateSelected({ exceptions })}
               />
               <p className="exc-note" style={{ marginTop: "16px", fontSize: "12.5px", lineHeight: "1.4" }}>

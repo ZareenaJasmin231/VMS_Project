@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import DatePicker from "../../components/shared/DatePicker";
 import { useAuth } from "../../context/AuthContext";
 import { useImageConfig, buildCSSFilter } from "../../hooks/useImageConfig";
 import { useDigitalZoom } from "../../hooks/useDigitalZoom";
@@ -1248,11 +1249,9 @@ export default function MediaPlayerPage() {
             </div>
 
             <div className="mp-filters">
-              <input
-                type="date"
-                className="mp-date-input"
+              <DatePicker
                 value={selectedDate}
-                onChange={(e) => { setSelectedDate(e.target.value); setPlayingFile(null); }}
+                onChange={(val) => { setSelectedDate(val); setPlayingFile(null); }}
               />
             </div>
 
@@ -1296,7 +1295,6 @@ export default function MediaPlayerPage() {
 
               <AnimatedDownloadButton
                 onClick={() => setShowExportModal(true)}
-                tooltip="Export recordings"
                 text="Export"
                 style={{ '--width': '120px', '--height': '44px', borderRadius: '8px', fontSize: '1rem' }}
                 textColor={theme === 'light' ? "#065f46" : "#f0fff8"}
@@ -1574,7 +1572,6 @@ export default function MediaPlayerPage() {
                   className="mp-ctrl-btn mp-download-btn"
                   onClick={openDownloadModal}
                   disabled={!playingFile}
-                  title="Download current video segment"
                 >
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" width="17" height="17">
                     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
@@ -1823,13 +1820,11 @@ export default function MediaPlayerPage() {
               <div className="mp-export-range-section">
                 <div className="mp-export-range-group">
                   <label className="mp-export-date-label">Start Date</label>
-                  <input type="date" className="mp-export-date-input" value={exportStartDate}
-                    onChange={(e) => setExportStartDate(e.target.value)} disabled={exporting} />
+                  <DatePicker value={exportStartDate} onChange={(val) => setExportStartDate(val)} />
                 </div>
                 <div className="mp-export-range-group">
                   <label className="mp-export-date-label">End Date</label>
-                  <input type="date" className="mp-export-date-input" value={exportEndDate}
-                    onChange={(e) => setExportEndDate(e.target.value)} disabled={exporting} />
+                  <DatePicker value={exportEndDate} onChange={(val) => setExportEndDate(val)} />
                 </div>
                 <div className="mp-export-range-group">
                   <label className="mp-export-date-label">Start Time</label>

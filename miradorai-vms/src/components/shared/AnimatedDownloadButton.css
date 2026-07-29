@@ -137,15 +137,23 @@
   top: 0;
 }
 
-.animated-download-btn:hover:not(:disabled):before, .animated-download-btn:hover:not(:disabled):after {
+.animated-download-btn:not([data-tooltip])::before,
+.animated-download-btn:not([data-tooltip])::after,
+.animated-download-btn[data-tooltip=""]::before,
+.animated-download-btn[data-tooltip=""]::after {
+  display: none !important;
+}
+
+.animated-download-btn[data-tooltip]:not([data-tooltip=""]):hover:not(:disabled):before,
+.animated-download-btn[data-tooltip]:not([data-tooltip=""]):hover:not(:disabled):after {
   opacity: 1;
   visibility: visible;
 }
 
-.animated-download-btn:hover:not(:disabled):after {
+.animated-download-btn[data-tooltip]:not([data-tooltip=""]):hover:not(:disabled):after {
   bottom: calc(var(--height) + var(--gap-between-tooltip-to-button) - 16px);
 }
 
-.animated-download-btn:hover:not(:disabled):before {
+.animated-download-btn[data-tooltip]:not([data-tooltip=""]):hover:not(:disabled):before {
   bottom: calc(var(--height) + var(--gap-between-tooltip-to-button) - 2px);
 }

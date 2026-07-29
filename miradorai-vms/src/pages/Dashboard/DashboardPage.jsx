@@ -1,4 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
+import DatePicker from "../../components/shared/DatePicker";
+import TimePicker from "../../components/shared/TimePicker";
+import DateTimePicker from "../../components/shared/DateTimePicker";
 import SpecularButton from "../../components/shared/SpecularButton";
 import AnimatedDownloadButton from "../../components/shared/AnimatedDownloadButton";
 import { useNavigate } from "react-router-dom";
@@ -3337,11 +3340,9 @@ const DashboardPage = () => {
           <div className="report-filter-group">
             <label>From Date & Time</label>
             <div className="report-input-wrapper">
-              <input
-                type="datetime-local"
-                className="report-input"
+              <DateTimePicker
                 value={reportFromDate}
-                onChange={(e) => setReportFromDate(e.target.value)}
+                onChange={(val) => setReportFromDate(val)}
               />
             </div>
           </div>
@@ -3349,11 +3350,9 @@ const DashboardPage = () => {
           <div className="report-filter-group">
             <label>To Date & Time</label>
             <div className="report-input-wrapper">
-              <input
-                type="datetime-local"
-                className="report-input"
+              <DateTimePicker
                 value={reportToDate}
-                onChange={(e) => setReportToDate(e.target.value)}
+                onChange={(val) => setReportToDate(val)}
               />
             </div>
           </div>
@@ -3461,8 +3460,6 @@ const DashboardPage = () => {
               disabled={reportLoading}
               onClick={handleGenerateReport}
               type="button"
-              textColor={theme === 'light' ? "#065f46" : "#f0fff8"}
-              baseColor={theme === 'light' ? "#d1fae5" : "#0d3326"}
             >
               {reportLoading ? "Generating..." : "Generate Report"}
             </SpecularButton>

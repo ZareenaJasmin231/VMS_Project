@@ -584,7 +584,8 @@
 }
 
 .report-filter-group label {
-  font-size: 13px;
+  font-size: var(--font-size-content, 16px);
+  font-family: var(--font-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
   font-weight: 600;
   text-transform: none;
   letter-spacing: 0.02em;
@@ -595,6 +596,7 @@
   position: relative;
   display: flex;
   align-items: center;
+  width: 100%;
 }
 
 .report-input-wrapper .input-icon {
