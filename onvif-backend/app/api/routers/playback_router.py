@@ -548,9 +548,9 @@ def event_snapshot(ip: str, time: str):
     CHUNK_SECONDS = 300
 
     try:
-        # print("\n========== ALERT SNAPSHOT ==========")
-        # print("IP   :", ip)
-        # print("TIME :", time)
+        print("\n========== ALERT SNAPSHOT ==========")
+        print("IP   :", ip)
+        print("TIME :", time)
 
         # ── 1. Parse timestamp ────────────────────────────────────────
         t = time.strip()

@@ -811,6 +811,11 @@ function AlertsPanel({ isOpen, onAlertCountUpdate, onTotalAlertCountChange, live
                         style={{ width: "100%", height: "100%", objectFit: "cover" }}
                         loading="lazy"
                         onError={(e) => {
+                          const altUrl = alert.thumbnailAltUrl;
+                          if (altUrl && altUrl !== e.currentTarget.src) {
+                            e.currentTarget.src = altUrl;
+                            return;
+                          }
                           e.currentTarget.style.display = "none";
                           if (e.currentTarget.parentElement) {
                             e.currentTarget.parentElement.style.display = "none";
