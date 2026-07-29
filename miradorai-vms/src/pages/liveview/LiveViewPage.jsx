@@ -464,6 +464,18 @@ function AlertsPanel({ isOpen, onAlertCountUpdate, onTotalAlertCountChange, live
     }
   };
 
+  // Build a Set of IPs that are enabled and not deleted — alerts outside this set are suppressed
+  const allowedIps = useMemo(() => {
+    const cams = (devicesProp && devicesProp.length > 0) ? devicesProp : loadDevices();
+    const set = new Set();
+    cams
+      .filter(d => d.enabled !== false && d.isdeleted !== true)
+      .forEach(d => {
+        if (d.ip) set.add((d.ip).replace(/_/g, "."));
+      });
+    return set;
+  }, [devicesProp]);
+
   const fetchAlerts = useCallback(async () => {
     try {
       if (alertSource === "builtin") {
@@ -475,7 +487,7 @@ function AlertsPanel({ isOpen, onAlertCountUpdate, onTotalAlertCountChange, live
         const filtered = (data.alerts || [])
           .filter((a) => {
              const t = (a.type || "").toLowerCase();
-             return t !== "unknown" && t !== "" && !t.includes("tns1:");
+             return t !== "unknown" && t !== "" && !t.includes("tns1:") && !t.includes("motion");
           })
           .filter(isAlertAllowed);
         const perCamCounts = {};
@@ -502,7 +514,14 @@ function AlertsPanel({ isOpen, onAlertCountUpdate, onTotalAlertCountChange, live
           return tB - tA;
         });
 
-        setAlerts(finalAlerts);
+        // Only show alerts for cameras that are enabled and not deleted
+        const activeAlerts = allowedIps.size > 0
+          ? finalAlerts.filter(a => {
+              const ip = normalizeIp(a.ip || "");
+              return !ip || allowedIps.has(ip);
+            })
+          : finalAlerts;
+        setAlerts(activeAlerts);
 
         // Fire off live snapshot fetches for the top recent alerts (non-blocking)
         (async () => {
@@ -572,7 +591,7 @@ function AlertsPanel({ isOpen, onAlertCountUpdate, onTotalAlertCountChange, live
     } finally {
       setLoading(false);
     }
-  }, [onAlertCountUpdate, liveStatus, alertSource, devicesProp]);
+  }, [onAlertCountUpdate, liveStatus, alertSource, devicesProp, allowedIps]);
     const { isConnected: isWsConnected, eventsByTopic } = useWebSocket(["alerts"]);
 
   // Listen to incoming WebSocket alerts in real time
@@ -580,6 +599,12 @@ function AlertsPanel({ isOpen, onAlertCountUpdate, onTotalAlertCountChange, live
     const alertEnvelope = eventsByTopic.alerts;
     if (alertEnvelope && alertEnvelope.data) {
       const payload = alertEnvelope.data;
+      // Skip motion alerts from built-in feed
+      const wsType = (payload.type || "").toLowerCase();
+      if (wsType.includes("motion")) return;
+      // Skip alerts from disabled or deleted cameras
+      const wsIp = normalizeIp(payload.ip || payload.serial || "");
+      if (wsIp && allowedIps.size > 0 && !allowedIps.has(wsIp)) return;
       const newAlert = {
         ...payload,
         thumbnailUrl: buildAlertThumbnailUrl(payload),
@@ -1386,16 +1411,22 @@ export default function LiveViewPage() {
         });
         const data = await res.json();
         const counts = {};
+        // Build active IP set: only enabled + non-deleted cameras
+        const activeDevices = loadDevices().filter(d => d.enabled !== false && d.isdeleted !== true);
+        const activeIpSet = new Set(activeDevices.map(d => (d.ip || "").replace(/_/g, ".")));
         (data.alerts || [])
           .filter((a) => a.status === "Active")
           .filter((a) => {
              const t = (a.type || "").toLowerCase();
-             return t !== "unknown" && t !== "" && !t.includes("tns1:");
+             return t !== "unknown" && t !== "" && !t.includes("tns1:") && !t.includes("motion");
           })
           .filter(isAlertAllowed)
           .forEach((alert) => {
             const ip = (alert.ip || "").replace(/_/g, ".");
-            if (ip) counts[ip] = (counts[ip] || 0) + 1;
+            // Only count for active (enabled + not deleted) cameras
+            if (ip && (activeIpSet.size === 0 || activeIpSet.has(ip))) {
+              counts[ip] = (counts[ip] || 0) + 1;
+            }
           });
         setAlertCounts(counts);
       } catch (e) {
@@ -1456,7 +1487,7 @@ export default function LiveViewPage() {
         .filter((a) => a.status === "Active")
         .filter((a) => {
            const t = (a.type || "").toLowerCase();
-           return t !== "unknown" && t !== "" && !t.includes("tns1:");
+           return t !== "unknown" && t !== "" && !t.includes("tns1:") && !t.includes("motion");
         })
         .filter(isAlertAllowed)
         .filter((a) => (a.ip || "").replace(/_/g, ".") === normIp);
