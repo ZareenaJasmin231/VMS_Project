@@ -1,4 +1,4 @@
---extra-index-url https://download.pytorch.org/whl/cu121
+#--extra-index-url https://download.pytorch.org/whl/cu121
 fastapi
 uvicorn[standard]
 requests
@@ -24,3 +24,5 @@ numpy<2.0.0
 # torchvision==0.18.1+cu121        # Torchvision (CUDA 12.1)
 # scikit-learn>=1.0.0              # DBSCAN clustering for Re-ID
 minio==7.2.20
+mirador-license-validator>=1.0.0
+redis>=5.0.0

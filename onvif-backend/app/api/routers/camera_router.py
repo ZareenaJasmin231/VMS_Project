@@ -45,6 +45,9 @@ import re
 import os
 import urllib.parse
 from datetime import datetime
+from app.services.redis_stream_publisher import publish_event as _redis_publish
+
+_CAM_STREAM = lambda: os.environ.get("REDIS_STREAM_CAMERA_EVENTS", "vms:events:camera")
 import requests as http_requests
 
 from app.core.lifecycle import _analytics_tasks
@@ -59,7 +62,15 @@ features_router = APIRouter(prefix="/api/camera", tags=["camera-features"], depe
 
 @router.get("/cameras", dependencies=[Depends(verify_token)])
 def get_all_cameras():
-    return load_devices()
+    cameras = load_devices()
+    
+    # ── Redis Stream: camera.list_requested ───────────────────────────────────
+    asyncio.create_task(_redis_publish(
+        _CAM_STREAM(), "camera.list_requested",
+        {"count": len(cameras), "cameras": cameras}
+    ))
+    
+    return cameras
 
 @router.post("/cameras/by-ip/{ip}/enable", dependencies=[Depends(verify_token)])
 async def enable_camera_by_ip(ip: str):
@@ -100,6 +111,11 @@ async def enable_camera_by_ip(ip: str):
     save_devices(devices)
     if cameras_col is not None:
         cameras_col.update_many({"$or": [{"ip": ip}, {"ip_address": ip}]}, {"$set": {"enabled": True}})
+    # ── Redis Stream: camera.enabled ──────────────────────────────────────────
+    asyncio.create_task(_redis_publish(
+        _CAM_STREAM(), "camera.enabled",
+        {"ip": ip, "streams_started": started},
+    ))
     return {"success": True, "ip": ip, "streams_started": started}
 
 
@@ -125,6 +141,11 @@ async def disable_camera_by_ip(ip: str):
     save_devices(devices)
     if cameras_col is not None:
         cameras_col.update_many({"$or": [{"ip": ip}, {"ip_address": ip}]}, {"$set": {"enabled": False}})
+    # ── Redis Stream: camera.disabled ─────────────────────────────────────────
+    asyncio.create_task(_redis_publish(
+        _CAM_STREAM(), "camera.disabled",
+        {"ip": ip, "streams_stopped": stopped},
+    ))
     return {"success": True, "ip": ip, "streams_stopped": stopped}
 
 
@@ -172,7 +193,12 @@ async def delete_camera_by_ip(ip: str):
         if analytics_col is not None:
             al_res = analytics_col.update_many({"ip": ip}, update_doc)
             print(f"[DELETE] Cascade: soft-deleted {al_res.modified_count} alerts for IP {ip}")
-            
+
+    # ── Redis Stream: camera.deleted ──────────────────────────────────────────
+    asyncio.create_task(_redis_publish(
+        _CAM_STREAM(), "camera.deleted",
+        {"ip": ip, "streams_stopped": stopped},
+    ))
     return {"success": True, "ip": ip, "streams_stopped": stopped}
 
 @router.delete("/cameras/{ip}/hard", dependencies=[Depends(verify_token)])
@@ -261,7 +287,16 @@ async def update_camera_by_ip(ip: str, request: Request):
             for k, v in data.items():
                 d[k] = v
     save_devices(devices)
-    
+    # ── Redis Stream: camera.updated ──────────────────────────────────────────
+    asyncio.create_task(_redis_publish(
+        _CAM_STREAM(), "camera.updated",
+        {
+            "ip":             ip,
+            "updated_fields": list(update_data.keys()) if update_data else list(data.keys()),
+            "name":           data.get("name"),
+            "group_id":       data.get("group_id"),
+        },
+    ))
     return {"success": True, "ip": ip}
 
 
@@ -639,7 +674,18 @@ async def register_rtsp_stream(req: StreamRegisterRequest):
  
     _watchdog_failures[stream_name] = 0
     print(f"[RTSP] 🎥 Recording will be started by the assigned worker process for {stream_name}")
- 
+    # ── Redis Stream: camera.added ────────────────────────────────────────────
+    asyncio.create_task(_redis_publish(
+        _CAM_STREAM(), "camera.added",
+        {
+            "ip":           host,
+            "name":         req.device_name or f"Camera @ {host}",
+            "ome_stream":   stream_name,
+            "manufacturer": req.manufacturer,
+            "model":        req.model,
+            "source":       "rtsp",
+        },
+    ))
     live_key = ome_response.get("transcoded_stream") or stream_name
     return {
         "success":    True,

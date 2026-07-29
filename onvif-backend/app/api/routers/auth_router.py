@@ -1,11 +1,14 @@
 from fastapi import APIRouter, HTTPException, Depends, Request
 from typing import Optional
-import re
+import re, asyncio, os
 from datetime import datetime
 from app.schemas.auth import SignupRequest, LoginRequest, ForgotPasswordRequest, SupervisorPasswordRequest, SupervisorVerifyRequest, ResetPasswordRequest, AdminCreateUserRequest, AdminUpdateUserRequest
 from app.core.database import users_col, auth_logs_col, settings_col, supervisor_col
 from app.core.security import create_token, verify_token, require_admin
+from app.services.redis_stream_publisher import publish_event as _redis_publish
 import bcrypt
+
+_USER_STREAM = lambda: os.environ.get("REDIS_STREAM_USER_EVENTS", "vms:events:user")
 
 def hash_password(password: str) -> str:
     return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
@@ -78,6 +81,17 @@ def auth_login(req: LoginRequest, request: Request):
         except Exception:
             pass
     token = create_token(user["email"], user["role"])
+    
+    # ── Redis Stream: user.login ──────────────────────────────────────────────
+    asyncio.create_task(_redis_publish(
+        _USER_STREAM(), "user.login",
+        {
+            "email": user["email"],
+            "role": user["role"],
+            "ip": request.client.host if request.client else None
+        }
+    ))
+    
     return {
         "success": True,
         "token": token,
@@ -193,6 +207,13 @@ def list_users(user=Depends(require_admin)):
     if users_col is None:
         raise HTTPException(status_code=500, detail="Database not connected")
     all_users = list(users_col.find({"is_deleted": {"$ne": True}}, {"_id": 0, "password": 0}))
+    
+    # ── Redis Stream: user.list_requested ─────────────────────────────────────
+    asyncio.create_task(_redis_publish(
+        _USER_STREAM(), "user.list_requested",
+        {"count": len(all_users), "users": all_users}
+    ))
+    
     return {"success": True, "users": all_users}
 
 @router.post("/users")
@@ -228,6 +249,11 @@ def create_user(req: AdminCreateUserRequest, user=Depends(require_admin)):
     except Exception as e:
         print(f"[AUTH] ❌ Admin user creation failed: {e}")
         raise HTTPException(status_code=500, detail="Failed to create user")
+    # ── Redis Stream: user.created ──────────────────────────────────────────
+    asyncio.create_task(_redis_publish(
+        _USER_STREAM(), "user.created",
+        {"email": req.email, "role": req.role},
+    ))
     return {"success": True, "message": "User created successfully!"}
 
 @router.patch("/users/{email}")
@@ -262,6 +288,13 @@ def update_user(email: str, req: AdminUpdateUserRequest, user=Depends(require_ad
     except Exception as e:
         print(f"[AUTH] ❌ Admin user update failed: {e}")
         raise HTTPException(status_code=500, detail="Failed to update user")
+    # ── Redis Stream: user.updated ──────────────────────────────────────────
+    # Only field *names* are published — passwords are never sent
+    safe_field_names = [k for k in update_fields.keys() if k != "password" and k != "updatedAt"]
+    asyncio.create_task(_redis_publish(
+        _USER_STREAM(), "user.updated",
+        {"email": email, "updated_fields": safe_field_names},
+    ))
     return {"success": True, "message": "User updated successfully!"}
 
 @router.delete("/users/{email}")
@@ -284,6 +317,11 @@ def delete_user(email: str, user=Depends(require_admin)):
     except Exception as e:
         print(f"[AUTH] ❌ Admin user deletion failed: {e}")
         raise HTTPException(status_code=500, detail="Failed to delete user")
+    # ── Redis Stream: user.deleted ──────────────────────────────────────────
+    asyncio.create_task(_redis_publish(
+        _USER_STREAM(), "user.deleted",
+        {"email": email, "deleted_by": user.get("sub")},
+    ))
     return {"success": True, "message": "User deleted successfully!"}
 
 @router.delete("/users/{email}/hard")

@@ -332,11 +332,24 @@ async def lifespan(app: FastAPI):
 
     app.state.license_manager = license_manager
 
+    # Warm up Redis connection (non-fatal — API starts even if Redis is absent)
+    try:
+        from app.services.redis_stream_publisher import _get_client as _redis_init
+        await _redis_init()
+    except Exception as _redis_err:
+        print(f"[STARTUP] ⚠ Redis warm-up skipped: {_redis_err}")
+
     await _startup_phase_1()
     await _startup_phase_2()
     yield
     # --- SHUTDOWN ---
     await _shutdown_phase_1()
+    # Close Redis stream connection cleanly
+    try:
+        from app.services.redis_stream_publisher import close as _redis_close
+        await _redis_close()
+    except Exception:
+        pass
     # Shut down all central tasks with max 5s timeout
     await task_manager.shutdown_all_tasks(timeout=5.0)
     # Stop background indexer
