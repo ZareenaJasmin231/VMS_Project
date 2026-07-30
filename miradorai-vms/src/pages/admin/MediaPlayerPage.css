@@ -90,48 +90,16 @@
 
 /* ── Left Panel ──────────────────────────────── */
 .mp-left {
-  width: 260px;
-  min-width: 260px;
+  width: 270px;
+  min-width: 270px;
   display: flex;
   flex-direction: column;
   background: var(--bg-panel);
   border-right: 1px solid var(--border-subtle);
-  overflow: visible;
+  overflow: hidden;
   position: relative;
   z-index: 50;
-}
-
-.mp-left-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 16px 16px 12px;
-  font-family: var(--font-display);
-  font-size: 15px;
-  font-weight: 600;
-  letter-spacing: 0.10em;
-  text-transform: uppercase;
-  color: var(--text-muted);
-  border-bottom: 1px solid var(--border-subtle);
-}
-
-.mp-left-header svg {
-  color: var(--amber);
-  flex-shrink: 0;
-}
-
-/* ── Section Labels ──────────────────────────── */
-.mp-cam-section {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 16px 6px;
-  font-family: var(--font-display);
-  font-size: 16px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--text-primary);
+  padding-top: 12px;
 }
 
 .mp-cam-filter-toggle {
@@ -666,19 +634,79 @@
   flex-direction: column;
   min-width: 0;
   background: var(--bg-deep);
+  padding: 12px;
+  gap: 10px;
   overflow: hidden;
 }
 
-/* ── Video Wrapper ───────────────────────────── */
+/* ── Video Wrapper (Grey Canvas Block) ── */
 .mp-player-wrap {
   flex: 1;
   position: relative;
-  background: var(--bg-deep);
+  background: #20242c;
+  background-image: 
+    radial-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1px);
+  background-size: 22px 22px;
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
   display: flex;
   align-items: center;
   justify-content: center;
   overflow: hidden;
   min-height: 0;
+  backdrop-filter: blur(8px);
+  transition: border-color var(--transition), box-shadow var(--transition);
+}
+
+[data-theme="light"] .mp-player-wrap {
+  background: #dbe2ec;
+  background-image: 
+    radial-gradient(rgba(0, 0, 0, 0.09) 1px, transparent 1px);
+  background-size: 22px 22px;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+}
+
+/* Minimal Corner Brackets for Canvas */
+.mp-canvas-corner {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border-color: var(--teal-dim);
+  border-style: solid;
+  pointer-events: none;
+  z-index: 4;
+  opacity: 0.6;
+  transition: opacity var(--transition), border-color var(--transition);
+}
+
+.mp-player-wrap:hover .mp-canvas-corner {
+  opacity: 1;
+  border-color: var(--teal);
+}
+
+.mp-canvas-corner.top-left {
+  top: 10px;
+  left: 10px;
+  border-width: 1.5px 0 0 1.5px;
+}
+
+.mp-canvas-corner.top-right {
+  top: 10px;
+  right: 10px;
+  border-width: 1.5px 1.5px 0 0;
+}
+
+.mp-canvas-corner.bottom-left {
+  bottom: 10px;
+  left: 10px;
+  border-width: 0 0 1.5px 1.5px;
+}
+
+.mp-canvas-corner.bottom-right {
+  bottom: 10px;
+  right: 10px;
+  border-width: 0 1.5px 1.5px 0;
 }
 
 .mp-player-empty {
@@ -686,23 +714,39 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 14px;
-  color: var(--text-hint);
-  text-align: center;
+  gap: 10px;
   padding: 40px;
+  z-index: 3;
 }
 
-.mp-player-empty svg {
-  color: var(--text-hint);
-  opacity: 0.5;
+.mp-empty-canvas-badge {
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--teal);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.1);
+  backdrop-filter: blur(4px);
+  opacity: 0.8;
+  transition: opacity var(--transition), transform var(--transition);
 }
 
-.mp-player-empty p {
-  font-size: 17px;
+.mp-canvas-block-name {
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
   color: var(--text-muted);
-  max-width: 280px;
-  line-height: 1.6;
-  margin: 0;
+}
+
+.mp-player-wrap:hover .mp-empty-canvas-badge {
+  opacity: 1;
+  transform: scale(1.04);
 }
 
 .mp-video {
@@ -783,9 +827,10 @@
 
 /* ── Controls Area ───────────────────────────── */
 .mp-controls {
-  padding: 10px 16px 14px;
+  padding: 10px 16px 12px;
   background: var(--bg-panel);
-  border-top: 1px solid var(--border-subtle);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
   flex-shrink: 0;
 }
 
@@ -832,7 +877,7 @@
 
 .mp-progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, var(--amber-dim), var(--amber));
+  background: linear-gradient(90deg, var(--teal-dim), var(--teal));
   border-radius: 100px;
   transition: width 0.1s linear;
 }
@@ -843,25 +888,35 @@
   width: 13px;
   height: 13px;
   border-radius: 50%;
-  background: var(--amber);
+  background: var(--teal);
   transform: translateY(-50%) scale(0.7);
   opacity: 0;
   transition: opacity var(--transition), transform var(--transition);
-  box-shadow: 0 0 8px rgba(245, 166, 35, 0.5);
+  box-shadow: 0 0 8px var(--teal-glow);
   pointer-events: none;
 }
 
-/* ── Control Row ─────────────────────────────── */
+/* ── Control Row & Groups ─────────────────────── */
 .mp-ctrl-row {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 8px;
+}
+
+.mp-transport-group {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 24px;
+  padding: 3px 6px;
 }
 
 .mp-ctrl-btn {
   width: 32px;
   height: 32px;
-  border-radius: var(--radius-sm);
+  border-radius: 50%;
   border: none;
   background: transparent;
   color: var(--text-secondary);
@@ -869,69 +924,108 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: background var(--transition), color var(--transition);
+  transition: background var(--transition), color var(--transition), transform var(--transition);
   flex-shrink: 0;
 }
 
-.mp-ctrl-btn:hover {
-  background: var(--bg-raised);
+.mp-ctrl-btn:hover:not(:disabled) {
+  background: var(--bg-hover);
   color: var(--text-primary);
 }
 
+.mp-ctrl-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+/* Prominent Play Button Centerpiece */
 .mp-play-btn {
-  width: 38px;
-  height: 38px;
-  border-radius: 50%;
-  background: var(--amber) !important;
-  color: #0a0d14 !important;
-  box-shadow: 0 2px 12px rgba(245, 166, 35, 0.3);
+  width: 38px !important;
+  height: 38px !important;
+  border-radius: 50% !important;
+  background: linear-gradient(135deg, #059669 0%, #10b981 100%) !important;
+  color: #ffffff !important;
+  box-shadow: 0 3px 12px rgba(16, 185, 129, 0.4) !important;
+  margin: 0 2px;
   transition: box-shadow var(--transition), transform var(--transition) !important;
 }
 
-.mp-play-btn:hover {
-  box-shadow: 0 3px 18px rgba(245, 166, 35, 0.5) !important;
-  transform: scale(1.05);
+.mp-play-btn:hover:not(:disabled) {
+  box-shadow: 0 4px 18px rgba(16, 185, 129, 0.6) !important;
+  transform: scale(1.08) !important;
 }
 
-.mp-play-btn:active {
-  transform: scale(0.97);
+.mp-play-btn:active:not(:disabled) {
+  transform: scale(0.96) !important;
 }
 
 .mp-ctrl-spacer {
   flex: 1;
 }
 
+/* Volume Container Pill */
+.mp-vol-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 20px;
+  padding: 5px 12px;
+}
+
 .mp-vol-slider {
-  width: 72px;
-  accent-color: var(--amber);
+  width: 70px;
+  accent-color: var(--teal);
   cursor: pointer;
   height: 3px;
   border-radius: 100px;
 }
 
+/* Segmented Speed Group */
+.mp-speed-group {
+  display: flex;
+  align-items: center;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 2px;
+  gap: 2px;
+}
+
 .mp-speed-btn {
   padding: 4px 9px;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  border: none;
   background: transparent;
   color: var(--text-muted);
   font-family: var(--font-display);
-  font-size: 15px;
-  font-weight: 500;
+  font-size: 12.5px;
+  font-weight: 600;
   cursor: pointer;
   transition: all var(--transition);
 }
 
 .mp-speed-btn:hover {
-  border-color: var(--border-mid);
-  color: var(--text-secondary);
-  background: var(--bg-raised);
+  color: var(--text-primary);
+  background: var(--bg-hover);
 }
 
 .mp-speed-btn.active {
-  border-color: var(--amber-dim);
-  color: var(--amber);
-  background: var(--amber-subtle);
+  color: var(--teal);
+  background: var(--teal-subtle);
+  border: 1px solid var(--border-light);
+}
+
+/* Utility Action Buttons Group */
+.mp-utility-group {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 20px;
+  padding: 3px 6px;
 }
 
 /* ── Snapshot button ─────────────────────────── */
@@ -1173,8 +1267,9 @@
 ═══════════════════════════════════════════════ */
 .mp-timescale {
   background: var(--bg-panel);
-  border-top: 1px solid var(--border-subtle);
-  padding: 0 0 6px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 4px 0 8px;
   flex-shrink: 0;
   user-select: none;
 }

@@ -864,7 +864,7 @@ export default function MediaPlayerPage() {
       document.body.removeChild(a);
       setTimeout(() => URL.revokeObjectURL(url), 3000);
 
-      showToast("Snapshot saved successfully! ");
+      showToast("Snapshot saved successfully!");
     } catch (err) {
       console.error("Snapshot error:", err);
       if (err.name === "SecurityError") {
@@ -1018,7 +1018,7 @@ export default function MediaPlayerPage() {
           await writable.write(blob);
           await writable.close();
           setShowExportModal(false);
-          showToast("Export ZIP saved successfully! ✓");
+          showToast("Export ZIP saved successfully!");
           return;
         } catch (innerError) {
           if (innerError.name === "AbortError") { setExporting(false); return; }
@@ -1045,7 +1045,7 @@ export default function MediaPlayerPage() {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
       setShowExportModal(false);
-      showToast("Export ZIP downloaded successfully! ✓");
+      showToast("Export ZIP downloaded successfully!");
 
     } catch (error) {
       if (error.name !== "AbortError") showToast("Failed to export: " + error.message, "error");
@@ -1153,238 +1153,236 @@ export default function MediaPlayerPage() {
           <>
             {/* ── Left panel ── */}
             <div className="mp-left">
-              {/* ── Custom Camera Dropdown ── */}
-            <div className="mp-cam-section">Camera</div>
-            <div className="mp-cam-dropdown-wrap" ref={camDropdownRef}>
-              <button
-                className={`mp-cam-select-btn ${camDropdownOpen ? "open" : ""}`}
-                onClick={() => setCamDropdownOpen((o) => !o)}
-                disabled={recordingCameras.length === 0}
-              >
-                <div className="mp-cam-dot" />
-                <div className="mp-cam-select-val">
-                  {selectedCam ? (
-                    <div className="mp-cam-select-val-container">
-                       <span className="mp-cam-select-name">
-                        {selectedCamInfo.name}
-                       </span>
-                      {selectedCamInfo.ip && (
-                        <span className="mp-cam-select-ip">
-                          {selectedCamInfo.ip}
-                        </span>
-                      )}
-                    </div>
-                  ) : (
-                    <span className="mp-cam-select-name">Select Camera</span>
-                  )}
-                </div>
-                <svg
-                  className={`mp-cam-chevron ${camDropdownOpen ? "open" : ""}`}
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  width="12"
-                  height="12"
+              {/* ── Camera Dropdown ── */}
+              <div className="mp-cam-dropdown-wrap" ref={camDropdownRef}>
+                <button
+                  className={`mp-cam-select-btn ${camDropdownOpen ? "open" : ""}`}
+                  onClick={() => setCamDropdownOpen((o) => !o)}
+                  disabled={recordingCameras.length === 0}
                 >
-                  <path d="M6 9l6 6 6-6" />
-                </svg>
-              </button>
-
-              {camDropdownOpen && (
-                <div className="mp-cam-menu">
-                  <div className="mp-cam-search-wrapper">
-                    <input
-                      type="text"
-                      className="mp-cam-search-input"
-                      placeholder="Search cameras..."
-                      value={camSearchTerm}
-                      onChange={(e) => setCamSearchTerm(e.target.value)}
-                      onClick={(e) => e.stopPropagation()}
-                      onKeyDown={(e) => e.stopPropagation()}
-                    />
-                  </div>
-                  {filteredRecordingCameras
-                    .filter(camId => {
-                      if (!camSearchTerm) return true;
-                      const info = getCameraInfo(camId);
-                      const term = camSearchTerm.toLowerCase();
-                      return info.name.toLowerCase().includes(term) || info.ip.toLowerCase().includes(term);
-                    })
-                    .map((camId) => {
-                    const info = getCameraInfo(camId);
-                    return (
-                      <div
-                        key={camId}
-                        className={`mp-cam-menu-item ${selectedCam?.stream_key === camId ? "active" : ""}`}
-                        onClick={() => {
-                          setSelectedCam({ stream_key: camId, name: camId });
-                          setPlayingFile(null);
-                          setCamDropdownOpen(false);
-                        }}
-                      >
-                        <div className={`mp-cam-dot ${selectedCam?.stream_key === camId ? "on" : ""}`} />
-                        <div className="mp-cam-menu-item-info">
-                          <span className="mp-cam-menu-item-name">{info.name}</span>
-                          <span className="mp-cam-menu-item-ip">{info.ip}</span>
-                        </div>
-                        {selectedCam?.stream_key === camId && (
-                          <svg
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2.5"
-                            width="11"
-                            height="11"
-                            style={{ marginLeft: "auto", color: "var(--amber)", flexShrink: 0 }}
-                          >
-                            <path d="M20 6L9 17l-5-5" />
-                          </svg>
+                  <div className="mp-cam-dot" />
+                  <div className="mp-cam-select-val">
+                    {selectedCam ? (
+                      <div className="mp-cam-select-val-container">
+                        <span className="mp-cam-select-name">
+                          {selectedCamInfo.name}
+                        </span>
+                        {selectedCamInfo.ip && (
+                          <span className="mp-cam-select-ip">
+                            {selectedCamInfo.ip}
+                          </span>
                         )}
                       </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-
-            <div className="mp-filters">
-              <DatePicker
-                value={selectedDate}
-                onChange={(val) => { setSelectedDate(val); setPlayingFile(null); }}
-              />
-            </div>
-
-            {/* ── Button Row: Browse + Export ── */}
-            <div className="mp-button-row">
-              <input
-                ref={browseInputRef}
-                type="file"
-                accept=".enc,.mp4,.mkv,.avi,.webm,.mov"
-                id="mp-browse-input"
-                style={{ display: "none" }}
-                onChange={handleBrowseFile}
-              />
-              <SpecularButton
-                size="md"
-                radius={8}
-                tint="#10b981"
-                tintOpacity={0.10}
-                blur={4}
-                textColor={theme === 'light' ? "#065f46" : "#f0fff8"}
-                lineColor="#10b981"
-                baseColor={theme === 'light' ? "#d1fae5" : "#0d3326"}
-                intensity={1.2}
-                shineSize={12}
-                shineFade={38}
-                thickness={1}
-                speed={0.35}
-                followMouse
-                proximity={220}
-                autoAnimate={false}
-                className="mp-action-btn mp-browse-btn"
-                onClick={() => browseInputRef.current && browseInputRef.current.click()}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" width="13" height="13">
-                    <path d="M8 5v14l11-7z" />
+                    ) : (
+                      <span className="mp-cam-select-name">Select Camera</span>
+                    )}
+                  </div>
+                  <svg
+                    className={`mp-cam-chevron ${camDropdownOpen ? "open" : ""}`}
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    width="12"
+                    height="12"
+                  >
+                    <path d="M6 9l6 6 6-6" />
                   </svg>
-                  Play
-                </div>
-              </SpecularButton>
+                </button>
 
-              <AnimatedDownloadButton
-                onClick={() => setShowExportModal(true)}
-                text="Export"
-                style={{ '--width': '120px', '--height': '44px', borderRadius: '8px', fontSize: '1rem' }}
-                textColor={theme === 'light' ? "#065f46" : "#f0fff8"}
-                baseColor={theme === 'light' ? "#d1fae5" : "#0d3326"}
-              />
-
-
-              {/* <button
-                className="mp-action-btn mp-verify-btn-side"
-                onClick={() => { setShowVerifyModal(true); setVerifyResult(null); setVerifyVideoFile(null); setVerifySigFile(null); }}
-                title="Verify digital signature of an exported video"
-              >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" width="13" height="13">
-                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-                  <polyline points="9 12 11 14 15 10" />
-                </svg>
-                Verify
-              </button> */}
-            </div>
-
-            <div className="mp-file-list">
-              {loadingFiles && (
-                <div className="mp-empty-small">Loading…</div>
-              )}
-              {!loadingFiles && filteredFiles.length === 0 && (
-                <div className="mp-empty-small">No recordings found.</div>
-              )}
-              {Object.entries(groupedFiles).sort((a, b) => b[0].localeCompare(a[0])).map(([hour, hourFiles]) => {
-                const isOpen = expandedHours.has(hour);
-                const sortedHourFiles = [...hourFiles].sort((a, b) => b.start_time.localeCompare(a.start_time));
-                return (
-                  <div key={hour} className="mp-hour-group">
-                    <button
-                      className={`mp-hour-header ${isOpen ? "open" : ""}`}
-                      onClick={() => toggleHourOpen(hour)}
-                    >
-                      <span className="mp-hour-toggle">{isOpen ? "▾" : "▸"}</span>
-                      <span className="mp-hour-label">{hour}:00 h</span>
-                      <span className="mp-hour-count">({hourFiles.length})</span>
-                    </button>
-                    {isOpen && sortedHourFiles.map((file) => (
-                      <div
-                        key={file.start_time}
-                        className={`mp-file-item ${playingFile?.start_time === file.start_time ? "playing" : ""}`}
-                        onClick={() => playFile(file)}
-                      >
-                        <div className="mp-file-icon">
-                          <svg viewBox="0 0 24 24" fill="currentColor" width="10" height="10">
-                            <path d="M8 5v14l11-7z" />
-                          </svg>
-                        </div>
-                        <div>
-                          <div className="mp-file-name" style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                            {file.start_time}
-                            {file.file_path && file.file_path.includes("_motion_based") && (
-                              <span style={{
-                                fontSize: "10px",
-                                padding: "2px 5px",
-                                background: "rgba(239, 68, 68, 0.2)",
-                                color: "#f87171",
-                                border: "1px solid rgba(239, 68, 68, 0.4)",
-                                borderRadius: "3px",
-                                fontWeight: "600",
-                                textTransform: "uppercase"
-                              }}>
-                                Motion
-                              </span>
+                {camDropdownOpen && (
+                  <div className="mp-cam-menu">
+                    <div className="mp-cam-search-wrapper">
+                      <input
+                        type="text"
+                        className="mp-cam-search-input"
+                        placeholder="Search cameras..."
+                        value={camSearchTerm}
+                        onChange={(e) => setCamSearchTerm(e.target.value)}
+                        onClick={(e) => e.stopPropagation()}
+                        onKeyDown={(e) => e.stopPropagation()}
+                      />
+                    </div>
+                    {filteredRecordingCameras
+                      .filter(camId => {
+                        if (!camSearchTerm) return true;
+                        const info = getCameraInfo(camId);
+                        const term = camSearchTerm.toLowerCase();
+                        return info.name.toLowerCase().includes(term) || info.ip.toLowerCase().includes(term);
+                      })
+                      .map((camId) => {
+                        const info = getCameraInfo(camId);
+                        return (
+                          <div
+                            key={camId}
+                            className={`mp-cam-menu-item ${selectedCam?.stream_key === camId ? "active" : ""}`}
+                            onClick={() => {
+                              setSelectedCam({ stream_key: camId, name: camId });
+                              setPlayingFile(null);
+                              setCamDropdownOpen(false);
+                            }}
+                          >
+                            <div className={`mp-cam-dot ${selectedCam?.stream_key === camId ? "on" : ""}`} />
+                            <div className="mp-cam-menu-item-info">
+                              <span className="mp-cam-menu-item-name">{info.name}</span>
+                              <span className="mp-cam-menu-item-ip">{info.ip}</span>
+                            </div>
+                            {selectedCam?.stream_key === camId && (
+                              <svg
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2.5"
+                                width="11"
+                                height="11"
+                                style={{ marginLeft: "auto", color: "var(--amber)", flexShrink: 0 }}
+                              >
+                                <path d="M20 6L9 17l-5-5" />
+                              </svg>
                             )}
                           </div>
-                          {file.size !== "—" && (
-                            <div className="mp-file-meta">{formatBytes(file.size)}</div>
+                        );
+                      })}
+                  </div>
+                )}
+              </div>
+
+              {/* ── Date Filter ── */}
+              <div className="mp-filters">
+                <DatePicker
+                  value={selectedDate}
+                  onChange={(val) => { setSelectedDate(val); setPlayingFile(null); }}
+                />
+              </div>
+
+              {/* ── Quick Actions ── */}
+              <div className="mp-button-row">
+                <input
+                  ref={browseInputRef}
+                  type="file"
+                  accept=".enc,.mp4,.mkv,.avi,.webm,.mov"
+                  id="mp-browse-input"
+                  style={{ display: "none" }}
+                  onChange={handleBrowseFile}
+                />
+                <SpecularButton
+                  size="md"
+                  radius={8}
+                  tint="#10b981"
+                  tintOpacity={0.10}
+                  blur={4}
+                  textColor={theme === 'light' ? "#065f46" : "#f0fff8"}
+                  lineColor="#10b981"
+                  baseColor={theme === 'light' ? "#d1fae5" : "#0d3326"}
+                  intensity={1.2}
+                  shineSize={12}
+                  shineFade={38}
+                  thickness={1}
+                  speed={0.35}
+                  followMouse
+                  proximity={220}
+                  autoAnimate={false}
+                  className="mp-action-btn mp-browse-btn"
+                  onClick={() => browseInputRef.current && browseInputRef.current.click()}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" width="13" height="13">
+                      <path d="M8 5v14l11-7z" />
+                    </svg>
+                    Play
+                  </div>
+                </SpecularButton>
+
+                <AnimatedDownloadButton
+                  onClick={() => setShowExportModal(true)}
+                  text="Export"
+                  style={{ '--width': '120px', '--height': '44px', borderRadius: '8px', fontSize: '1rem' }}
+                  textColor={theme === 'light' ? "#065f46" : "#f0fff8"}
+                  baseColor={theme === 'light' ? "#d1fae5" : "#0d3326"}
+                />
+              </div>
+
+              {/* ── Recording Files ── */}
+              <div className="mp-file-list">
+                {loadingFiles && (
+                  <div className="mp-empty-small">Loading…</div>
+                )}
+                {!loadingFiles && filteredFiles.length === 0 && (
+                  <div className="mp-empty-small">No recordings found.</div>
+                )}
+                {Object.entries(groupedFiles).sort((a, b) => b[0].localeCompare(a[0])).map(([hour, hourFiles]) => {
+                  const isOpen = expandedHours.has(hour);
+                  const sortedHourFiles = [...hourFiles].sort((a, b) => b.start_time.localeCompare(a.start_time));
+                  return (
+                    <div key={hour} className="mp-hour-group">
+                      <button
+                        className={`mp-hour-header ${isOpen ? "open" : ""}`}
+                        onClick={() => toggleHourOpen(hour)}
+                      >
+                        <svg 
+                          className={`mp-hour-chevron ${isOpen ? "open" : ""}`}
+                          viewBox="0 0 24 24" 
+                          fill="none" 
+                          stroke="currentColor" 
+                          strokeWidth="2.5" 
+                          width="11" 
+                          height="11"
+                        >
+                          <path d="M9 18l6-6-6-6" />
+                        </svg>
+                        <span className="mp-hour-label">{hour}:00 h</span>
+                        <span className="mp-hour-count">({hourFiles.length})</span>
+                      </button>
+                      {isOpen && sortedHourFiles.map((file) => (
+                        <div
+                          key={file.start_time}
+                          className={`mp-file-item ${playingFile?.start_time === file.start_time ? "playing" : ""}`}
+                          onClick={() => playFile(file)}
+                        >
+                          <div className="mp-file-icon">
+                            <svg viewBox="0 0 24 24" fill="currentColor" width="10" height="10">
+                              <path d="M8 5v14l11-7z" />
+                            </svg>
+                          </div>
+                          <div>
+                            <div className="mp-file-name" style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                              {file.start_time}
+                              {file.file_path && file.file_path.includes("_motion_based") && (
+                                <span style={{
+                                  fontSize: "10px",
+                                  padding: "2px 5px",
+                                  background: "rgba(239, 68, 68, 0.2)",
+                                  color: "#f87171",
+                                  border: "1px solid rgba(239, 68, 68, 0.4)",
+                                  borderRadius: "3px",
+                                  fontWeight: "600",
+                                  textTransform: "uppercase"
+                                }}>
+                                  Motion
+                                </span>
+                              )}
+                            </div>
+                            {file.size !== "—" && (
+                              <div className="mp-file-meta">{formatBytes(file.size)}</div>
+                            )}
+                          </div>
+                          {file.duration_seconds !== undefined && file.duration_seconds !== null && (
+                            <div className="mp-file-duration" style={{ marginLeft: "auto", fontSize: "13px", color: "var(--text-muted)", fontVariantNumeric: "tabular-nums" }}>
+                              {fmt(file.duration_seconds)}
+                            </div>
+                          )}
+                          {playingFile?.start_time === file.start_time && (
+                            <div className="mp-file-active-ptr" style={{ marginLeft: file.duration_seconds !== undefined && file.duration_seconds !== null ? "8px" : "auto" }}>
+                              <div className="mp-pulse-dot" />
+                            </div>
                           )}
                         </div>
-                        {file.duration_seconds !== undefined && file.duration_seconds !== null && (
-                          <div className="mp-file-duration" style={{ marginLeft: "auto", fontSize: "13px", color: "var(--text-muted)", fontVariantNumeric: "tabular-nums" }}>
-                            {fmt(file.duration_seconds)}
-                          </div>
-                        )}
-                        {playingFile?.start_time === file.start_time && (
-                          <div className="mp-file-active-ptr" style={{ marginLeft: file.duration_seconds !== undefined && file.duration_seconds !== null ? "8px" : "auto" }}>
-                            <div className="mp-pulse-dot" />
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                );
-              })}
+                      ))}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
-          </div>
 
           {/* ── Center / player ── */}
           <div className="mp-center">
@@ -1394,6 +1392,11 @@ export default function MediaPlayerPage() {
               {...handlers}
               style={{ overflow: 'hidden', cursor: zoom > 1 ? 'grab' : 'default', position: 'relative' }}
             >
+              <div className="mp-canvas-corner top-left" />
+              <div className="mp-canvas-corner top-right" />
+              <div className="mp-canvas-corner bottom-left" />
+              <div className="mp-canvas-corner bottom-right" />
+
               {snapshotFlash && <div className="mp-snapshot-flash" />}
 
               {isBrowseDecrypting && !playingFile ? (
@@ -1403,13 +1406,13 @@ export default function MediaPlayerPage() {
                 </div>
               ) : !playingFile ? (
                 <div className="mp-player-empty">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" width="56" height="56">
-                    <rect x="2" y="3" width="20" height="14" rx="2" />
-                    <path d="M8 21h8M12 17v4" />
-                    <circle cx="12" cy="10" r="3" />
-                    <path d="M10.5 10l3 1.5-3 1.5z" fill="currentColor" />
-                  </svg>
-                  <p>Select a recording from the browser to begin playback</p>
+                  <div className="mp-empty-canvas-badge">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" width="34" height="34">
+                      <rect x="2" y="4" width="20" height="16" rx="3" />
+                      <path d="M10 9l6 3-6 3V9z" fill="currentColor" opacity="0.85" />
+                    </svg>
+                  </div>
+                  <span className="mp-canvas-block-name">Playback</span>
                 </div>
               ) : (
                 <>
@@ -1466,61 +1469,66 @@ export default function MediaPlayerPage() {
               </div>
 
               <div className="mp-ctrl-row">
-                <button className="mp-ctrl-btn" onClick={playPrev} disabled={!playingFile} title="Previous (←)">
-                  <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
-                    <path d="M6 6h2v12H6zm3.5 6 8.5 6V6z" />
-                  </svg>
-                </button>
-
-                <button className="mp-ctrl-btn" onClick={() => skip(-10)} disabled={!playingFile} title="Back 10s (J)">
-                  <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
-                    <path d="M12 5V2L8 6l4 4V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z" />
-                    <text x="9" y="15" fontSize="5" fill="currentColor">10</text>
-                  </svg>
-                </button>
-
-                <button
-                  className="mp-ctrl-btn"
-                  onClick={togglePlay}
-                  disabled={!playingFile}
-                  title={playing ? "Pause (Space)" : "Play (Space)"}
-                >
-                  {playing ? (
-                    <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
-                      <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
+                <div className="mp-transport-group">
+                  <button className="mp-ctrl-btn" onClick={playPrev} disabled={!playingFile} title="Previous (←)">
+                    <svg viewBox="0 0 24 24" fill="currentColor" width="15" height="15">
+                      <path d="M6 6h2v12H6zm3.5 6 8.5 6V6z" />
                     </svg>
-                  ) : (
-                    <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
-                      <path d="M8 5v14l11-7z" />
+                  </button>
+
+                  <button className="mp-ctrl-btn" onClick={() => skip(-10)} disabled={!playingFile} title="Back 10s (J)">
+                    <svg viewBox="0 0 24 24" fill="currentColor" width="15" height="15">
+                      <path d="M12 5V2L8 6l4 4V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z" />
+                      <text x="9" y="15" fontSize="5" fill="currentColor">10</text>
                     </svg>
-                  )}
-                </button>
+                  </button>
 
-                <button className="mp-ctrl-btn" onClick={() => skip(10)} disabled={!playingFile} title="Forward 10s (L)">
-                  <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
-                    <path d="M12 5V2l4 4-4 4V7c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6h2c0 4.42-3.58 8-8 8s-8-3.58-8-8 3.58-8 8-8z" />
-                    <text x="9" y="15" fontSize="5" fill="currentColor">10</text>
-                  </svg>
-                </button>
+                  <button
+                    className="mp-ctrl-btn mp-play-btn"
+                    onClick={togglePlay}
+                    disabled={!playingFile}
+                    title={playing ? "Pause (Space)" : "Play (Space)"}
+                  >
+                    {playing ? (
+                      <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+                        <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
+                      </svg>
+                    ) : (
+                      <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+                        <path d="M8 5v14l11-7z" />
+                      </svg>
+                    )}
+                  </button>
 
-                <button className="mp-ctrl-btn" onClick={playNext} disabled={!playingFile} title="Next (→)">
-                  <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
-                    <path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z" />
-                  </svg>
-                </button>
+                  <button className="mp-ctrl-btn" onClick={() => skip(10)} disabled={!playingFile} title="Forward 10s (L)">
+                    <svg viewBox="0 0 24 24" fill="currentColor" width="15" height="15">
+                      <path d="M12 5V2l4 4-4 4V7c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6h2c0 4.42-3.58 8-8 8s-8-3.58-8-8 3.58-8 8-8z" />
+                      <text x="9" y="15" fontSize="5" fill="currentColor">10</text>
+                    </svg>
+                  </button>
+
+                  <button className="mp-ctrl-btn" onClick={playNext} disabled={!playingFile} title="Next (→)">
+                    <svg viewBox="0 0 24 24" fill="currentColor" width="15" height="15">
+                      <path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z" />
+                    </svg>
+                  </button>
+                </div>
 
                 <div className="mp-ctrl-spacer" />
 
-                <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14" style={{ color: "var(--text-muted)", flexShrink: 0 }}>
-                  <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z" />
-                </svg>
-                <input
-                  type="range"
-                  className="mp-vol-slider"
-                  min="0" max="1" step="0.05"
-                  value={volume}
-                  onChange={(e) => setVolume(Number(e.target.value))}
-                />
+                {/* Volume Container */}
+                <div className="mp-vol-container">
+                  <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14" style={{ color: "var(--text-muted)", flexShrink: 0 }}>
+                    <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z" />
+                  </svg>
+                  <input
+                    type="range"
+                    className="mp-vol-slider"
+                    min="0" max="1" step="0.05"
+                    value={volume}
+                    onChange={(e) => setVolume(Number(e.target.value))}
+                  />
+                </div>
 
                 <div className="mp-ctrl-spacer" />
 
@@ -1544,51 +1552,58 @@ export default function MediaPlayerPage() {
 
                 <div className="mp-ctrl-spacer" />
 
-                {[0.5, 1, 1.5, 2].map((s) => (
-                  <button
-                    key={s}
-                    className={`mp-speed-btn ${speed === s ? "active" : ""}`}
-                    onClick={() => setSpeed(s)}
-                  >
-                    {s}×
-                  </button>
-                ))}
+                {/* Speed Segmented Group */}
+                <div className="mp-speed-group">
+                  {[0.5, 1, 1.5, 2].map((s) => (
+                    <button
+                      key={s}
+                      className={`mp-speed-btn ${speed === s ? "active" : ""}`}
+                      onClick={() => setSpeed(s)}
+                    >
+                      {s}×
+                    </button>
+                  ))}
+                </div>
 
                 <div className="mp-ctrl-spacer" />
 
-                <button
-                  className="mp-ctrl-btn mp-snapshot-btn"
-                  onClick={handleSnapshot}
-                  disabled={!playingFile}
-                  title="Snapshot current frame"
-                >
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" width="17" height="17">
-                    <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
-                    <circle cx="12" cy="13" r="4" />
-                  </svg>
-                </button>
+                {/* Utility Buttons */}
+                <div className="mp-utility-group">
+                  <button
+                    className="mp-ctrl-btn mp-snapshot-btn"
+                    onClick={handleSnapshot}
+                    disabled={!playingFile}
+                    title="Snapshot current frame"
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" width="16" height="16">
+                      <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                      <circle cx="12" cy="13" r="4" />
+                    </svg>
+                  </button>
 
-                <button
-                  className="mp-ctrl-btn mp-download-btn"
-                  onClick={openDownloadModal}
-                  disabled={!playingFile}
-                >
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" width="17" height="17">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                    <polyline points="7 10 12 15 17 10" />
-                    <line x1="12" y1="15" x2="12" y2="3" />
-                  </svg>
-                </button>
+                  <button
+                    className="mp-ctrl-btn mp-download-btn"
+                    onClick={openDownloadModal}
+                    disabled={!playingFile}
+                    title="Trim & Download"
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" width="16" height="16">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                      <polyline points="7 10 12 15 17 10" />
+                      <line x1="12" y1="15" x2="12" y2="3" />
+                    </svg>
+                  </button>
 
-                <button
-                  className="mp-ctrl-btn"
-                  onClick={toggleFullscreen}
-                  title="Fullscreen (F)"
-                >
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" width="17" height="17">
-                    <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3" />
-                  </svg>
-                </button>
+                  <button
+                    className="mp-ctrl-btn"
+                    onClick={toggleFullscreen}
+                    title="Fullscreen (F)"
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" width="16" height="16">
+                      <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3" />
+                    </svg>
+                  </button>
+                </div>
               </div>
             </div>
 
