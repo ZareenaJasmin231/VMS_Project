@@ -762,12 +762,12 @@ export default function BackupPage() {
                           value={defaultRetention} 
                           onChange={e => updateGroupRetention('default', parseInt(e.target.value, 10))}
                         >
-                          <option value={2}>2 Mins</option>
-                          <option value={5}>5 Mins</option>
-                          <option value={10}>10 Mins</option>
-                          <option value={15}>15 Mins</option>
-                          <option value={30}>30 Mins</option>
-                          <option value={60}>60 Mins</option>
+                          <option value={1}>1 Day</option>
+                          <option value={3}>3 Days</option>
+                          <option value={7}>7 Days</option>
+                          <option value={15}>15 Days</option>
+                          <option value={30}>30 Days</option>
+                          <option value={60}>60 Days</option>
                         </select>
                       </td>
                     </tr>
@@ -788,12 +788,12 @@ export default function BackupPage() {
                               value={g.retention_days ?? 5} 
                               onChange={e => updateGroupRetention(g.id, parseInt(e.target.value, 10))}
                             >
-                              <option value={2}>2 Mins</option>
-                              <option value={5}>5 Mins</option>
-                              <option value={10}>10 Mins</option>
-                              <option value={15}>15 Mins</option>
-                              <option value={30}>30 Mins</option>
-                              <option value={60}>60 Mins</option>
+                              <option value={1}>1 Day</option>
+                              <option value={3}>3 Days</option>
+                              <option value={7}>7 Days</option>
+                              <option value={15}>15 Days</option>
+                              <option value={30}>30 Days</option>
+                              <option value={60}>60 Days</option>
                             </select>
                           </td>
                         </tr>

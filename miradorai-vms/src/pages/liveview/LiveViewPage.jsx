@@ -6,6 +6,7 @@ import { useDigitalZoom } from "../../hooks/useDigitalZoom";
 import SidePlaybackPanel from "../../components/shared/SidePlaybackPanel";
 import PTZControls from "../../components/shared/PTZControls";
 import { useAuth } from "../../context/AuthContext";
+import { useTheme } from "../../context/ThemeContext";
 import "./LiveViewPage.css";
 import { useWebSocket } from "../../hooks/useWebSocket";
 
@@ -417,6 +418,80 @@ function AlertsPanel({ isOpen, onAlertCountUpdate, onTotalAlertCountChange, live
   const [alerts,     setAlerts]     = useState([]);
   const [loading,    setLoading]    = useState(true);
   const [zoomedImage, setZoomedImage] = useState(null);
+  
+  const [alertTypeFilter, setAlertTypeFilter] = useState("All");
+  const [cameraFilter, setCameraFilter] = useState("All");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [timeFilter, setTimeFilter] = useState("all");
+
+  const getDisplayType = useCallback((alert) => {
+    if (alert.isExternal) {
+      const raw = alert.rawData || {};
+      let eventType = raw.subType || raw.sourceType || "AI Event";
+      if (eventType.startsWith("fr-")) eventType = eventType.substring(3);
+      return eventType.charAt(0).toUpperCase() + eventType.slice(1);
+    }
+    return alert.type || "Unknown";
+  }, []);
+  
+  const getDisplayCamera = useCallback((alert) => {
+    const name = getCameraNameByIpOrSerial(alert.ip || alert.serial);
+    const displayId = (alert.ip || alert.serial || "Unknown").replace(/_/g, ".");
+    return name ? `${name} (${displayId})` : displayId;
+  }, []);
+
+  const availableTypes = useMemo(() => {
+    const types = new Set();
+    alerts.forEach(a => types.add(getDisplayType(a)));
+    return ["All", ...Array.from(types).sort()];
+  }, [alerts, getDisplayType]);
+
+  const availableCameras = useMemo(() => {
+    const cams = new Set();
+    alerts.forEach(a => cams.add(getDisplayCamera(a)));
+    return ["All", ...Array.from(cams).sort()];
+  }, [alerts, getDisplayCamera]);
+
+  const filteredAlerts = useMemo(() => {
+    const now = new Date().getTime();
+    return alerts.filter(a => {
+      const typeMatch = alertTypeFilter === "All" || getDisplayType(a) === alertTypeFilter;
+      const camMatch = cameraFilter === "All" || getDisplayCamera(a) === cameraFilter;
+      
+      let searchMatch = true;
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        const typeStr = getDisplayType(a).toLowerCase();
+        const camStr = getDisplayCamera(a).toLowerCase();
+        const rawLoc = (a.rawData?.locationName || a.rawData?.location || "").toLowerCase();
+        const rawPerson = (a.rawData?.empName || a.rawData?.employeeName || a.rawData?.personName || a.rawData?.name || a.rawData?.label || "").toLowerCase();
+        
+        searchMatch = typeStr.includes(q) || camStr.includes(q) || rawLoc.includes(q) || rawPerson.includes(q);
+      }
+      
+      let timeMatch = true;
+      if (timeFilter !== "all") {
+        const alertTimeStr = a.time || a.received_at;
+        if (alertTimeStr) {
+          const alertTime = new Date(alertTimeStr).getTime();
+          const diffHours = (now - alertTime) / (1000 * 60 * 60);
+          if (timeFilter === "1h") timeMatch = diffHours <= 1;
+          if (timeFilter === "24h") timeMatch = diffHours <= 24;
+          if (timeFilter === "7d") timeMatch = diffHours <= (24 * 7);
+        }
+      }
+      
+      return typeMatch && camMatch && searchMatch && timeMatch;
+    });
+  }, [alerts, alertTypeFilter, cameraFilter, searchQuery, timeFilter, getDisplayType, getDisplayCamera]);
+
+  // Reset filters when source changes
+  useEffect(() => {
+    setAlertTypeFilter("All");
+    setCameraFilter("All");
+    setSearchQuery("");
+    setTimeFilter("all");
+  }, [alertSource]);
 
   useEffect(() => {
     onTotalAlertCountChange?.(alerts.length);
@@ -642,7 +717,7 @@ function AlertsPanel({ isOpen, onAlertCountUpdate, onTotalAlertCountChange, live
         <div className="lv-alerts-panel__title">
           <span className="lv-alerts-panel__dot" />
           Alerts
-          <span className="lv-alerts-panel__count">{alerts.length}</span>
+          <span className="lv-alerts-panel__count">{filteredAlerts.length}</span>
         </div>
 
         {/* Source Toggle Switch */}
@@ -664,13 +739,55 @@ function AlertsPanel({ isOpen, onAlertCountUpdate, onTotalAlertCountChange, live
         </div>
       </div>
 
+      <div className="lv-alerts-panel__filters-container">
+        <div className="lv-alerts-search">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
+            <circle cx="11" cy="11" r="8"/>
+            <path d="M21 21l-4.35-4.35"/>
+          </svg>
+          <input 
+            type="text" 
+            placeholder="Search alerts..." 
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+        </div>
+        
+        <div className="lv-alerts-panel__filters">
+          <select 
+            className="lv-alerts-filter-select"
+            value={alertTypeFilter}
+            onChange={(e) => setAlertTypeFilter(e.target.value)}
+            title="Filter by Alert Type"
+          >
+            <option value="All">Event Type</option>
+            {availableTypes.filter(t => t !== "All").map(t => <option key={t} value={t}>{t}</option>)}
+          </select>
+          <select 
+            className="lv-alerts-filter-select"
+            value={cameraFilter}
+            onChange={(e) => setCameraFilter(e.target.value)}
+            title="Filter by Camera"
+          >
+            <option value="All">Camera</option>
+            {availableCameras.filter(c => c !== "All").map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+        </div>
+
+        <div className="lv-alerts-time-filters">
+          <button className={`lv-time-btn ${timeFilter === "1h" ? "active" : ""}`} onClick={() => setTimeFilter(timeFilter === "1h" ? "all" : "1h")}>1 hr</button>
+          <button className={`lv-time-btn ${timeFilter === "24h" ? "active" : ""}`} onClick={() => setTimeFilter(timeFilter === "24h" ? "all" : "24h")}>24 hr</button>
+          <button className={`lv-time-btn ${timeFilter === "7d" ? "active" : ""}`} onClick={() => setTimeFilter(timeFilter === "7d" ? "all" : "7d")}>7d</button>
+        </div>
+      </div>
+
       <div className="lv-alerts-panel__list">
         {loading ? (
           <div className="lv-alerts-panel__empty">Loading...</div>
-        ) : alerts.length === 0 ? (
-          <div className="lv-alerts-panel__empty">No alerts yet</div>
+        ) : filteredAlerts.length === 0 ? (
+          <div className="lv-alerts-panel__empty">No alerts found</div>
         ) : (
-          alerts.map((alert, i) => {
+          filteredAlerts.map((alert, i) => {
             const isActive = alert.status === "Active";
             const ipStr = alert.ip || alert.serial || "";
             let typeClass = "lv-alert-card--other";
@@ -774,7 +891,7 @@ function AlertsPanel({ isOpen, onAlertCountUpdate, onTotalAlertCountChange, live
                           <div className="lv-alert-card__row">
                             <span className="lv-alert-card__label">People</span>
                             <span className="lv-alert-card__value">
-                              👥 {alert.human ?? alert.total ?? "—"}
+                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14" style={{marginRight:4, verticalAlign:"middle"}}><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg> {alert.human ?? alert.total ?? "—"}
                             </span>
                           </div>
                         )}
@@ -792,7 +909,7 @@ function AlertsPanel({ isOpen, onAlertCountUpdate, onTotalAlertCountChange, live
                           <div className="lv-alert-card__row">
                             <span className="lv-alert-card__label">Class</span>
                             <span className="lv-alert-card__value lv-alert-card__value--human">
-                              👤 {alert.class}
+                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14" style={{marginRight:4, verticalAlign:"middle"}}><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg> {alert.class}
                             </span>
                           </div>
                         )}
@@ -1132,6 +1249,7 @@ function SequenceDropdown({ value, onChange, sequences }) {
 // ── LiveViewPage ──────────────────────────────────────────────────
 export default function LiveViewPage() {
   const { user } = useAuth();
+  const { theme } = useTheme();
   const [devices,      setDevices]      = useState(loadDevices);
   const [layout,       setLayout]       = useState(() => {
     return sessionStorage.getItem("miradorai_liveview_layout") || "2x2";
@@ -1710,9 +1828,9 @@ export default function LiveViewPage() {
   };
 
   return (
-    <div className="lv-page">
-
-      <div className="lv-top-bar-container">
+    <div className="lv-page" data-theme={theme}>
+      <div className="lv-main-content">
+        <div className="lv-top-bar-container">
         <div className="lv-top-header">
           <div className="lv-top-header__left">
             <h1 className="lv-page-title">Live view</h1>
@@ -1753,7 +1871,7 @@ export default function LiveViewPage() {
               <div className="lv-filter-item lv-dropdown-container">
                 <span className="lv-blue-dot" style={{ background: "#3fb950", marginRight: "6px" }} />
                 <span style={{ color: "#3fb950", cursor: "pointer", flex: 1, whiteSpace: "nowrap", display: "flex", alignItems: "center" }} onClick={() => setModeDropdownOpen(!modeDropdownOpen)}>
-                  {streamMode === "hls" ? "Buffered" : "Real-time"}
+                  {streamMode === "hls" ? "Standard Latency" : "Ultra-Low Latency"}
                   <svg className={`lv-chevron-icon ${modeDropdownOpen ? 'open' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="10" height="10" style={{ marginLeft: '8px' }} onClick={(e) => { e.stopPropagation(); setModeDropdownOpen(!modeDropdownOpen); }}>
                     <path d="M6 9l6 6 6-6" />
                   </svg>
@@ -1764,13 +1882,13 @@ export default function LiveViewPage() {
                       className={`lv-filter-dropdown-item ${streamMode === "webrtc" ? "selected" : ""}`}
                       onClick={() => { setStreamMode("webrtc"); setModeDropdownOpen(false); }}
                     >
-                      Real-time
+                      Ultra-Low Latency
                     </button>
                     <button
                       className={`lv-filter-dropdown-item ${streamMode === "hls" ? "selected" : ""}`}
                       onClick={() => { setStreamMode("hls"); setModeDropdownOpen(false); }}
                     >
-                      Buffered
+                      Standard Latency
                     </button>
                   </div>
                 )}
@@ -2112,7 +2230,7 @@ export default function LiveViewPage() {
           onClose={() => setShowSequenceModal(false)}
         />
       )}
-
+      </div>
     </div>
   );
 }

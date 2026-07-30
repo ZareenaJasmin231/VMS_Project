@@ -61,53 +61,31 @@ const Icon = ({ type, size = 20, model = '', subtype = '' }) => {
       if (isDome) {
         return (
           <svg viewBox="0 0 100 100" width={size} height={size} style={{ filter: 'drop-shadow(0px 8px 12px rgba(0,0,0,0.6))' }}>
-            <defs>
-              <linearGradient id="domeMount" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#e5e7eb"/><stop offset="100%" stopColor="#9ca3af"/></linearGradient>
-              <radialGradient id="domeGlass" cx="0.5" cy="0.5" r="0.5"><stop offset="0%" stopColor="#ffffff" stopOpacity="0.4"/><stop offset="80%" stopColor="#64748b" stopOpacity="0.8"/><stop offset="100%" stopColor="#0f172a" stopOpacity="0.9"/></radialGradient>
-              <radialGradient id="domeLens" cx="0.5" cy="0.5" r="0.5"><stop offset="0%" stopColor="#3b82f6"/><stop offset="40%" stopColor="#1e3a8a"/><stop offset="100%" stopColor="#020617"/></radialGradient>
-            </defs>
-            
-            {/* Mount base (top) */}
-            <path d="M 20,30 L 80,30 C 85,30 85,40 80,40 L 20,40 C 15,40 15,30 20,30 Z" fill="url(#domeMount)" stroke="#6b7280" strokeWidth="1"/>
-            
-            {/* Glass Dome */}
-            <path d="M 25,40 A 25 25 0 0 0 75 40 Z" fill="url(#domeGlass)" stroke="#334155" strokeWidth="1"/>
-            
-            {/* Inner Camera unit (tilted slightly) */}
-            <g transform="rotate(20, 50, 40)">
-              <ellipse cx="50" cy="55" rx="12" ry="12" fill="#1f2937"/>
-              <ellipse cx="50" cy="55" rx="7" ry="7" fill="url(#domeLens)"/>
-              <ellipse cx="48" cy="53" rx="2" ry="2" fill="#fff" opacity="0.6"/>
-              {/* LED */}
-              <circle cx="50" cy="45" r="1.5" fill="#ef4444" filter="drop-shadow(0 0 2px #ef4444)"/>
+            <g transform="translate(50, 50) scale(3.5)">
+              <circle cx="0" cy="0" r="11" fill="#ffffff" stroke="#000000" strokeWidth="1" />
+              <circle cx="3" cy="0" r="8.5" fill="#222222" stroke="#ffffff" strokeWidth="1.5" />
+              <circle cx="3" cy="0" r="8.5" fill="none" stroke="#000000" strokeWidth="1" />
+              <circle cx="4" cy="0" r="5" fill="#111111" stroke="#000000" strokeWidth="1" />
+              {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map(i => {
+                const a = (i / 12) * Math.PI * 2;
+                return <circle key={i} cx={4 + Math.cos(a) * 3.8} cy={Math.sin(a) * 3.8} r="0.6" fill="#dddddd" />
+              })}
+              <circle cx="4" cy="0" r="2" fill="#000000" />
+              <circle cx="4.5" cy="-0.5" r="0.5" fill="rgba(255,255,255,0.6)" />
             </g>
           </svg>
         );
       } else if (isPtz) {
         return (
           <svg viewBox="0 0 100 100" width={size} height={size} style={{ filter: 'drop-shadow(0px 8px 12px rgba(0,0,0,0.6))' }}>
-            <defs>
-              <linearGradient id="ptzMount" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#ffffff"/><stop offset="100%" stopColor="#d1d5db"/></linearGradient>
-              <linearGradient id="ptzBody" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stopColor="#f3f4f6"/><stop offset="50%" stopColor="#ffffff"/><stop offset="100%" stopColor="#d1d5db"/></linearGradient>
-              <radialGradient id="ptzLens" cx="0.5" cy="0.5" r="0.5"><stop offset="0%" stopColor="#60a5fa"/><stop offset="50%" stopColor="#1e3a8a"/><stop offset="100%" stopColor="#020617"/></radialGradient>
-            </defs>
-            
-            {/* Wall Mount bracket (left side) */}
-            <path d="M 15,20 L 25,20 L 25,60 L 15,60 Z" fill="url(#ptzMount)" stroke="#9ca3af" strokeWidth="1"/>
-            {/* Arm extending from bracket */}
-            <path d="M 25,25 L 60,25 C 65,25 70,30 70,35 L 70,40 L 40,40 L 40,35 C 40,30 45,25 50,25 Z" fill="url(#ptzMount)" stroke="#9ca3af" strokeWidth="1"/>
-            
-            {/* PTZ Rotating Base */}
-            <path d="M 42,40 L 68,40 L 70,55 L 40,55 Z" fill="url(#ptzBody)" stroke="#9ca3af" strokeWidth="1"/>
-            
-            {/* PTZ Spherical/Cylindrical Camera Head */}
-            <circle cx="55" cy="65" r="16" fill="url(#ptzBody)" stroke="#9ca3af" strokeWidth="1"/>
-            
-            {/* Lens Area */}
-            <g transform="rotate(15, 55, 65)">
-              <ellipse cx="68" cy="65" rx="4" ry="10" fill="#111827"/>
-              <ellipse cx="69" cy="65" rx="2" ry="8" fill="url(#ptzLens)"/>
-              <circle cx="68" cy="58" r="1.5" fill="#ef4444" filter="drop-shadow(0 0 2px #ef4444)"/>
+            <g transform="translate(50, 50) scale(2.8)">
+              <polygon points="-10,-6 -10,10 -14,12 -14,-8" fill="#ffffff" stroke="#000000" strokeWidth="1" />
+              <polygon points="-10,0 -4,-2 -4,2 -10,4" fill="#ffffff" stroke="#000000" strokeWidth="1" />
+              <polygon points="-4,-3 -4,3 -2,3 -2,-3" fill="#ffffff" stroke="#000000" strokeWidth="1" />
+              <path d="M-2,-3 L-2,3 C4,8 6,9 8,9 L8,-9 C6,-9 4,-8 -2,-3 Z" fill="#ffffff" stroke="#000000" strokeWidth="1" />
+              <path d="M8,-8 L8,8 C14,8 16,4 16,0 C16,-4 14,-8 8,-8 Z" fill="#1a1a1a" stroke="#000000" strokeWidth="1" />
+              <rect x="8" y="-3" width="4" height="6" rx="1" fill="#262626" />
+              <circle cx="10" cy="0" r="1.8" fill="#000000" />
             </g>
           </svg>
         );
@@ -116,127 +94,182 @@ const Icon = ({ type, size = 20, model = '', subtype = '' }) => {
       // Default Bullet Camera
       return (
         <svg viewBox="0 0 100 100" width={size} height={size} style={{ filter: 'drop-shadow(0px 8px 12px rgba(0,0,0,0.6))' }}>
-          <defs>
-            <linearGradient id="camMount" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stopColor="#d1d5db"/><stop offset="100%" stopColor="#6b7280"/></linearGradient>
-            <linearGradient id="camBody" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#ffffff"/><stop offset="40%" stopColor="#e5e7eb"/><stop offset="100%" stopColor="#9ca3af"/></linearGradient>
-            <linearGradient id="camVisor" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#ffffff"/><stop offset="100%" stopColor="#d1d5db"/></linearGradient>
-            <radialGradient id="camFront" cx="0.5" cy="0.5" r="0.5"><stop offset="0%" stopColor="#4b5563"/><stop offset="100%" stopColor="#1f2937"/></radialGradient>
-            <radialGradient id="camLens" cx="0.4" cy="0.4" r="0.6"><stop offset="0%" stopColor="#60a5fa"/><stop offset="40%" stopColor="#1e3a8a"/><stop offset="100%" stopColor="#020617"/></radialGradient>
-          </defs>
-          
-          {/* Mount Bracket (Left side) */}
-          <ellipse cx="15" cy="70" rx="6" ry="18" fill="url(#camMount)" stroke="#4b5563" strokeWidth="1"/>
-          
-          {/* Arm connecting bracket to body pivot */}
-          <path d="M15,70 L25,70 L35,50" fill="none" stroke="url(#camMount)" strokeWidth="8" strokeLinecap="round" strokeLinejoin="round"/>
-          
-          {/* Camera Assembly (pivots at 35,50, rotated down slightly) */}
-          <g transform="rotate(15, 35, 50)">
-            {/* Hinge Joint */}
-            <circle cx="35" cy="50" r="6" fill="#4b5563"/>
-            
-            {/* Main Body (Cylinder pointing right) */}
-            <path d="M 35,34 L 75,34 L 75,66 L 35,66 A 12 16 0 0 1 35 34 Z" fill="url(#camBody)" stroke="#9ca3af" strokeWidth="1"/>
-            
-            {/* Visor/Sun Shield (Solid hood overhanging on the right) */}
-            <path d="M 40,34 L 75,34 C 85,34 90,38 90,46 C 88,32 75,28 40,29 Z" fill="url(#camVisor)" stroke="#d1d5db" strokeWidth="1"/>
-            
-            {/* Front Face (Facing Viewer to the right) */}
-            <ellipse cx="75" cy="50" rx="12" ry="16" fill="url(#camFront)"/>
-            <ellipse cx="75" cy="50" rx="11" ry="15" fill="none" stroke="#111827" strokeWidth="1"/>
-            
-            {/* Inner Lens Housing */}
-            <ellipse cx="75" cy="50" rx="7" ry="9" fill="#111827"/>
-            
-            {/* Glass Lens */}
-            <ellipse cx="75" cy="50" rx="5" ry="7" fill="url(#camLens)"/>
-            <ellipse cx="73.5" cy="48" rx="1.5" ry="2" fill="#fff" opacity="0.7"/>
-            
-            {/* IR LEDs Ring */}
-            <g fill="#e5e7eb" opacity="0.9">
-              <circle cx="75" cy="62.5" r="0.8"/>
-              <circle cx="65.5" cy="50" r="0.8"/>
-              <circle cx="84.5" cy="50" r="0.8"/>
-              <circle cx="68.3" cy="41.2" r="0.8"/>
-              <circle cx="81.7" cy="41.2" r="0.8"/>
-              <circle cx="68.3" cy="58.8" r="0.8"/>
-              <circle cx="81.7" cy="58.8" r="0.8"/>
-            </g>
-            {/* Red Glowing Status / IR LED at the top */}
-            <circle cx="75" cy="37.5" r="1.5" fill="#ef4444" filter="drop-shadow(0 0 2px #ef4444)"/>
+          <g transform="translate(45, 45) scale(2.2)">
+            <polygon points="5,10 10,8 10,18 5,20" fill="#ffffff" stroke="#000000" strokeWidth="1" />
+            <polygon points="5,10 2,11 2,21 5,20" fill="#f5f5f5" stroke="#000000" strokeWidth="1" />
+            <polygon points="-2,14 5,12 5,15 -2,17" fill="#ffffff" stroke="#000000" strokeWidth="1" />
+            <polygon points="-4,0 0,-1 0,14 -4,15" fill="#ffffff" stroke="#000000" strokeWidth="1" />
+            <path d="M-12,-7 L8,-7 C12,-7 12,7 8,7 L-12,7 C-8,7 -8,-7 -12,-7 Z" fill="#ffffff" stroke="#000000" strokeWidth="1" />
+            <path d="M-14,-8 L10,-8 C16,-8 16,-1 10,-1 L-14,-1 Z" fill="#ffffff" stroke="#000000" strokeWidth="1" />
+            <ellipse cx="8" cy="0" rx="2.5" ry="6.5" fill="#1b3039" stroke="#000000" strokeWidth="1" />
+            <ellipse cx="8" cy="0" rx="1.2" ry="3.5" fill="none" stroke="#ffffff" strokeWidth="1" />
+            <ellipse cx="8" cy="0" rx="0.5" ry="1.5" fill="#000000" />
           </g>
         </svg>
       );
     }
     case 'switch': return (
       <svg viewBox="0 0 100 50" width={size} height={size} style={{ filter: 'drop-shadow(0px 8px 8px rgba(0,0,0,0.6))' }}>
-        <rect x="5" y="15" width="90" height="30" rx="2" fill="#ffffff" stroke="#000" strokeWidth="4"/>
-        <polygon points="5,15 15,5 85,5 95,15" fill="#e5e7eb" stroke="#000" strokeWidth="4" strokeLinejoin="round"/>
-        {/* Row 1 Ports */}
-        {[10, 22, 34, 46, 58].map(x => <path key={`r1-${x}`} d={`M${x},20 v5 h3 v2 h2 v-2 h3 v-5 z`} fill="#000"/>)}
-        {/* Row 2 Ports */}
-        {[10, 22, 34, 46, 58].map(x => <path key={`r2-${x}`} d={`M${x},32 v5 h3 v2 h2 v-2 h3 v-5 z`} fill="#000"/>)}
-        {/* Vents */}
-        <line x1="72" y1="20" x2="72" y2="40" stroke="#000" strokeWidth="2"/><line x1="76" y1="20" x2="76" y2="40" stroke="#000" strokeWidth="2"/><line x1="80" y1="20" x2="80" y2="40" stroke="#000" strokeWidth="2"/>
-        <circle cx="88" cy="25" r="2" fill="#000"/><circle cx="88" cy="35" r="2" fill="#000"/>
+        <defs>
+          <linearGradient id="swTop" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stopColor="#d1d5db"/><stop offset="50%" stopColor="#f3f4f6"/><stop offset="100%" stopColor="#9ca3af"/></linearGradient>
+          <linearGradient id="swFront" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#cbd5e1"/><stop offset="100%" stopColor="#94a3b8"/></linearGradient>
+          <linearGradient id="swRight" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#e2e8f0"/><stop offset="100%" stopColor="#cbd5e1"/></linearGradient>
+        </defs>
+        
+        <g stroke="#000" strokeWidth="1" strokeLinejoin="round">
+          {/* Top Face */}
+          <polygon points="10,20 80,20 95,10 25,10" fill="url(#swTop)" />
+          {/* Right Face */}
+          <polygon points="80,20 95,10 95,30 80,40" fill="url(#swRight)" />
+          {/* Front Face */}
+          <rect x="10" y="20" width="70" height="20" fill="url(#swFront)" />
+        </g>
+
+        {/* Ports */}
+        {[13, 17, 21, 25, 29, 33, 37, 41].map(x => (
+          <g key={`port-${x}`}>
+            <rect x={x} y="24" width="2.5" height="2.5" fill="#000" />
+            <rect x={x} y="31" width="2.5" height="2.5" fill="#000" />
+          </g>
+        ))}
+
+        {/* LED Panel */}
+        <rect x="50" y="24" width="26" height="12" rx="1.5" fill="#e2e8f0" stroke="#64748b" strokeWidth="0.5"/>
+        {[52, 55, 58, 61, 64, 67, 70, 73].map(x => (
+          <g key={`led-${x}`}>
+            <rect x={x} y="26" width="1.5" height="1.5" fill="#4ade80" stroke="#16a34a" strokeWidth="0.3"/>
+            <rect x={x} y="30.5" width="1.5" height="1.5" fill="#4ade80" stroke="#16a34a" strokeWidth="0.3"/>
+          </g>
+        ))}
       </svg>
     );
     case 'core-switch': return (
       <svg viewBox="0 0 100 50" width={size} height={size} style={{ filter: 'drop-shadow(0px 8px 8px rgba(0,0,0,0.6))' }}>
-        <rect x="5" y="10" width="90" height="35" rx="2" fill="#ffffff" stroke="#000" strokeWidth="4"/>
-        <polygon points="5,10 15,2 85,2 95,10" fill="#e5e7eb" stroke="#000" strokeWidth="4" strokeLinejoin="round"/>
-        {/* Top Ports */}
-        {[10, 22, 34, 46, 58].map(x => <path key={`r1-${x}`} d={`M${x},15 v4 h3 v2 h2 v-2 h3 v-4 z`} fill="#000"/>)}
-        {/* Middle Ports */}
-        {[10, 22, 34, 46, 58].map(x => <path key={`r2-${x}`} d={`M${x},25 v4 h3 v2 h2 v-2 h3 v-4 z`} fill="#000"/>)}
-        {/* Bottom Ports */}
-        {[10, 22, 34, 46, 58].map(x => <path key={`r3-${x}`} d={`M${x},35 v4 h3 v2 h2 v-2 h3 v-4 z`} fill="#000"/>)}
-        <line x1="72" y1="15" x2="72" y2="40" stroke="#000" strokeWidth="2"/><line x1="76" y1="15" x2="76" y2="40" stroke="#000" strokeWidth="2"/><line x1="80" y1="15" x2="80" y2="40" stroke="#000" strokeWidth="2"/>
-        <circle cx="88" cy="20" r="2" fill="#000"/><circle cx="88" cy="30" r="2" fill="#000"/>
+        <defs>
+          <linearGradient id="swTopCore" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stopColor="#94a3b8"/><stop offset="50%" stopColor="#cbd5e1"/><stop offset="100%" stopColor="#64748b"/></linearGradient>
+          <linearGradient id="swFrontCore" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#64748b"/><stop offset="100%" stopColor="#334155"/></linearGradient>
+          <linearGradient id="swRightCore" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#94a3b8"/><stop offset="100%" stopColor="#475569"/></linearGradient>
+        </defs>
+        
+        <g stroke="#000" strokeWidth="1" strokeLinejoin="round">
+          {/* Top Face */}
+          <polygon points="10,15 80,15 95,5 25,5" fill="url(#swTopCore)" />
+          {/* Right Face */}
+          <polygon points="80,15 95,5 95,30 80,40" fill="url(#swRightCore)" />
+          {/* Front Face */}
+          <rect x="10" y="15" width="70" height="25" fill="url(#swFrontCore)" />
+        </g>
+
+        {/* Ports - 3 rows */}
+        {[13, 17, 21, 25, 29, 33, 37, 41].map(x => (
+          <g key={`port-${x}`}>
+            <rect x={x} y="18" width="2.5" height="2.5" fill="#000" />
+            <rect x={x} y="24" width="2.5" height="2.5" fill="#000" />
+            <rect x={x} y="30" width="2.5" height="2.5" fill="#000" />
+          </g>
+        ))}
+
+        {/* LED Panel - taller */}
+        <rect x="50" y="18" width="26" height="18" rx="1.5" fill="#cbd5e1" stroke="#475569" strokeWidth="0.5"/>
+        {[52, 55, 58, 61, 64, 67, 70, 73].map(x => (
+          <g key={`led-${x}`}>
+            <rect x={x} y="20" width="1.5" height="1.5" fill="#3b82f6" stroke="#2563eb" strokeWidth="0.3"/>
+            <rect x={x} y="25" width="1.5" height="1.5" fill="#3b82f6" stroke="#2563eb" strokeWidth="0.3"/>
+            <rect x={x} y="30" width="1.5" height="1.5" fill="#3b82f6" stroke="#2563eb" strokeWidth="0.3"/>
+          </g>
+        ))}
       </svg>
     );
     case 'poe-switch': return (
       <svg viewBox="0 0 100 50" width={size} height={size} style={{ filter: 'drop-shadow(0px 8px 8px rgba(0,0,0,0.6))' }}>
-        <rect x="5" y="15" width="90" height="30" rx="2" fill="#ffffff" stroke="#000" strokeWidth="4"/>
-        <polygon points="5,15 15,5 85,5 95,15" fill="#e5e7eb" stroke="#000" strokeWidth="4" strokeLinejoin="round"/>
-        {/* Lightning Bolt */}
-        <polygon points="45,2 35,10 42,10 40,18 52,8 45,8" fill="#f59e0b" stroke="#000" strokeWidth="1"/>
-        {[10, 22, 34, 46, 58].map(x => <path key={`r1-${x}`} d={`M${x},20 v5 h3 v2 h2 v-2 h3 v-5 z`} fill="#f59e0b"/>)}
-        {[10, 22, 34, 46, 58].map(x => <path key={`r2-${x}`} d={`M${x},32 v5 h3 v2 h2 v-2 h3 v-5 z`} fill="#f59e0b"/>)}
-        <line x1="72" y1="20" x2="72" y2="40" stroke="#000" strokeWidth="2"/><line x1="76" y1="20" x2="76" y2="40" stroke="#000" strokeWidth="2"/><line x1="80" y1="20" x2="80" y2="40" stroke="#000" strokeWidth="2"/>
-        <circle cx="88" cy="25" r="2" fill="#f59e0b"/><circle cx="88" cy="35" r="2" fill="#f59e0b"/>
+        <defs>
+          <linearGradient id="swTopPoe" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stopColor="#d1d5db"/><stop offset="50%" stopColor="#f3f4f6"/><stop offset="100%" stopColor="#9ca3af"/></linearGradient>
+          <linearGradient id="swFrontPoe" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#cbd5e1"/><stop offset="100%" stopColor="#94a3b8"/></linearGradient>
+          <linearGradient id="swRightPoe" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#e2e8f0"/><stop offset="100%" stopColor="#cbd5e1"/></linearGradient>
+        </defs>
+        
+        <g stroke="#000" strokeWidth="1" strokeLinejoin="round">
+          {/* Top Face */}
+          <polygon points="10,20 80,20 95,10 25,10" fill="url(#swTopPoe)" />
+          {/* Right Face */}
+          <polygon points="80,20 95,10 95,30 80,40" fill="url(#swRightPoe)" />
+          {/* Front Face */}
+          <rect x="10" y="20" width="70" height="20" fill="url(#swFrontPoe)" />
+        </g>
+
+        {/* PoE Lightning Bolt on Top */}
+        <polygon points="45,12 38,15 42,15 40,18 48,13 44,13" fill="#f59e0b" stroke="#000" strokeWidth="0.5"/>
+
+        {/* Ports (Orange) */}
+        {[13, 17, 21, 25, 29, 33, 37, 41].map(x => (
+          <g key={`port-${x}`}>
+            <rect x={x} y="24" width="2.5" height="2.5" fill="#f59e0b" stroke="#000" strokeWidth="0.5" />
+            <rect x={x} y="31" width="2.5" height="2.5" fill="#f59e0b" stroke="#000" strokeWidth="0.5" />
+          </g>
+        ))}
+
+        {/* LED Panel */}
+        <rect x="50" y="24" width="26" height="12" rx="1.5" fill="#e2e8f0" stroke="#64748b" strokeWidth="0.5"/>
+        {[52, 55, 58, 61, 64, 67, 70, 73].map(x => (
+          <g key={`led-${x}`}>
+            <rect x={x} y="26" width="1.5" height="1.5" fill="#f59e0b" stroke="#d97706" strokeWidth="0.3"/>
+            <rect x={x} y="30.5" width="1.5" height="1.5" fill="#f59e0b" stroke="#d97706" strokeWidth="0.3"/>
+          </g>
+        ))}
       </svg>
     );
     case 'server': return (
-      <svg viewBox="0 0 100 100" width={size} height={size} style={{ filter: 'drop-shadow(0px 10px 15px rgba(0,0,0,0.7))' }}>
+      <svg viewBox="0 0 100 100" width={size} height={size} style={{ filter: 'drop-shadow(0px 8px 12px rgba(0,0,0,0.5))' }}>
         <defs>
-          <linearGradient id="srvTop" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stopColor="#4b5563"/><stop offset="100%" stopColor="#374151"/></linearGradient>
-          <linearGradient id="srvSide" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#374151"/><stop offset="100%" stopColor="#1f2937"/></linearGradient>
-          <linearGradient id="srvFront" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#1f2937"/><stop offset="100%" stopColor="#111827"/></linearGradient>
+          <linearGradient id="dbTop" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#93c5fd"/><stop offset="100%" stopColor="#3b82f6"/></linearGradient>
+          <linearGradient id="dbSide" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stopColor="#2563eb"/><stop offset="50%" stopColor="#60a5fa"/><stop offset="100%" stopColor="#1e40af"/></linearGradient>
         </defs>
-        {[55, 30, 5].map((y, i) => (
-          <g key={i} transform={`translate(0, ${y})`}>
-            <polygon points="10,25 50,45 90,25 90,32 50,52 10,32" fill="#000" opacity="0.4"/>
-            <polygon points="50,10 90,25 50,40 10,25" fill="url(#srvTop)" stroke="#6b7280" strokeWidth="1.5" strokeLinejoin="round"/>
-            <polygon points="10,25 50,40 50,55 10,40" fill="url(#srvSide)" stroke="#6b7280" strokeWidth="1.5" strokeLinejoin="round"/>
-            <polygon points="50,40 90,25 90,40 50,55" fill="url(#srvFront)" stroke="#6b7280" strokeWidth="1.5" strokeLinejoin="round"/>
-            {/* Rack Mount Rails */}
-            <line x1="12" y1="28" x2="12" y2="38" stroke="#111" strokeWidth="1.5"/>
-            <line x1="88" y1="28" x2="88" y2="38" stroke="#111" strokeWidth="1.5"/>
-            
-            {/* Front drive bays */}
-            <polygon points="55,42 85,31 85,36 55,47" fill="#030712" opacity="0.8"/>
-            <line x1="60" y1="40" x2="60" y2="45" stroke="#374151" strokeWidth="1"/>
-            <line x1="65" y1="38" x2="65" y2="43" stroke="#374151" strokeWidth="1"/>
-            <line x1="70" y1="36" x2="70" y2="41" stroke="#374151" strokeWidth="1"/>
-            <line x1="75" y1="34" x2="75" y2="39" stroke="#374151" strokeWidth="1"/>
-            <line x1="80" y1="32" x2="80" y2="37" stroke="#374151" strokeWidth="1"/>
-            
-            {/* Status LEDs */}
-            <circle cx="52" cy="45" r="1.5" fill="#3b82f6" filter="drop-shadow(0 0 3px #3b82f6)"/>
-            <circle cx="56" cy="47" r="1" fill="#10b981" filter="drop-shadow(0 0 2px #10b981)"/>
-          </g>
-        ))}
+        
+        {/* Server Tower */}
+        <g stroke="#000000" strokeWidth="2.5" strokeLinejoin="round">
+          {/* Top Face */}
+          <polygon points="35,5 15,20 50,30 75,15" fill="#d1d5db" />
+          {/* Right Side */}
+          <polygon points="50,30 75,15 75,75 50,95" fill="#e5e7eb" />
+          {/* Front (Left) Face */}
+          <polygon points="15,20 50,30 50,95 15,85" fill="#f3f4f6" />
+        </g>
+        
+        {/* Drive Bays / Details on Front Face */}
+        <g stroke="#a0a0a0" strokeWidth="1.5">
+          {/* Outer drive bay box */}
+          <polygon points="20,28 42,34 42,62 20,53" fill="#d4d4d4" />
+          {/* Bay slots */}
+          <line x1="22" y1="33" x2="40" y2="38" />
+          <line x1="22" y1="38" x2="40" y2="43" />
+          <line x1="22" y1="43" x2="40" y2="48" />
+          <line x1="22" y1="48" x2="40" y2="53" />
+          <line x1="22" y1="53" x2="40" y2="58" />
+        </g>
+        
+        {/* CD/DVD or USB slot */}
+        <polygon points="25,72 40,76 40,80 25,76" fill="#4b5563" stroke="#000000" strokeWidth="1"/>
+        <path d="M 25,82 Q 32,86 38,84 M 27,85 Q 32,88 36,87 M 29,88 Q 32,90 34,89" fill="none" stroke="#9ca3af" strokeWidth="1.5" strokeLinecap="round"/>
+
+        {/* Database Stack */}
+        <g transform="translate(5, 5)">
+          {/* Disk 3 (Bottom) */}
+          <path d="M 45,75 L 45,90 A 25,10 0 0,0 95,90 L 95,75 Z" fill="url(#dbSide)" />
+          <path d="M 45,90 A 25,10 0 0,0 95,90" fill="none" stroke="#000000" strokeWidth="1.5"/>
+          <path d="M 45,75 A 25,10 0 0,0 95,75" fill="none" stroke="#000000" strokeWidth="1.5"/>
+
+          {/* Disk 2 (Middle) */}
+          <path d="M 45,60 L 45,75 A 25,10 0 0,0 95,75 L 95,60 Z" fill="url(#dbSide)" />
+          <path d="M 45,60 A 25,10 0 0,0 95,60" fill="none" stroke="#000000" strokeWidth="1.5"/>
+
+          {/* Disk 1 (Top) */}
+          <path d="M 45,45 L 45,60 A 25,10 0 0,0 95,60 L 95,45 Z" fill="url(#dbSide)" />
+          <ellipse cx="70" cy="45" rx="25" ry="10" fill="url(#dbTop)" stroke="#000000" strokeWidth="1.5"/>
+          
+          {/* Left and Right Edges of Stack */}
+          <line x1="45" y1="45" x2="45" y2="90" stroke="#000000" strokeWidth="1.5"/>
+          <line x1="95" y1="45" x2="95" y2="90" stroke="#000000" strokeWidth="1.5"/>
+        </g>
       </svg>
     );
     case 'nvr': return (
@@ -478,336 +511,7 @@ const ConnectionEdge = ({
 const edgeTypes = { connection: ConnectionEdge };
 
 // ─── Connection Modal ─────────────────────────────────────────────────────────
-const ConnectionModal = ({ isOpen, onClose, onSave, onUpdate, onDelete, sourceNode, targetNode, nodes, existingConnections }) => {
-  if (!isOpen) return null;
-  const [draftConnections, setDraftConnections] = useState([]);
 
-  const [selectedSource, setSelectedSource] = useState('');
-  const [selectedTarget, setSelectedTarget] = useState('');
-  const [cableType, setCableType] = useState('CAT6');
-  const [connector, setConnector] = useState('RJ45');
-  const [sourcePort, setSourcePort] = useState('ETH0');
-  const [destinationPort, setDestinationPort] = useState('ETH0');
-  const [length, setLength] = useState('');
-  const [linkSpeed, setLinkSpeed] = useState('1 Gbps');
-  const [poeEnabled, setPoeEnabled] = useState(false);
-  const [remarks, setRemarks] = useState('');
-  const [error, setError] = useState('');
-
-  const [editingId, setEditingId] = useState(null);
-
-  useEffect(() => {
-    if (isOpen) {
-      if (sourceNode && targetNode) {
-        setSelectedSource(sourceNode.id);
-        setSelectedTarget(targetNode.id);
-      } else {
-        setSelectedSource('');
-        setSelectedTarget('');
-      }
-      setDraftConnections([]);
-      setEditingId(null);
-      setError('');
-    }
-  }, [isOpen, sourceNode, targetNode]);
-
-  const loadIntoForm = (connEdge) => {
-    setEditingId(connEdge.data?.id || connEdge.id);
-    setSelectedSource(connEdge.source);
-    setSelectedTarget(connEdge.target);
-    setCableType(connEdge.data?.cableType || 'CAT6');
-    setConnector(connEdge.data?.connectorType || 'RJ45');
-    setSourcePort(connEdge.data?.sourcePort || 'ETH0');
-    setDestinationPort(connEdge.data?.destinationPort || 'ETH0');
-    setLength(connEdge.data?.length?.toString() || '');
-    setLinkSpeed(connEdge.data?.linkSpeed || '1 Gbps');
-    setPoeEnabled(connEdge.data?.poeEnabled || false);
-    setRemarks(connEdge.data?.remarks || '');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  const handleUpdate = () => {
-    if (!selectedSource || !selectedTarget) return setError('Source and Dest required');
-    onUpdate(editingId, {
-      sourceDeviceId: selectedSource,
-      destinationDeviceId: selectedTarget,
-      cableType,
-      connectorType: connector,
-      sourcePort,
-      destinationPort,
-      length: length ? parseInt(length) : null,
-      linkSpeed,
-      poeEnabled,
-      status: 'Healthy',
-      remarks
-    });
-    setEditingId(null);
-    setSelectedSource('');
-    setSelectedTarget('');
-    setRemarks('');
-  };
-
-  const handleAddDraft = () => {
-    if (!selectedSource) return setError('Source Device is required');
-    if (!selectedTarget) return setError('Destination Device is required');
-    if (selectedSource === selectedTarget) return setError('Source and Destination cannot be the same');
-    if (!cableType) return setError('Cable Type is required');
-    if (!connector) return setError('Connector Type is required');
-    
-    setError('');
-    setDraftConnections(prev => [...prev, {
-      id: `C${prev.length + 1}`,
-      sourceDeviceId: selectedSource,
-      destinationDeviceId: selectedTarget,
-      cableType,
-      connectorType: connector,
-      sourcePort,
-      destinationPort,
-      length: length ? parseInt(length) : null,
-      linkSpeed,
-      poeEnabled,
-      status: 'Healthy',
-      remarks
-    }]);
-    
-    setSourcePort('ETH0');
-    setDestinationPort('ETH0');
-    setRemarks('');
-  };
-
-  const handleRemoveDraft = (draftId) => {
-    setDraftConnections(prev => prev.filter(c => c.id !== draftId));
-  };
-
-  const handleSaveAll = () => {
-    if (draftConnections.length === 0) {
-      if (selectedSource && selectedTarget) {
-        onSave([{
-          sourceDeviceId: selectedSource,
-          destinationDeviceId: selectedTarget,
-          cableType,
-          connectorType: connector,
-          sourcePort,
-          destinationPort,
-          length: length ? parseInt(length) : null,
-          linkSpeed,
-          poeEnabled,
-          status: 'Healthy',
-          remarks
-        }]);
-        return;
-      }
-      return setError('No connections added to draft.');
-    }
-    onSave(draftConnections);
-  };
-
-  return (
-    <div className="connection-modal-overlay" onClick={onClose}>
-      <div className="connection-modal" onClick={e => e.stopPropagation()} style={{ maxHeight: '90vh', overflowY: 'auto', width: '650px' }}>
-        <div className="connection-modal-header">
-          <h3>{editingId ? 'Edit Physical Connection' : 'New Physical Connection'}</h3>
-          <button className="close-btn" onClick={onClose}><Icon type="x" size={16} /></button>
-        </div>
-        <div className="connection-modal-body">
-          {error && <div style={{ color: '#ef4444', fontSize: 13, background: 'rgba(239,68,68,0.1)', padding: '8px 12px', borderRadius: 6 }}>{error}</div>}
-          
-          <div className="connection-form-row">
-            <div className="connection-form-group">
-              <label>Source Device</label>
-              <select value={selectedSource} onChange={e => setSelectedSource(e.target.value)}>
-                <option value="">-- Select Source --</option>
-                {nodes.map(n => (
-                  <option key={n.id} value={n.id}>{deviceTypeLabel(n.data?.type)} - {n.data?.ip || n.data?.label || n.id}</option>
-                ))}
-              </select>
-            </div>
-            <div className="connection-form-group">
-              <label>Destination Device</label>
-              <select value={selectedTarget} onChange={e => setSelectedTarget(e.target.value)}>
-                <option value="">-- Select Destination --</option>
-                {nodes.map(n => (
-                  <option key={n.id} value={n.id}>{deviceTypeLabel(n.data?.type)} - {n.data?.ip || n.data?.label || n.id}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-          
-          <div className="connection-form-row">
-            <div className="connection-form-group">
-              <label>Source Port</label>
-              <input type="text" value={sourcePort} onChange={e => setSourcePort(e.target.value)} placeholder="e.g. ETH0" />
-            </div>
-            <div className="connection-form-group">
-              <label>Destination Port</label>
-              <input type="text" value={destinationPort} onChange={e => setDestinationPort(e.target.value)} placeholder="e.g. Gi0/12" />
-            </div>
-          </div>
-
-          <div className="connection-form-row">
-            <div className="connection-form-group">
-              <label>Cable Type</label>
-              <select value={cableType} onChange={e => setCableType(e.target.value)}>
-                <option value="CAT5e">CAT5e</option>
-                <option value="CAT6">CAT6</option>
-                <option value="CAT6A">CAT6A</option>
-                <option value="OM3 Fiber">OM3 Fiber</option>
-                <option value="OM4 Fiber">OM4 Fiber</option>
-                <option value="Single Mode Fiber (SMF)">Single Mode Fiber (SMF)</option>
-                <option value="DAC">DAC</option>
-                <option value="Wireless">Wireless</option>
-              </select>
-            </div>
-            <div className="connection-form-group">
-              <label>Connector</label>
-              <select value={connector} onChange={e => setConnector(e.target.value)}>
-                <option value="RJ45">RJ45</option>
-                <option value="LC">LC</option>
-                <option value="SC">SC</option>
-                <option value="SFP+">SFP+</option>
-                <option value="SFP28">SFP28</option>
-              </select>
-            </div>
-          </div>
-
-          <div className="connection-form-row">
-            <div className="connection-form-group">
-              <label>Link Speed</label>
-              <select value={linkSpeed} onChange={e => setLinkSpeed(e.target.value)}>
-                <option value="Auto">Auto</option>
-                <option value="100 Mbps">100 Mbps</option>
-                <option value="1 Gbps">1 Gbps</option>
-                <option value="10 Gbps">10 Gbps</option>
-              </select>
-            </div>
-            <div className="connection-form-group">
-              <label>Length (m)</label>
-              <input type="number" value={length} onChange={e => setLength(e.target.value)} placeholder="e.g. 35" />
-            </div>
-          </div>
-
-          <div className="connection-form-row" style={{ alignItems: 'center', gap: 8, marginTop: 4 }}>
-            <input type="checkbox" id="poeCheckbox" checked={poeEnabled} onChange={e => setPoeEnabled(e.target.checked)} style={{ width: 16, height: 16 }} />
-            <label htmlFor="poeCheckbox" style={{ fontSize: 14, fontWeight: 600, color: '#e5e7eb', cursor: 'pointer' }}>PoE Enabled</label>
-          </div>
-
-          <div className="connection-form-group">
-            <label>Remarks</label>
-            <input type="text" value={remarks} onChange={e => setRemarks(e.target.value)} placeholder="e.g. Outdoor Shielded Cable" />
-          </div>
-
-          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12, gap: 10 }}>
-            {editingId ? (
-              <>
-                <button className="topo-btn" onClick={() => { setEditingId(null); setSelectedSource(''); setSelectedTarget(''); setRemarks(''); }}>Cancel Edit</button>
-                <button className="topo-btn topo-btn--primary" style={{ background: '#10b981' }} onClick={handleUpdate}>
-                  <Icon type="check" size={14} /> Update Connection
-                </button>
-              </>
-            ) : (
-              <button className="topo-btn topo-btn--primary" style={{ background: '#3b82f6' }} onClick={handleAddDraft}>
-                <Icon type="plus" size={14} /> Add to Draft
-              </button>
-            )}
-          </div>
-
-          {draftConnections.length > 0 && (
-            <div style={{ marginTop: 20 }}>
-              <div style={{ fontSize: 13, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8, fontWeight: 700 }}>
-                Drafted Connections ({draftConnections.length})
-              </div>
-              <div style={{ background: '#111827', borderRadius: 8, border: '1px solid #374151', overflow: 'hidden' }}>
-                <table style={{ width: '100%', textAlign: 'left', borderCollapse: 'collapse', fontSize: 13 }}>
-                  <thead style={{ background: '#1f2937', color: '#9ca3af' }}>
-                    <tr>
-                      <th style={{ padding: '8px 12px' }}>ID</th>
-                      <th style={{ padding: '8px 12px' }}>Source ➔ Target</th>
-                      <th style={{ padding: '8px 12px' }}>Cable</th>
-                      <th style={{ padding: '8px 12px' }}>Remarks</th>
-                      <th style={{ padding: '8px 12px' }}></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {draftConnections.map(c => {
-                      const sNode = nodes.find(n => n.id === c.sourceDeviceId);
-                      const tNode = nodes.find(n => n.id === c.destinationDeviceId);
-                      const sLabel = sNode?.data?.ip || sNode?.id;
-                      const tLabel = tNode?.data?.ip || tNode?.id;
-                      return (
-                        <tr key={c.id} style={{ borderTop: '1px solid #374151' }}>
-                          <td style={{ padding: '8px 12px', color: '#6366f1', fontWeight: 700 }}>{c.id}</td>
-                          <td style={{ padding: '8px 12px' }}>{sLabel} <span style={{ color: '#6b7280' }}>➔</span> {tLabel}</td>
-                          <td style={{ padding: '8px 12px' }}>{c.cableType}</td>
-                          <td style={{ padding: '8px 12px', color: '#9ca3af' }}>{c.remarks}</td>
-                          <td style={{ padding: '8px 12px', textAlign: 'right' }}>
-                            <button className="topo-btn-clear" style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer' }} onClick={() => handleRemoveDraft(c.id)}>
-                              <Icon type="x" size={14} />
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          {existingConnections && existingConnections.length > 0 && !editingId && (
-            <div style={{ marginTop: 24 }}>
-              <div style={{ fontSize: 13, color: '#10b981', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8, fontWeight: 700 }}>
-                Saved Physical Connections ({existingConnections.length})
-              </div>
-              <div style={{ background: '#111827', borderRadius: 8, border: '1px solid #374151', overflow: 'hidden' }}>
-                <table style={{ width: '100%', textAlign: 'left', borderCollapse: 'collapse', fontSize: 13 }}>
-                  <thead style={{ background: '#1f2937', color: '#9ca3af' }}>
-                    <tr>
-                      <th style={{ padding: '8px 12px' }}>Source ➔ Target</th>
-                      <th style={{ padding: '8px 12px' }}>Cable</th>
-                      <th style={{ padding: '8px 12px' }}>Remarks</th>
-                      <th style={{ padding: '8px 12px', textAlign: 'right' }}>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {existingConnections.map(c => {
-                      const sNode = nodes.find(n => n.id === c.source);
-                      const tNode = nodes.find(n => n.id === c.target);
-                      const sLabel = sNode?.data?.ip || sNode?.id || c.source;
-                      const tLabel = tNode?.data?.ip || tNode?.id || c.target;
-                      const dbId = c.data?.id || c.id;
-                      return (
-                        <tr key={c.id} style={{ borderTop: '1px solid #374151' }}>
-                          <td style={{ padding: '8px 12px' }}>{sLabel} <span style={{ color: '#6b7280' }}>➔</span> {tLabel}</td>
-                          <td style={{ padding: '8px 12px' }}>{c.data?.cableType || 'Unknown'}</td>
-                          <td style={{ padding: '8px 12px', color: '#9ca3af' }}>{c.data?.remarks || ''}</td>
-                          <td style={{ padding: '8px 12px', textAlign: 'right', display: 'flex', justifyContent: 'flex-end', gap: 6 }}>
-                            <button className="topo-btn-clear" style={{ background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.3)', color: '#3b82f6', cursor: 'pointer', padding: '4px 8px', borderRadius: 4 }} onClick={() => loadIntoForm(c)}>
-                              Edit
-                            </button>
-                            <button className="topo-btn-clear" style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', color: '#ef4444', cursor: 'pointer', padding: '4px 8px', borderRadius: 4 }} onClick={() => onDelete(dbId)}>
-                              Delete
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-        </div>
-        <div className="connection-modal-footer">
-          <button className="topo-btn" onClick={onClose}>Cancel</button>
-          <button className="topo-btn topo-btn--primary" onClick={handleSaveAll}>
-            Save All Connections
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
 
 const MetricCard = ({ icon, label, value, unit, percent, color, sub }) => (
   <div className="metric-card">
@@ -1338,7 +1042,7 @@ export default function Topology() {
   const memoizedNodeTypes = useMemo(() => nodeTypes, []);
   const memoizedEdgeTypes = useMemo(() => edgeTypes, []);
   
-  const [connectionModal, setConnectionModal] = useState({ isOpen: false, sourceNode: null, targetNode: null });
+
   const [selectedEdge, setSelectedEdge] = useState(null);
 
   const [templatesDropdownOpen, setTemplatesDropdownOpen] = useState(false);
@@ -1548,11 +1252,51 @@ export default function Topology() {
         };
       });
 
+      const logicalEdges = (data.edges || []).map((e, idx) => {
+        const targetNode = uniqueNodes.find(n => n.id === e.target);
+        const targetType = targetNode?.type;
+        
+        let strokeColor = '#818cf8';
+        let strokeWidth = 2;
+        
+        if (targetType === 'camera') {
+          strokeColor = '#10b981';
+        } else if (targetType === 'server' || targetType === 'nvr') {
+          strokeColor = '#3b82f6';
+          strokeWidth = 2.5;
+        } else if (targetType === 'switch' || targetType === 'poe-switch' || targetType === 'core-switch') {
+          strokeColor = '#f59e0b';
+          strokeWidth = 2.5;
+        }
+
+        const isCameraTarget = targetType === 'camera';
+
+        return {
+          id: `e-logic-${e.source}-${e.target}-${idx}`, 
+          source: e.source, 
+          target: e.target,
+          animated: true,
+          type: 'smoothstep',
+          style: { 
+            stroke: strokeColor, 
+            strokeWidth: strokeWidth,
+            filter: `drop-shadow(0px 0px 3px ${strokeColor}66)`
+          },
+          ...(isCameraTarget ? {
+            markerStart: { type: MarkerType.ArrowClosed, color: strokeColor }
+          } : {
+            markerEnd: { type: MarkerType.ArrowClosed, color: strokeColor }
+          })
+        };
+      });
+
+      const allReactEdges = [...reactEdges, ...logicalEdges];
+
       setEdges(prev => {
         let arrayChanged = false;
-        if (prev.length !== reactEdges.length) arrayChanged = true;
+        if (prev.length !== allReactEdges.length) arrayChanged = true;
         
-        const nextEdges = reactEdges.map(re => {
+        const nextEdges = allReactEdges.map(re => {
           const p = prev.find(x => x.id === re.id);
           if (!p) {
             arrayChanged = true;
@@ -1624,48 +1368,7 @@ export default function Topology() {
     });
   }, []);
 
-  const onConnect = useCallback((params) => {
-    const sourceNode = scannedNodes.find(n => n.id === params.source);
-    const targetNode = scannedNodes.find(n => n.id === params.target);
-    if (!sourceNode || !targetNode) return;
-    setConnectionModal({ isOpen: true, sourceNode, targetNode });
-  }, [scannedNodes]);
 
-  const handleSaveConnection = async (connDataList) => {
-    try {
-      await Promise.all(connDataList.map(connData =>
-        fetch(`${API_BASE}/connections`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(connData)
-        })
-      ));
-      setConnectionModal({ isOpen: false, sourceNode: null, targetNode: null });
-      fetchTopology();
-    } catch (err) {
-      console.error('Failed to save connection:', err);
-    }
-  };
-
-  const handleUpdateConnection = async (id, connData) => {
-    try {
-      await fetch(`${API_BASE}/connections/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(connData)
-      });
-      fetchTopology();
-    } catch (err) { console.error(err); }
-  };
-
-  const handleDeleteConnection = async (id) => {
-    if (window.confirm('Delete this physical connection?')) {
-      try {
-        await fetch(`${API_BASE}/connections/${id}`, { method: 'DELETE' });
-        fetchTopology();
-      } catch (err) { console.error(err); }
-    }
-  };
   const handleNodeClick = useCallback((_, node) => {
     setSelectedNode(node);
     setSelectedEdge(null);
@@ -2295,7 +1998,7 @@ export default function Topology() {
         <ReactFlow
           nodes={visibleNodes} edges={edges}
           onNodesChange={onNodesChange} onEdgesChange={onEdgesChange}
-          onConnect={onConnect} onNodeClick={handleNodeClick} onEdgeClick={handleEdgeClick}
+          onNodeClick={handleNodeClick} onEdgeClick={handleEdgeClick}
           onNodeDragStop={onNodeDragStop} nodeTypes={memoizedNodeTypes} edgeTypes={memoizedEdgeTypes} fitView>
           <Background color="#1f2937" gap={20} />
           <Controls />
@@ -2348,31 +2051,7 @@ export default function Topology() {
               >
                 {scanning ? 'Scanning…' : 'Scan Network'}
               </SpecularButton>
-              <SpecularButton
-                size="sm"
-                radius={8}
-                tint="#10b981"
-                tintOpacity={0.10}
-                blur={4}
-                textColor={theme === 'light' ? "#065f46" : "#f0fff8"}
-                lineColor="#10b981"
-                baseColor={theme === 'light' ? "#d1fae5" : "#0d3326"}
-                intensity={1.2}
-                shineSize={12}
-                shineFade={38}
-                thickness={1}
-                speed={0.35}
-                followMouse
-                proximity={220}
-                autoAnimate={false}
-                className="topo-btn topo-btn--primary"
-                onClick={() => setConnectionModal({ isOpen: true, sourceNode: null, targetNode: null })}
-                disabled={scanning}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <Icon type="zap" size={14} /> Give Connection
-                </div>
-              </SpecularButton>
+
               <button className="topo-btn" onClick={placeAllDevices} disabled={scanning || scannedNodes.length === 0}>
                 Place All
               </button>
@@ -2888,18 +2567,6 @@ export default function Topology() {
         </div>
       )}
 
-      {/* ── PHYSICAL CONNECTION MODAL ── */}
-      <ConnectionModal
-        isOpen={connectionModal.isOpen}
-        onClose={() => setConnectionModal({ isOpen: false, sourceNode: null, targetNode: null })}
-        onSave={handleSaveConnection}
-        onUpdate={handleUpdateConnection}
-        onDelete={handleDeleteConnection}
-        sourceNode={connectionModal.sourceNode}
-        targetNode={connectionModal.targetNode}
-        nodes={nodes}
-        existingConnections={edges.filter(e => e.type === 'connection')}
-      />
     </div>
   );
 }
