@@ -61,7 +61,7 @@ export default function DateTimePicker({
         className={`dtp-segment ${activeTab === 'date' ? 'active' : ''}`}
         onClick={() => setActiveTab((prev) => (prev === 'date' ? null : 'date'))}
       >
-        <CalendarIcon size={14} style={{ color: '#7c9eff' }} />
+        <CalendarIcon size={14} style={{ color: 'var(--blue)' }} />
         <span className="dtp-segment-text">{dateStr}</span>
       </button>
 
@@ -74,7 +74,7 @@ export default function DateTimePicker({
         className={`dtp-segment ${activeTab === 'time' ? 'active' : ''}`}
         onClick={() => setActiveTab((prev) => (prev === 'time' ? null : 'time'))}
       >
-        <Clock size={14} style={{ color: '#7c9eff' }} />
+        <Clock size={14} style={{ color: 'var(--blue)' }} />
         <span className="dtp-segment-text">{timeStr}</span>
       </button>
 

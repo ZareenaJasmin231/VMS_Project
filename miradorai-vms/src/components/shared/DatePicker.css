@@ -1,19 +1,19 @@
 :root {
   --dur-fast: 120ms;
   --dur-base: 180ms;
-  --dp-bg: #111318;
-  --dp-border: #24262c;
-  --dp-text: #f2f2f0;
-  --dp-muted: #6b6d72;
-  --dp-day-text: #d4d4d2;
-  --dp-out-month: #3a3c42;
-  --dp-selected-bg: #1fd8a4;
-  --dp-selected-text: #03231c;
-  --dp-hover-bg: #1e2026;
-  --dp-blue: #7c9eff;
-  --dp-btn-border: #2a2d33;
-  --dp-range-bg: rgba(31, 216, 164, 0.15);
-  --dp-range-hover-bg: rgba(31, 216, 164, 0.25);
+  --dp-bg: var(--bg-surface);
+  --dp-border: var(--border);
+  --dp-text: var(--text-primary);
+  --dp-muted: var(--text-muted);
+  --dp-day-text: var(--text-secondary);
+  --dp-out-month: var(--text-muted);
+  --dp-selected-bg: var(--teal);
+  --dp-selected-text: #ffffff;
+  --dp-hover-bg: var(--bg-hover);
+  --dp-blue: var(--blue);
+  --dp-btn-border: var(--border-light);
+  --dp-range-bg: var(--teal-glow);
+  --dp-range-hover-bg: var(--teal-subtle);
 }
 
 .dp-popover-wrapper {
@@ -28,7 +28,7 @@
   gap: 10px;
   width: 100%;
   height: 38px;
-  background: #111318;
+  background: var(--dp-bg);
   border: 1px solid var(--dp-border);
   border-radius: 8px;
   padding: 0 14px;
@@ -43,8 +43,8 @@
 }
 
 .dp-input-trigger:hover {
-  border-color: #3a3d45;
-  background: #161920;
+  border-color: var(--dp-blue);
+  background: var(--dp-hover-bg);
 }
 
 .dp-input-trigger:focus-visible,
@@ -127,8 +127,8 @@
 }
 
 .dp-nav-btn:hover {
-  border-color: #40444d;
-  background: rgba(255, 255, 255, 0.08);
+  border-color: var(--dp-blue);
+  background: var(--dp-hover-bg);
 }
 
 .dp-nav-btn:active {
@@ -242,7 +242,7 @@
 /* Time Picker Section (placed BESIDE calendar in side-by-side column) */
 .dp-time-side {
   width: 120px;
-  border-left: 1px solid rgba(36, 38, 44, 0.8);
+  border-left: 1px solid var(--dp-border);
   padding-left: 14px;
   display: flex;
   flex-direction: column;
@@ -286,7 +286,7 @@
 .dp-time-scroll-box {
   height: 180px;
   overflow-y: auto;
-  background: #0b0d11;
+  background: var(--bg-base);
   border: 1px solid var(--dp-border);
   border-radius: 8px;
   padding: 3px;
@@ -294,7 +294,7 @@
   flex-direction: column;
   gap: 2px;
   scrollbar-width: thin;
-  scrollbar-color: #24262c transparent;
+  scrollbar-color: var(--dp-border) transparent;
 }
 
 .dp-time-scroll-box::-webkit-scrollbar {
@@ -302,7 +302,7 @@
 }
 
 .dp-time-scroll-box::-webkit-scrollbar-thumb {
-  background: #24262c;
+  background: var(--dp-border);
   border-radius: 2px;
 }
 
@@ -322,7 +322,7 @@
 
 .dp-time-item:hover {
   background: var(--dp-hover-bg);
-  color: #fff;
+  color: var(--dp-text);
 }
 
 .dp-time-item.active {
@@ -338,7 +338,7 @@
   justify-content: space-between;
   margin-top: 12px;
   padding-top: 10px;
-  border-top: 1px solid rgba(36, 38, 44, 0.8);
+  border-top: 1px solid var(--dp-border);
 }
 
 .dp-footer-btn {

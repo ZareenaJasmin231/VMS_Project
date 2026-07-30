@@ -134,7 +134,7 @@ export default function TimePicker({
         className={`tp-input-trigger ${isOpen ? 'open' : ''}`}
         onClick={() => setIsOpen((prev) => !prev)}
       >
-        <Clock size={14} style={{ color: '#7c9eff' }} />
+        <Clock size={14} style={{ color: 'var(--blue)' }} />
         <span className="tp-trigger-text">{displayTime || placeholder}</span>
       </button>
 

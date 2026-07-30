@@ -3443,12 +3443,12 @@ const DashboardPage = () => {
             <SpecularButton
               size="md"
               radius={8}
-              tint="#10b981"
+              tint={theme === 'light' ? "#059669" : "#10b981"}
               tintOpacity={0.10}
               blur={4}
-              textColor="#f0fff8"
-              lineColor="#10b981"
-              baseColor="#0d3326"
+              textColor={theme === 'light' ? "#065f46" : "#f0fff8"}
+              lineColor={theme === 'light' ? "#059669" : "#10b981"}
+              baseColor={theme === 'light' ? "#d1fae5" : "#0d3326"}
               intensity={1.2}
               shineSize={12}
               shineFade={38}

@@ -385,12 +385,12 @@ export default function DatePicker({
                       onClick={() => handleDayClick(cell)}
                       onMouseEnter={() => setHoveredDay(cell.date)}
                       onFocus={() => setFocusedDay(cell.date)}
-                      whileHover={!selected ? { scale: 1.08, backgroundColor: '#1e2026' } : {}}
+                      whileHover={!selected ? { scale: 1.08, backgroundColor: 'var(--dp-hover-bg)' } : {}}
                       whileTap={{ scale: 0.85 }}
                       animate={
                         isShaking
                           ? { x: [0, -4, 4, -4, 4, 0] }
-                          : { scale: 1, backgroundColor: selected ? '#1fd8a4' : undefined }
+                          : { scale: 1, backgroundColor: selected ? 'var(--dp-selected-bg)' : undefined }
                       }
                       transition={{ duration: 0.12, ease: 'easeOut' }}
                     >
@@ -483,7 +483,7 @@ export default function DatePicker({
         className={`dp-input-trigger ${isOpen ? 'open' : ''}`}
         onClick={() => setIsOpen((prev) => !prev)}
       >
-        <CalendarIcon size={14} style={{ color: '#7c9eff' }} />
+        <CalendarIcon size={14} style={{ color: 'var(--dp-blue)' }} />
         <span className="dp-trigger-text">{renderTriggerText()}</span>
       </button>
 

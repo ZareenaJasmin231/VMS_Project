@@ -10,11 +10,11 @@
   gap: 8px;
   width: 100%;
   height: 38px;
-  background: #111318;
-  border: 1px solid #24262c;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
   border-radius: 8px;
   padding: 0 12px;
-  color: #f2f2f0;
+  color: var(--text-primary);
   font-size: var(--font-size-content, 16px);
   font-family: var(--font-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
   font-weight: 500;
@@ -25,14 +25,14 @@
 }
 
 .tp-input-trigger:hover {
-  border-color: #3a3d45;
-  background: #161920;
+  border-color: var(--border-light);
+  background: var(--bg-hover);
 }
 
 .tp-input-trigger:focus-visible,
 .tp-input-trigger.open {
-  border-color: #7c9eff;
-  box-shadow: 0 0 0 2px rgba(124, 158, 255, 0.15);
+  border-color: var(--blue);
+  box-shadow: 0 0 0 2px var(--teal-glow);
 }
 
 .tp-trigger-text {
@@ -46,15 +46,15 @@
   top: calc(100% + 6px);
   left: 0;
   z-index: 9999;
-  background: #111318;
-  border: 1px solid #24262c;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
   border-radius: 12px;
   padding: 12px;
   width: 210px;
   box-shadow: 0 16px 36px rgba(0, 0, 0, 0.75), 0 4px 12px rgba(0, 0, 0, 0.5);
   user-select: none;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  color: #f2f2f0;
+  color: var(--text-primary);
   box-sizing: border-box;
 }
 
@@ -64,7 +64,7 @@
   justify-content: space-between;
   font-size: 11px;
   font-weight: 600;
-  color: #6b6d72;
+  color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.04em;
   margin-bottom: 8px;
@@ -73,8 +73,8 @@
 .tp-display-badge {
   font-size: 12px;
   font-weight: 600;
-  color: #7c9eff;
-  background: rgba(124, 158, 255, 0.12);
+  color: var(--blue);
+  background: var(--teal-subtle);
   padding: 2px 8px;
   border-radius: 4px;
 }
@@ -87,7 +87,7 @@
 
 .tp-col-title {
   font-size: 10px;
-  color: #6b6d72;
+  color: var(--text-muted);
   text-align: center;
   margin-bottom: 4px;
   font-weight: 600;
@@ -96,15 +96,15 @@
 .tp-scroll-box {
   height: 140px;
   overflow-y: auto;
-  background: #0b0d11;
-  border: 1px solid #24262c;
+  background: var(--bg-base);
+  border: 1px solid var(--border);
   border-radius: 8px;
   padding: 4px;
   display: flex;
   flex-direction: column;
   gap: 2px;
   scrollbar-width: thin;
-  scrollbar-color: #24262c transparent;
+  scrollbar-color: var(--border) transparent;
 }
 
 .tp-scroll-box::-webkit-scrollbar {
@@ -112,14 +112,14 @@
 }
 
 .tp-scroll-box::-webkit-scrollbar-thumb {
-  background: #24262c;
+  background: var(--border);
   border-radius: 2px;
 }
 
 .tp-item {
   background: transparent;
   border: none;
-  color: #d4d4d2;
+  color: var(--text-secondary);
   font-size: 12px;
   font-weight: 500;
   padding: 5px 0;
@@ -131,12 +131,12 @@
 }
 
 .tp-item:hover {
-  background: #1e2026;
-  color: #fff;
+  background: var(--bg-hover);
+  color: var(--text-primary);
 }
 
 .tp-item.active {
-  background: #1fd8a4 !important;
-  color: #03231c !important;
+  background: var(--teal) !important;
+  color: #fff !important;
   font-weight: 700;
 }
