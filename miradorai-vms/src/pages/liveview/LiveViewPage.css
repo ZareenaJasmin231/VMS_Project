@@ -1180,20 +1180,10 @@
 
 /* ── Alert blinking border on camera cell ────────── */
 .lv-cam--alert {
-  border: 1px solid rgba(255, 75, 75, 0.8) !important;
-  animation: lv-cam-blink 1.5s ease-in-out infinite;
+  /* Soft glow is now handled by .lv-cell--alert */
 }
 
-@keyframes lv-cam-blink {
-  0%, 100% {
-    border-color: rgba(255, 75, 75, 0.3) !important;
-    box-shadow: 0 0 2px rgba(255, 75, 75, 0.2);
-  }
-  50% {
-    border-color: rgba(255, 120, 80, 0.8) !important;
-    box-shadow: 0 0 5px rgba(255, 100, 100, 0.4);
-  }
-}
+
 
 .lv-cam__alert-badge:hover {
   background: #c0392b;
@@ -1917,10 +1907,32 @@
   color: #fff;
 }
 
-/* ── Alert border on grid cells to prevent overflow clipping ── */
-.lv-cell--alert {
-  border-color: #E24B4A !important;
-  animation: lv-cam-blink 1.2s ease-in-out infinite;
+@property --neon-opacity {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 1;
+}
+
+.lv-page {
+  animation: neon-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes neon-pulse {
+  0%, 100% {
+    --neon-opacity: 1;
+  }
+  50% {
+    --neon-opacity: 0.3;
+  }
+}
+
+/* ── Alert neon blinking border on grid cells ── */
+.lv-cell.lv-cell--alert {
+  border-color: rgba(255, 26, 26, var(--neon-opacity, 1));
+  box-shadow: 0 0 6px rgba(255, 26, 26, var(--neon-opacity, 1)), 
+              0 0 12px rgba(255, 26, 26, var(--neon-opacity, 1)), 
+              inset 0 0 6px rgba(255, 26, 26, 0.4);
+  z-index: 10;
 }
 
 /* ── Draggable styling ── */

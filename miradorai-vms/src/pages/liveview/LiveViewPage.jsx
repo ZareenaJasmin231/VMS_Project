@@ -720,23 +720,7 @@ function AlertsPanel({ isOpen, onAlertCountUpdate, onTotalAlertCountChange, live
           <span className="lv-alerts-panel__count">{filteredAlerts.length}</span>
         </div>
 
-        {/* Source Toggle Switch */}
-        <div className="lv-alert-source-toggle" title="Switch between VMS Built-in alerts and External AI team alerts">
-          <button
-            type="button"
-            className={`lv-source-btn ${alertSource === "builtin" ? "active" : ""}`}
-            onClick={() => { setLoading(true); setAlertSource("builtin"); }}
-          >
-            Built-in
-          </button>
-          <button
-            type="button"
-            className={`lv-source-btn ${alertSource === "external" ? "active" : ""}`}
-            onClick={() => { setLoading(true); setAlertSource("external"); }}
-          >
-            External AI
-          </button>
-        </div>
+
       </div>
 
       <div className="lv-alerts-panel__filters-container">
@@ -1833,7 +1817,7 @@ export default function LiveViewPage() {
         <div className="lv-top-bar-container">
         <div className="lv-top-header">
           <div className="lv-top-header__left">
-            <h1 className="lv-page-title">Live view</h1>
+            <h1 className="lv-page-title">Live View</h1>
             <div className="lv-online-status">
               <span className="lv-live-dot" />
               <span>{onlineCams.length} online</span>
