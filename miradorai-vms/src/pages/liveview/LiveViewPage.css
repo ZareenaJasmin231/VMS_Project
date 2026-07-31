@@ -503,8 +503,8 @@
   50%       { opacity: 0.4; }
 }
 .lv-cell__name {
-  font-size: clamp(9px, 4.5cqw, var(--font-size-content));
-  font-weight: bold;
+  font-size: clamp(12px, 5cqw, 17px);
+  font-weight: 800;
   color: #ffffff;
   white-space: nowrap;
   overflow: hidden;
@@ -533,9 +533,9 @@
   margin-left: auto;
 }
 .lv-cell__ip {
-  font-size: clamp(8px, 4cqw, 14px);
+  font-size: clamp(11px, 4.5cqw, 15px);
   color: #ffffff;
-  font-weight: bold;
+  font-weight: 800;
   font-family: var(--font-mono);
   white-space: nowrap;
   overflow: hidden;
@@ -2208,12 +2208,30 @@
    LIGHT THEME OVERRIDES
 ═══════════════════════════════════════════════════ */
 
-/* ── Cell header gradient (camera name overlay) ── */
+/* ── Cell header (camera name overlay) ── */
 [data-theme="light"] .lv-cell__header {
-  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.45), transparent);
+  background: transparent !important;
+}
+[data-theme="light"] .lv-cell__name {
+  color: #000000 !important;
+  font-size: clamp(13px, 5.2cqw, 18px) !important;
+  font-weight: 900 !important;
+  letter-spacing: -0.01em;
+  -webkit-text-stroke: 1.2px #ffffff;
+  paint-order: stroke fill;
+  text-shadow: -1px -1px 0 #ffffff, 1px -1px 0 #ffffff, -1px 1px 0 #ffffff, 1px 1px 0 #ffffff;
 }
 [data-theme="light"] .lv-cell__ip {
-  color: rgba(255, 255, 255, 0.85);
+  color: #000000 !important;
+  font-size: clamp(12px, 4.8cqw, 16px) !important;
+  font-weight: 900 !important;
+  letter-spacing: -0.01em;
+  -webkit-text-stroke: 1.2px #ffffff;
+  paint-order: stroke fill;
+  text-shadow: -1px -1px 0 #ffffff, 1px -1px 0 #ffffff, -1px 1px 0 #ffffff, 1px 1px 0 #ffffff;
+}
+[data-theme="light"] .lv-cell__actions button {
+  color: #000000 !important;
 }
 [data-theme="light"] .lv-cam__player,
 [data-theme="light"] .lv-cam,
@@ -2228,10 +2246,12 @@
   backdrop-filter: blur(8px);
 }
 [data-theme="light"] .lv-fullscreen-overlay__name {
-  color: var(--text-primary);
+  color: #000000 !important;
+  font-weight: 800 !important;
 }
 [data-theme="light"] .lv-fullscreen-overlay__ip {
-  color: var(--text-muted);
+  color: #000000 !important;
+  font-weight: 800 !important;
 }
 [data-theme="light"] .lv-fullscreen-overlay__exit {
   border: 1px solid var(--border-light);
