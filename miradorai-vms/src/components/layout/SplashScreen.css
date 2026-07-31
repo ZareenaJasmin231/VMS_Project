@@ -154,3 +154,47 @@
 .splash__line--in {
   transform: scaleX(1);
 }
+
+/* ── Light Theme Adaptations ─────────────────────── */
+[data-theme="light"] .splash {
+  background: #f8fafc;
+}
+
+[data-theme="light"] .splash__blob--1 {
+  background: radial-gradient(circle, #10b981, transparent 70%);
+  opacity: 0.22;
+}
+
+[data-theme="light"] .splash__blob--2 {
+  background: radial-gradient(circle, #0284c7, transparent 70%);
+  opacity: 0.22;
+}
+
+[data-theme="light"] .splash__logo-wrap {
+  background: #ffffff;
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.08), 0 2px 8px rgba(15, 23, 42, 0.04);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+[data-theme="light"] .splash__shimmer {
+  background: linear-gradient(
+    105deg,
+    transparent 30%,
+    rgba(16, 185, 129, 0.25) 50%,
+    transparent 70%
+  );
+}
+
+[data-theme="light"] .splash__letter {
+  background: linear-gradient(135deg, #0f172a 30%, #059669 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+
+[data-theme="light"] .splash__sub {
+  color: #475569;
+}
+
+[data-theme="light"] .splash__line {
+  background: linear-gradient(90deg, transparent, #059669, transparent);
+}

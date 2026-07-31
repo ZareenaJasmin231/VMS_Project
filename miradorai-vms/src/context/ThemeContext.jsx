@@ -1,11 +1,17 @@
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useLayoutEffect, useState } from "react";
 
 const ThemeContext = createContext();
 
 export function ThemeProvider({ children }) {
-  const [theme, setTheme] = useState(() => localStorage.getItem("miradorai_theme") || "dark");
+  const [theme, setTheme] = useState(() => {
+    const saved = localStorage.getItem("miradorai_theme") || "dark";
+    if (typeof document !== "undefined") {
+      document.documentElement.setAttribute("data-theme", saved);
+    }
+    return saved;
+  });
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     document.documentElement.removeAttribute("style"); // Clear any stale inline styles
     document.documentElement.setAttribute("data-theme", theme);
     localStorage.setItem("miradorai_theme", theme);
