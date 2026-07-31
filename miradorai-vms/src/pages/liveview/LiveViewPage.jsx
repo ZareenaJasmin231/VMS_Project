@@ -725,7 +725,7 @@ function AlertsPanel({ isOpen, onAlertCountUpdate, onTotalAlertCountChange, live
 
       <div className="lv-alerts-panel__filters-container">
         <div className="lv-alerts-search">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
+          <svg className="lv-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
             <circle cx="11" cy="11" r="8"/>
             <path d="M21 21l-4.35-4.35"/>
           </svg>
@@ -735,34 +735,97 @@ function AlertsPanel({ isOpen, onAlertCountUpdate, onTotalAlertCountChange, live
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
+          {searchQuery && (
+            <button className="lv-alerts-search-clear" onClick={() => setSearchQuery("")} title="Clear search">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="12" height="12">
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+          )}
         </div>
         
         <div className="lv-alerts-panel__filters">
-          <select 
-            className="lv-alerts-filter-select"
-            value={alertTypeFilter}
-            onChange={(e) => setAlertTypeFilter(e.target.value)}
-            title="Filter by Alert Type"
-          >
-            <option value="All">Event Type</option>
-            {availableTypes.filter(t => t !== "All").map(t => <option key={t} value={t}>{t}</option>)}
-          </select>
-          <select 
-            className="lv-alerts-filter-select"
-            value={cameraFilter}
-            onChange={(e) => setCameraFilter(e.target.value)}
-            title="Filter by Camera"
-          >
-            <option value="All">Camera</option>
-            {availableCameras.filter(c => c !== "All").map(c => <option key={c} value={c}>{c}</option>)}
-          </select>
+          <div className={`lv-select-wrapper ${alertTypeFilter !== "All" ? "is-active" : ""}`}>
+            <svg className="lv-select-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+            </svg>
+            <select 
+              className="lv-alerts-filter-select"
+              value={alertTypeFilter}
+              onChange={(e) => setAlertTypeFilter(e.target.value)}
+              title="Filter by Alert Type"
+            >
+              <option value="All">Event Type</option>
+              {availableTypes.filter(t => t !== "All").map(t => <option key={t} value={t}>{t}</option>)}
+            </select>
+            <svg className="lv-select-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <polyline points="6 9 12 15 18 9" />
+            </svg>
+          </div>
+
+          <div className={`lv-select-wrapper ${cameraFilter !== "All" ? "is-active" : ""}`}>
+            <svg className="lv-select-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M23 7l-7 5 7 5V7z" />
+              <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
+            </svg>
+            <select 
+              className="lv-alerts-filter-select"
+              value={cameraFilter}
+              onChange={(e) => setCameraFilter(e.target.value)}
+              title="Filter by Camera"
+            >
+              <option value="All">Camera</option>
+              {availableCameras.filter(c => c !== "All").map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+            <svg className="lv-select-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <polyline points="6 9 12 15 18 9" />
+            </svg>
+          </div>
         </div>
 
         <div className="lv-alerts-time-filters">
-          <button className={`lv-time-btn ${timeFilter === "1h" ? "active" : ""}`} onClick={() => setTimeFilter(timeFilter === "1h" ? "all" : "1h")}>1 hr</button>
-          <button className={`lv-time-btn ${timeFilter === "24h" ? "active" : ""}`} onClick={() => setTimeFilter(timeFilter === "24h" ? "all" : "24h")}>24 hr</button>
-          <button className={`lv-time-btn ${timeFilter === "7d" ? "active" : ""}`} onClick={() => setTimeFilter(timeFilter === "7d" ? "all" : "7d")}>7d</button>
+          <button className={`lv-time-btn ${timeFilter === "1h" ? "active" : ""}`} onClick={() => setTimeFilter(timeFilter === "1h" ? "all" : "1h")}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="12" height="12">
+              <circle cx="12" cy="12" r="10" />
+              <polyline points="12 6 12 12 16 14" />
+            </svg>
+            1 hr
+          </button>
+          <button className={`lv-time-btn ${timeFilter === "24h" ? "active" : ""}`} onClick={() => setTimeFilter(timeFilter === "24h" ? "all" : "24h")}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="12" height="12">
+              <circle cx="12" cy="12" r="10" />
+              <polyline points="12 6 12 12 15 15" />
+            </svg>
+            24 hr
+          </button>
+          <button className={`lv-time-btn ${timeFilter === "7d" ? "active" : ""}`} onClick={() => setTimeFilter(timeFilter === "7d" ? "all" : "7d")}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="12" height="12">
+              <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+              <line x1="16" y1="2" x2="16" y2="6" />
+              <line x1="8" y1="2" x2="8" y2="6" />
+              <line x1="3" y1="10" x2="21" y2="10" />
+            </svg>
+            7d
+          </button>
         </div>
+
+        {(searchQuery || alertTypeFilter !== "All" || cameraFilter !== "All" || timeFilter !== "all") && (
+          <button 
+            className="lv-alerts-clear-btn" 
+            onClick={() => {
+              setSearchQuery("");
+              setAlertTypeFilter("All");
+              setCameraFilter("All");
+              setTimeFilter("all");
+            }}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="12" height="12">
+              <path d="M18 6L6 18M6 6l12 12" />
+            </svg>
+            Reset Filters
+          </button>
+        )}
       </div>
 
       <div className="lv-alerts-panel__list">

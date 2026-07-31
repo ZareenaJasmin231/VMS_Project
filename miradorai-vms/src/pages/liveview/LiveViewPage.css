@@ -770,30 +770,45 @@
 .lv-alerts-panel__filters-container {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 12px 16px;
+  gap: 10px;
+  padding: 14px 16px;
   background: var(--bg-surface);
   border-bottom: 1px solid var(--border-light);
 }
 
+/* ── Search Input Upgrade ── */
 .lv-alerts-search {
   display: flex;
   align-items: center;
   gap: 8px;
   background: var(--bg-elevated);
   border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 6px 12px;
-  transition: all 0.2s ease;
+  border-radius: 10px;
+  padding: 7px 12px;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.03);
+}
+
+.lv-alerts-search:hover {
+  border-color: var(--border-light);
+  background: var(--bg-hover);
 }
 
 .lv-alerts-search:focus-within {
   border-color: var(--teal);
-  box-shadow: 0 0 0 2px var(--teal-subtle);
+  box-shadow: 0 0 0 3px var(--teal-glow), 0 2px 8px rgba(0, 0, 0, 0.05);
+  background: var(--bg-surface);
 }
 
-.lv-alerts-search svg {
+.lv-alerts-search svg.lv-search-icon {
   color: var(--text-muted);
+  flex-shrink: 0;
+  transition: color 0.2s ease, transform 0.2s ease;
+}
+
+.lv-alerts-search:focus-within svg.lv-search-icon {
+  color: var(--teal);
+  transform: scale(1.1);
 }
 
 .lv-alerts-search input {
@@ -801,79 +816,215 @@
   background: transparent;
   border: none;
   color: var(--text-primary);
-  font-size: 14.5px;
+  font-size: 13.5px;
+  font-weight: 500;
   outline: none;
+  min-width: 0;
 }
 
 .lv-alerts-search input::placeholder {
   color: var(--text-muted);
+  font-weight: 400;
+  font-size: 13px;
 }
 
+.lv-alerts-search-clear {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: all 0.2s ease;
+}
+
+.lv-alerts-search-clear:hover {
+  background: rgba(239, 68, 68, 0.15);
+  color: var(--red, #ef4444);
+}
+
+/* ── Filter Select Wrappers (Event Type & Camera) ── */
 .lv-alerts-panel__filters {
   display: flex;
   gap: 8px;
 }
 
+.lv-select-wrapper {
+  position: relative;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+  min-width: 0;
+}
+
+.lv-select-wrapper:hover {
+  border-color: var(--border-light);
+  background: var(--bg-hover);
+  transform: translateY(-1px);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.06);
+}
+
+.lv-select-wrapper.is-active {
+  border-color: var(--teal);
+  background: var(--teal-subtle);
+  box-shadow: 0 0 0 1px var(--teal), 0 2px 8px var(--teal-glow);
+}
+
+.lv-select-icon {
+  position: absolute;
+  left: 10px;
+  width: 14px;
+  height: 14px;
+  color: var(--text-muted);
+  pointer-events: none;
+  transition: color 0.2s ease, transform 0.2s ease;
+  flex-shrink: 0;
+}
+
+.lv-select-wrapper.is-active .lv-select-icon,
+.lv-select-wrapper:hover .lv-select-icon {
+  color: var(--teal);
+  transform: scale(1.05);
+}
+
+.lv-select-arrow {
+  position: absolute;
+  right: 10px;
+  width: 12px;
+  height: 12px;
+  color: var(--text-muted);
+  pointer-events: none;
+  transition: transform 0.2s ease, color 0.2s ease;
+  flex-shrink: 0;
+}
+
+.lv-select-wrapper:hover .lv-select-arrow {
+  transform: translateY(1px);
+  color: var(--text-primary);
+}
+
+.lv-alerts-filter-select {
+  width: 100%;
+  background: transparent;
+  color: var(--text-primary);
+  border: none;
+  border-radius: 10px;
+  padding: 8px 26px 8px 30px;
+  font-size: 13px;
+  font-weight: 600;
+  outline: none;
+  cursor: pointer;
+  appearance: none;
+  min-width: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lv-alerts-filter-select option {
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.lv-select-wrapper.is-active .lv-alerts-filter-select {
+  color: var(--teal);
+  font-weight: 700;
+}
+
+/* ── Time Filter Segmented Control ── */
 .lv-alerts-time-filters {
   display: flex;
-  gap: 8px;
-  margin-top: 2px;
+  align-items: center;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 3px;
+  gap: 4px;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.04);
 }
 
 .lv-time-btn {
   flex: 1;
-  background: var(--bg-elevated);
-  border: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: transparent;
+  border: 1px solid transparent;
   color: var(--text-secondary);
-  border-radius: 6px;
-  padding: 5px 8px;
-  font-size: 13.5px;
-  font-weight: 500;
+  border-radius: 7px;
+  padding: 6px 8px;
+  font-size: 12.5px;
+  font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+  user-select: none;
+}
+
+.lv-time-btn svg {
+  color: var(--text-muted);
+  transition: color 0.2s ease, transform 0.2s ease;
+  flex-shrink: 0;
 }
 
 .lv-time-btn:hover {
-  background: var(--bg-hover);
   color: var(--text-primary);
+  background: var(--bg-hover);
+}
+
+.lv-time-btn:hover svg {
+  color: var(--text-primary);
+  transform: scale(1.1);
+}
+
+.lv-time-btn:active {
+  transform: scale(0.96);
 }
 
 .lv-time-btn.active {
-  background: var(--teal-subtle);
-  border-color: var(--teal);
-  color: var(--teal);
+  background: linear-gradient(135deg, var(--teal) 0%, var(--teal-dim) 100%);
+  border-color: transparent;
+  color: #ffffff;
+  font-weight: 700;
+  box-shadow: 0 3px 10px var(--teal-glow), 0 1px 3px rgba(0, 0, 0, 0.15);
 }
 
-.lv-alerts-filter-select {
-  flex: 1;
-  background: var(--bg-elevated);
-  color: var(--text-primary);
-  border: 1px solid var(--border);
+.lv-time-btn.active svg {
+  color: #ffffff;
+}
+
+/* ── Reset Filters Button ── */
+.lv-alerts-clear-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px dashed rgba(239, 68, 68, 0.3);
+  color: var(--red, #ef4444);
   border-radius: 8px;
-  padding: 8px 12px;
-  font-size: 14.5px;
-  font-weight: 500;
-  outline: none;
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 600;
   cursor: pointer;
-  appearance: none;
-  background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20width%3D%2214%22%20height%3D%2214%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%2364748B%22%20stroke-width%3D%222.5%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E");
-  background-repeat: no-repeat;
-  background-position: right 12px center;
-  padding-right: 32px;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  min-width: 0;
-  text-overflow: ellipsis;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  transition: all 0.2s ease;
+  align-self: flex-end;
+  margin-top: 2px;
 }
 
-.lv-alerts-filter-select:hover {
-  border-color: var(--border-hover);
-  background-color: var(--bg-hover);
-}
-
-.lv-alerts-filter-select:focus {
-  border-color: var(--teal);
-  box-shadow: 0 0 0 2px var(--teal-subtle);
+.lv-alerts-clear-btn:hover {
+  background: rgba(239, 68, 68, 0.16);
+  border-style: solid;
+  border-color: var(--red, #ef4444);
+  transform: translateY(-1px);
 }
 
 .lv-alert-source-toggle {
