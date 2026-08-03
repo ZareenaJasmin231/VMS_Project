@@ -324,6 +324,22 @@ function ConfigureEncoderModal({ camera, profile, onClose, onSaved }) {
     }
   };
 
+  const handleFpsChange = (e) => {
+    const newFps = parseInt(e.target.value);
+    setFps(newFps);
+    setIframeInterval(newFps * 2);
+    
+    let recBitrate = 2048;
+    if (newFps <= 5) recBitrate = 1024;
+    else if (newFps <= 10) recBitrate = 1536;
+    else if (newFps <= 15) recBitrate = 2048;
+    else if (newFps <= 20) recBitrate = 3072;
+    else recBitrate = 4096;
+    
+    setBitrate(recBitrate);
+    setBitrateMode("Customized");
+  };
+
   const resolutions = ["3840x2160","2560x1440","1920x1080","1280x720","704x576","352x288"];
   const fpsOptions  = [5, 10, 15, 20, 25, 30];
 
@@ -371,7 +387,7 @@ function ConfigureEncoderModal({ camera, profile, onClose, onSaved }) {
               </div>
               <div className="cem-field">
                 <label className="cem-label">Frame Rate</label>
-                <select className="cem-select" value={fps} onChange={e => setFps(e.target.value)}>
+                <select className="cem-select" value={fps} onChange={handleFpsChange}>
                   {fpsOptions.map(v => <option key={v} value={v}>{v} fps</option>)}
                 </select>
               </div>
@@ -567,6 +583,7 @@ export default function StreamProfilesPage() {
           resolution: recProfile.resolution,
           fps: recProfile.fps,
           bitrate: recProfile.bitrate,
+          bitrate_type: recProfile.bitrate_type,
         }),
       });
       let data = null;

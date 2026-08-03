@@ -142,7 +142,7 @@ function ContextMenu({ x, y, onEdit, onRemove, onStreamProfiles, onClose }) {
 function EditDeviceModal({ device, groups, onClose, onSave }) {
   const { theme } = useTheme();
   const [form, setForm] = useState({
-    name: device.name || "",
+    device_name: device.device_name || device.name || "",
     ip: device.ip || "",
     mac: device.mac || "",
     manufacturer: device.manufacturer || "",
@@ -179,7 +179,7 @@ function EditDeviceModal({ device, groups, onClose, onSave }) {
         </div>
         <div className="modal-body">
           {[
-            { label: "Device Name", key: "name" },
+            { label: "Device Name", key: "device_name" },
             { label: "IP Address", key: "ip" },
             { label: "MAC Address", key: "mac" },
             { label: "Manufacturer", key: "manufacturer" },
@@ -518,10 +518,11 @@ export default function AddDevicesPage({ onNavigate }) {
 
   const handleSaveDevice = useCallback(async (updated) => {
     try {
+      const { name, ... payload } = updated;
       await fetch(`${STREAM_API}/api/cameras/by-ip/${updated.ip}`, {
         method: "PUT",
         headers: getAuthHeaders(),
-        body: JSON.stringify(updated),
+        body: JSON.stringify(payload),
       });
     } catch (e) {
       console.error("Failed to update DB:", e);
@@ -596,7 +597,6 @@ export default function AddDevicesPage({ onNavigate }) {
           firmware: d.firmware || "",
           rtsp_url: d.rtsp_url || null,
           ws_url: d.ws_url || null,
-          stream_key: streamKey,
           stream_key: d.stream_key || streamKey,
           sub_stream_key: d.sub_stream_key || null,
           sub_stream_rtsp: d.sub_stream_rtsp || null,

@@ -1107,12 +1107,8 @@ function CameraCell({ device, streamMode, onFullscreen, alertCount, onBadgeClick
 
       <div className="lv-cell__header">
         {isLive && <span className="lv-live-dot" />}
-        <span className="lv-cell__name">{device.name}</span>
-        {(device.source === "AI_WEBHOOK" || device.reader_id) && (
-          <span className="lv-ai-webhook-badge" title="AI Webhook Integration Camera">
-            AI WEBHOOK
-          </span>
-        )}
+        <span className="lv-cell__name">{device.device_name}</span>
+       
         {isLive && showRec && isRecording && (
           <span className="lv-rec-dot" />
         )}
