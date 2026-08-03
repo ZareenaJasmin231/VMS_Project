@@ -2070,19 +2070,19 @@
 
 @keyframes neon-pulse {
   0%, 100% {
-    --neon-opacity: 1;
+    --neon-opacity: 0.85;
   }
   50% {
-    --neon-opacity: 0.3;
+    --neon-opacity: 0.25;
   }
 }
 
 /* ── Alert neon blinking border on grid cells ── */
 .lv-cell.lv-cell--alert {
-  border-color: rgba(255, 26, 26, var(--neon-opacity, 1));
-  box-shadow: 0 0 6px rgba(255, 26, 26, var(--neon-opacity, 1)), 
-              0 0 12px rgba(255, 26, 26, var(--neon-opacity, 1)), 
-              inset 0 0 6px rgba(255, 26, 26, 0.4);
+  border-color: rgba(255, 26, 26, var(--neon-opacity, 0.85));
+  box-shadow: 0 0 5px rgba(255, 26, 26, var(--neon-opacity, 0.85)), 
+              0 0 10px rgba(255, 26, 26, var(--neon-opacity, 0.85)), 
+              inset 0 0 5px rgba(255, 26, 26, 0.3);
   z-index: 10;
 }
 

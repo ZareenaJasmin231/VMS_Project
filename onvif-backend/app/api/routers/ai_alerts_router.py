@@ -351,7 +351,7 @@ reader_router = APIRouter(prefix="/api", tags=["Reader Analytics"])
 
 @reader_router.get("/reader/{reader_id}/analytics")
 @router.get("/alerts/by-reader/{reader_id}")
-async def get_alerts_by_reader(reader_id: str):
+def get_alerts_by_reader(reader_id: str):
     from app.core.database import cameras_col as current_cameras_col, db as current_db
     col = current_cameras_col if current_cameras_col is not None else (current_db["cameras"] if current_db is not None else None)
     if col is None:
