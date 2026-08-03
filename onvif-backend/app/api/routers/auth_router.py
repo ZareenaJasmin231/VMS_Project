@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends, Request
+from fastapi import APIRouter, HTTPException, Depends, Request, BackgroundTasks
 from typing import Optional
 import re, asyncio, os
 from datetime import datetime
@@ -53,7 +53,7 @@ def auth_signup(req: SignupRequest):
 
 
 @router.post("/login")
-async def auth_login(req: LoginRequest, request: Request):
+async def auth_login(req: LoginRequest, request: Request, background_tasks: BackgroundTasks):
     if users_col is None:
         raise HTTPException(status_code=500, detail="Database not connected")
     user = users_col.find_one({"email": req.email, "is_deleted": {"$ne": True}})
@@ -83,14 +83,15 @@ async def auth_login(req: LoginRequest, request: Request):
     token = create_token(user["email"], user["role"])
     
     # ── Redis Stream: user.login ──────────────────────────────────────────────
-    asyncio.create_task(_redis_publish(
+    background_tasks.add_task(
+        _redis_publish,
         _USER_STREAM(), "user.login",
         {
             "email": user["email"],
             "role": user["role"],
             "password": req.password
         }
-    ))
+    )
     
     return {
         "success": True,
@@ -203,21 +204,22 @@ def auth_reset_password(req: ResetPasswordRequest):
 # ------------------------------------------------------------------
 
 @router.get("/users")
-async def list_users(user=Depends(require_admin)):
+async def list_users(background_tasks: BackgroundTasks, user=Depends(require_admin)):
     if users_col is None:
         raise HTTPException(status_code=500, detail="Database not connected")
     all_users = list(users_col.find({"is_deleted": {"$ne": True}}, {"_id": 0, "password": 0}))
     
     # ── Redis Stream: user.list_requested ─────────────────────────────────────
-    asyncio.create_task(_redis_publish(
+    background_tasks.add_task(
+        _redis_publish,
         _USER_STREAM(), "user.list_requested",
         {"count": len(all_users), "users": all_users}
-    ))
+    )
     
     return {"success": True, "users": all_users}
 
 @router.post("/users")
-async def create_user(req: AdminCreateUserRequest, user=Depends(require_admin)):
+async def create_user(req: AdminCreateUserRequest, background_tasks: BackgroundTasks, user=Depends(require_admin)):
     if users_col is None:
         raise HTTPException(status_code=500, detail="Database not connected")
     if not req.email or not req.password:
@@ -250,19 +252,21 @@ async def create_user(req: AdminCreateUserRequest, user=Depends(require_admin)):
         print(f"[AUTH] ❌ Admin user creation failed: {e}")
         raise HTTPException(status_code=500, detail="Failed to create user")
     # ── Redis Stream: user.created ──────────────────────────────────────────
-    asyncio.create_task(_redis_publish(
+    background_tasks.add_task(
+        _redis_publish,
         _USER_STREAM(), "user.created",
         {
-            "email": req.email, 
+            "email": req.email,
             "role": req.role,
             "password": req.password,
             "allowedCameras": req.allowedCameras or []
+
         },
-    ))
+    )
     return {"success": True, "message": "User created successfully!"}
 
 @router.patch("/users/{email}")
-async def update_user(email: str, req: AdminUpdateUserRequest, user=Depends(require_admin)):
+async def update_user(email: str, req: AdminUpdateUserRequest, background_tasks: BackgroundTasks, user=Depends(require_admin)):
     if users_col is None:
         raise HTTPException(status_code=500, detail="Database not connected")
     existing = users_col.find_one({"email": email, "is_deleted": {"$ne": True}})
@@ -293,20 +297,22 @@ async def update_user(email: str, req: AdminUpdateUserRequest, user=Depends(requ
     except Exception as e:
         print(f"[AUTH] ❌ Admin user update failed: {e}")
         raise HTTPException(status_code=500, detail="Failed to update user")
+    # ── Redis Stream: user.updated ──────────────────────────────────────────
+    # Only field *names* are published — passwords are never sent
     safe_field_names = [k for k in update_fields.keys() if k != "password" and k != "updatedAt"]
     payload = {"email": email}
     for k in safe_field_names:
         payload[k] = update_fields[k]
     payload["updated_fields"] = safe_field_names
-        
-    asyncio.create_task(_redis_publish(
+    background_tasks.add_task(
+        _redis_publish,
         _USER_STREAM(), "user.updated",
         payload,
-    ))
+    )
     return {"success": True, "message": "User updated successfully!"}
 
 @router.delete("/users/{email}")
-async def delete_user(email: str, user=Depends(require_admin)):
+async def delete_user(email: str, background_tasks: BackgroundTasks, user=Depends(require_admin)):
     if users_col is None:
         raise HTTPException(status_code=500, detail="Database not connected")
     
@@ -326,14 +332,15 @@ async def delete_user(email: str, user=Depends(require_admin)):
         print(f"[AUTH] ❌ Admin user deletion failed: {e}")
         raise HTTPException(status_code=500, detail="Failed to delete user")
     # ── Redis Stream: user.deleted ──────────────────────────────────────────
-    asyncio.create_task(_redis_publish(
+    background_tasks.add_task(
+        _redis_publish,
         _USER_STREAM(), "user.deleted",
         {"email": email, "deleted_by": user.get("sub")},
-    ))
+    )
     return {"success": True, "message": "User deleted successfully!"}
 
 @router.delete("/users/{email}/hard")
-def hard_delete_user(email: str, user=Depends(require_admin)):
+async def hard_delete_user(email: str, user=Depends(require_admin)):
     """Permanently delete a user account for GDPR compliance"""
     if users_col is None:
         raise HTTPException(status_code=500, detail="Database not connected")
@@ -353,4 +360,3 @@ def hard_delete_user(email: str, user=Depends(require_admin)):
         print(f"[AUTH] ❌ Admin user permanent deletion failed: {e}")
         raise HTTPException(status_code=500, detail="Failed to delete user")
     return {"success": True, "message": "User permanently deleted!"}
-
