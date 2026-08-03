@@ -591,14 +591,18 @@
 }
 
 [data-theme="light"] .backup-input,
-[data-theme="light"] .backup-select {
+[data-theme="light"] .backup-select,
+[data-theme="light"] .backup-input-wrapper .dp-input-trigger {
   background: var(--bg-elevated);
   border-color: var(--border-light);
   color: #0f172a;
 }
 
 [data-theme="light"] .backup-input:focus,
-[data-theme="light"] .backup-select:focus {
+[data-theme="light"] .backup-select:focus,
+[data-theme="light"] .backup-input-wrapper .dp-input-trigger:focus-visible,
+[data-theme="light"] .backup-input-wrapper .dp-input-trigger.open,
+[data-theme="light"] .backup-input-wrapper .dp-input-trigger:hover {
   background: var(--bg-surface);
   border-color: var(--teal);
 }

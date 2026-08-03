@@ -365,9 +365,9 @@ const CustomNode = ({ data }) => {
           <div className="topo-node__pulse" style={{ backgroundColor: statusColor(data.status), position: 'absolute', top: -10, right: -10, width: 14, height: 14, borderRadius: '50%', boxShadow: `0 0 10px ${statusColor(data.status)}`, zIndex: 10 }} />
           <Icon type={data.type} size={80} model={data.model} subtype={data.camera_type} />
         </div>
-        <div style={{ marginTop: 8, textAlign: 'center', background: 'rgba(17, 24, 39, 0.7)', padding: '2px 8px', borderRadius: 12, backdropFilter: 'blur(4px)' }}>
-          <div style={{ fontSize: 13, fontWeight: 'bold', color: '#e5e7eb' }}>{data.ip}</div>
-          <div style={{ fontSize: 11, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{deviceTypeLabel(data.type)}</div>
+        <div className="topo-node-badge" style={{ marginTop: 8, textAlign: 'center', padding: '2px 8px', borderRadius: 12, backdropFilter: 'blur(4px)' }}>
+          <div className="topo-node-ip" style={{ fontSize: 13, fontWeight: 'bold' }}>{data.ip}</div>
+          <div className="topo-node-type" style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{deviceTypeLabel(data.type)}</div>
         </div>
         <Handle type="source" position={Position.Bottom} style={{ background: '#555', border: 'none' }} />
       </div>
@@ -596,32 +596,32 @@ const BellAlertButton = ({ alerts, onAck }) => {
 
       {/* Popup */}
       {open && (
-        <div style={{
+        <div className="bell-alert-popup" style={{
           position: 'absolute',
           top: 46,
           right: 0,
           width: 360,
           maxHeight: 480,
-          background: '#111827',
-          border: '1px solid #1f2937',
+          background: 'var(--bg-elevated)',
+          border: '1px solid var(--border)',
           borderRadius: 12,
-          boxShadow: '0 20px 60px rgba(0,0,0,0.6)',
+          boxShadow: 'var(--shadow-lg)',
           zIndex: 9999,
           display: 'flex',
           flexDirection: 'column',
           overflow: 'hidden',
         }}>
           {/* Popup header */}
-          <div style={{
+          <div className="bell-alert-header" style={{
             padding: '12px 16px',
-            borderBottom: '1px solid #1f2937',
+            borderBottom: '1px solid var(--border)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <Icon type="bell" size={14} />
-              <span style={{ color: '#e5e7eb', fontWeight: 600, fontSize: 17 }}>Alerts</span>
+              <span style={{ color: 'var(--text-primary)', fontWeight: 600, fontSize: 17 }}>Alerts</span>
               {unreadCount > 0 && (
                 <span style={{
                   background: '#ef4444',
@@ -637,7 +637,7 @@ const BellAlertButton = ({ alerts, onAck }) => {
             </div>
             <button
               onClick={() => setOpen(false)}
-              style={{ background: 'none', border: 'none', color: "rgba(255, 255, 255, 0.5)", cursor: 'pointer', padding: 2 }}
+              style={{ background: 'none', border: 'none', color: "var(--text-muted)", cursor: 'pointer', padding: 2 }}
             >
               <Icon type="x" size={14} />
             </button>
@@ -649,7 +649,7 @@ const BellAlertButton = ({ alerts, onAck }) => {
               <div style={{
                 padding: 32,
                 textAlign: 'center',
-                color: "rgba(255, 255, 255, 0.5)",
+                color: "var(--text-muted)",
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'center',
@@ -662,9 +662,9 @@ const BellAlertButton = ({ alerts, onAck }) => {
               alerts.map((a, i) => {
                 const sev = a.severity || 'warning';
                 return (
-                  <div key={i} style={{
+                  <div key={i} className="bell-alert-item" style={{
                     padding: '10px 14px',
-                    borderBottom: '1px solid #1a2332',
+                    borderBottom: '1px solid var(--border)',
                     borderLeft: `3px solid ${severityColor(sev)}`,
                     background: severityBg(sev),
                     display: 'flex',
@@ -685,7 +685,7 @@ const BellAlertButton = ({ alerts, onAck }) => {
                         {sev.toUpperCase()}
                       </div>
                       <div style={{
-                        color: '#d1d5db',
+                        color: 'var(--text-primary)',
                         fontSize: 15,
                         lineHeight: 1.45,
                         wordBreak: 'break-word',
@@ -693,7 +693,7 @@ const BellAlertButton = ({ alerts, onAck }) => {
                       }}>
                         {a.message}
                       </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: "rgba(255, 255, 255, 0.5)", fontSize: 14 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: "var(--text-secondary)", fontSize: 14 }}>
                         {a.ip && <span>{a.ip}</span>}
                         <span>{new Date(a.timestamp).toLocaleTimeString()}</span>
                       </div>
@@ -1863,8 +1863,8 @@ export default function Topology() {
         </div>
 
         {/* ── DEVICE TYPE FILTER CHIPS ── */}
-        <div style={{ borderTop: '1px solid #1f2937', padding: '8px 12px 0 12px', marginTop: 2 }}>
-          <div style={{ color: "rgba(255, 255, 255, 0.5)", fontSize: 13, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 6 }}>
+        <div style={{ borderTop: '1px solid var(--border)', padding: '8px 12px 0 12px', marginTop: 2 }}>
+          <div style={{ color: "var(--text-muted)", fontSize: 13, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 6 }}>
             Filter by Type
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
@@ -1891,15 +1891,15 @@ export default function Topology() {
                     display: 'flex',
                     alignItems: 'center',
                     gap: 6,
-                    color: active ? '#818cf8' : '#9ca3af',
+                    color: active ? '#818cf8' : 'var(--text-secondary)',
                     fontWeight: active ? 700 : 500,
                   }}>
                     <Icon type={type} size={11}/>
                     <span>{deviceTypeLabel(type)}</span>
                     <span style={{
                       marginLeft: 'auto',
-                      background: active ? '#6366f1' : '#1f2937',
-                      color: active ? '#fff' : '#6b7280',
+                      background: active ? '#6366f1' : 'var(--border)',
+                      color: active ? '#fff' : 'var(--text-secondary)',
                       borderRadius: 10,
                       padding: '0 6px',
                       fontSize: 13,
@@ -2006,20 +2006,7 @@ export default function Topology() {
 
           {activeTemplate && (
             <Panel position="top-center">
-              <div style={{
-                background: 'rgba(17, 24, 39, 0.8)',
-                backdropFilter: 'blur(8px)',
-                padding: '6px 16px',
-                borderRadius: 20,
-                border: '1px solid #374151',
-                color: '#10b981',
-                fontSize: 14,
-                fontWeight: 600,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                boxShadow: '0 4px 12px rgba(0,0,0,0.5)'
-              }}>
+              <div className="topo-current-layout">
                 <Icon type="template" size={14} />
                 Current Layout: {activeTemplate.charAt(0).toUpperCase() + activeTemplate.slice(1)}
               </div>

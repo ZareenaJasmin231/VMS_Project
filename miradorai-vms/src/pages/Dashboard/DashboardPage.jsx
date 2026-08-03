@@ -1984,7 +1984,8 @@ const DashboardPage = () => {
 
   const recordingCount = cameras.filter((cam) => {
     if (cam.enabled === false) return false;
-    return activeRecorders.includes(cam.stream_key) || activeRecorders.includes(cam.stream_key);
+    const streamKey = cam.stream_key || cam.ome_stream;
+    return activeRecorders.includes(streamKey);
   }).length;
 
   const enabledCount = cameras.filter((cam) => cam.enabled !== false).length;
@@ -2743,7 +2744,7 @@ const DashboardPage = () => {
     }
   });
 
-  const storagePercent = storage.total > 0 ? (storage.used / storage.total) * 100 : 0;
+  const storagePercent = storageDiagnostics.usage_pct || (storage.total > 0 ? (storage.used / storage.total) * 100 : 0);
 
   if (summary.cpu > 85) dynamicAlerts.push("High CPU usage");
   if (summary.ram > 85) dynamicAlerts.push("High RAM usage");
@@ -2889,8 +2890,8 @@ const DashboardPage = () => {
                 }} />
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', color: 'var(--text-primary)', fontWeight: '600' }}>
-                <span>Used: {storage.used} GB</span>
-                <span>Free: {(storage.total - storage.used).toFixed(1)} GB</span>
+                <span>Used: {storageDiagnostics.used_gb || storage.used} GB</span>
+                <span>Free: {storageDiagnostics.free_gb || (storage.total - storage.used).toFixed(1)} GB</span>
               </div>
             </div>
 
@@ -3037,8 +3038,8 @@ const DashboardPage = () => {
                   title="Click to view failed recordings"
                 >
                   <span className="widget-item-label" style={{ textDecoration: "underline" }}>Failed Recordings</span>
-                  <span className={`widget-item-value ${cameras.filter(cam => cam.enabled !== false && !activeRecorders.includes(cam.stream_key) && !activeRecorders.includes(cam.stream_key)).length > 0 ? "unhealthy" : "healthy"}`}>
-                    {cameras.filter(cam => cam.enabled !== false && !activeRecorders.includes(cam.stream_key) && !activeRecorders.includes(cam.stream_key)).length}
+                  <span className={`widget-item-value ${cameras.filter(cam => cam.enabled !== false && !activeRecorders.includes(cam.stream_key || cam.ome_stream)).length > 0 ? "unhealthy" : "healthy"}`}>
+                    {cameras.filter(cam => cam.enabled !== false && !activeRecorders.includes(cam.stream_key || cam.ome_stream)).length}
                   </span>
                 </div>
                 <div className="widget-item-row">
@@ -3095,9 +3096,15 @@ const DashboardPage = () => {
                   <span className="widget-item-label">Free Space</span>
                   <span className="widget-item-value">{(storageDiagnostics.free_gb / 1024).toFixed(2)} TB ({storageDiagnostics.free_gb} GB)</span>
                 </div>
-                <div style={{ marginTop: "10px" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", marginBottom: "4px" }}>
-                    <span className="widget-item-label">Usage Utilization</span>
+                <div className="widget-item-row" style={{ marginTop: "10px" }}>
+                  <span className="widget-item-label">Estimated Retention</span>
+                  <span className={`widget-item-value ${storageDiagnostics.retention_days === null ? "warning" : "healthy"}`}>
+                    {storageDiagnostics.retention_days !== null ? `${storageDiagnostics.retention_days} Days` : "Calculating..."}
+                  </span>
+                </div>
+                <div style={{ marginTop: "auto", paddingTop: "8px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11.5px", marginBottom: "4px" }}>
+                    <span className="widget-item-label" style={{ fontSize: "11.5px" }}>Usage Utilization</span>
                     <strong>{storageDiagnostics.usage_pct}%</strong>
                   </div>
                   <div className="card-inline-bar" style={{ marginTop: 0 }}>
@@ -3109,12 +3116,6 @@ const DashboardPage = () => {
                       }}
                     />
                   </div>
-                </div>
-                <div className="widget-item-row" style={{ marginTop: "10px" }}>
-                  <span className="widget-item-label">Estimated Retention</span>
-                  <span className={`widget-item-value ${storageDiagnostics.retention_days === null ? "warning" : "healthy"}`}>
-                    {storageDiagnostics.retention_days !== null ? `${storageDiagnostics.retention_days} Days` : "Calculating..."}
-                  </span>
                 </div>
               </div>
             </div>
@@ -3185,7 +3186,7 @@ const DashboardPage = () => {
             <div className="enhanced-card bandwidth-card">
               <div className="enhanced-card-header">
                 <span className="header-icon"><Camera size={18} /></span>
-                <h4>Top Bandwidth Consumers</h4>
+                <h4>Bandwidth Consumers</h4>
               </div>
               <div className="widget-content-list">
                 {camerasBandwidth.top_cameras && camerasBandwidth.top_cameras.length > 0 ? (
@@ -3754,7 +3755,7 @@ const DashboardPage = () => {
             
             <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
               {(() => {
-                const failedCamerasList = cameras.filter(cam => cam.enabled !== false && !activeRecorders.includes(cam.stream_key) && !activeRecorders.includes(cam.stream_key));
+                const failedCamerasList = cameras.filter(cam => cam.enabled !== false && !activeRecorders.includes(cam.stream_key || cam.ome_stream));
                 
                 const handleRestartCamera = async (cam) => {
                   if (!cam.ip && !cam.ip_address) return;

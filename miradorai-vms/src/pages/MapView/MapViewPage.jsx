@@ -522,10 +522,10 @@ function ZoneSidebarItem({
             onClick={e => e.stopPropagation()}
             autoFocus
             style={{
-              background: "#0d1117",
-              border: "1px solid #185FA5",
+              background: "var(--bg-input)",
+              border: "1px solid var(--teal)",
               borderRadius: "4px",
-              color: "#e8edf5",
+              color: "var(--text-primary)",
               fontSize: "15px",
               padding: "2px 4px",
               width: "100%",
@@ -557,7 +557,7 @@ function ZoneSidebarItem({
             title="Rename zone"
             style={{
               fontSize: "15px",
-              color: "rgba(255, 255, 255, 0.5)",
+              color: "var(--text-muted)",
               cursor: "pointer",
               padding: "2px",
               flexShrink: 0,
@@ -575,7 +575,7 @@ function ZoneSidebarItem({
             title="Delete zone"
             style={{
               fontSize: "16px",
-              color: "rgba(255, 255, 255, 0.5)",
+              color: "var(--text-muted)",
               cursor: "pointer",
               padding: "2px",
               flexShrink: 0,

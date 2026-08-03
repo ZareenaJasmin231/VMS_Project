@@ -890,4 +890,90 @@ input[type="password"]::-webkit-contacts-auto-fill-button {
   letter-spacing: 0.05em;
 }
 
+/* ── Light Mode Overrides ── */
+[data-theme="light"] .dm-modal,
+[data-theme="light"] .dm-cred-modal {
+  --text-muted: #64748b;
+  --text-secondary: #475569;
+}
 
+[data-theme="light"] .dm-brand-cam-ip,
+[data-theme="light"] .dm-cred-sublabel {
+  color: #0f172a;
+}
+
+[data-theme="light"] .dm-brand-cams-list::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+}
+
+[data-theme="light"] .dm-brand-cam-item {
+  background: #f8fafc;
+  border-color: #e2e8f0;
+}
+
+[data-theme="light"] .dm-cred-row {
+  background: #f8fafc;
+}
+
+[data-theme="light"] .dm-brand-header {
+  background: #f1f5f9;
+}
+
+[data-theme="light"] .dm-brand-header:hover {
+  background: #e2e8f0;
+}
+
+[data-theme="light"] .dm-brand-select-all {
+  background: #f8fafc;
+  border-bottom-color: #e2e8f0;
+}
+
+[data-theme="light"] .dm-brand-select-all:hover {
+  background: #f1f5f9;
+}
+
+[data-theme="light"] .dm-brand-cred-card {
+  background: #ffffff;
+  border-color: #e2e8f0;
+}
+
+[data-theme="light"] .dm-brand-cred-left {
+  background: #f8fafc;
+  border-right-color: #e2e8f0;
+}
+
+[data-theme="light"] .dm-brand-cred-fields {
+  background: #f1f5f9;
+}
+
+[data-theme="light"] .dm-device:hover {
+  background: #f1f5f9;
+}
+
+[data-theme="light"] .dm-device--selected {
+  background: rgba(16, 185, 129, 0.08);
+}
+
+[data-theme="light"] .dm-device--selected:hover {
+  background: rgba(16, 185, 129, 0.12);
+}
+
+[data-theme="light"] .dm-device-icon {
+  background: rgba(16, 185, 129, 0.1);
+}
+
+[data-theme="light"] .dm-select-all:hover:not(:disabled) {
+  background: #f1f5f9;
+}
+
+[data-theme="light"] .dm-btn--cancel:hover:not(:disabled) {
+  background: #f1f5f9;
+}
+
+[data-theme="light"] .dm-close:hover {
+  background: #f1f5f9;
+}
+
+[data-theme="light"] .dm-dropdown-item:hover {
+  background: #f1f5f9;
+}

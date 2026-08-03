@@ -971,7 +971,7 @@ function AlertsPanel({ isOpen, onAlertCountUpdate, onTotalAlertCountChange, live
                     )}
                   </div>
 
-                  {thumbnailUrl && (
+                  {/* {thumbnailUrl && (
                     <div
                       className="lv-alert-card__thumbnail-container"
                       style={{ 
@@ -1012,7 +1012,7 @@ function AlertsPanel({ isOpen, onAlertCountUpdate, onTotalAlertCountChange, live
                         }}
                       />
                     </div>
-                  )}
+                  )} */}
                 </div>
               </div>
             );

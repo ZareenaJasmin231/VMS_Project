@@ -94,10 +94,6 @@ class CameraMotionDetector(threading.Thread):
         fgbg = cv2.createBackgroundSubtractorMOG2(history=200, varThreshold=10, detectShadows=False)
         morph_kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
         
-        # Load frontal face Haar Cascade
-        face_cascade_path = os.path.join(cv2.data.haarcascades, "haarcascade_frontalface_default.xml")
-        face_cascade = cv2.CascadeClassifier(face_cascade_path)
-        
         last_process_time = 0
         consecutive_failures = 0
         
@@ -166,59 +162,8 @@ class CameraMotionDetector(threading.Thread):
                         if max_area > 200:
                             self.no_motion_count = 0
 
-                            # Detect and crop face
-                            face_file_url = None
-                            try:
-                                h_orig, w_orig = frame.shape[:2]
-                                scale_w = 640 / w_orig
-                                scale_h = 480 / h_orig
-                                face_detect_frame = cv2.resize(frame, (640, 480))
-                                gray_face = cv2.cvtColor(face_detect_frame, cv2.COLOR_BGR2GRAY)
-                                
-                                if not license_manager.is_analytics_enabled("FaceDetection"):
-                                    faces = []
-                                else:
-                                    faces = face_cascade.detectMultiScale(gray_face, scaleFactor=1.1, minNeighbors=3, minSize=(30, 30))
-                                
-                                if len(faces) > 0:
-                                    # Found face! Crop first match from original frame
-                                    (x, y, w, h) = faces[0]
-                                    x_orig = int(x / scale_w)
-                                    y_orig = int(y / scale_h)
-                                    w_orig_crop = int(w / scale_w)
-                                    h_orig_crop = int(h / scale_h)
-                                    
-                                    # Clamp coordinates
-                                    x0 = max(0, min(x_orig, w_orig - 1))
-                                    y0 = max(0, min(y_orig, h_orig - 1))
-                                    x1 = max(0, min(x_orig + w_orig_crop, w_orig))
-                                    y1 = max(0, min(y_orig + h_orig_crop, h_orig))
-                                    
-                                    if (x1 - x0) > 0 and (y1 - y0) > 0:
-                                        face_crop = frame[y0:y1, x0:x1]
-                                        faces_dir = os.path.join(os.path.dirname(__file__), "static", "faces")
-                                        os.makedirs(faces_dir, exist_ok=True)
-                                        
-                                        import uuid
-                                        face_filename = f"face_{self.stream_name}_{int(time.time())}_{uuid.uuid4().hex[:6]}.jpg"
-                                        face_filepath = os.path.join(faces_dir, face_filename)
-                                        cv2.imwrite(face_filepath, face_crop)
-                                        face_file_url = f"/api/faces/{face_filename}"
-                                        print(f"[MOTION DETECT] 👤 Face detected and cropped: {face_filename}")
-                                else:
-                                    # Fallback: Save the 640x480 frame for the UI
-                                    faces_dir = os.path.join(os.path.dirname(__file__), "static", "faces")
-                                    os.makedirs(faces_dir, exist_ok=True)
-                                    import uuid
-                                    face_filename = f"motion_{self.stream_name}_{int(time.time())}_{uuid.uuid4().hex[:6]}.jpg"
-                                    face_filepath = os.path.join(faces_dir, face_filename)
-                                    cv2.imwrite(face_filepath, face_detect_frame)
-                                    face_file_url = f"/api/faces/{face_filename}"
-                            except Exception as fe:
-                                print(f"[MOTION DETECT] ❌ Face detection error: {fe}")
-
                             # Trigger motion for the recorder (keeps recording alive across chunks)
-                            recorder.trigger_motion(self.stream_name, face_file_url)
+                            recorder.trigger_motion(self.stream_name, None)
                             
                             if not self.motion_active:
                                 # ── MOTION STARTED ──
@@ -238,11 +183,7 @@ class CameraMotionDetector(threading.Thread):
                                         "raw": {"motion_ratio": motion_ratio},
                                         "time": self.motion_start_time.isoformat(),
                                         "motion_start": self.motion_start_time.isoformat(),
-                                        "received_at": datetime.utcnow().isoformat() + "Z",
-                                        "face_url": face_file_url,
-                                        # Persisted snapshot metadata (capture-and-store at alert time)
-                                        "snapshot_url": face_file_url if face_file_url else None,
-                                        "snapshot_time": (self.motion_start_time.isoformat() if face_file_url else None)
+                                        "received_at": datetime.utcnow().isoformat() + "Z"
                                     }
                                     result = _shared_db["mqtt_logs"].insert_one(alert_doc)
                                     self.current_motion_doc_id = result.inserted_id
@@ -275,22 +216,6 @@ class CameraMotionDetector(threading.Thread):
         cap.release()
         print(f"[MOTION DETECT] ⏹ Stopped motion detector for {self.stream_name}")
 
-def cleanup_face_images_loop():
-    faces_dir = os.path.join(os.path.dirname(__file__), "static", "faces")
-    while True:
-        try:
-            if os.path.exists(faces_dir):
-                now = time.time()
-                for filename in os.listdir(faces_dir):
-                    filepath = os.path.join(faces_dir, filename)
-                    if os.path.isfile(filepath) and filename.endswith(".jpg"):
-                        file_age = now - os.path.getmtime(filepath)
-                        if file_age > 120:  # 2 minutes
-                            os.remove(filepath)
-                            print(f"[CLEANUP] Deleted face crop file: {filename}")
-        except Exception as e:
-            print(f"[CLEANUP] Error in cleanup loop: {e}")
-        time.sleep(15)
 class MotionDetectorManager:
     def __init__(self):
         self.detectors = {}
@@ -308,11 +233,7 @@ class MotionDetectorManager:
             self.thread = threading.Thread(target=self._sync_loop, daemon=True, name="motion-manager")
             self.thread.start()
             
-            # Start face image cleanup thread
-            cleanup_thread = threading.Thread(target=cleanup_face_images_loop, daemon=True, name="face-cleanup")
-            cleanup_thread.start()
-            
-            print("[MOTION DETECT] Manager started with face cleanup thread.")
+            print("[MOTION DETECT] Manager started.")
             
     def stop(self):
         with self.lock:

@@ -14,7 +14,7 @@ from app.api.routers.playback_router import event_snapshot as playback_snapshot
 router = APIRouter(prefix="/api", tags=["dashboard"])
 
 @router.get("/dashboard/summary", dependencies=[Depends(verify_token)])
-async def get_dashboard_summary():
+def get_dashboard_summary():
     if cameras_col is None or analytics_col is None:
         return {}
 
@@ -82,7 +82,7 @@ def get_action_rules():
     return {"rules": rules}
 
 @router.get("/dashboard/events", dependencies=[Depends(verify_token)])
-async def get_dashboard_events(limit: int = 20):
+def get_dashboard_events(limit: int = 20):
     if analytics_col is None:
         return []
     docs = list(
@@ -99,7 +99,7 @@ async def get_dashboard_events(limit: int = 20):
     return docs
 
 @router.get("/alerts", dependencies=[Depends(verify_token)])
-async def get_alerts(
+def get_alerts(
     limit: int = 50,
     camera_ip: str = None,
     include_software_motion: bool = False,

@@ -64,7 +64,7 @@ async function applyBitrateLimit(pc, maxKbps) {
 //   - Fullscreen view: pass 10000 (10 Mbps)
 //   - Not passed:      no throttle applied (full native camera bitrate)
 // ─────────────────────────────────────────────────────────────────────────────
-function WebRTCPlayer_MediaMTX({ streamKey, cameraId, onConnectChange, onError, maxBitrate, badgeMode = "normal", muted = true }) {
+function WebRTCPlayer_MediaMTX({ streamKey, cameraId, onConnectChange, onError, maxBitrate, badgeMode = "normal", muted = true, hideBandwidth = false }) {
   const videoRef = useRef(null);
   const containerRef = useRef(null);
 
@@ -113,7 +113,7 @@ function WebRTCPlayer_MediaMTX({ streamKey, cameraId, onConnectChange, onError, 
 
     if (whepLocationRef.current) {
       try {
-        const whepUrl = new URL(whepLocationRef.current, `http://127.0.0.1:8889/${currentStreamKey}/whep`);
+        const whepUrl = new URL(whepLocationRef.current, `http://192.168.126.200:8889/${currentStreamKey}/whep`);
         fetch(whepUrl.toString(), { method: "DELETE", keepalive: true }).catch(() => {});
       } catch {
         // ignore
@@ -192,7 +192,7 @@ function WebRTCPlayer_MediaMTX({ streamKey, cameraId, onConnectChange, onError, 
         sdp: constrainedSdp,
       });
 
-      const response = await fetch(`http://127.0.0.1:8889/${currentStreamKey}/whep`, {
+      const response = await fetch(`http://192.168.126.200:8889/${currentStreamKey}/whep`, {
         method: "POST",
         headers: {
           "Content-Type": "application/sdp",
@@ -435,7 +435,7 @@ function WebRTCPlayer_MediaMTX({ streamKey, cameraId, onConnectChange, onError, 
           </span>
         </div>
       )}
-      {status === "connected" && (
+      {status === "connected" && !hideBandwidth && (
         <>
           {/* ── Bandwidth + resolution badge ───────────────────────────────── */}
           <div style={bwBadgeStyle}>

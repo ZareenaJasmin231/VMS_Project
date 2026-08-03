@@ -388,23 +388,23 @@ class MetricsCollectorThread(threading.Thread):
 collector = MetricsCollectorThread()
 
 @router.get("/network", dependencies=[Depends(verify_token)])
-async def get_system_network():
+def get_system_network():
     return live_metrics["network"]
 
 @router.get("/storage", dependencies=[Depends(verify_token)])
-async def get_system_storage():
+def get_system_storage():
     return live_metrics["storage"]
 
 @router.get("/replication", dependencies=[Depends(verify_token)])
-async def get_system_replication():
+def get_system_replication():
     return live_metrics["replication"]
 
 @router.get("/mongo", dependencies=[Depends(verify_token)])
-async def get_system_mongo():
+def get_system_mongo():
     return live_metrics["mongo"]
 
 @router.get("/status", dependencies=[Depends(verify_token)])
-async def get_all_system_status():
+def get_all_system_status():
     return {
         "network": live_metrics["network"],
         "storage": live_metrics["storage"],
@@ -415,7 +415,7 @@ async def get_all_system_status():
     }
 
 @router.get("/history", dependencies=[Depends(verify_token)])
-async def get_system_history(range: str = "1h"):
+def get_system_history(range: str = "1h"):
     with history_lock:
         if range == "24h":
             return history_24h

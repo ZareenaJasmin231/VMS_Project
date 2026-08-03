@@ -433,7 +433,7 @@ export default function StorageManagementPage() {
             <div className="sm-divider" />
 
             <div className="sm-field-row">
-              <label className="sm-field-label sm-field-label--lg">MinIO Parent Folder:</label>
+              <label className="sm-field-label sm-field-label--lg">Folder:</label>
             </div>
 
             <div className="sm-folder-row">

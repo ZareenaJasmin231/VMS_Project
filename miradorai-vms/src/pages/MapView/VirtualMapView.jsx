@@ -219,6 +219,7 @@ function CamThumbnail({ cam, marker, index, sx, sy, isExpanded, isOnline, isReco
             streamKey={cam.stream_key || cam.id}
             cameraId={cam.id}
             onConnectChange={setThumbLive}
+            hideBandwidth={true}
           />
         </div>
       ) : (
@@ -313,6 +314,7 @@ function ExpandedFeed({ cam, marker, onClose }) {
                   key={(cam.stream_key || cam.id) + "_expanded"}
                   streamKey={cam.stream_key || cam.id}
                   cameraId={cam.id}
+                  hideBandwidth={true}
                 />
               ) : (
                 <div className="vt-expanded-offline">

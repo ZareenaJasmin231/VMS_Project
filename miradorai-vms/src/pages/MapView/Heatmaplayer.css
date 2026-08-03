@@ -109,3 +109,23 @@
 }
 .mv-heatmap-legend__stat--online  { color: #1D9E75; font-weight: 600; }
 .mv-heatmap-legend__stat--offline { color: #f59e0b; font-weight: 600; }
+/* -- Light Theme Overrides -- */
+[data-theme="light"] .mv-heatmap-legend {
+  background: var(--bg-elevated, rgba(255, 255, 255, 0.95));
+  border: 0.5px solid var(--border-light, #e2e8f0);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+[data-theme="light"] .mv-heatmap-legend__title {
+  color: var(--text-secondary, #64748b);
+  border-bottom: 0.5px solid var(--border-light, #e2e8f0);
+}
+
+[data-theme="light"] .mv-heatmap-legend__row {
+  color: var(--text-primary, #0f172a);
+}
+
+[data-theme="light"] .mv-heatmap-legend__stats {
+  border-top: 0.5px solid var(--border-light, #e2e8f0);
+}
+

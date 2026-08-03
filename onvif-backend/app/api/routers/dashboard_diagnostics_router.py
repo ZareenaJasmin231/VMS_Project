@@ -8,7 +8,7 @@ import shutil
 router = APIRouter(prefix="/api", tags=["dashboard_diagnostics"])
 
 @router.get("/storage/diagnostics", dependencies=[Depends(verify_token)])
-async def get_storage_diagnostics():
+def get_storage_diagnostics():
     if _db is None:
         raise HTTPException(status_code=500, detail="Database not connected")
         
@@ -128,7 +128,7 @@ async def get_storage_diagnostics():
     }
 
 @router.get("/bitrate/diagnostics", dependencies=[Depends(verify_token)])
-async def get_bitrate_diagnostics(filter_type: str = "1h"):
+def get_bitrate_diagnostics(filter_type: str = "1h"):
     if _db is None:
         raise HTTPException(status_code=500, detail="Database not connected")
         
@@ -178,7 +178,7 @@ async def get_bitrate_diagnostics(filter_type: str = "1h"):
     }
 
 @router.get("/cameras/bandwidth", dependencies=[Depends(verify_token)])
-async def get_cameras_bandwidth():
+def get_cameras_bandwidth():
     if _db is None:
         raise HTTPException(status_code=500, detail="Database not connected")
         

@@ -283,7 +283,7 @@
 .side-playback-scrubber-track {
   flex: 1;
   height: 4px;
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--border);
   border-radius: 2px;
   position: relative;
   cursor: pointer;
@@ -309,7 +309,7 @@
   transform: translate(-50%, -50%);
   width: 10px;
   height: 10px;
-  background: #fff;
+  background: var(--text-primary);
   border-radius: 50%;
   box-shadow: 0 0 4px rgba(0, 0, 0, 0.5);
   opacity: 0;
@@ -343,7 +343,7 @@
 
 .side-playback-btn:hover {
   color: var(--text-primary);
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--bg-hover);
 }
 
 .side-playback-btn:disabled {
@@ -377,7 +377,7 @@
   width: 50px;
   height: 3px;
   -webkit-appearance: none;
-  background: rgba(255, 255, 255, 0.15);
+  background: var(--border);
   border-radius: 2px;
   outline: none;
 }
@@ -387,7 +387,7 @@
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: #fff;
+  background: var(--text-primary);
   cursor: pointer;
 }
 
@@ -600,7 +600,7 @@
   top: 0;
   width: 2px;
   height: 100%;
-  background: #fff;
+  background: var(--text-primary);
   z-index: 10;
   pointer-events: none;
 }

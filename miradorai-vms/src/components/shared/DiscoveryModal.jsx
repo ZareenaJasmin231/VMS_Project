@@ -634,10 +634,10 @@ export default function DiscoveryModal({
                                       </svg>
                                     </div>
                                     <div className="dm-device-info" style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
-                                      <div className="dm-device-name" style={{ fontWeight: "600", fontSize: "16px", color: "#fff" }}>
+                                      <div className="dm-device-name" style={{ fontWeight: "600", fontSize: "16px" }}>
                                         {getDeviceDisplayName(device)}
                                       </div>
-                                      <div className="dm-device-ip" style={{ color: "#fff", fontFamily: "monospace", fontSize: "13.5px" }}>
+                                      <div className="dm-device-ip" style={{ fontFamily: "monospace", fontSize: "13.5px" }}>
                                         {device.ip}
                                       </div>
                                     </div>

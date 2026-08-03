@@ -880,8 +880,8 @@ function SpecPanel({ camera, onClose }) {
           <div className="dv-spec-panel__model">{camera.model}</div>
           <div className="dv-spec-panel__brand">
             <span style={{ color: col, fontWeight: 600 }}>{camera.brand}</span>
-            <span style={{ color: "#2e3d55", margin: "0 4px" }}>·</span>
-            <span style={{ color: "rgba(255, 255, 255, 0.5)" }}>{camera.series}</span>
+            <span style={{ color: "var(--text-secondary)", margin: "0 4px" }}>·</span>
+            <span style={{ color: "var(--text-secondary)" }}>{camera.series}</span>
           </div>
         </div>
         <button className="dv-spec-panel__close" onClick={onClose}>✕</button>
@@ -891,7 +891,7 @@ function SpecPanel({ camera, onClose }) {
           {TYPE_ICONS[camera.type]} {camera.type}
         </span>
         {camera.megapixels && (
-          <span style={{ fontSize: 15, fontWeight: 600, padding: "2px 8px", borderRadius: 4, background: "#1e2738", color: "rgba(255, 255, 255, 0.5)", border: "0.5px solid #2e3d55" }}>
+          <span style={{ fontSize: 15, fontWeight: 600, padding: "2px 8px", borderRadius: 4, background: "var(--bg-elevated)", color: "var(--text-secondary)", border: "0.5px solid var(--border-light)" }}>
             {camera.megapixels} MP
           </span>
         )}
@@ -902,7 +902,7 @@ function SpecPanel({ camera, onClose }) {
         )}
       </div>
       {camera.notes && (
-        <div style={{ margin: "10px 14px 0", padding: "8px 10px", background: "#10151f", border: "0.5px solid #1e2d3e", borderRadius: 6, fontSize: 16, color: "rgba(255, 255, 255, 0.5)", lineHeight: 1.6 }}>
+        <div style={{ margin: "10px 14px 0", padding: "8px 10px", background: "var(--bg-elevated)", border: "0.5px solid var(--border-light)", borderRadius: 6, fontSize: 16, color: "var(--text-secondary)", lineHeight: 1.6 }}>
           {camera.notes}
         </div>
       )}
@@ -924,9 +924,9 @@ function SpecPanel({ camera, onClose }) {
       )}
       <div style={{ padding: "12px 14px 6px" }}>
         {rows.map(([k, v]) => (
-          <div key={k} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "5px 0", borderBottom: "0.5px solid #1a2030" }}>
-            <span style={{ fontSize: 16, color: "rgba(255, 255, 255, 0.5)" }}>{k}</span>
-            <span style={{ fontSize: 16, color: "#e2e8f0", fontVariantNumeric: "tabular-nums", fontFamily: "monospace" }}>{v}</span>
+          <div key={k} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "5px 0", borderBottom: "0.5px solid var(--border-light)" }}>
+            <span style={{ fontSize: 16, color: "var(--text-secondary)" }}>{k}</span>
+            <span style={{ fontSize: 16, color: "var(--text-primary)", fontVariantNumeric: "tabular-nums", fontFamily: "monospace" }}>{v}</span>
           </div>
         ))}
       </div>
@@ -1695,7 +1695,7 @@ function DvZoneSidebarItem({
 }
 
 // ── DORI Legend Card (Draggable) ─────────────────────────────────────────────
-function DoriLegendCard({ show }) {
+function DoriLegendCard({ show, onClose }) {
   const [position, setPosition] = useState({ x: 300, y: 100 });
 
   if (!show) return null;
@@ -1727,38 +1727,47 @@ function DoriLegendCard({ show }) {
         position: 'absolute',
         left: position.x,
         top: position.y,
-        background: 'rgba(13, 20, 32, 0.92)',
-        border: '1px solid rgba(168, 85, 247, 0.5)',
+        background: 'rgba(255, 255, 255, 0.96)',
+        border: '1px solid rgba(168, 85, 247, 0.4)',
         borderRadius: 8,
         padding: '12px',
         zIndex: 1000,
         cursor: 'grab',
         userSelect: 'none',
-        boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
+        boxShadow: '0 4px 14px rgba(0,0,0,0.1)',
         width: 220
       }}
       onMouseDown={handleMouseDown}
     >
-      <div style={{ color: '#c084fc', fontSize: 11, fontWeight: 800, marginBottom: 8 }}>
-        DORI ZONES (EN 62676-4)
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+        <div style={{ color: '#7e22ce', fontSize: 11, fontWeight: 800 }}>
+          DORI ZONES (EN 62676-4)
+        </div>
+        {onClose && (
+          <button 
+            onClick={(e) => { e.stopPropagation(); onClose(); }} 
+            style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', padding: 0, fontSize: 14, lineHeight: 1 }}
+            title="Close"
+          >✕</button>
+        )}
       </div>
-      <div style={{ height: 1, background: 'rgba(255,255,255,0.1)', marginBottom: 10 }} />
+      <div style={{ height: 1, background: 'rgba(0,0,0,0.1)', marginBottom: 10 }} />
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#a855f7', boxShadow: '0 0 6px #a855f7' }} />
-          <span style={{ color: '#e2e8f0', fontSize: 12, fontWeight: 600 }}>Identification (250+ px/m)</span>
+          <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#a855f7', boxShadow: '0 0 6px rgba(168,85,247,0.5)' }} />
+          <span style={{ color: '#334155', fontSize: 12, fontWeight: 600 }}>Identification (250+ px/m)</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#f97316', boxShadow: '0 0 6px #f97316' }} />
-          <span style={{ color: '#e2e8f0', fontSize: 12, fontWeight: 600 }}>Recognition (125+ px/m)</span>
+          <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#f97316', boxShadow: '0 0 6px rgba(249,115,22,0.5)' }} />
+          <span style={{ color: '#334155', fontSize: 12, fontWeight: 600 }}>Recognition (125+ px/m)</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#eab308', boxShadow: '0 0 6px #eab308' }} />
-          <span style={{ color: '#e2e8f0', fontSize: 12, fontWeight: 600 }}>Observation (62+ px/m)</span>
+          <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#eab308', boxShadow: '0 0 6px rgba(234,179,8,0.5)' }} />
+          <span style={{ color: '#334155', fontSize: 12, fontWeight: 600 }}>Observation (62+ px/m)</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#3b82f6', boxShadow: '0 0 6px #3b82f6' }} />
-          <span style={{ color: '#e2e8f0', fontSize: 12, fontWeight: 600 }}>Detection (25+ px/m)</span>
+          <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#3b82f6', boxShadow: '0 0 6px rgba(59,130,246,0.5)' }} />
+          <span style={{ color: '#334155', fontSize: 12, fontWeight: 600 }}>Detection (25+ px/m)</span>
         </div>
       </div>
     </div>
@@ -5247,7 +5256,7 @@ function buildExportCanvas(exportMode = "design", company = "mirador", overlayOp
 
         <div className="dv-topbar__actions" style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
          
-          <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "nowrap" }}>
            
             {/* ── File / Actions Dropdown ── */}
             <div className="dv-icon-drop-wrap" ref={fileDropRef}>
@@ -6697,7 +6706,7 @@ function buildExportCanvas(exportMode = "design", company = "mirador", overlayOp
                               <button
                                 className="dv-custom-dropdown-item"
                                 style={{
-                                  width: "100%", background: "none", border: "none", color: "#cbd5e1",
+                                  width: "100%", background: "none", border: "none", color: "var(--text-secondary)",
                                   padding: "6px 8px", textAlign: "left", fontSize: "15px", cursor: "pointer",
                                   borderRadius: "4px", display: "block"
                                 }}
@@ -6710,8 +6719,8 @@ function buildExportCanvas(exportMode = "design", company = "mirador", overlayOp
                                   key={t}
                                   className="dv-custom-dropdown-item"
                                   style={{
-                                    width: "100%", background: t === typeFilter ? "rgba(24, 95, 165, 0.15)" : "none",
-                                    border: "none", color: t === typeFilter ? "#5aabf0" : "#cbd5e1",
+                                    width: "100%", background: t === typeFilter ? "var(--teal-subtle)" : "none",
+                                    border: "none", color: t === typeFilter ? "var(--teal)" : "var(--text-secondary)",
                                     padding: "6px 8px", textAlign: "left", fontSize: "15px", cursor: "pointer",
                                     borderRadius: "4px", display: "block"
                                   }}
@@ -6880,6 +6889,7 @@ function buildExportCanvas(exportMode = "design", company = "mirador", overlayOp
             onDoubleClick={onDoubleClick}
             onContextMenu={onContextMenu}
           />
+          <DoriLegendCard show={showPpm} onClose={() => setShowPpm(false)} />
 
           {/* ── Google Map Inside Canvas ── */}
           {showEarthMap && (
@@ -7007,6 +7017,7 @@ function buildExportCanvas(exportMode = "design", company = "mirador", overlayOp
             floorImgRef={floorImgRef}
             activeZone={activeZone}
             zones={zones}
+            onClose={() => setShowHeatmap(false)}
           />
 
           {hasCropSelection && mode === "crop" && (
@@ -7031,7 +7042,7 @@ function buildExportCanvas(exportMode = "design", company = "mirador", overlayOp
           {/* Floating Zoom HUD */}
           <div className="dv-zoom-hud">
             <button className="dv-zbtn dv-zbtn--fit" onClick={fitImage}>Fit</button>
-            <div className="dv-zoom-hud-divider" style={{ width: "1px", height: "14px", background: "rgba(46, 61, 85, 0.5)", margin: "0 4px" }} />
+            <div className="dv-zoom-hud-divider" style={{ width: "1px", height: "14px", background: "var(--border-light)", margin: "0 4px" }} />
             <button className="dv-zbtn" onClick={() => { const el = wrapRef.current; if (el) applyZoom(-0.2, el.clientWidth / 2, el.clientHeight / 2); }} title="Zoom Out">−</button>
             <div style={{ display: "flex", alignItems: "center" }}>
               <input
@@ -7055,7 +7066,7 @@ function buildExportCanvas(exportMode = "design", company = "mirador", overlayOp
                   if (e.key === "Enter") e.target.blur();
                 }}
                 className="dv-zoom-input"
-                style={{ width: "40px", background: "transparent", border: "none", color: "#e8edf5", textAlign: "right", fontSize: "13px", outline: "none", fontWeight: 700 }}
+                style={{ width: "40px", background: "transparent", border: "none", color: "var(--text-primary)", textAlign: "right", fontSize: "13px", outline: "none", fontWeight: 700 }}
               />
               <span className="dv-zoom-label" style={{ paddingLeft: 2 }}>%</span>
             </div>
@@ -7121,7 +7132,7 @@ function buildExportCanvas(exportMode = "design", company = "mirador", overlayOp
                     <div style={{ marginTop: 2 }}>
                       <CameraIcon type={selectedPlaced.camera.type} size={24} color={TYPE_COLORS[selectedPlaced.camera.type]} />
                     </div>
-                    <strong style={{ fontSize: 16, color: "#ffffff", fontWeight: "700", lineHeight: 1.3 }}>
+                    <strong style={{ fontSize: 16, color: "var(--text-primary)", fontWeight: "700", lineHeight: 1.3 }}>
                       {selectedPlaced.customName || selectedPlaced.camera.model} <span style={{ fontSize: 12, opacity: 0.6 }}>({selectedPlaced.camera.brand})</span>
                     </strong>
                   </div>
@@ -7129,13 +7140,13 @@ function buildExportCanvas(exportMode = "design", company = "mirador", overlayOp
                     <button
                       onClick={() => setShowConfigDrawer(!showConfigDrawer)}
                       style={{
-                        background: "none", border: "none", color: "rgba(255, 255, 255, 0.5)",
+                        background: "none", border: "none", color: "var(--text-muted)",
                         fontSize: showConfigDrawer ? 16 : 14, cursor: "pointer", padding: "4px",
                         display: "flex", alignItems: "center", justifyContent: "center", transition: "color 0.15s ease",
                         flexShrink: 0,
                       }}
-                      onMouseEnter={e => e.currentTarget.style.color = "#ffffff"}
-                      onMouseLeave={e => e.currentTarget.style.color = "rgba(255, 255, 255, 0.5)"}
+                      onMouseEnter={e => e.currentTarget.style.color = "var(--text-primary)"}
+                      onMouseLeave={e => e.currentTarget.style.color = "var(--text-muted)"}
                       title={showConfigDrawer ? "Hide Configuration" : "Configure Camera"}
                     >
                       {showConfigDrawer ? "✕" : (
@@ -7147,9 +7158,9 @@ function buildExportCanvas(exportMode = "design", company = "mirador", overlayOp
                     </button>
                     <button
                       onClick={() => setIsSettingsMinimized(true)}
-                      style={{ background: 'none', border: 'none', color: 'rgba(255, 255, 255, 0.5)', cursor: 'pointer', outline: 'none', display: 'flex', alignItems: 'center', padding: "4px" }}
+                      style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', outline: 'none', display: 'flex', alignItems: 'center', padding: "4px" }}
                       onMouseEnter={e => e.currentTarget.style.color = '#ef4444'}
-                      onMouseLeave={e => e.currentTarget.style.color = 'rgba(255, 255, 255, 0.5)'}
+                      onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}
                       title="Minimize Settings"
                     >
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14">
@@ -7160,26 +7171,26 @@ function buildExportCanvas(exportMode = "design", company = "mirador", overlayOp
                   </div>
                 </div>
 
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px 12px", background: "rgba(255,255,255,0.03)", padding: 12, borderRadius: 8, border: "1px solid rgba(255,255,255,0.05)" }}>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px 12px", background: "var(--bg-elevated)", padding: 12, borderRadius: 8, border: "1px solid var(--border-light)" }}>
                   <div style={{ display: "flex", flexDirection: "column" }}>
-                    <span style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", fontWeight: 700, textTransform: "uppercase" }}>HFOV</span>
-                    <span style={{ fontSize: 14, color: "#fff", fontWeight: 600 }}>{Math.round(selectedPlaced.camera.hfov)}°</span>
+                    <span style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase" }}>HFOV</span>
+                    <span style={{ fontSize: 14, color: "var(--text-primary)", fontWeight: 600 }}>{Math.round(selectedPlaced.camera.hfov)}°</span>
                   </div>
                   <div style={{ display: "flex", flexDirection: "column" }}>
-                    <span style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", fontWeight: 700, textTransform: "uppercase" }}>Range</span>
-                    <span style={{ fontSize: 14, color: "#fff", fontWeight: 600 }}>{selectedPlaced.camera.rangeDay} m</span>
+                    <span style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase" }}>Range</span>
+                    <span style={{ fontSize: 14, color: "var(--text-primary)", fontWeight: 600 }}>{selectedPlaced.camera.rangeDay} m</span>
                   </div>
                   <div style={{ display: "flex", flexDirection: "column" }}>
-                    <span style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", fontWeight: 700, textTransform: "uppercase" }}>Direction</span>
-                    <span style={{ fontSize: 14, color: "#fff", fontWeight: 600 }}>{Math.round(selectedPlaced.direction)}°</span>
+                    <span style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase" }}>Direction</span>
+                    <span style={{ fontSize: 14, color: "var(--text-primary)", fontWeight: 600 }}>{Math.round(selectedPlaced.direction)}°</span>
                   </div>
                   <div style={{ display: "flex", flexDirection: "column" }}>
-                    <span style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", fontWeight: 700, textTransform: "uppercase" }}>Zone</span>
+                    <span style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase" }}>Zone</span>
                     {(() => {
                       const cz = zones.find(z => z.polygon.length >= 3 && pointInPolygon(selectedPlaced.x, selectedPlaced.y, z.polygon));
                       return cz ? (
                         <span style={{ fontSize: 13, color: cz.color, fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 100 }}>{cz.name}</span>
-                      ) : <span style={{ fontSize: 13, color: "rgba(255,255,255,0.3)" }}>None</span>;
+                      ) : <span style={{ fontSize: 13, color: "var(--text-muted)" }}>None</span>;
                     })()}
                   </div>
                 </div>
@@ -7405,7 +7416,7 @@ function buildExportCanvas(exportMode = "design", company = "mirador", overlayOp
       {showCalibrateModal && (
         <div className="dv-automate-overlay">
           <div className="dv-stats-panel" style={{ width: 380, padding: 20 }}>
-            <div className="dv-stats-panel__header" style={{ borderBottom: "1px solid #1e2d3e", paddingBottom: 12, marginBottom: 16 }}>
+            <div className="dv-stats-panel__header" style={{ paddingBottom: 12, marginBottom: 16 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                 <div className="dv-stats-panel__icon" style={{ background: "#f59e0b15", color: "#f59e0b" }}>
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="18" height="18">
@@ -7417,8 +7428,8 @@ function buildExportCanvas(exportMode = "design", company = "mirador", overlayOp
                   </svg>
                 </div>
                 <div>
-                  <div className="dv-stats-panel__title" style={{ fontSize: 18, fontWeight: 700, color: "#fff" }}>Calibrate Map Scale</div>
-                  <div className="dv-stats-panel__sub" style={{ fontSize: 15, color: "rgba(255, 255, 255, 0.5)" }}>Define real-world dimensions</div>
+                  <div className="dv-stats-panel__title" style={{ fontSize: 18, fontWeight: 700 }}>Calibrate Map Scale</div>
+                  <div className="dv-stats-panel__sub" style={{ fontSize: 15 }}>Define real-world dimensions</div>
                 </div>
               </div>
               <button className="dv-stats-panel__close" onClick={() => {
@@ -7431,7 +7442,7 @@ function buildExportCanvas(exportMode = "design", company = "mirador", overlayOp
             </div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-              <p style={{ fontSize: 16, color: "rgba(255, 255, 255, 0.5)", lineHeight: 1.5 }}>
+              <p style={{ fontSize: 16, color: "var(--text-secondary)", lineHeight: 1.5 }}>
                 You have measured a box of:
                 <br />
                 • Width: <strong style={{ color: "#f59e0b" }}>{Math.round(Math.abs(calPts[1]?.x - calPts[0]?.x))} px</strong>
@@ -7441,7 +7452,7 @@ function buildExportCanvas(exportMode = "design", company = "mirador", overlayOp
 
               <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                 <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                  <label style={{ fontSize: 15, fontWeight: 600, color: "#cbd5e1" }}>Real-World Width (meters)</label>
+                  <label style={{ fontSize: 15, fontWeight: 600, color: "var(--text-primary)" }}>Real-World Width (meters)</label>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <input
                       type="number"
@@ -7461,12 +7472,12 @@ function buildExportCanvas(exportMode = "design", company = "mirador", overlayOp
                       placeholder="e.g. 10.0"
                       autoFocus
                     />
-                    <span style={{ fontSize: 17, color: "rgba(255, 255, 255, 0.5)" }}>meters</span>
+                    <span style={{ fontSize: 17, color: "var(--text-secondary)" }}>meters</span>
                   </div>
                 </div>
 
                 <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                  <label style={{ fontSize: 15, fontWeight: 600, color: "#cbd5e1" }}>Real-World Length (meters)</label>
+                  <label style={{ fontSize: 15, fontWeight: 600, color: "var(--text-primary)" }}>Real-World Length (meters)</label>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <input
                       type="number"
@@ -7485,7 +7496,7 @@ function buildExportCanvas(exportMode = "design", company = "mirador", overlayOp
                       }}
                       placeholder="e.g. 8.0"
                     />
-                    <span style={{ fontSize: 17, color: "rgba(255, 255, 255, 0.5)" }}>meters</span>
+                    <span style={{ fontSize: 17, color: "var(--text-secondary)" }}>meters</span>
                   </div>
                 </div>
               </div>
@@ -7502,9 +7513,9 @@ function buildExportCanvas(exportMode = "design", company = "mirador", overlayOp
                   }}
                   style={{
                     background: "transparent",
-                    border: "1px solid #2e3d55",
+                    border: "1px solid var(--border)",
                     borderRadius: 4,
-                    color: "rgba(255, 255, 255, 0.5)",
+                    color: "var(--text-secondary)",
                     padding: "8px 16px",
                     cursor: "pointer",
                     fontSize: 16
@@ -7601,6 +7612,7 @@ function ProjectStatsPanel({
   cameraDB = []
 }) {
   const [codec, setCodec] = useState("h265");
+  const [projectFps, setProjectFps] = useState(25);
   const [activeTab, setActiveTab] = useState("layout"); // "layout" | "simulate"
 
   const activePlaced = activeTab === "layout" ? placed : [];
@@ -7616,7 +7628,7 @@ function ProjectStatsPanel({
     if (!dbCam) return Array(Number(mc.qty) || 1).fill(4);
     const dummy = {
       camera: dbCam,
-      fps: 25,
+      fps: projectFps,
       recordingMode: "continuous",
       lighting: "normal"
     };
@@ -7628,8 +7640,8 @@ function ProjectStatsPanel({
   const totalBandwidth = bitrates.reduce((sum, b) => sum + b, 0);
   const avgBitrate = cameraCount > 0 ? totalBandwidth / cameraCount : 0;
   
-  const placedFPS = activePlaced.reduce((sum, p) => sum + (p.fps || 25), 0);
-  const manualFPS = activeManualCams.reduce((sum, mc) => sum + 25 * (Number(mc.qty) || 1), 0);
+  const placedFPS = activePlaced.reduce((sum, p) => sum + (p.fps || projectFps), 0);
+  const manualFPS = activeManualCams.reduce((sum, mc) => sum + projectFps * (Number(mc.qty) || 1), 0);
   const totalFPS = placedFPS + manualFPS;
   const avgFPS = cameraCount > 0 ? totalFPS / cameraCount : 0;
 
@@ -8320,7 +8332,26 @@ function ProjectStatsPanel({
                 <div className="dv-stats-card">
                   <div className="dv-stats-card__label">Total Cameras</div>
                   <div className="dv-stats-card__val">{cameraCount}</div>
-                  <div className="dv-stats-card__meta">Avg {avgFPS.toFixed(0)} FPS project</div>
+                  <div className="dv-stats-card__meta" style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                    Avg 
+                    <select 
+                      value={projectFps} 
+                      onChange={(e) => setProjectFps(Number(e.target.value))}
+                      style={{
+                        background: "transparent", border: "none", color: "#3b82f6", 
+                        cursor: "pointer", fontSize: 13, padding: 0, fontWeight: 500, outline: "none"
+                      }}
+                    >
+                      <option value={5} style={{color: "#000"}}>5</option>
+                      <option value={10} style={{color: "#000"}}>10</option>
+                      <option value={15} style={{color: "#000"}}>15</option>
+                      <option value={20} style={{color: "#000"}}>20</option>
+                      <option value={25} style={{color: "#000"}}>25</option>
+                      <option value={30} style={{color: "#000"}}>30</option>
+                      <option value={60} style={{color: "#000"}}>60</option>
+                    </select>
+                    FPS project
+                  </div>
                   <div className="dv-stats-card__list">
                     {Object.entries(typeCounts).map(([t, count]) => (
                       <div key={t} className="dv-stats-type">
@@ -8445,13 +8476,13 @@ function ProjectStatsPanel({
                   </select>
 
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <span style={{ fontSize: 13, color: "rgba(255, 255, 255, 0.85)" }}>Qty</span>
+                    <span style={{ fontSize: 13, color: "var(--text-primary)" }}>Qty</span>
                     <input
                       type="number"
                       min="1"
                       value={newMc.qty}
                       onChange={e => setNewMc({ ...newMc, qty: Number(e.target.value) })}
-                      style={{ width: "60px", background: "#0b0f1a", border: "0.5px solid #2e3d55", borderRadius: 4, color: "#e8edf5", padding: "8px", fontSize: 13, textAlign: "center", outline: "none" }}
+                      style={{ width: "60px", background: "var(--bg-input)", border: "0.5px solid var(--border)", borderRadius: 4, color: "var(--text-primary)", padding: "8px", fontSize: 13, textAlign: "center", outline: "none" }}
                     />
                   </div>
                   

@@ -73,9 +73,14 @@ export function estimateCameraBitrate(p, codec = "h265") {
   // 2. Adjust for FPS setting
   let fpsFactor = 1.0;
   const fps = p.fps || 25;
-  if (fps === 15) fpsFactor = 0.7;
+  if (fps === 5) fpsFactor = 0.3;
+  else if (fps === 10) fpsFactor = 0.5;
+  else if (fps === 15) fpsFactor = 0.7;
+  else if (fps === 20) fpsFactor = 0.8;
   else if (fps === 25) fpsFactor = 0.9;
   else if (fps === 30) fpsFactor = 1.0;
+  else if (fps === 60) fpsFactor = 2.0;
+  else fpsFactor = fps / 30.0;
   // 3. Adjust for Recording Scenario Mode
   let modeFactor = 1.0;
   const mode = p.recordingMode || "continuous";

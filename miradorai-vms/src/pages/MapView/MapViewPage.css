@@ -1306,13 +1306,13 @@
   width: 124px;
   height: 124px;
   border-radius: 50%;
-  background: radial-gradient(circle at 40% 35%, #1a2030, #0d1117);
-  border: 1px solid #2e3d55;
+  background: radial-gradient(circle at 40% 35%, var(--bg-elevated, #1a2030), var(--bg-base, #0d1117));
+  border: 1px solid var(--border, #2e3d55);
   margin: 14px auto 0;
   box-shadow:
-    0 0 0 4px #161c28,
-    0 0 0 5px #2a3548,
-    inset 0 0 30px rgba(0,0,0,0.6);
+    0 0 0 4px var(--bg-surface, #161c28),
+    0 0 0 5px var(--border-light, #2a3548),
+    inset 0 0 20px rgba(0, 0, 0, 0.15);
 }
 
 .mv-compass::before {
@@ -1320,7 +1320,7 @@
   position: absolute;
   inset: 8px;
   border-radius: 50%;
-  border: 0.5px dashed #1e2d3e;
+  border: 0.5px dashed var(--border-light, #1e2d3e);
 }
 
 .mv-compass__label {
@@ -1336,7 +1336,7 @@
   font-size: 13px;
   font-weight: 700;
   letter-spacing: 0;
-  color: var(--color-text-tertiary, #4a5568);
+  color: var(--text-muted, #4a5568);
   border-radius: 3px;
   cursor: pointer;
   transform:
@@ -1348,8 +1348,8 @@
 }
 
 .mv-compass__label:hover {
-  color: #e8edf5;
-  background: #1e2738;
+  color: var(--text-primary, #e8edf5);
+  background: var(--bg-hover, #1e2738);
 }
 
 .mv-compass__label--active {
@@ -1380,7 +1380,7 @@
   transform: translateX(-50%);
   width: 2px;
   height: 26px;
-  background: #2e3d55;
+  background: var(--border, #2e3d55);
   border-radius: 0 0 2px 2px;
 }
 
@@ -1689,7 +1689,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 2000;
+  z-index: 99999;
   backdrop-filter: blur(4px);
 }
 
