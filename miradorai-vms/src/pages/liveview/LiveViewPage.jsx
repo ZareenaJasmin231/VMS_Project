@@ -1107,7 +1107,7 @@ function CameraCell({ device, streamMode, onFullscreen, alertCount, onBadgeClick
 
       <div className="lv-cell__header">
         {isLive && <span className="lv-live-dot" />}
-        <span className="lv-cell__name">{device.device_name}</span>
+        <span className="lv-cell__name">{device.name || device.device_name}</span>
        
         {isLive && showRec && isRecording && (
           <span className="lv-rec-dot" />
