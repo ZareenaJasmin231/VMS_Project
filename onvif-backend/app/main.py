@@ -132,6 +132,11 @@ faces_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static", "
 os.makedirs(faces_dir, exist_ok=True)
 app.mount("/api/faces", StaticFiles(directory=faces_dir), name="faces")
 
+# Persistent snapshots dir (snapshots captured at alert time)
+snapshots_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static", "snapshots")
+os.makedirs(snapshots_dir, exist_ok=True)
+app.mount("/api/snapshots", StaticFiles(directory=snapshots_dir), name="snapshots")
+
 # Register all routers
 app.include_router(events_ws_router)
 app.include_router(auth_router)

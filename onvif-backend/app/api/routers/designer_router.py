@@ -8,7 +8,7 @@ import os
 
 MONGO_URI = os.environ.get("MONGO_URI", "mongodb://localhost:27017/")
 _client   = mongo_client
-_db = _client["vms_db"] if _client else None
+_db = _client[os.environ.get("MONGO_DB_NAME")] if _client else None
 designer_col = _db["designer_layouts"] if _db is not None else None
 
 router = APIRouter(prefix="/api/designer", tags=["designer"])

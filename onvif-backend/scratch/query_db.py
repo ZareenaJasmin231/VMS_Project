@@ -2,7 +2,7 @@ import pymongo
 import os
 
 client = pymongo.MongoClient("mongodb://localhost:27017/")
-db = client["vms_db"]
+db = client[os.environ.get("MONGO_DB_NAME")]
 collection = db["recordings"]
 
 print("Total recordings in DB:", collection.count_documents({}))

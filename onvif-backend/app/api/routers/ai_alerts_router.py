@@ -10,6 +10,8 @@ from datetime import datetime
 import os
 import logging
 import json
+import base64
+import uuid
 from app.core.ws_manager import ws_manager
 
 
@@ -111,7 +113,43 @@ async def process_ai_alert(request: Request):
         result = col.insert_one(alert_data)
         alert_id = str(result.inserted_id)
 
-                # Broadcast via WebSocket after persisting to MongoDB
+        # Try to capture and persist a live snapshot at alert time if none provided
+        try:
+            if not alert_data.get("snapshot_url") and cam_ip:
+                try:
+                    from app.api.routers.brand_control import get_snapshot as brand_get_snapshot
+                    snap_resp = await brand_get_snapshot(cam_ip)
+                    if isinstance(snap_resp, dict) and snap_resp.get("success") and snap_resp.get("snapshot"):
+                        b64 = snap_resp.get("snapshot")
+                        # snapshot is like 'data:image/jpeg;base64,...'
+                        if b64.startswith("data:") and "," in b64:
+                            parts = b64.split(",", 1)
+                            b64data = parts[1]
+                        else:
+                            b64data = b64
+                        try:
+                            img_bytes = base64.b64decode(b64data)
+                            # save to snapshots dir
+                            snapshots_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "static", "snapshots")
+                            snapshots_dir = os.path.abspath(snapshots_dir)
+                            os.makedirs(snapshots_dir, exist_ok=True)
+                            filename = f"snapshot_ai_{alert_id}_{uuid.uuid4().hex[:8]}.jpg"
+                            filepath = os.path.join(snapshots_dir, filename)
+                            with open(filepath, "wb") as f:
+                                f.write(img_bytes)
+                            # expose URL
+                            snapshot_url = f"/api/snapshots/{filename}"
+                            alert_data["snapshot_url"] = snapshot_url
+                            alert_data["snapshot_time"] = datetime.utcnow().isoformat() + "Z"
+                            logger.info(f"[AI_ALERT] Persisted snapshot for alert {alert_id} -> {snapshot_url}")
+                        except Exception as save_err:
+                            logger.warning(f"[AI_ALERT] Failed to save snapshot image for alert {alert_id}: {save_err}")
+                except Exception as snap_err:
+                    logger.warning(f"[AI_ALERT] Snapshot capture failed for {cam_ip}: {snap_err}")
+        except Exception:
+            pass
+
+        # Broadcast via WebSocket after persisting to MongoDB
         ws_payload = {**alert_data}
         if "_id" in ws_payload:
             ws_payload["_id"] = alert_id

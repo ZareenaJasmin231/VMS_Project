@@ -166,8 +166,20 @@ def save_devices(devs):
                 d["ip"] = cam_ip
                 d["ip_address"] = cam_ip
 
+        new_content = json.dumps(devs, default=serialize, indent=2)
+        
+        if os.path.exists(DEVICES_FILE):
+            try:
+                with open(DEVICES_FILE, "r") as f:
+                    old_content = f.read()
+                if old_content == new_content:
+                    # Skip writing to avoid triggering Uvicorn auto-reload
+                    return
+            except Exception:
+                pass
+                
         with open(DEVICES_FILE, "w") as f:
-            json.dump(devs, f, default=serialize, indent=2)
+            f.write(new_content)
         print("[DEVICES] OK: Saved successfully")
     except Exception as e:
         print(f"[DEVICES] WARN: Could not save devices.json: {e}")

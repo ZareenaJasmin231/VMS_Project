@@ -6,7 +6,7 @@ import os
 
 router = APIRouter(prefix="/api/reports", tags=["Reports"])
 
-MONGO_DB_NAME = os.environ.get("MONGO_DB_NAME", "vms_db")
+MONGO_DB_NAME = os.environ.get("MONGO_DB_NAME")
 db = mongo_client[MONGO_DB_NAME] if mongo_client else None
 uptime_events_col = db["uptime_events"] if db is not None else None
 cameras_col = db["cameras"] if db is not None else None

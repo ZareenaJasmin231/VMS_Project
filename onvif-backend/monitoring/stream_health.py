@@ -21,7 +21,7 @@ from app.core.database import mongo_client
 from .websocket_manager import manager
 
 MONGO_URI  = os.environ.get("MONGO_URI", "mongodb://localhost:27017/")
-MONGO_DB_NAME = os.environ.get("MONGO_DB_NAME", "vms_db")
+MONGO_DB_NAME = os.environ.get("MONGO_DB_NAME")
 _client    = mongo_client
 _db = _client[MONGO_DB_NAME] if _client else None
 nodes_col = _db["infrastructure_nodes"] if _db is not None else None

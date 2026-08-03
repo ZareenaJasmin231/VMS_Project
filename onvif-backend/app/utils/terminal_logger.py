@@ -5,7 +5,7 @@ import asyncio
 
 MONGO_URI = os.environ.get("MONGO_URI", "mongodb://localhost:27017/")
 mongo_client = mongo_client
-db = mongo_client["vms_db"] if mongo_client else None
+db = mongo_client[os.environ.get("MONGO_DB_NAME")] if mongo_client else None
 terminal_logs_col = db["terminal_logs"] if db is not None else None
 
 def log_terminal(user_email, user_role, command, project_folder, exit_code=0, output=""):

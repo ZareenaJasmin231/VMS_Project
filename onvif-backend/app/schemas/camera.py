@@ -90,6 +90,10 @@ class StreamAssignRequest(BaseCameraRequest):
     live_profile:      str = ""
     recording_profile: str = ""
     live_codec:        Optional[str] = "H.264"
+    fps:               Optional[int] = None
+    resolution:        Optional[str] = None
+    bitrate:           Optional[int] = None
+    bitrate_type:      Optional[str] = None
 
 class VideoEncoderSettingRequest(BaseCameraRequest):
     port:              int = 80

@@ -61,13 +61,24 @@ router = APIRouter(prefix="/api", tags=["cameras"])
 features_router = APIRouter(prefix="/api/camera", tags=["camera-features"], dependencies=[Depends(verify_token)])
 
 @router.get("/cameras", dependencies=[Depends(verify_token)])
-def get_all_cameras():
+async def get_all_cameras():
     cameras = load_devices()
     
     # ── Redis Stream: camera.list_requested ───────────────────────────────────
+    formatted_cameras = [
+        {
+            "ip_address": c.get("ip_address") or c.get("ip"),
+            "enabled": c.get("enabled", True),
+            "device_name": c.get("name") or c.get("device_name") or f"Camera @ {c.get('ip_address') or c.get('ip')}",
+            "password": c.get("password", ""),
+            "username": c.get("username", ""),
+            "rtsp_url": c.get("rtsp_url", "")
+        } for c in cameras
+    ]
+    
     asyncio.create_task(_redis_publish(
         _CAM_STREAM(), "camera.list_requested",
-        {"count": len(cameras), "cameras": cameras}
+        {"count": len(formatted_cameras), "cameras": formatted_cameras}
     ))
     
     return cameras
@@ -111,10 +122,23 @@ async def enable_camera_by_ip(ip: str):
     save_devices(devices)
     if cameras_col is not None:
         cameras_col.update_many({"$or": [{"ip": ip}, {"ip_address": ip}]}, {"$set": {"enabled": True}})
-    # ── Redis Stream: camera.enabled ──────────────────────────────────────────
+    if cameras_col is not None:
+        updated_doc = cameras_col.find_one({"$or": [{"ip": ip}, {"ip_address": ip}]}) or {}
+    else:
+        updated_doc = matched[0] if matched else {}
+
+    # ── Redis Stream: camera.updated ──────────────────────────────────────────
     asyncio.create_task(_redis_publish(
-        _CAM_STREAM(), "camera.enabled",
-        {"ip": ip, "streams_started": started},
+        _CAM_STREAM(), "camera.updated",
+        {
+            "ip_address":     updated_doc.get("ip_address") or updated_doc.get("ip") or ip,
+            "enabled":        updated_doc.get("enabled", True),
+            "device_name":    updated_doc.get("name") or updated_doc.get("device_name"),
+            "password":       updated_doc.get("password", ""),
+            "username":       updated_doc.get("username", ""),
+            "rtsp_url":       updated_doc.get("rtsp_url", ""),
+            "updated_fields": ["enabled"],
+        },
     ))
     return {"success": True, "ip": ip, "streams_started": started}
 
@@ -141,10 +165,23 @@ async def disable_camera_by_ip(ip: str):
     save_devices(devices)
     if cameras_col is not None:
         cameras_col.update_many({"$or": [{"ip": ip}, {"ip_address": ip}]}, {"$set": {"enabled": False}})
-    # ── Redis Stream: camera.disabled ─────────────────────────────────────────
+    if cameras_col is not None:
+        updated_doc = cameras_col.find_one({"$or": [{"ip": ip}, {"ip_address": ip}]}) or {}
+    else:
+        updated_doc = matched[0] if matched else {}
+
+    # ── Redis Stream: camera.updated ──────────────────────────────────────────
     asyncio.create_task(_redis_publish(
-        _CAM_STREAM(), "camera.disabled",
-        {"ip": ip, "streams_stopped": stopped},
+        _CAM_STREAM(), "camera.updated",
+        {
+            "ip_address":     updated_doc.get("ip_address") or updated_doc.get("ip") or ip,
+            "enabled":        updated_doc.get("enabled", False),
+            "device_name":    updated_doc.get("name") or updated_doc.get("device_name"),
+            "password":       updated_doc.get("password", ""),
+            "username":       updated_doc.get("username", ""),
+            "rtsp_url":       updated_doc.get("rtsp_url", ""),
+            "updated_fields": ["enabled"],
+        },
     ))
     return {"success": True, "ip": ip, "streams_stopped": stopped}
 
@@ -194,10 +231,14 @@ async def delete_camera_by_ip(ip: str):
             al_res = analytics_col.update_many({"ip": ip}, update_doc)
             print(f"[DELETE] Cascade: soft-deleted {al_res.modified_count} alerts for IP {ip}")
 
+    rtsp_url = matched[0].get("rtsp_url", "") if matched else ""
     # ── Redis Stream: camera.deleted ──────────────────────────────────────────
     asyncio.create_task(_redis_publish(
         _CAM_STREAM(), "camera.deleted",
-        {"ip": ip, "streams_stopped": stopped},
+        {
+            "ip_address": ip,
+            "rtsp_url": rtsp_url
+        },
     ))
     return {"success": True, "ip": ip, "streams_stopped": stopped}
 
@@ -273,28 +314,47 @@ async def delete_camera_by_stream(stream_name: str):
 @router.put("/cameras/by-ip/{ip}", dependencies=[Depends(verify_token)])
 async def update_camera_by_ip(ip: str, request: Request):
     data = await request.json()
+    actual_updated_fields = []
     
     if cameras_col is not None:
         allowed_keys = {"name", "device_name", "mac", "manufacturer", "model", "rtsp_url", "group_id"}
         update_data = {k: v for k, v in data.items() if k in allowed_keys}
         if update_data:
+            existing_doc = cameras_col.find_one({"$or": [{"ip": ip}, {"ip_address": ip}]}) or {}
+            for k, v in update_data.items():
+                if existing_doc.get(k) != v:
+                    actual_updated_fields.append(k)
+                    
             cameras_col.update_many({"$or": [{"ip": ip}, {"ip_address": ip}]}, {"$set": update_data})
             print(f"[UPDATE] ✏️ MongoDB: updated document(s) for IP {ip}")
+    else:
+        actual_updated_fields = list(data.keys())
 
     global devices
+    updated_device = None
     for d in devices:
         if d.get("ip") == ip or d.get("ip_address") == ip:
             for k, v in data.items():
                 d[k] = v
+            updated_device = d
     save_devices(devices)
+    
+    if cameras_col is not None:
+        updated_doc = cameras_col.find_one({"$or": [{"ip": ip}, {"ip_address": ip}]})
+    else:
+        updated_doc = updated_device or {}
+
     # ── Redis Stream: camera.updated ──────────────────────────────────────────
     asyncio.create_task(_redis_publish(
         _CAM_STREAM(), "camera.updated",
         {
-            "ip":             ip,
-            "updated_fields": list(update_data.keys()) if update_data else list(data.keys()),
-            "name":           data.get("name"),
-            "group_id":       data.get("group_id"),
+            "ip_address":     updated_doc.get("ip_address") or updated_doc.get("ip") or ip,
+            "enabled":        updated_doc.get("enabled", True),
+            "device_name":    updated_doc.get("name") or updated_doc.get("device_name"),
+            "password":       updated_doc.get("password", ""),
+            "username":       updated_doc.get("username", ""),
+            "rtsp_url":       updated_doc.get("rtsp_url", ""),
+            "updated_fields": actual_updated_fields,
         },
     ))
     return {"success": True, "ip": ip}
@@ -488,6 +548,19 @@ async def onvif_probe(req: ProbeRequest):
             })
             print(f"[ONVIF] 🎥 Recording will be started by the assigned worker process for {stream_name}")
  
+            # ── Redis Stream: camera.added ────────────────────────────────────────────
+            asyncio.create_task(_redis_publish(
+                _CAM_STREAM(), "camera.added",
+                {
+                    "ip_address":   req.ip,
+                    "enabled":      True,
+                    "device_name":  req.device_name or f"Camera @ {req.ip}",
+                    "password":     req.password,
+                    "username":     req.username,
+                    "rtsp_url":     rtsp,
+                },
+            ))
+
         else:
             print(f"[ONVIF] Stream {stream_name} already live in MediaMTX, skipping.")
             ome_response = {"status": "ok", "message": "Already registered"}
@@ -678,12 +751,12 @@ async def register_rtsp_stream(req: StreamRegisterRequest):
     asyncio.create_task(_redis_publish(
         _CAM_STREAM(), "camera.added",
         {
-            "ip":           host,
-            "name":         req.device_name or f"Camera @ {host}",
-            "ome_stream":   stream_name,
-            "manufacturer": req.manufacturer,
-            "model":        req.model,
-            "source":       "rtsp",
+            "ip_address":   host,
+            "enabled":      True,
+            "device_name":  req.device_name or f"Camera @ {host}",
+            "password":     req.password,
+            "username":     req.username,
+            "rtsp_url":     rtsp,
         },
     ))
     live_key = ome_response.get("transcoded_stream") or stream_name
@@ -769,6 +842,10 @@ async def assign_streams(req: StreamAssignRequest):
         existing["active_rec_profile"]  = req.recording_profile
         existing["recording_profile"]   = req.recording_profile
         existing["live_codec"]          = req.live_codec
+        existing["fps"]                 = req.fps
+        existing["resolution"]          = req.resolution
+        existing["bitrate"]             = req.bitrate
+        existing["bitrate_type"]        = req.bitrate_type
         device_entry = existing
     else:
         device_entry = {
@@ -783,6 +860,10 @@ async def assign_streams(req: StreamAssignRequest):
             "active_rec_profile":   req.recording_profile,
             "recording_profile":    req.recording_profile,
             "live_codec":           req.live_codec,
+            "fps":                  req.fps,
+            "resolution":           req.resolution,
+            "bitrate":              req.bitrate,
+            "bitrate_type":         req.bitrate_type,
         }
         devices.append(device_entry)
 
@@ -803,6 +884,10 @@ async def assign_streams(req: StreamAssignRequest):
     "active_rec_profile":   req.recording_profile,
     "recording_profile":    req.recording_profile,
     "live_codec":           req.live_codec,
+    "fps":                  req.fps,
+    "resolution":           req.resolution,
+    "bitrate":              req.bitrate,
+    "bitrate_type":         req.bitrate_type,
     "updated_at":           datetime.utcnow(),
 })
 

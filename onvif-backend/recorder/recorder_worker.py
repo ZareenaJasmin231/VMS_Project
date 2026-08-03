@@ -48,7 +48,7 @@ def parse_args():
 def publish_heartbeat(mongo_uri: str, worker_id: str, active_cameras: list, status: str = "active"):
     try:
         client = MongoClient(mongo_uri, serverSelectionTimeoutMS=3000)
-        db_name = os.environ.get("MONGO_DB_NAME", "vms_db")
+        db_name = os.environ.get("MONGO_DB_NAME")
         db = client[db_name]
         heartbeats_col = db["worker_heartbeats"]
         
@@ -167,7 +167,7 @@ def main():
             if now - last_db_poll_time >= db_poll_interval:
                 # Connect to DB and fetch camera assignments
                 client = MongoClient(mongo_uri, serverSelectionTimeoutMS=5000)
-                db_name = os.environ.get("MONGO_DB_NAME", "vms_db")
+                db_name = os.environ.get("MONGO_DB_NAME")
                 db = client[db_name]
                 cameras_col = db["cameras"]
                 

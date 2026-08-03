@@ -19,7 +19,7 @@ def parse_args():
     return parser.parse_args()
 
 def publish_heartbeat(mongo_uri: str, worker_id: str, active_cameras: list, status: str = "active"):
-    mongo_db_name = os.environ.get("MONGO_DB_NAME", "vms_db")
+    mongo_db_name = os.environ.get("MONGO_DB_NAME")
 
     try:
         client = MongoClient(mongo_uri, serverSelectionTimeoutMS=3000)
@@ -64,7 +64,7 @@ def main():
     print(f"[WORKER-{worker_id}] Starting transcoder worker process...")
 
     mongo_uri = os.environ.get("MONGO_URI", "mongodb://localhost:27017/")
-    mongo_db_name = os.environ.get("MONGO_DB_NAME", "vms_db")
+    mongo_db_name = os.environ.get("MONGO_DB_NAME")
 
     last_heartbeat_time = 0
     heartbeat_interval = 10

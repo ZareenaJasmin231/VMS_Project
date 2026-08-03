@@ -2,7 +2,7 @@ from pymongo import MongoClient
 import sys
 
 client = MongoClient('mongodb://127.0.0.1:27017/')
-db = client['vms_db']
+db = client[os.environ.get("MONGO_DB_NAME")]
 logs = list(db['terminal_logs'].find().sort('_id', -1).limit(40))
 
 for l in logs:

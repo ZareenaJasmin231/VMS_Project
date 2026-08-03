@@ -46,7 +46,7 @@ _recording_durations: dict[str, dict[str, float]] = {}
 # ── MongoDB (shared client for all recorder operations) ─────────────
 MONGO_URI    = os.environ.get("MONGO_URI", "mongodb://localhost:27017/")
 _mongo       = mongo_client
-_db = _mongo["vms_db"] if _mongo else None
+_db = _mongo[os.environ.get("MONGO_DB_NAME")] if _mongo else None
 _schedules = _db["schedules"] if _db is not None else None
 
 def trigger_motion(stream_name: str, face_url: str | None = None):

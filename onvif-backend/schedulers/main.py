@@ -15,20 +15,20 @@ def start():
     # try:
     #     start_background_indexer()
     # except Exception as e:
-    #     print(f"[SCHEDULER] ❌ Failed to start forensic indexer: {e}")
+    #     print(f"[SCHEDULER] [ERROR] Failed to start forensic indexer: {e}")
 
     # 2. Start MQTT Client in a background thread (so it doesn't block the async loop)
     try:
         mqtt_thread = threading.Thread(target=start_mqtt, daemon=True, name="mqtt-worker")
         mqtt_thread.start()
-        print("[SCHEDULER] ✅ MQTT event consumer thread started.")
+        print("[SCHEDULER] [OK] MQTT event consumer thread started.")
     except Exception as e:
-        print(f"[SCHEDULER] ❌ Failed to start MQTT consumer: {e}")
+        print(f"[SCHEDULER] [ERROR] Failed to start MQTT consumer: {e}")
 
     # 3. Start asyncio loop for async health/report workers
     async def run_async_workers():
         if cameras_col is None:
-            print("[SCHEDULER] ❌ MongoDB cameras collection is not connected. Async workers will exit.")
+            print("[SCHEDULER] [ERROR] MongoDB cameras collection is not connected. Async workers will exit.")
             return
 
         try:
@@ -36,7 +36,7 @@ def start():
             devices = list(cameras_col.find({"enabled": {"$ne": False}}))
             print(f"[SCHEDULER] Stream Health Monitor watching {len(devices)} cameras.")
         except Exception as e:
-            print(f"[SCHEDULER] ❌ Failed to load cameras for stream health: {e}")
+            print(f"[SCHEDULER] [ERROR] Failed to load cameras for stream health: {e}")
             devices = []
 
         await asyncio.gather(

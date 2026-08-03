@@ -46,7 +46,7 @@ _recording_durations: dict[str, dict[str, float]] = {}
 
 # ── MongoDB (shared client for all recorder operations) ─────────────
 MONGO_URI    = os.environ.get("MONGO_URI", "mongodb://localhost:27017/")
-MONGO_DB_NAME = os.environ.get("MONGO_DB_NAME", "vms_db")
+MONGO_DB_NAME = os.environ.get("MONGO_DB_NAME")
 _mongo       = mongo_client
 _db = _mongo[MONGO_DB_NAME] if _mongo else None
 _schedules = _db["schedules"] if _db is not None else None
@@ -470,6 +470,15 @@ class CameraRecorder:
         if self.stream_name == "192_168_126_230":
             needs_transcode = True
 
+        vms_fps = meta.get("fps") if meta else None
+        vms_res = meta.get("resolution") if meta else None
+        vms_bitrate = meta.get("bitrate") if meta else None
+        vms_bitrate_type = meta.get("bitrate_type") if meta else None
+
+        if vms_fps or vms_res or vms_bitrate:
+            needs_transcode = True
+
+
         if current_vf or needs_transcode:
             cmd = [
                 FFMPEG_BIN,
@@ -481,15 +490,39 @@ class CameraRecorder:
                 "-i",              safe_url,
                 "-t",              str(self.current_chunk_duration)
             ]
-            
+            vf_filters = []
             if current_vf:
-                cmd.extend(["-vf", current_vf])
+                vf_filters.append(current_vf)
+                
+            if vms_res and "x" in vms_res:
+                vf_filters.append(f"scale={vms_res.replace('x', ':')}")
+                
+            if vms_fps:
+                vf_filters.append(f"fps={vms_fps}")
+                
+            if vf_filters:
+                cmd.extend(["-vf", ",".join(vf_filters)])
                 
             cmd.extend([
                 "-c:v",            "libx264",
                 "-preset",         "ultrafast",
-                "-crf",            "23",
             ])
+            
+            if vms_fps:
+                try:
+                    gop = int(vms_fps) * 2
+                except (ValueError, TypeError):
+                    gop = 60
+                cmd.extend(["-g", str(gop)])
+
+            if vms_bitrate:
+                cmd.extend(["-b:v", f"{vms_bitrate}k"])
+                if vms_bitrate_type == "CBR":
+                    cmd.extend(["-maxrate", f"{vms_bitrate}k", "-bufsize", f"{vms_bitrate * 2}k"])
+                elif vms_bitrate_type == "VBR":
+                    cmd.extend(["-maxrate", f"{vms_bitrate}k", "-bufsize", f"{vms_bitrate * 2}k", "-crf", "23"])
+            else:
+                cmd.extend(["-crf", "23"])
             if is_bosch:
                 cmd.extend([
                     "-an",

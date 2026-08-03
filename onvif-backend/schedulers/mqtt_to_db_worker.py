@@ -20,7 +20,7 @@ MQTT_TOPICS  = [
 ]
 
 MONGO_URI    = os.environ.get("MONGO_URI", "mongodb://localhost:27017")
-MONGO_DB     = os.environ.get("MONGO_DB_NAME", "vms_db")
+MONGO_DB     = os.environ.get("MONGO_DB_NAME")
 MONGO_COL    = "mqtt_logs"
 
 SKIP_TOPICS  = {"connection", "status", "birth", "lwt"}

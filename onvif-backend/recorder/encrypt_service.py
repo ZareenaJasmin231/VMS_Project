@@ -54,7 +54,7 @@ POLL_INTERVAL  = 5
 # MongoDB — single persistent client created at module load time
 # ------------------------------------------------------------------
 print(f"[ENCRYPT] Connecting to MongoDB at {MONGO_URI}")
-MONGO_DB_NAME = os.environ.get("MONGO_DB_NAME", "vms_db")
+MONGO_DB_NAME = os.environ.get("MONGO_DB_NAME")
 _mongo_client       = MongoClient(MONGO_URI, serverSelectionTimeoutMS=10000)
 _db                 = _mongo_client[MONGO_DB_NAME]
 metadata_collection = _db["recordings"]

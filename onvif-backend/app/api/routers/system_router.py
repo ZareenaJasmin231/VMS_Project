@@ -166,7 +166,11 @@ def health():
     # 4. MediaMTX Check
     mediamtx_ok = False
     try:
-        mtx_url = os.environ.get("MEDIAMTX_API_URL", "http://127.0.0.1:9997/v3/paths/list")
+        mtx_base = os.environ.get("MEDIAMTX_API_URL", "http://127.0.0.1:9997").rstrip('/')
+        if not mtx_base.endswith('/v3/paths/list'):
+            mtx_url = f"{mtx_base}/v3/paths/list"
+        else:
+            mtx_url = mtx_base
         req = urllib.request.Request(mtx_url, method="GET")
         with urllib.request.urlopen(req, timeout=1) as response:
             if response.status == 200:

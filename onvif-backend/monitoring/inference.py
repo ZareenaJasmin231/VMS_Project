@@ -5,7 +5,7 @@ from .websocket_manager import manager
 
 MONGO_URI = os.environ.get("MONGO_URI", "mongodb://localhost:27017/")
 client = mongo_client
-db = client["vms_db"] if client else None
+db = client[os.environ.get("MONGO_DB_NAME")] if client else None
 
 if db is not None:
     nodes_col = db["infrastructure_nodes"]
