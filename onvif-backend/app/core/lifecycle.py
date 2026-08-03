@@ -81,7 +81,7 @@ async def _startup_phase_2():
                 if not ip:
                     continue
                 base_name = ip.replace(".", "_")
-                current   = cam.get("ome_stream", "")
+                current   = cam.get("stream_key", "")
 
                 if re.search(r"_cam\d+$", current):
                     continue
@@ -89,24 +89,24 @@ async def _startup_phase_2():
                 if re.search(r"_[0-9a-f]{6}$", current):
                     has_cam_n = cameras_col.find_one({
                         "ip": ip,
-                        "ome_stream": re.compile(f"^{re.escape(base_name)}_cam\\d+$")
+                        "stream_key": re.compile(f"^{re.escape(base_name)}_cam\\d+$")
                     })
                     if not has_cam_n:
                         conflict = cameras_col.find_one({
-                            "ome_stream": base_name,
+                            "stream_key": base_name,
                             "_id": {"$ne": cam["_id"]}
                         })
                         if not conflict:
                             cameras_col.update_one(
                                 {"_id": cam["_id"]},
-                                {"$set": {"ome_stream": base_name}}
+                                {"$set": {"stream_key": base_name}}
                             )
                             print(f"[MIGRATION] 🚚 Renamed hash entry: {current} → {base_name}")
                     continue
 
                 if current and current != base_name and not current.startswith(base_name + "_"):
                     print(f"[MIGRATION] 🚚 Renaming stream: {current} → {base_name}")
-                    cameras_col.update_one({"_id": cam["_id"]}, {"$set": {"ome_stream": base_name}})
+                    cameras_col.update_one({"_id": cam["_id"]}, {"$set": {"stream_key": base_name}})
 
             ghost_result = cameras_col.delete_many({
                 "$or": [
@@ -123,13 +123,13 @@ async def _startup_phase_2():
             cam_n_ips = {
                 cam.get("ip", "")
                 for cam in all_cams
-                if re.search(r"_cam\d+$", cam.get("ome_stream", ""))
+                if re.search(r"_cam\d+$", cam.get("stream_key", ""))
             }
 
             ids_to_delete = []
 
             for cam in all_cams:
-                stream = cam.get("ome_stream", "")
+                stream = cam.get("stream_key", "")
                 ip     = cam.get("ip", "")
                 base   = ip.replace(".", "_") if ip else ""
 
@@ -225,7 +225,7 @@ async def _startup_phase_2():
     print(f"[STARTUP] Starting with {len(my_devices)} saved devices")
 
     for device in my_devices:
-        stream_name = device.get("ome_stream")
+        stream_name = device.get("stream_key")
         rtsp_url    = device.get("rtsp_url")
         codec       = device.get("codec") or device.get("live_codec")
         sub_rtsp    = device.get("sub_stream_rtsp")

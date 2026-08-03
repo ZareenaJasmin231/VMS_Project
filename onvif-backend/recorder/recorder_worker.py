@@ -181,7 +181,7 @@ def main():
                 # Build current assignment map
                 assigned_map = {}
                 for cam in assigned_cameras:
-                    stream_name = cam.get("ome_stream")
+                    stream_name = cam.get("stream_key")
                     rtsp_url = cam.get("recording_rtsp", cam.get("rtsp_url"))
                     if stream_name and rtsp_url:
                         assigned_map[stream_name] = {

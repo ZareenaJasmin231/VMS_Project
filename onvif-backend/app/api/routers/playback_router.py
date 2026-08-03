@@ -144,7 +144,7 @@ def event_playback(ip: str, time: str, request: Request = None, stream: int = 0)
                 if request:
                     base_url = str(request.base_url).rstrip("/")
                 else:
-                    base_url = "http://192.168.126.200"
+                    base_url = "http://192.168.126.36"
                 encoded_time = urllib.parse.quote(time)
                 clipUrl = f"{base_url}/api/event-playback/hls/{ip}/{encoded_time}/index.m3u8"
                 return Response(
@@ -236,7 +236,7 @@ def event_playback(ip: str, time: str, request: Request = None, stream: int = 0)
                 shard = "shard1"
                 try:
                     cameras_col = _db["cameras"]
-                    cam_doc = cameras_col.find_one({"ome_stream": ip_prefix})
+                    cam_doc = cameras_col.find_one({"stream_key": ip_prefix})
                     if cam_doc and cam_doc.get("assigned_worker"):
                         worker_id = cam_doc["assigned_worker"]
                         if "standby" in worker_id:
@@ -458,7 +458,7 @@ def event_playback(ip: str, time: str, request: Request = None, stream: int = 0)
                     "Access-Control-Allow-Methods":  "GET, OPTIONS",
                     "Access-Control-Allow-Headers":  "*",
                     "Access-Control-Expose-Headers": "Content-Length, Content-Type, X-Server-IP, X-Camera-IP",
-                    "X-Server-IP": "192.168.126.200",
+                    "X-Server-IP": "192.168.126.36",
                     "X-Camera-IP": ip,
                 },
             )
@@ -473,7 +473,7 @@ def event_playback(ip: str, time: str, request: Request = None, stream: int = 0)
         if request:
             base_url = str(request.base_url).rstrip("/")
         else:
-            base_url = "http://192.168.126.200"
+            base_url = "http://192.168.126.36"
 
         encoded_time = urllib.parse.quote(time)
         clipUrl = f"{base_url}/api/event-playback/hls/{ip}/{encoded_time}/index.m3u8"
@@ -648,7 +648,7 @@ def event_snapshot(ip: str, time: str):
                 shard = "shard1"
                 try:
                     cameras_col = _db["cameras"]
-                    cam_doc = cameras_col.find_one({"ome_stream": ip_prefix})
+                    cam_doc = cameras_col.find_one({"stream_key": ip_prefix})
                     if cam_doc and cam_doc.get("assigned_worker"):
                         worker_id = cam_doc["assigned_worker"]
                         if "standby" in worker_id:
@@ -960,7 +960,7 @@ def event_playback_hls(ip: str, time_str: str, filename: str):
                     shard = "shard1"
                     try:
                         cameras_col = _db["cameras"]
-                        cam_doc = cameras_col.find_one({"ome_stream": ip_prefix})
+                        cam_doc = cameras_col.find_one({"stream_key": ip_prefix})
                         if cam_doc and cam_doc.get("assigned_worker"):
                             worker_id = cam_doc["assigned_worker"]
                             if "standby" in worker_id:

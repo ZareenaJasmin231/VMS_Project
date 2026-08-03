@@ -42,7 +42,7 @@ async def check_stream_health(devices: list, cameras_col) -> list:
     failed_streams = []
     
     for device in devices:
-        stream_name = device.get('ome_stream')
+        stream_name = device.get('stream_key')
         rtsp_url = device.get('rtsp_url')
         
         if not stream_name or not rtsp_url:
@@ -53,7 +53,7 @@ async def check_stream_health(devices: list, cameras_col) -> list:
         # Track in database
         try:
             cameras_col.update_one(
-                {"ome_stream": stream_name},
+                {"stream_key": stream_name},
                 {
                     "$set": {
                         "last_health_check": datetime.utcnow(),

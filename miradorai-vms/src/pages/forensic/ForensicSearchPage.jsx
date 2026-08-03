@@ -273,7 +273,7 @@ export default function ForensicSearchPage() {
       const devices = stored ? JSON.parse(stored) : [];
       const dev = devices.find(d => 
         String(d.id) === String(c.id) || 
-        d.ome_stream === c.id || 
+        d.stream_key === c.id || 
         d.ip === c.id
       );
       if (!dev) return false;
@@ -332,7 +332,7 @@ export default function ForensicSearchPage() {
         const data = await res.json();
         if (Array.isArray(data) && data.length > 0) {
           camList = data.map(cam => ({
-            id:   cam.ome_stream || cam.id || cam.ip,
+            id:   cam.stream_key || cam.id || cam.ip,
             name: cam.device_name || cam.name || cam.ip,
             type: (cam.model || "dome").toLowerCase(),
           })).filter(c => c.id);
@@ -345,7 +345,7 @@ export default function ForensicSearchPage() {
         const saved    = localStorage.getItem("miradorai_devices");
         const enrolled = saved ? JSON.parse(saved) : [];
         camList = enrolled.length > 0
-          ? enrolled.map(c => ({ id: c.ome_stream || c.id || c.ip, name: c.name || c.ip, type: "dome" })).filter(c=>c.id)
+          ? enrolled.map(c => ({ id: c.stream_key || c.id || c.ip, name: c.name || c.ip, type: "dome" })).filter(c=>c.id)
           : [];
       } catch (_) {}
     }

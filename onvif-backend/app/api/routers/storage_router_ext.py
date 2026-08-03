@@ -89,7 +89,7 @@ def storage_selection():
     from datetime import datetime
     
     for cam in docs:
-        stream = cam.get("ome_stream", "")
+        stream = cam.get("stream_key", "")
         
         used_bytes = 0
         oldest     = None
@@ -144,10 +144,10 @@ def update_storage_selection(payload: dict):
     ip = payload.get("ip")
     if not ip:
         return {"error": "ip required"}
-    # Update by ome_stream if provided, fallback to IP (warning: IP update affects all channels)
-    stream_id = payload.get("ome_stream")
+    # Update by stream_key if provided, fallback to IP (warning: IP update affects all channels)
+    stream_id = payload.get("stream_key")
     if stream_id:
-        cameras_col.update_one({"ome_stream": stream_id}, {"$set": {
+        cameras_col.update_one({"stream_key": stream_id}, {"$set": {
             "retention_days": payload.get("retention_days", 70),
             "failover":       payload.get("failover", False),
             "store_to":       payload.get("store_to", recorder.get_recordings_dir()),

@@ -285,7 +285,7 @@ export default function DiscoveryModal({
 
           if (data?.success && data?.ws_url) {
             ws_url = data.ws_url;
-            stream_key = data.stream_key || data.ome_stream || null;
+            stream_key = data.stream_key || data.stream_key || null;
             stream_status = data.status || "streaming";
             rtsp_url = data.rtsp_url || data.stream_uri || null;
 

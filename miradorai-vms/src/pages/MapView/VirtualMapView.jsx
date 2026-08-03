@@ -143,7 +143,7 @@ export default function VirtualMapView({
         const isExpanded = expandedCamId === cam.id;
         const isOnline   = cam.status === "online";
 
-        const isRecording = activeRecorders.includes(cam.stream_key) || activeRecorders.includes(cam.ome_stream) || activeRecorders.includes(cam.id);
+        const isRecording = activeRecorders.includes(cam.stream_key) || activeRecorders.includes(cam.stream_key) || activeRecorders.includes(cam.id);
         return (
           <CamThumbnail
             key={cam.id}

@@ -83,7 +83,7 @@ def trigger_motion(stream_name: str, face_url: str | None = None):
                     print(f"[RECORDER] Attached face_url {face_url} to recent motion log.")
                     # Also update cameras collection so the worker gets the face_url
                     _db["cameras"].update_one(
-                        {"ome_stream": stream_name},
+                        {"stream_key": stream_name},
                         {"$set": {"last_face_url": face_url}}
                     )
                     return
@@ -110,7 +110,7 @@ def trigger_motion(stream_name: str, face_url: str | None = None):
     motion_only = False
     if _db is not None:
         try:
-            cam = _db["cameras"].find_one({"ome_stream": stream_name})
+            cam = _db["cameras"].find_one({"stream_key": stream_name})
             if cam:
                 motion_only = cam.get("motion_only", False)
         except Exception as e:
@@ -124,7 +124,7 @@ def trigger_motion(stream_name: str, face_url: str | None = None):
     if _db is not None:
         try:
             _db["cameras"].update_one(
-                {"ome_stream": stream_name},
+                {"stream_key": stream_name},
                 {"$set": {
                     "last_motion_trigger": time.time(),
                     "last_face_url": face_url
@@ -725,16 +725,16 @@ def stop_camera(stream_name: str):
 
 def start_recording_all(devices: list):
     """
-    Start recording all ENABLED devices that have ome_stream + rtsp_url.
+    Start recording all ENABLED devices that have stream_key + rtsp_url.
     Cameras with enabled=False are skipped entirely.
     """
     for device in devices:
         if device.get("enabled") is False:
-            stream_name = device.get("ome_stream", device.get("ip", "unknown"))
+            stream_name = device.get("stream_key", device.get("ip", "unknown"))
             print(f"[RECORDER] ⏭ Skipping disabled camera: {stream_name}")
             continue
 
-        stream_name = device.get("ome_stream")
+        stream_name = device.get("stream_key")
         rtsp_url    = device.get("rtsp_url")
 
         if stream_name and rtsp_url:

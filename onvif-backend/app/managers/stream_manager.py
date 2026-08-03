@@ -50,14 +50,14 @@ def save_camera_to_db(data: dict):
         data["ip_address"] = cam_ip
         data["ip"] = cam_ip
 
-    existing = cameras_col.find_one({"ome_stream": data["ome_stream"]})
+    existing = cameras_col.find_one({"stream_key": data["stream_key"]})
     current_count = cameras_col.count_documents({"enabled": True})
 
     print("CURRENT:", current_count)
  
     try:
         cameras_col.update_one(
-            {"ome_stream": data["ome_stream"]},
+            {"stream_key": data["stream_key"]},
             {"$set": data},
             upsert=True
         )
@@ -85,7 +85,7 @@ def load_devices():
                 unique_cams = {}
                 for d in docs:
                     cam_ip = d.get("ip_address") or d.get("ip")
-                    stream_id = d.get("ome_stream") or normalize_stream_name(cam_ip or "unknown")
+                    stream_id = d.get("stream_key") or normalize_stream_name(cam_ip or "unknown")
                     if not stream_id: continue
                     
                     if stream_id not in unique_cams:
@@ -98,7 +98,7 @@ def load_devices():
                 print(f"[STARTUP] Loaded {len(docs)} cameras ({len(deduped)} unique IPs) from MongoDB")
                 
                 final_list = [{
-                    "ome_stream":     d.get("ome_stream") or normalize_stream_name(d.get("ip_address") or d.get("ip")),
+                    "stream_key":     d.get("stream_key") or normalize_stream_name(d.get("ip_address") or d.get("ip")),
                     "rtsp_url":       d.get("rtsp_url"),
                     "recording_rtsp": d.get("recording_rtsp", d.get("rtsp_url")),
                     "sub_stream_rtsp": d.get("sub_stream_rtsp"),
@@ -379,13 +379,13 @@ async def rebalance_sharding():
                         }
                     }
                 )
-                print(f"[STREAM MANAGER] Rebalanced camera {cam.get('ome_stream')} to {target_worker} (Shard: {shard_pref}, Load Score: {worker_scores[target_worker]:.2f})")
+                print(f"[STREAM MANAGER] Rebalanced camera {cam.get('stream_key')} to {target_worker} (Shard: {shard_pref}, Load Score: {worker_scores[target_worker]:.2f})")
                 
                 # Invalidate segment receiver cache
                 try:
                     # Invalidate local cache dynamically in process
                     from recorder.segment_receiver import _camera_shard_cache
-                    _camera_shard_cache.pop(cam.get("ome_stream"), None)
+                    _camera_shard_cache.pop(cam.get("stream_key"), None)
                 except:
                     pass
     except Exception as e:
@@ -668,7 +668,7 @@ async def stream_watchdog():
             devices = load_devices()
             
             for device in list(devices):
-                stream_name = device.get("ome_stream")
+                stream_name = device.get("stream_key")
                 rtsp_url    = device.get("rtsp_url")
                 if not stream_name or not rtsp_url:
                     continue
@@ -704,7 +704,7 @@ async def stream_watchdog():
                     device["codec"] = actual_codec
                     save_devices(devices)
                     if cameras_col is not None:
-                        cameras_col.update_one({"ome_stream": stream_name}, {"$set": {"live_codec": actual_codec, "codec": actual_codec}})
+                        cameras_col.update_one({"stream_key": stream_name}, {"$set": {"live_codec": actual_codec, "codec": actual_codec}})
 
                 needs_h264_path = actual_codec == "H.265"
                 sub_stream_rtsp = device.get("sub_stream_rtsp")

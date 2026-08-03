@@ -300,12 +300,12 @@ async def probe_camera_stream(node: dict) -> dict:
     # For grid view  → use sub_stream_key path (lower res/bitrate)
     # For fullscreen → use main stream path (full res/bitrate)
     MEDIAMTX_API = os.environ.get("MEDIAMTX_API_URL", "http://localhost:9997")
-    ome_stream    = node.get("ome_stream") or ip.replace(".", "_")
+    stream_key    = node.get("stream_key") or ip.replace(".", "_")
     sub_key       = node.get("sub_stream_key")
     view_mode     = node.get("view_mode", "grid")
 
     # Choose which MediaMTX path to inspect based on view mode
-    active_path = (sub_key if sub_key and view_mode != "fullscreen" else ome_stream)
+    active_path = (sub_key if sub_key and view_mode != "fullscreen" else stream_key)
 
     merged_bitrate = None
     real_resolution = None
@@ -466,22 +466,22 @@ async def run_stream_health_loop():
             cameras = list(nodes_col.find(
                 {"type": "camera"},
                 {"_id": 0, "id": 1, "ip": 1, "username": 1, "password": 1,
-                 "user": 1, "pass": 1, "ome_stream": 1, "sub_stream_key": 1,
+                 "user": 1, "pass": 1, "stream_key": 1, "sub_stream_key": 1,
                  "_last_bytes_recv": 1, "_last_bytes_ts": 1, "view_mode": 1}
             ))
 
-            # Enrich with ome_stream/sub_stream_key from cameras collection
+            # Enrich with stream_key/sub_stream_key from cameras collection
             # (infrastructure_nodes may not have them yet)
             from app.core.database import cameras_col as c_col2
             if c_col2 is not None:
                 cam_by_ip = {}
-                for c in c_col2.find({}, {"_id": 0, "ip": 1, "ome_stream": 1, "sub_stream_key": 1}):
+                for c in c_col2.find({}, {"_id": 0, "ip": 1, "stream_key": 1, "sub_stream_key": 1}):
                     if c.get("ip"):
                         cam_by_ip[c["ip"]] = c
                 for cam in cameras:
                     enrichment = cam_by_ip.get(cam.get("ip"), {})
-                    if not cam.get("ome_stream"):
-                        cam["ome_stream"] = enrichment.get("ome_stream")
+                    if not cam.get("stream_key"):
+                        cam["stream_key"] = enrichment.get("stream_key")
                     if not cam.get("sub_stream_key"):
                         cam["sub_stream_key"] = enrichment.get("sub_stream_key")
 
@@ -503,9 +503,9 @@ async def run_stream_health_loop():
                                 status_doc = _db["system_status"].find_one({"type": "transcoder_status"}) if _db is not None else None
                                 active_transcoders = status_doc.get("active_transcoders", []) if status_doc else []
                                 
-                                # try to get ome_stream
+                                # try to get stream_key
                                 cam_doc = _db["cameras"].find_one({"ip": node.get("ip")}) if _db is not None else None
-                                stream_name = cam_doc.get("ome_stream") if cam_doc else None
+                                stream_name = cam_doc.get("stream_key") if cam_doc else None
                                 
                                 if stream_name and stream_name in active_transcoders:
                                     fields["transcoder_status"] = "running"

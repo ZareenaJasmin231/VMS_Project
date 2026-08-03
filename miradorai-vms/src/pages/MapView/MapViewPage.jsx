@@ -83,13 +83,13 @@ async function apiSaveZones(zones) {
 // ── Normalise camera list ─────────────────────────────────────────────
 function normalizeCams(data) {
   return (Array.isArray(data) ? data : []).map(d => ({
-    id:     d.stream_key || d.ome_stream || d.ip,
+    id:     d.stream_key || d.stream_key || d.ip,
     name:   d.device_name || d.name || `Camera @ ${d.ip}`,
     ip:     d.ip,
     ws_url: d.ws_url,
     status: (d.stream_status === "offline" || d.status === "offline") ? "offline" : "online",
     group_id: d.group_id || "default",
-    stream_key: d.stream_key || d.ome_stream,
+    stream_key: d.stream_key || d.stream_key,
   }));
 }
 

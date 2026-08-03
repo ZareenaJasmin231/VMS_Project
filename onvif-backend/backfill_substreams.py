@@ -42,7 +42,7 @@ def backfill():
                 except Exception:
                     pass
             
-            sub_key = f"{cam.get('ome_stream')}_sub"
+            sub_key = f"{cam.get('stream_key')}_sub"
             
             print(f"Updating {cam['ip']} with sub_stream_rtsp: {sub_stream_rtsp}")
             

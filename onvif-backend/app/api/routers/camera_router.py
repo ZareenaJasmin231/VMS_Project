@@ -55,7 +55,7 @@ from app.managers.health_manager import analytics_poll_loop as _analytics_poll_l
 from app.core.database import analytics_col, analytics_subs_col
 from app.managers.stream_manager import load_devices, save_camera_to_db, _watchdog_failures
 
-OME_HOST_IP = os.environ.get("OME_HOST_IP", "192.168.126.200")
+OME_HOST_IP = os.environ.get("OME_HOST_IP", "192.168.126.36")
 
 router = APIRouter(prefix="/api", tags=["cameras"])
 features_router = APIRouter(prefix="/api/camera", tags=["camera-features"], dependencies=[Depends(verify_token)])
@@ -107,7 +107,7 @@ async def enable_camera_by_ip(ip: str):
 
     started = []
     for device in matched:
-        stream_name = device.get("ome_stream")
+        stream_name = device.get("stream_key")
         rtsp_url    = device.get("rtsp_url")
         sub_stream_rtsp = device.get("sub_stream_rtsp")
         if not stream_name or not rtsp_url:
@@ -151,7 +151,7 @@ async def disable_camera_by_ip(ip: str):
         raise HTTPException(status_code=404, detail=f"No camera found with IP {ip}")
     stopped = []
     for device in matched:
-        stream_name = device.get("ome_stream")
+        stream_name = device.get("stream_key")
         if not stream_name:
             continue
         device["enabled"] = False
@@ -192,7 +192,7 @@ async def delete_camera_by_ip(ip: str):
     matched = get_devices_by_ip(ip)
     stopped = []
     for device in matched:
-        stream_name = device.get("ome_stream")
+        stream_name = device.get("stream_key")
         if not stream_name:
             continue
         recorder.stop_camera(stream_name)
@@ -289,7 +289,7 @@ async def restore_camera(ip: str):
 @router.delete("/cameras/by-stream/{stream_name}/delete", dependencies=[Depends(verify_token)])
 async def delete_camera_by_stream(stream_name: str):
     """
-    Delete a camera entry by its ome_stream name.
+    Delete a camera entry by its stream_key name.
     Removes ghost/stale entries that exist in MongoDB but were never properly cleaned up.
     The frontend (AddDevicesPage.jsx) already calls this endpoint on Remove.
     """
@@ -303,10 +303,10 @@ async def delete_camera_by_stream(stream_name: str):
     except Exception as e:
         print(f"[DELETE-STREAM] OME unregister failed for {stream_name} (non-fatal): {e}")
     _watchdog_failures.pop(stream_name, None)
-    devices = [d for d in devices if d.get("ome_stream") != stream_name]
+    devices = [d for d in devices if d.get("stream_key") != stream_name]
     save_devices(devices)
     if cameras_col is not None:
-        result = cameras_col.delete_many({"ome_stream": stream_name})
+        result = cameras_col.delete_many({"stream_key": stream_name})
         print(f"[DELETE-STREAM] 🗑 MongoDB: removed {result.deleted_count} doc(s) for stream '{stream_name}'")
     return {"success": True, "stream_name": stream_name, "streams_stopped": stopped}
 
@@ -454,7 +454,7 @@ async def onvif_probe(req: ProbeRequest):
         else:
             print(f"[ONVIF] No sub-stream profile found for {req.ip} — grid will use main stream")
 
-        existing    = next((d for d in devices if d.get("ome_stream") == stream_name), None)
+        existing    = next((d for d in devices if d.get("stream_key") == stream_name), None)
 
         if not existing or not stream_exists(stream_name):
             is_currently_active = existing.get("enabled", False) if existing else False
@@ -486,7 +486,7 @@ async def onvif_probe(req: ProbeRequest):
             live_stream = ome_response.get("transcoded_stream")
             if not existing:
                 new_device = {
-                    "ome_stream":       stream_name,
+                    "stream_key":       stream_name,
                     "rtsp_url":         rtsp,
                     "recording_rtsp":   rtsp,
                     "live_stream":      live_stream,
@@ -521,7 +521,7 @@ async def onvif_probe(req: ProbeRequest):
  
             save_camera_to_db({
                 "ip":               req.ip,
-                "ome_stream":       stream_name,
+                "stream_key":       stream_name,
                 "rtsp_url":         rtsp,
                 "recording_rtsp":   rtsp,
                 "sub_stream_rtsp":  sub_stream_rtsp,
@@ -566,7 +566,7 @@ async def onvif_probe(req: ProbeRequest):
             ome_response = {"status": "ok", "message": "Already registered"}
             live_stream = existing.get("live_stream") if existing else None
  
-        result["ome_stream"]      = stream_name
+        result["stream_key"]      = stream_name
         result["ome_response"]    = ome_response
         live_key = live_stream if live_stream else stream_name
         result["ws_url"]          = f"http://localhost:8889/{live_key}"
@@ -609,7 +609,7 @@ async def register_rtsp_stream(req: StreamRegisterRequest):
     base_stream_name = normalize_stream_name(host)
     stream_name = base_stream_name
 
-    existing_same_ip = [d for d in devices if d.get("ip") == host or d.get("ome_stream", "").startswith(base_stream_name)]
+    existing_same_ip = [d for d in devices if d.get("ip") == host or d.get("stream_key", "").startswith(base_stream_name)]
     existing = next((d for d in existing_same_ip if d.get("rtsp_url") == rtsp), None)
 
     if not existing and len(existing_same_ip) > 0:
@@ -618,7 +618,7 @@ async def register_rtsp_stream(req: StreamRegisterRequest):
         stream_name = f"{base_stream_name}_{uid}"
         print(f"[RTSP] IP {host} already exists with different URL. Using new stream_name: {stream_name}")
     elif existing:
-        stream_name = existing.get("ome_stream", base_stream_name)
+        stream_name = existing.get("stream_key", base_stream_name)
 
     if existing and stream_exists(stream_name):
         print(f"[RTSP] Stream {stream_name} already live in OME, skipping.")
@@ -626,7 +626,7 @@ async def register_rtsp_stream(req: StreamRegisterRequest):
         save_devices(devices)
         save_camera_to_db({
             "ip":             host,
-            "ome_stream":     stream_name,
+            "stream_key":     stream_name,
             "rtsp_url":       rtsp,
             "recording_rtsp": existing.get("recording_rtsp", rtsp),
             "manufacturer":   req.manufacturer,
@@ -650,7 +650,7 @@ async def register_rtsp_stream(req: StreamRegisterRequest):
         live_key = existing.get("live_stream") or stream_name
         return {
             "success":    True,
-            "ome_stream": stream_name,
+            "stream_key": stream_name,
             "ws_url":     f"http://localhost:8889/{live_key}",
             "stream_key": live_key,
             "status":     "streaming",
@@ -692,7 +692,7 @@ async def register_rtsp_stream(req: StreamRegisterRequest):
  
     if not existing:
         new_device = {
-            "ome_stream":     stream_name,
+            "stream_key":     stream_name,
             "rtsp_url":       rtsp,
             "recording_rtsp": rtsp,
             "live_stream":    ome_response.get("transcoded_stream"),
@@ -722,7 +722,7 @@ async def register_rtsp_stream(req: StreamRegisterRequest):
  
     save_camera_to_db({
         "ip":             host,
-        "ome_stream":     stream_name,
+        "stream_key":     stream_name,
         "rtsp_url":       rtsp,
         "recording_rtsp": rtsp,
         "manufacturer":   req.manufacturer,
@@ -762,7 +762,7 @@ async def register_rtsp_stream(req: StreamRegisterRequest):
     live_key = ome_response.get("transcoded_stream") or stream_name
     return {
         "success":    True,
-        "ome_stream": stream_name,
+        "stream_key": stream_name,
         "ws_url":     f"http://localhost:8889/{live_key}",
         "stream_key": live_key,
         "status":     "streaming",
@@ -812,7 +812,7 @@ async def assign_streams(req: StreamAssignRequest):
     print(f"[ASSIGN] After credential injection: rec_rtsp={req.recording_rtsp!r}")
     # ---------------------------------------------------    
     
-    stream_name = existing.get("ome_stream") if existing else base_stream_name
+    stream_name = existing.get("stream_key") if existing else base_stream_name
     current_live_rtsp = existing.get("rtsp_url") if existing else None
     live_rtsp_changed = current_live_rtsp != req.live_rtsp
 
@@ -849,7 +849,7 @@ async def assign_streams(req: StreamAssignRequest):
         device_entry = existing
     else:
         device_entry = {
-            "ome_stream":           stream_name,
+            "stream_key":           stream_name,
             "rtsp_url":             req.live_rtsp,
             "recording_rtsp":       req.recording_rtsp,
             "ip":                   host,
@@ -871,7 +871,7 @@ async def assign_streams(req: StreamAssignRequest):
 
     save_camera_to_db({
     "ip":                   host,
-    "ome_stream":           stream_name,
+    "stream_key":           stream_name,
     "rtsp_url":             req.live_rtsp,
     "recording_rtsp":       req.recording_rtsp,
     "manufacturer":         req.manufacturer,
@@ -898,7 +898,7 @@ async def assign_streams(req: StreamAssignRequest):
     live_key = existing.get("live_stream") if existing else stream_name
     return {
         "success":           True,
-        "ome_stream":        stream_name,
+        "stream_key":        stream_name,
         "ws_url":            f"http://localhost:8889/{live_key}",
         "stream_key":        live_key,
         "live_rtsp":         req.live_rtsp,
@@ -986,7 +986,7 @@ async def set_encoder_profile_settings(req: VideoEncoderSettingRequest):
         global devices
         for device in devices:
             if device.get("ip") == req.ip:
-                stream_name = device.get("ome_stream")
+                stream_name = device.get("stream_key")
                 if stream_name:
                     print(f"[ENCODER] Stream profiles updated for: {stream_name}")
     
@@ -1144,12 +1144,12 @@ async def get_analytics_events(ip: str, limit: int = 50):
 @router.post("/devices/", dependencies=[Depends(verify_token)])
 async def add_device(device: dict):
     print("DEVICE REGISTERED:", device)
-    stream_id = device.get("ome_stream") or device.get("ip_address")
+    stream_id = device.get("stream_key") or device.get("ip_address")
     if not stream_id:
         return {"success": False, "error": "Missing identifier"}
 
     existing = next(
-        (d for d in devices if (d.get("ome_stream") or d.get("ip_address")) == stream_id), 
+        (d for d in devices if (d.get("stream_key") or d.get("ip_address")) == stream_id), 
         None
     )
     if existing:

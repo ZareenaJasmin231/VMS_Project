@@ -42,7 +42,7 @@ def _get_shard_prefix(camera_id: str) -> str:
     prefix = None
     if cameras_col is not None:
         try:
-            cam = cameras_col.find_one({"ome_stream": camera_id}) or {}
+            cam = cameras_col.find_one({"stream_key": camera_id}) or {}
             prefix = cam.get("shard_prefix")
             if not prefix:
                 from app.utils.minio_client import get_shard_prefix

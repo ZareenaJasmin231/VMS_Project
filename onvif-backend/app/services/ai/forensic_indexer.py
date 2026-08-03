@@ -713,7 +713,7 @@ class BackgroundIndexer(threading.Thread):
             cams = list(_db["cameras"].find({"enabled": {"$ne": False}}))
             result = []
             for cam in cams:
-                cam_id   = cam.get("ome_stream") or cam.get("id") or str(cam.get("_id", ""))
+                cam_id   = cam.get("stream_key") or cam.get("id") or str(cam.get("_id", ""))
                 cam_name = cam.get("device_name") or cam.get("name") or cam.get("ip") or "Camera"
                 cam_ip   = cam.get("ip", "")
                 cam_type = (cam.get("model") or "dome").lower()
@@ -742,7 +742,7 @@ class BackgroundIndexer(threading.Thread):
                 {
                     "$or": [
                         {"camera_id": camera_id},
-                        {"ome_stream": camera_id},
+                        {"stream_key": camera_id},
                         {"stream_id": camera_id},
                     ],
                     "file_path": {"$regex": r"\.enc$"},
@@ -821,7 +821,7 @@ def trigger_reindex_for_camera(camera_id: str, start_date: str, end_date: str) -
     try:
         cam = _db["cameras"].find_one({
             "$or": [
-                {"ome_stream": camera_id},
+                {"stream_key": camera_id},
                 {"id": camera_id},
             ]
         })
@@ -845,7 +845,7 @@ def trigger_reindex_for_camera(camera_id: str, start_date: str, end_date: str) -
             {
                 "$or": [
                     {"camera_id": camera_id},
-                    {"ome_stream": camera_id},
+                    {"stream_key": camera_id},
                 ],
                 "file_path": {"$regex": r"\.enc$"},
                 "created_at": {"$gte": start_dt, "$lte": end_dt},

@@ -1984,7 +1984,7 @@ const DashboardPage = () => {
 
   const recordingCount = cameras.filter((cam) => {
     if (cam.enabled === false) return false;
-    const streamKey = cam.stream_key || cam.ome_stream;
+    const streamKey = cam.stream_key || cam.stream_key;
     return activeRecorders.includes(streamKey);
   }).length;
 
@@ -3038,8 +3038,8 @@ const DashboardPage = () => {
                   title="Click to view failed recordings"
                 >
                   <span className="widget-item-label" style={{ textDecoration: "underline" }}>Failed Recordings</span>
-                  <span className={`widget-item-value ${cameras.filter(cam => cam.enabled !== false && !activeRecorders.includes(cam.stream_key || cam.ome_stream)).length > 0 ? "unhealthy" : "healthy"}`}>
-                    {cameras.filter(cam => cam.enabled !== false && !activeRecorders.includes(cam.stream_key || cam.ome_stream)).length}
+                  <span className={`widget-item-value ${cameras.filter(cam => cam.enabled !== false && !activeRecorders.includes(cam.stream_key || cam.stream_key)).length > 0 ? "unhealthy" : "healthy"}`}>
+                    {cameras.filter(cam => cam.enabled !== false && !activeRecorders.includes(cam.stream_key || cam.stream_key)).length}
                   </span>
                 </div>
                 <div className="widget-item-row">
@@ -3755,7 +3755,7 @@ const DashboardPage = () => {
             
             <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
               {(() => {
-                const failedCamerasList = cameras.filter(cam => cam.enabled !== false && !activeRecorders.includes(cam.stream_key || cam.ome_stream));
+                const failedCamerasList = cameras.filter(cam => cam.enabled !== false && !activeRecorders.includes(cam.stream_key || cam.stream_key));
                 
                 const handleRestartCamera = async (cam) => {
                   if (!cam.ip && !cam.ip_address) return;

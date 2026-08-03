@@ -95,7 +95,7 @@ async def run_discovery_pipeline():
 
                 if not existing:
                     new_dev = {
-                        "ome_stream":     stream_name,
+                        "stream_key":     stream_name,
                         "rtsp_url":       rtsp_url,
                         "recording_rtsp": rtsp_url,
                         "ip":             ip,

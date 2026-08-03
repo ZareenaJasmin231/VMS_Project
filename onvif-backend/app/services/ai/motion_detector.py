@@ -256,7 +256,7 @@ class MotionDetectorManager:
             active_streams = []
             
             for doc in docs:
-                stream_name = doc.get("ome_stream")
+                stream_name = doc.get("stream_key")
                 rtsp_url = doc.get("rtsp_url")
                 if not stream_name or not rtsp_url:
                     continue

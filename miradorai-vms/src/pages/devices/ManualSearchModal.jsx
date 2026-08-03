@@ -471,7 +471,7 @@ export default function ManualSearchModal({
           stream_count: json.stream_count ?? (json.profiles?.length || 0),
           ws_url: json.ws_url || null,
           rtsp_url: json.rtsp_url || null,
-          stream_key: json.stream_key || json.ome_stream || null,
+          stream_key: json.stream_key || json.stream_key || null,
         });
       } else {
         setProbe("fail");

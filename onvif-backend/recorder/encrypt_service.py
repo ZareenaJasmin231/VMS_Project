@@ -527,7 +527,7 @@ def encrypt_file(input_path: str) -> bool:
 
     motion_only = False
     try:
-        cam_doc = _db["cameras"].find_one({"ome_stream": camera_id})
+        cam_doc = _db["cameras"].find_one({"stream_key": camera_id})
         if cam_doc and cam_doc.get("motion_only"):
             motion_only = True
     except Exception as e:

@@ -107,8 +107,8 @@ async def process_ai_alert(request: Request):
         if cam_ip:
             alert_data["ip"] = cam_ip
             alert_data["ip_address"] = cam_ip
-            if not alert_data.get("ome_stream"):
-                alert_data["ome_stream"] = cam_ip.replace(".", "_")
+            if not alert_data.get("stream_key"):
+                alert_data["stream_key"] = cam_ip.replace(".", "_")
 
         result = col.insert_one(alert_data)
         alert_id = str(result.inserted_id)
@@ -165,7 +165,7 @@ async def process_ai_alert(request: Request):
         # Register stream with MediaMTX and start RTSP recorder
         rtsp_url = alert_data.get("rtsp_url")
         if cam_ip and rtsp_url:
-            stream_name = alert_data.get("ome_stream") or cam_ip.replace(".", "_")
+            stream_name = alert_data.get("stream_key") or cam_ip.replace(".", "_")
             alert_data["enabled"] = alert_data.get("enabled", True)
 
             # 1. Register with MediaMTX for Live View WebRTC player

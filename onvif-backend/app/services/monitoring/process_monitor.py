@@ -254,10 +254,10 @@ def get_vms_process_metrics():
     registered_stream_ids = set()
     if cameras_col is not None:
         try:
-            docs = list(cameras_col.find({}, {"_id": 0, "ip": 1, "ip_address": 1, "ome_stream": 1, "enabled": 1}))
+            docs = list(cameras_col.find({}, {"_id": 0, "ip": 1, "ip_address": 1, "stream_key": 1, "enabled": 1}))
             for d in docs:
                 cam_ip = d.get("ip_address") or d.get("ip") or ""
-                stream_id = d.get("ome_stream") or ""
+                stream_id = d.get("stream_key") or ""
                 if cam_ip:
                     active_cameras[cam_ip] = d
                 if stream_id:
