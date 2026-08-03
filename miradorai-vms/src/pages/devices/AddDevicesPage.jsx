@@ -518,6 +518,9 @@ export default function AddDevicesPage({ onNavigate }) {
 
   const handleSaveDevice = useCallback(async (updated) => {
     try {
+      if (updated.device_name) {
+        updated.name = updated.device_name;
+      }
       const { name, ... payload } = updated;
       await fetch(`${STREAM_API}/api/cameras/by-ip/${updated.ip}`, {
         method: "PUT",
