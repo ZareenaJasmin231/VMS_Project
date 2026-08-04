@@ -423,6 +423,8 @@ function AlertsPanel({ isOpen, onAlertCountUpdate, onTotalAlertCountChange, live
   const [cameraFilter, setCameraFilter] = useState("All");
   const [searchQuery, setSearchQuery] = useState("");
   const [timeFilter, setTimeFilter] = useState("all");
+  const [isTypeDropdownOpen, setIsTypeDropdownOpen] = useState(false);
+  const [isCameraDropdownOpen, setIsCameraDropdownOpen] = useState(false);
 
   const getDisplayType = useCallback((alert) => {
     if (alert.isExternal) {
@@ -746,41 +748,81 @@ function AlertsPanel({ isOpen, onAlertCountUpdate, onTotalAlertCountChange, live
         </div>
         
         <div className="lv-alerts-panel__filters">
-          <div className={`lv-select-wrapper ${alertTypeFilter !== "All" ? "is-active" : ""}`}>
+          <div className={`lv-select-wrapper lv-dropdown-container ${alertTypeFilter !== "All" ? "is-active" : ""}`}>
             <svg className="lv-select-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
             </svg>
-            <select 
+            <div 
               className="lv-alerts-filter-select"
-              value={alertTypeFilter}
-              onChange={(e) => setAlertTypeFilter(e.target.value)}
+              onClick={() => { setIsTypeDropdownOpen(!isTypeDropdownOpen); setIsCameraDropdownOpen(false); }}
               title="Filter by Alert Type"
+              style={{ userSelect: "none", display: "flex", alignItems: "center" }}
             >
-              <option value="All">Event Type</option>
-              {availableTypes.filter(t => t !== "All").map(t => <option key={t} value={t}>{t}</option>)}
-            </select>
-            <svg className="lv-select-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, paddingRight: "10px" }}>
+                {alertTypeFilter === "All" ? "Event Type" : alertTypeFilter}
+              </span>
+            </div>
+            <svg className="lv-select-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={isTypeDropdownOpen ? { transform: 'rotate(180deg)' } : {}}>
               <polyline points="6 9 12 15 18 9" />
             </svg>
+            {isTypeDropdownOpen && (
+              <div className="lv-filter-dropdown" style={{ width: "100%", maxHeight: "300px", overflowY: "auto" }}>
+                <button
+                  className={`lv-filter-dropdown-item ${alertTypeFilter === "All" ? "selected" : ""}`}
+                  onClick={() => { setAlertTypeFilter("All"); setIsTypeDropdownOpen(false); }}
+                >
+                  Event Type
+                </button>
+                {availableTypes.filter(t => t !== "All").map(t => (
+                  <button
+                    key={t}
+                    className={`lv-filter-dropdown-item ${alertTypeFilter === t ? "selected" : ""}`}
+                    onClick={() => { setAlertTypeFilter(t); setIsTypeDropdownOpen(false); }}
+                  >
+                    {t}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
-          <div className={`lv-select-wrapper ${cameraFilter !== "All" ? "is-active" : ""}`}>
+          <div className={`lv-select-wrapper lv-dropdown-container ${cameraFilter !== "All" ? "is-active" : ""}`}>
             <svg className="lv-select-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M23 7l-7 5 7 5V7z" />
               <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
             </svg>
-            <select 
+            <div 
               className="lv-alerts-filter-select"
-              value={cameraFilter}
-              onChange={(e) => setCameraFilter(e.target.value)}
+              onClick={() => { setIsCameraDropdownOpen(!isCameraDropdownOpen); setIsTypeDropdownOpen(false); }}
               title="Filter by Camera"
+              style={{ userSelect: "none", display: "flex", alignItems: "center" }}
             >
-              <option value="All">Camera</option>
-              {availableCameras.filter(c => c !== "All").map(c => <option key={c} value={c}>{c}</option>)}
-            </select>
-            <svg className="lv-select-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, paddingRight: "10px" }}>
+                {cameraFilter === "All" ? "Camera" : cameraFilter}
+              </span>
+            </div>
+            <svg className="lv-select-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={isCameraDropdownOpen ? { transform: 'rotate(180deg)' } : {}}>
               <polyline points="6 9 12 15 18 9" />
             </svg>
+            {isCameraDropdownOpen && (
+              <div className="lv-filter-dropdown" style={{ width: "100%", maxHeight: "300px", overflowY: "auto", right: 0, left: "auto" }}>
+                <button
+                  className={`lv-filter-dropdown-item ${cameraFilter === "All" ? "selected" : ""}`}
+                  onClick={() => { setCameraFilter("All"); setIsCameraDropdownOpen(false); }}
+                >
+                  Camera
+                </button>
+                {availableCameras.filter(c => c !== "All").map(c => (
+                  <button
+                    key={c}
+                    className={`lv-filter-dropdown-item ${cameraFilter === c ? "selected" : ""}`}
+                    onClick={() => { setCameraFilter(c); setIsCameraDropdownOpen(false); }}
+                  >
+                    {c}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
@@ -1407,17 +1449,19 @@ export default function LiveViewPage() {
         const backendCams = await res.json();
         if (!Array.isArray(backendCams) || backendCams.length === 0) return;
 
-        // Build a lookup by IP for fast access
-        const byIp = {};
-        for (const cam of backendCams) {
-          if (cam.ip) byIp[cam.ip] = cam;
-        }
-
         setDevices(prev => {
           let changed = false;
           const existingIps = new Set(prev.map(d => d.ip).filter(Boolean));
           const next = prev.map(d => {
-            const backend = byIp[d.ip];
+            let backend = backendCams.find(c => 
+              (c.stream_key && d.stream_key && c.stream_key === d.stream_key) ||
+              (c.id && d.id && c.id === d.id) ||
+              (c._id && d.id && c._id === d.id) ||
+              (c.ip && d.ip && c.rtsp_url && d.rtsp_url && c.ip === d.ip && c.rtsp_url === d.rtsp_url)
+            );
+            if (!backend) {
+              backend = backendCams.find(c => c.ip === d.ip);
+            }
             if (!backend) return d;
             const needsUpdate =
               (backend.reader_id && d.reader_id !== backend.reader_id) ||

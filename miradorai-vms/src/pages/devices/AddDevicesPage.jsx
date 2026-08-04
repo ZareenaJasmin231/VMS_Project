@@ -378,10 +378,18 @@ export default function AddDevicesPage({ onNavigate }) {
         if (res.ok) {
           const data = await res.json();
           const backendDevices = Array.isArray(data) ? data : (data.devices || []);
-          
           setDevices((prev) => {
             const updated = prev.map((localCam) => {
-              const match = backendDevices.find((b) => b.ip === localCam.ip);
+              let match = backendDevices.find((b) => 
+                (b.stream_key && localCam.stream_key && b.stream_key === localCam.stream_key) ||
+                (b.id && localCam.id && b.id === localCam.id) ||
+                (b._id && localCam.id && b._id === localCam.id) ||
+                (b.ip && localCam.ip && b.rtsp_url && localCam.rtsp_url && b.ip === localCam.ip && b.rtsp_url === localCam.rtsp_url)
+              );
+              if (!match) {
+                match = backendDevices.find((b) => b.ip === localCam.ip);
+              }
+              
               if (match) {
                 return {
                   ...localCam,
@@ -392,7 +400,12 @@ export default function AddDevicesPage({ onNavigate }) {
               return localCam;
             });
             
-            const backendOnly = backendDevices.filter((b) => !prev.some((localCam) => localCam.ip === b.ip));
+            const backendOnly = backendDevices.filter((b) => !prev.some((localCam) => 
+              (b.stream_key && localCam.stream_key && b.stream_key === localCam.stream_key) ||
+              (b.id && localCam.id && b.id === localCam.id) ||
+              (b._id && localCam.id && b._id === localCam.id) ||
+              (!b.stream_key && !b.id && b.ip === localCam.ip)
+            ));
             return [...updated, ...backendOnly];
           });
         }
@@ -1296,7 +1309,7 @@ export default function AddDevicesPage({ onNavigate }) {
                 </svg>
               </button>
             </div>
-            <div className="modal-body" style={{ padding: "20px", background: "#090b0e" }}>
+            <div className="modal-body" style={{ padding: "20px" }}>
               {previewDevice.ws_url ? (
                 <div style={{ position: "relative", width: "100%", aspectRatio: "16/9", borderRadius: "8px", overflow: "hidden", border: "1px solid var(--border-light)" }}>
                   <WebRTCPlayer_MediaMTX streamKey={previewDevice.stream_key || previewDevice.stream_key || (previewDevice.ip ? previewDevice.ip.replace(/\./g, "_") : "")} cameraId={previewDevice.id} />
