@@ -673,83 +673,105 @@ export default function AddDevicesPage({ onNavigate }) {
   // ── handleEnroll — group_id comes from ManualSearchModal field ────────────
   const handleEnroll = async (device) => {
     setEnrolling(true);
-    setEnrollMsg("Registering stream with OME…");
     setShowManualSearch(false);
 
-    const { ip, user, pass, discovered, cameraName, channel, group_id, port } = device;
-    const safeChannel = channel ?? 0;
+    const { ip, user, pass, discovered, cameraName, channels, channel, group_id, port } = device;
     const enrichedName = discovered?.model
       ? `${discovered.manufacturer} ${discovered.model}`
       : null;
 
-    const probeRes = await fetch(`${STREAM_API}/api/onvif/probe`, {
-      method: "POST",
-      headers: getAuthHeaders(),
-      body: JSON.stringify({ ip, port: Number(port) || 80, username: user, password: pass, channel: safeChannel, group_id: group_id || selectedGroupId }),
-    });
-    const probeData = probeRes.ok ? await probeRes.json() : null;
+    const channelsToEnroll = channels && channels.length > 0 ? channels : [{ source: channel ?? 0 }];
+    const addedDevices = [];
+    let hasError = false;
 
-    const streamKey =
-      probeData?.stream_key ||
-      probeData?.stream_key ||
-      `${ip.replace(/\./g, "_")}_cam${safeChannel}`;
+    for (let i = 0; i < channelsToEnroll.length; i++) {
+      const ch = channelsToEnroll[i];
+      const safeChannel = ch.source ?? 0;
+      setEnrollMsg(`Registering camera ${i + 1} of ${channelsToEnroll.length}…`);
 
-    const updated = {
-      id: `device-${ip}-cam${safeChannel}-${Date.now()}`,
-      type: "entrance",
-      name: cameraName || enrichedName || `Camera @ ${ip}`,
-      ip,
-      channel: safeChannel,
-      mac: discovered?.mac || probeData?.mac || "—",
-      status: probeData?.ws_url ? "Online" : "Offline",
-      manufacturer: discovered?.manufacturer || probeData?.manufacturer || "Unknown",
-      model: discovered?.model || probeData?.model || "Unknown",
-      firmware: probeData?.firmware || discovered?.firmware || "",
-      serial: probeData?.serial || discovered?.serial || "",
-      ptz: probeData?.ptz || discovered?.ptz || "No",
-      rtsp_url: probeData?.rtsp_url || probeData?.stream_uri || null,
-      ws_url: probeData?.ws_url || null,
-      stream_key: streamKey,
-      stream_key: probeData?.stream_key || streamKey,
-      sub_stream_key: probeData?.sub_stream_key || null,
-      sub_stream_rtsp: probeData?.sub_stream_rtsp || null,
-      stream_status: probeData?.status || "error",
-      stream_profiles: probeData?.profiles || discovered?.profiles || [],
-      stream_count: probeData?.stream_count || discovered?.stream_count || 0,
-      physical_camera_count: probeData?.physical_camera_count || 1,
-      source: "onvif",
-      group_id: group_id || selectedGroupId,  // ✅ from modal field
-    };
+      const probeRes = await fetch(`${STREAM_API}/api/onvif/probe`, {
+        method: "POST",
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ 
+          ip, 
+          port: Number(port) || 80, 
+          username: user, 
+          password: pass, 
+          channel: safeChannel, 
+          group_id: group_id || selectedGroupId,
+          save_to_db: true
+        }),
+      });
+      const probeData = probeRes.ok ? await probeRes.json() : null;
 
-    setDevices((prev) => {
-      const existingIndex = prev.findIndex(
-        (item) =>
-          (item.stream_key && item.stream_key === streamKey) ||
-          (!item.stream_key && item.ip === ip && (item.channel ?? 0) === safeChannel)
-      );
+      const streamKey =
+        probeData?.stream_key ||
+        `${ip.replace(/\./g, "_")}_cam${safeChannel}`;
 
-      if (existingIndex !== -1) {
-        updated.id = prev[existingIndex].id;
-        const next = [...prev];
-        next[existingIndex] = { ...next[existingIndex], ...updated };
-        return next;
+      const nameSuffix = channelsToEnroll.length > 1 ? ` (Cam ${safeChannel})` : "";
+      const baseName = cameraName ? `${cameraName}${nameSuffix}` : (enrichedName ? `${enrichedName}${nameSuffix}` : `Camera @ ${ip} (Cam ${safeChannel})`);
+
+      const updated = {
+        id: `device-${ip}-cam${safeChannel}-${Date.now()}`,
+        type: "entrance",
+        name: baseName,
+        ip,
+        channel: safeChannel,
+        mac: discovered?.mac || probeData?.mac || "—",
+        status: probeData?.ws_url ? "Online" : "Offline",
+        manufacturer: discovered?.manufacturer || probeData?.manufacturer || "Unknown",
+        model: discovered?.model || probeData?.model || "Unknown",
+        firmware: probeData?.firmware || discovered?.firmware || "",
+        serial: probeData?.serial || discovered?.serial || "",
+        ptz: probeData?.ptz || discovered?.ptz || "No",
+        rtsp_url: probeData?.rtsp_url || probeData?.stream_uri || null,
+        ws_url: probeData?.ws_url || null,
+        stream_key: probeData?.stream_key || streamKey,
+        sub_stream_key: probeData?.sub_stream_key || null,
+        sub_stream_rtsp: probeData?.sub_stream_rtsp || null,
+        stream_status: probeData?.status || "error",
+        stream_profiles: probeData?.profiles || discovered?.profiles || [],
+        stream_count: probeData?.stream_count || discovered?.stream_count || 0,
+        physical_camera_count: probeData?.physical_camera_count || 1,
+        source: "onvif",
+        group_id: group_id || selectedGroupId,
+      };
+
+      addedDevices.push(updated);
+      
+      if (!probeData?.ws_url || probeData?.status === "error") {
+        hasError = true;
       }
-      return [...prev, updated];
-    });
 
-    logAction("Camera added", "camera", { ip, channel: safeChannel });
+      setDevices((prev) => {
+        const existingIndex = prev.findIndex(
+          (item) =>
+            (item.stream_key && item.stream_key === streamKey) ||
+            (!item.stream_key && item.ip === ip && (item.channel ?? 0) === safeChannel)
+        );
+
+        if (existingIndex !== -1) {
+          updated.id = prev[existingIndex].id;
+          const next = [...prev];
+          next[existingIndex] = { ...next[existingIndex], ...updated };
+          return next;
+        }
+        return [...prev, updated];
+      });
+
+      logAction("Camera added", "camera", { ip, channel: safeChannel });
+    }
+
     setEnrolling(false);
     setEnrollMsg("");
 
-    const isError = !probeData?.ws_url || probeData?.status === "error";
-
     setSuccessEnrollData({
-      title: isError ? "Stream Registration Failed" : "Camera Added Successfully",
-      desc: isError 
-        ? "The camera was probed, but we failed to register its stream with OME."
-        : "The camera has been successfully registered and added to the system.",
-      isError,
-      devices: [updated]
+      title: hasError ? "Partial Success / Failed" : (addedDevices.length > 1 ? `Successfully added ${addedDevices.length} Cameras` : "Camera Added Successfully"),
+      desc: hasError 
+        ? "Some or all cameras were probed, but failed to register streams with OME."
+        : "The selected cameras have been successfully registered and added to the system.",
+      isError: hasError,
+      devices: addedDevices
     });
   };
 

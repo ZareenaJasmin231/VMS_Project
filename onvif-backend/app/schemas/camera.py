@@ -65,6 +65,7 @@ class ProbeRequest(BaseCameraRequest):
     channel:     int = 0
     group_id:    str = "default"
     device_name: str = ""
+    save_to_db:  bool = True
 
 class StreamRegisterRequest(BaseCameraRequest):
     rtsp_url:     str

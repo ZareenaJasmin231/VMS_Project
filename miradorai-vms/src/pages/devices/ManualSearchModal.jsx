@@ -425,7 +425,7 @@ export default function ManualSearchModal({
     setErrors({});
     setProbe("probing");
     setDiscovered(null);
-    setSelectedChannel(null);
+    setSelectedChannels([]);
 
     try {
       const controller = new AbortController();
@@ -538,7 +538,7 @@ export default function ManualSearchModal({
     }
   };
 
-  const [selectedChannel, setSelectedChannel] = useState(null);
+  const [selectedChannels, setSelectedChannels] = useState([]);
 
   // Group all_profiles by source (camera channel)
   const channelList = (() => {
@@ -557,9 +557,10 @@ export default function ManualSearchModal({
   })();
 
   const handleEnroll = () => {
-    // Use selectedChannel's profiles if available, else fall back to discovered.profiles
-    const activeProfiles = selectedChannel?.profiles || discovered?.profiles || [];
-    const activeRtsp = activeProfiles[0]?.rtsp_url || discovered?.rtsp_url || null;
+    // Use selectedChannels if available, else fallback to a default array with source=1
+    const channelsToEnroll = selectedChannels.length > 0 
+      ? selectedChannels 
+      : [{ source: 1, profiles: discovered?.profiles || [] }];
 
     if (mode === "onvif") {
       const enrollPort = detectedPort || port || "80";
@@ -571,12 +572,7 @@ export default function ManualSearchModal({
         user,
         pass,
         discovered,
-        stream_profiles: activeProfiles,
-        stream_count: activeProfiles.length,
-        ws_url: discovered?.ws_url || null,
-        rtsp_url: activeRtsp,
-        stream_key: discovered?.stream_key || null,
-        channel: selectedChannel?.source ?? null,
+        channels: channelsToEnroll
       });
     } else {
       onEnroll?.({
@@ -853,27 +849,50 @@ export default function ManualSearchModal({
                 {/* Camera Channel Picker — only shown on multi-channel devices */}
                 {channelList.length > 1 && (
                   <div className="msm-channels">
-                    <div className="msm-channel-header">Select Camera to Add</div>
-                    {channelList.map((ch) => (
-                      <div
-                        key={ch.source}
-                        className={`msm-channel-row ${selectedChannel?.source === ch.source ? "selected" : ""}`}
-                        onClick={() => setSelectedChannel(ch)}
+                    <div className="msm-channel-header" style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span>Select Cameras to Add</span>
+                      <span 
+                        style={{ cursor: 'pointer', color: 'var(--teal)' }}
+                        onClick={() => {
+                          if (selectedChannels.length === channelList.length) {
+                            setSelectedChannels([]);
+                          } else {
+                            setSelectedChannels([...channelList]);
+                          }
+                        }}
                       >
-                        <div className="msm-channel-left">
-                          <div className="msm-channel-dot" />
-                          <div>
-                            <div className="msm-channel-name">{ch.label}</div>
-                            <div className="msm-channel-sub">{ch.profiles.length} stream{ch.profiles.length !== 1 ? "s" : ""} · {ch.profiles[0]?.resolution || "Unknown"}</div>
+                        {selectedChannels.length === channelList.length ? "Deselect All" : "Select All"}
+                      </span>
+                    </div>
+                    {channelList.map((ch) => {
+                      const isSelected = selectedChannels.some(sc => sc.source === ch.source);
+                      return (
+                        <div
+                          key={ch.source}
+                          className={`msm-channel-row ${isSelected ? "selected" : ""}`}
+                          onClick={() => {
+                            if (isSelected) {
+                              setSelectedChannels(selectedChannels.filter(sc => sc.source !== ch.source));
+                            } else {
+                              setSelectedChannels([...selectedChannels, ch]);
+                            }
+                          }}
+                        >
+                          <div className="msm-channel-left">
+                            <div className="msm-channel-dot" />
+                            <div>
+                              <div className="msm-channel-name">{ch.label}</div>
+                              <div className="msm-channel-sub">{ch.profiles.length} stream{ch.profiles.length !== 1 ? "s" : ""} · {ch.profiles[0]?.resolution || "Unknown"}</div>
+                            </div>
+                          </div>
+                          <div className={`msm-channel-check ${isSelected ? "filled" : ""}`}>
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3">
+                              <polyline points="20 6 9 17 4 12" />
+                            </svg>
                           </div>
                         </div>
-                        <div className={`msm-channel-check ${selectedChannel?.source === ch.source ? "filled" : ""}`}>
-                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3">
-                            <polyline points="20 6 9 17 4 12" />
-                          </svg>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
 
@@ -926,15 +945,17 @@ export default function ManualSearchModal({
                   setAlertMsg("Please probe and verify the camera connection successfully before enrolling!");
                   return;
                 }
-                if (channelList.length > 1 && !selectedChannel) {
-                  setAlertMsg("Please select a camera from the list below!");
+                if (channelList.length > 1 && selectedChannels.length === 0) {
+                  setAlertMsg("Please select at least one camera from the list below!");
                   return;
                 }
                 setAlertMsg("");
                 handleEnroll();
               }}
             >
-              {channelList.length > 1 && !selectedChannel ? "Select a Camera" : "Enroll Camera"}
+              {channelList.length > 1 && selectedChannels.length === 0 
+                ? "Select a Camera" 
+                : (channelList.length > 1 ? `Enroll ${selectedChannels.length} Cameras` : "Enroll Camera")}
             </button>
           </div>
 
