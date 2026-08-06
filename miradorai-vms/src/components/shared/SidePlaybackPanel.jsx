@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import Hls from "hls.js";
 import DatePicker from "./DatePicker";
 import { useDigitalZoom } from "../../hooks/useDigitalZoom";
+import { useWebSocket } from "../../hooks/useWebSocket";
 import "./SidePlaybackPanel.css";
 
 const API = import.meta.env.VITE_API_URL || "";
@@ -20,7 +21,6 @@ function getAuthHeaders() {
   return token ? { "Authorization": "Bearer " + token } : {};
 }
 
-// Helper: fetch live snapshot (base64 data URI) for an IP using brand snapshot API
 async function fetchLiveSnapshotForIp(ip) {
   if (!ip) return null;
   try {
@@ -32,6 +32,42 @@ async function fetchLiveSnapshotForIp(ip) {
   } catch (e) {
     return null;
   }
+}
+
+// ── Read enabled alert types from Action Rules ────────────────────
+function getEnabledAlertTypes() {
+  try {
+    const rules = JSON.parse(localStorage.getItem("miradorai_action_rules") || "[]");
+    if (rules.length === 0) {
+      return ["motion", "object", "device", "occupancy", "linecrossing", "objectinarea", "tampering"];
+    }
+    return rules
+      .filter((r) => r.enabled)
+      .map((r) => (r.trigger || "").toLowerCase());
+  } catch {
+    return ["motion", "object", "device", "occupancy", "linecrossing", "objectinarea", "tampering"];
+  }
+}
+
+// ── Check if a single alert passes the enabled filter ─────────────
+function isAlertAllowed(alert) {
+  const enabledTypes = getEnabledAlertTypes();
+  const type     = (alert.type     || "").toLowerCase();
+  const scenario = (alert.scenario || "").toLowerCase();
+
+  if (enabledTypes.length === 0) return true;
+
+  return enabledTypes.some((t) => {
+    const key = t.toLowerCase();
+    if (key.includes("motion"))       return type.includes("motion")       || scenario.includes("motion");
+    if (key.includes("tamper"))       return type.includes("tamper")       || scenario.includes("tamper");
+    if (key.includes("object"))       return type.includes("object")       || type.includes("objectinarea") || type.includes("detection");
+    if (key.includes("occupancy"))    return type.includes("occupancy")    || scenario.includes("occupancy");
+    if (key.includes("linecrossing")) return type.includes("linecrossing") || type.includes("crossing");
+    if (key.includes("loitering"))    return type.includes("loitering")    || scenario.includes("loitering");
+    if (key.includes("intrusion"))    return type.includes("intrusion")    || scenario.includes("intrusion");
+    return true;
+  });
 }
 
 function extractHour(file) {
@@ -62,6 +98,7 @@ export default function SidePlaybackPanel({ camera, onClose, alertSource = "buil
   const hlsRef = useRef(null);
 
   const { zoom, zoomTransform, handlers } = useDigitalZoom(playerWrap, videoRef);
+  const { isConnected: isWsConnected, eventsByTopic } = useWebSocket(["alerts"]);
 
   // Tab State
   const [activeTab, setActiveTab] = useState("alerts"); // 'archive' | 'alerts'
@@ -124,7 +161,7 @@ export default function SidePlaybackPanel({ camera, onClose, alertSource = "buil
       if (alertSource === "external") {
         const readerId = camera?.reader_id;
         if (!readerId) return; // no reader_id registered for this camera yet
-        const res = await fetch(`/external-ai-api/getalert?readerIds=${encodeURIComponent(readerId)}&page=1&size=50`, {
+        const res = await fetch(`/external-ai-api/getalert?readerIds=${encodeURIComponent(readerId)}&page=1&size=500`, {
           headers: {
             "Authorization": "Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ7XCJpZFwiOlwiN2MxYzVhMzYtOGM0ZS00YzdlLTlkNmEtMWE3ZjFlOWQyYTQxXCIsXCJlbWFpbFwiOlwiYWRtaW5AbWlyYWRvci5haVwiLFwidGVuYW50SWRcIjpcIjZhNWVkMmE0LWI2MTQtNDY3My1iOWUzLTFiYTEwNzM4M2VmZVwiLFwiZmlyc3ROYW1lXCI6XCJBZG1pblwiLFwibGFzdE5hbWVcIjpudWxsfSIsImlhdCI6MTc4NDY5OTc0OX0.70FwbJjKRihC_YRN3w2icZKgWxld_zKFjrMoRVDyYMQ",
             "Content-Type": "application/json"
@@ -161,24 +198,24 @@ export default function SidePlaybackPanel({ camera, onClose, alertSource = "buil
           setAlerts(mapped);
         }
       } else {
-        const res = await fetch(`${API}/api/alerts?camera_ip=${encodeURIComponent(cameraIp)}&limit=1000`, {
+        const res = await fetch(`${API}/api/alerts?limit=5000`, {
           headers: getAuthHeaders()
         });
         if (res.ok) {
           const data = await res.json();
           const filtered = (data.alerts || [])
-            .filter(a => (a.ip || "").replace(/_/g, ".") === cameraIp)
+            .filter(a => (a.ip || a.serial || "").replace(/_/g, ".") === cameraIp)
             .filter((a) => {
                const t = (a.type || "").toLowerCase();
-               const s = (a.scenario || "").toLowerCase();
-               return !t.includes("motion") && !s.includes("motion") && t !== "unknown" && t !== "" && !t.includes("tns1:");
+               return !t.includes("motion") && t !== "unknown" && t !== "" && !t.includes("tns1:");
             })
+            .filter(isAlertAllowed)
             .sort((a, b) => {
               const tA = new Date(a.time || a.received_at).getTime() || 0;
               const tB = new Date(b.time || b.received_at).getTime() || 0;
               return tB - tA;
             })
-            .slice(0, 50);
+            .slice(0, 500);
           setAlerts(filtered);
 
                       // Non-blocking: fetch live snapshots for recent alerts and attach
@@ -207,10 +244,44 @@ export default function SidePlaybackPanel({ camera, onClose, alertSource = "buil
   }, [cameraIp, alertSource, camera]);
 
   useEffect(() => {
+    const alertEnvelope = eventsByTopic.alerts;
+    if (activeTab === "alerts" && alertEnvelope && alertEnvelope.data) {
+      const payload = alertEnvelope.data;
+      const wsType = (payload.type || "").toLowerCase();
+      if (wsType.includes("motion")) return;
+      if (wsType.includes("tns1:")) return;
+      
+      const payloadIp = (payload.ip || payload.serial || "").replace(/_/g, ".");
+      if (payloadIp !== cameraIp) return;
+
+      const newAlert = { ...payload };
+
+      (async () => {
+        try {
+          if (!newAlert.isExternal) {
+            const ip = newAlert.ip || newAlert.serial || "";
+            const snap = await fetchLiveSnapshotForIp(ip);
+            if (snap) newAlert.liveSnapshot = snap;
+          }
+        } catch (e) {}
+        setAlerts((prev) => {
+          const newId = newAlert.alert_id || newAlert._id || newAlert.id;
+          const exists = newId ? prev.some((a) => (a.alert_id || a._id || a.id) === newId) : false;
+          if (exists) return prev;
+          return [newAlert, ...prev].slice(0, 500);
+        });
+      })();
+    }
+  }, [eventsByTopic.alerts, cameraIp, activeTab]);
+
+  useEffect(() => {
     if (activeTab === "alerts") {
       fetchCameraAlerts();
+      if (isWsConnected) return;
+      const interval = setInterval(fetchCameraAlerts, 5000);
+      return () => clearInterval(interval);
     }
-  }, [activeTab, fetchCameraAlerts]);
+  }, [activeTab, fetchCameraAlerts, isWsConnected, cameraIp]);
 
   // ── Fetch Files for this Camera & Date ─────────────────────────
   useEffect(() => {

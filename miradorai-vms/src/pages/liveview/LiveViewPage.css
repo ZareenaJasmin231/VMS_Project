@@ -768,6 +768,8 @@
 }
 
 .lv-alerts-panel__filters-container {
+  position: relative;
+  z-index: 100;
   display: flex;
   flex-direction: column;
   gap: 10px;
