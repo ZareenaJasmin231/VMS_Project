@@ -40,11 +40,11 @@ function getCameraNameByIpOrSerial(ipOrSerial) {
 const GRID_OPTIONS = [
   { id: "2x2", label: "2x2 Grid", rows: 2, cols: 2 },
   { id: "2x3", label: "2x3 Grid", rows: 2, cols: 3 },
-  { id: "3x2", label: "3x2 Grid", rows: 3, cols: 2 },
   { id: "3x3", label: "3x3 Grid", rows: 3, cols: 3 },
   { id: "3x4", label: "3x4 Grid", rows: 3, cols: 4 },
   { id: "4x4", label: "4x4 Grid", rows: 4, cols: 4 },
-  // { id: "8x8", label: "8x8 Grid", rows: 8, cols: 8 }
+  { id: "5x5", label: "5x5 Grid", rows: 5, cols: 5 },
+  { id: "6x6", label: "6x6 Grid", rows: 6, cols: 6 },
   { id: "8x8", label: "8x8 Grid", rows: 8, cols: 8 },
   { id: "spotlight", label: "Spotlight", rows: 4, cols: 4, isSpotlight: true, pageSize: 8 }
 ];
@@ -1132,7 +1132,7 @@ function CameraCell({ device, streamMode, onFullscreen, alertCount, onBadgeClick
           </label>
         </div>
 
-        {alertCount > 0 && (
+        {alertCount > 0 && badgeMode !== "micro" && (
           <div
             className="lv-cam__alert-badge"
             onClick={(e) => {
@@ -2082,7 +2082,7 @@ export default function LiveViewPage() {
       <div className="lv-main-area">
 
         {fsDevice && (
-          <div ref={fsRef} className="lv-fullscreen-overlay" tabIndex={-1}>
+          <div ref={fsRef} className="lv-fullscreen-overlay" tabIndex={-1} onDoubleClick={exitFullscreen}>
             <div className="lv-fullscreen-overlay__bar">
               <div className="lv-fullscreen-overlay__info">
                 {fsLive && <span className="lv-live-dot" />}
