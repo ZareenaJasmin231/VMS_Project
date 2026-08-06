@@ -1114,23 +1114,25 @@ function CameraCell({ device, streamMode, onFullscreen, alertCount, onBadgeClick
       style={{ position: "relative" }}
     >
       <div className="lv-cam__bottom-right-controls">
-        <div className="lv-cam__mute-btn" onClick={(e) => e.stopPropagation()}>
-          <input type="checkbox" id={`mute-${device.id || device.ip}`} className="muteCheckboxInput" checked={isMuted} onChange={() => setIsMuted(!isMuted)} />
-          <label htmlFor={`mute-${device.id || device.ip}`} className="toggleSwitch">
-            <div className="speaker">
-              <svg xmlns="http://www.w3.org/2000/svg" version="1.0" viewBox="0 0 75 75">
-                <path d="M39.389,13.769 L22.235,28.606 L6,28.606 L6,47.699 L21.989,47.699 L39.389,62.75 L39.389,13.769z" style={{stroke:"#fff",strokeWidth:5,strokeLinejoin:"round",fill:"#fff"}}></path>
-                <path d="M48,27.6a19.5,19.5 0 0 1 0,21.4M55.1,20.5a30,30 0 0 1 0,35.6M61.6,14a38.8,38.8 0 0 1 0,48.6" style={{fill:"none",stroke:"#fff",strokeWidth:5,strokeLinecap:"round"}}></path>
-              </svg>
-            </div>
-            <div className="mute-speaker">
-              <svg version="1.0" viewBox="0 0 75 75" stroke="#fff" strokeWidth="5">
-                <path d="m39,14-17,15H6V48H22l17,15z" fill="#fff" strokeLinejoin="round"></path>
-                <path d="m49,26 20,24m0-24-20,24" fill="#fff" strokeLinecap="round"></path>
-              </svg>
-            </div>
-          </label>
-        </div>
+        {badgeMode !== "micro" && (
+          <div className="lv-cam__mute-btn" onClick={(e) => e.stopPropagation()}>
+            <input type="checkbox" id={`mute-${device.id || device.ip}`} className="muteCheckboxInput" checked={isMuted} onChange={() => setIsMuted(!isMuted)} />
+            <label htmlFor={`mute-${device.id || device.ip}`} className="toggleSwitch">
+              <div className="speaker">
+                <svg xmlns="http://www.w3.org/2000/svg" version="1.0" viewBox="0 0 75 75">
+                  <path d="M39.389,13.769 L22.235,28.606 L6,28.606 L6,47.699 L21.989,47.699 L39.389,62.75 L39.389,13.769z" style={{stroke:"#fff",strokeWidth:5,strokeLinejoin:"round",fill:"#fff"}}></path>
+                  <path d="M48,27.6a19.5,19.5 0 0 1 0,21.4M55.1,20.5a30,30 0 0 1 0,35.6M61.6,14a38.8,38.8 0 0 1 0,48.6" style={{fill:"none",stroke:"#fff",strokeWidth:5,strokeLinecap:"round"}}></path>
+                </svg>
+              </div>
+              <div className="mute-speaker">
+                <svg version="1.0" viewBox="0 0 75 75" stroke="#fff" strokeWidth="5">
+                  <path d="m39,14-17,15H6V48H22l17,15z" fill="#fff" strokeLinejoin="round"></path>
+                  <path d="m49,26 20,24m0-24-20,24" fill="#fff" strokeLinecap="round"></path>
+                </svg>
+              </div>
+            </label>
+          </div>
+        )}
 
         {alertCount > 0 && badgeMode !== "micro" && (
           <div
@@ -1155,7 +1157,7 @@ function CameraCell({ device, streamMode, onFullscreen, alertCount, onBadgeClick
           <span className="lv-rec-dot" />
         )}
         <div className="lv-cell__actions">
-          <span className="lv-cell__ip">{device.ip}</span>
+          {badgeMode !== "micro" && <span className="lv-cell__ip">{device.ip}</span>}
 
           {/* PTZ Toggle Button */}
           {(device.ptz === "Yes" || device.ptz === true) && (
@@ -1198,6 +1200,7 @@ function CameraCell({ device, streamMode, onFullscreen, alertCount, onBadgeClick
                 maxBitrate={maxBitrate}
                 badgeMode={badgeMode}
                 muted={isMuted}
+                hideBandwidth={badgeMode === "micro"}
               />
             ) : (
               <HlsPlayer
@@ -2237,7 +2240,7 @@ export default function LiveViewPage() {
                             }
                             onLiveChange={handleLiveChange}
                             maxBitrate={2000}
-                            badgeMode={layout === "8x8" ? "micro" : !["1x1", "2x2"].includes(layout) ? "compact" : "normal"}
+                            badgeMode={["8x8", "6x6"].includes(layout) ? "micro" : !["1x1", "2x2"].includes(layout) ? "compact" : "normal"}
                           />
                         : <EmptyCell index={i} />
                       }
