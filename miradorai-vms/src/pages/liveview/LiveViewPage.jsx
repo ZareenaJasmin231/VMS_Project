@@ -46,6 +46,9 @@ const GRID_OPTIONS = [
   { id: "5x5", label: "5x5 Grid", rows: 5, cols: 5 },
   { id: "6x6", label: "6x6 Grid", rows: 6, cols: 6 },
   { id: "8x8", label: "8x8 Grid", rows: 8, cols: 8 },
+  { id: "15x15", label: "15x15 Grid", rows: 15, cols: 15 },
+  { id: "16x16", label: "16x16 Grid", rows: 16, cols: 16 },
+
   { id: "spotlight", label: "Spotlight", rows: 4, cols: 4, isSpotlight: true, pageSize: 8 }
 ];
 
