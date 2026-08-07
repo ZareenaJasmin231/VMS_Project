@@ -5,6 +5,7 @@ import json
 from datetime import datetime
 from app.core.database import cameras_col, recordings_col, analytics_col, db as _db
 from app.core.security import verify_token
+from app.core.validation import validate_ip_only, validate_rtsp_url
 from app.managers.stream_manager import normalize_stream_name, get_devices_by_ip, devices, save_devices
 from app.services.camera.onvif_service import (
     probe_camera,
@@ -55,7 +56,7 @@ from app.managers.health_manager import analytics_poll_loop as _analytics_poll_l
 from app.core.database import analytics_col, analytics_subs_col
 from app.managers.stream_manager import load_devices, save_camera_to_db, _watchdog_failures
 
-OME_HOST_IP = os.environ.get("OME_HOST_IP", "192.168.126.36")
+OME_HOST_IP = os.environ.get("HOST_IP", "127.0.0.1")
 
 router = APIRouter(prefix="/api", tags=["cameras"])
 features_router = APIRouter(prefix="/api/camera", tags=["camera-features"], dependencies=[Depends(verify_token)])
@@ -313,7 +314,10 @@ async def delete_camera_by_stream(stream_name: str):
 
 @router.put("/cameras/by-ip/{ip}", dependencies=[Depends(verify_token)])
 async def update_camera_by_ip(ip: str, request: Request):
+    validate_ip_only(ip)
     data = await request.json()
+    if "rtsp_url" in data:
+        validate_rtsp_url(data["rtsp_url"])
     actual_updated_fields = []
     
     if cameras_col is not None:
@@ -365,6 +369,7 @@ async def update_camera_by_ip(ip: str, request: Request):
 # ------------------------------------------------------------------
 @router.post("/onvif/probe", dependencies=[Depends(verify_token)])
 async def onvif_probe(req: ProbeRequest):
+    validate_ip_only(req.ip)
     print(f"[ONVIF] Probing {req.ip}:{req.port} ...")
  
     result = await asyncio.to_thread(
@@ -595,6 +600,9 @@ async def onvif_probe(req: ProbeRequest):
 @router.post("/streams/register", dependencies=[Depends(verify_token)])
 @router.post("/streams/register-direct", dependencies=[Depends(verify_token)])
 async def register_rtsp_stream(req: StreamRegisterRequest):
+    validate_rtsp_url(req.rtsp_url)
+    if req.ip:
+        validate_ip_only(req.ip)
  
     rtsp = req.rtsp_url.strip()
     print(f"[RTSP] Registering stream: {rtsp}")
