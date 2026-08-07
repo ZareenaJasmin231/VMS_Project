@@ -791,6 +791,11 @@ async def register_rtsp_stream(req: StreamRegisterRequest):
 # ------------------------------------------------------------------
 @router.post("/streams/assign", dependencies=[Depends(verify_token)])
 async def assign_streams(req: StreamAssignRequest):
+    validate_ip_only(req.ip)
+    if req.live_rtsp:
+        validate_rtsp_url(req.live_rtsp)
+    if req.recording_rtsp:
+        validate_rtsp_url(req.recording_rtsp)
     import time
 
     host        = req.ip.strip()
@@ -1158,6 +1163,12 @@ async def get_analytics_events(ip: str, limit: int = 50):
 
 @router.post("/devices/", dependencies=[Depends(verify_token)])
 async def add_device(device: dict):
+    if "ip" in device or "ip_address" in device:
+        validate_ip_only(device.get("ip") or device.get("ip_address"))
+    if "rtsp_url" in device:
+        validate_rtsp_url(device.get("rtsp_url"))
+    if "recording_rtsp" in device:
+        validate_rtsp_url(device.get("recording_rtsp"))
     print("DEVICE REGISTERED:", device)
     stream_id = device.get("stream_key") or device.get("ip_address")
     if not stream_id:
