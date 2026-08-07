@@ -61,8 +61,32 @@ async def auth_login(req: LoginRequest, request: Request, background_tasks: Back
 
 
     if not user:
+        if auth_logs_col is not None:
+            try:
+                auth_logs_col.insert_one({
+                    "type":      "login_failed",
+                    "email":     req.email,
+                    "role":      None,
+                    "timestamp": datetime.utcnow().isoformat(),
+                    "ip":        request.client.host if request.client else None,
+                    "reason":    "user_not_found"
+                })
+            except Exception:
+                pass
         raise HTTPException(status_code=401, detail="Invalid email or password")
     if not verify_password(req.password, user["password"]):
+        if auth_logs_col is not None:
+            try:
+                auth_logs_col.insert_one({
+                    "type":      "login_failed",
+                    "email":     user["email"],
+                    "role":      user.get("role"),
+                    "timestamp": datetime.utcnow().isoformat(),
+                    "ip":        request.client.host if request.client else None,
+                    "reason":    "invalid_password"
+                })
+            except Exception:
+                pass
         raise HTTPException(status_code=401, detail="Invalid email or password")
     
 
