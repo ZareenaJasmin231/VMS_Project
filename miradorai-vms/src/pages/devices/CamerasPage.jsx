@@ -152,11 +152,14 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
     const camsToRemove = cameras.filter(c => groupChecked.includes(c.id));
     for (const cam of camsToRemove) {
       try {
-        const ip  = encodeURIComponent(cam.ip);
         const token = localStorage.getItem("miradorai_token");
-        const res = await fetch(`${API_BASE}/api/cameras/by-ip/${ip}/delete`, { 
+        const res = await fetch(`${API_BASE}/api/cameras/delete-by-rtsp`, { 
           method: "DELETE",
-          headers: { "Authorization": "Bearer " + (token || "") }
+          headers: { 
+            "Authorization": "Bearer " + (token || ""),
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ rtsp_url: cam.rtsp_url })
         });
         const data = res.ok ? await res.json() : null;
         console.log("✅ Deleted from DB:", data);
@@ -308,11 +311,14 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
     const camsToRemove = cameras.filter(c => camIdsToRemove.includes(c.id));
     for (const cam of camsToRemove) {
       try {
-        const ip  = encodeURIComponent(cam.ip);
         const token = localStorage.getItem("miradorai_token");
-        const res = await fetch(`${API_BASE}/api/cameras/by-ip/${ip}/delete`, { 
+        const res = await fetch(`${API_BASE}/api/cameras/delete-by-rtsp`, { 
           method: "DELETE",
-          headers: { "Authorization": "Bearer " + (token || "") }
+          headers: { 
+            "Authorization": "Bearer " + (token || ""),
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ rtsp_url: cam.rtsp_url })
         });
         const data = await res.ok ? await res.json() : null;
         console.log("✅ Deleted from DB:", data);

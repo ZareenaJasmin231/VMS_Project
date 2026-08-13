@@ -550,9 +550,10 @@ export default function AddDevicesPage({ onNavigate }) {
     const device = devices.find((d) => d.id === deviceId);
     if (!device) return;
     try {
-      await fetch(`${STREAM_API}/api/cameras/by-ip/${device.ip}/delete`, { 
+      await fetch(`${STREAM_API}/api/cameras/delete-by-rtsp`, { 
         method: "DELETE",
-        headers: getAuthHeaders()
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ rtsp_url: device.rtsp_url })
       });
     } catch (err) {
       console.error("❌ Failed to delete from DB:", err);

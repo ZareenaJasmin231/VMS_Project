@@ -155,7 +155,7 @@ export default function VirtualMapView({
             isExpanded={isExpanded}
             isOnline={isOnline}
             isRecording={isRecording}
-            alertCount={alertCounts[cam.ip] || 0}
+            alertCount={isOnline ? (alertCounts[cam.ip] || 0) : 0}
             onExpand={() => onExpand(cam.id)}
             onClose={onClose}
             wrap={wrap}

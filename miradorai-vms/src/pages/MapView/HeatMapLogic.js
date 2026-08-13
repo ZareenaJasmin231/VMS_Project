@@ -161,6 +161,7 @@ export function drawHeatmapToContext(
       }
 
       let onlineCoverage = 0;
+      let insideOfflineCam = false;
       for (const marker of markers) {
         if (!insideCone(imgX, imgY, marker)) continue;
 
@@ -173,8 +174,14 @@ export function drawHeatmapToContext(
         }
 
         const cam = cameras.find(c => c.id === marker.camId);
-        if (cam?.status === "online") onlineCoverage++;
+        if (cam?.status === "online") {
+          onlineCoverage++;
+        } else {
+          insideOfflineCam = true;
+        }
       }
+
+      if (insideOfflineCam) continue;
 
       const level = onlineCoverage > 0 ? 1 : 0;
       foundLevels.add(level);

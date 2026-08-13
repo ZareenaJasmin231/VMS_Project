@@ -303,7 +303,8 @@ const MapCanvas = forwardRef(function MapCanvas(
         let g;
         if (!online) {
           g = ctx.createRadialGradient(originX, originY, 0, originX, originY, fovLen);
-          g.addColorStop(0, "rgba(110,110,110,0.14)");
+          g.addColorStop(0, "rgba(110,110,110,0.60)");
+          g.addColorStop(0.55, "rgba(110,110,110,0.26)");
           g.addColorStop(1, "rgba(110,110,110,0)");
         } else {
           g = ctx.createRadialGradient(originX, originY, 0, originX, originY, fovLen);
@@ -327,7 +328,7 @@ const MapCanvas = forwardRef(function MapCanvas(
         name: m.camName || m.camId, ip: m.camIp || "", status: "offline",
       };
       const online = cam.status === "online";
-      const hasAlert = alertCounts && alertCounts[cam.ip] > 0;
+      const hasAlert = online && alertCounts && alertCounts[cam.ip] > 0;
       const isHighlit = m.camId === highlightedCamId || i === selectedIdx;
       const col = hasAlert ? "#E24B4A" : (online ? (isHighlit ? "#5aabf0" : "#1D9E75") : "#555");
       const R = 8;   // glow / hit radius

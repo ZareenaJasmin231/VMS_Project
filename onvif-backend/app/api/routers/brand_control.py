@@ -317,7 +317,7 @@ async def get_motion_detection(ip: str, channel: int = 1,
 
 
 @brand_router.post("/motion/set")
-async def set_motion_detection(req: MotionRequest):
+async def set_motion_detection(req: MotionDetectRequest):
     cameras_col = _get_cameras_col()
     brand = _resolve_brand(req.ip, req.brand, cameras_col)
     print(f"[BRAND] SET motion {req.ip} enabled={req.enabled} brand={brand}")

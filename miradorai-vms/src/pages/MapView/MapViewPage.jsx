@@ -87,9 +87,10 @@ function normalizeCams(data) {
     name:   d.device_name || d.name || `Camera @ ${d.ip}`,
     ip:     d.ip,
     ws_url: d.ws_url,
-    status: (d.stream_status === "offline" || d.status === "offline") ? "offline" : "online",
+    status: (d.stream_status === "offline" || d.stream_status === "unavailable" || d.status === "offline" || d.enabled === false) ? "offline" : "online",
     group_id: d.group_id || "default",
     stream_key: d.stream_key || d.stream_key,
+    enabled: d.enabled !== false,
   }));
 }
 
@@ -557,7 +558,6 @@ function ZoneSidebarItem({
             title="Rename zone"
             style={{
               fontSize: "15px",
-              color: "var(--text-muted)",
               cursor: "pointer",
               padding: "2px",
               flexShrink: 0,
@@ -575,7 +575,6 @@ function ZoneSidebarItem({
             title="Delete zone"
             style={{
               fontSize: "16px",
-              color: "var(--text-muted)",
               cursor: "pointer",
               padding: "2px",
               flexShrink: 0,
@@ -721,7 +720,13 @@ export default function MapViewPage() {
   const [ctxMenu,          setCtxMenu]          = useState({ visible: false, x: 0, y: 0, idx: -1 });
   const [streamCam,        setStreamCam]        = useState(null);
   const [showHeatmap,      setShowHeatmap]      = useState(false);
-  const [virtualMode,      setVirtualMode]      = useState(false);
+  const [virtualMode,      setVirtualMode]      = useState(() => {
+    return localStorage.getItem("miradorai_virtualMode") === "true";
+  });
+
+  useEffect(() => {
+    localStorage.setItem("miradorai_virtualMode", String(virtualMode));
+  }, [virtualMode]);
   const [expandedCamId,    setExpandedCamId]    = useState(null);
   const [inspectorExpanded, setInspectorExpanded] = useState(true);
   const [inspectorTab,      setInspectorTab]      = useState("cameras");

@@ -28,7 +28,7 @@ export default function AiAnalyticsPage() {
       >
         <div className="ai-analytics-content">
           <iframe 
-            src="http://192.168.126.201:3000" 
+            src="http://192.168.126.201:3000/dashboard" 
             title="MIRADOR AI Analytics Dashboard"
             className="ai-analytics-iframe"
           />

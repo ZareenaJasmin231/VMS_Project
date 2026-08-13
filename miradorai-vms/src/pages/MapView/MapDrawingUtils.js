@@ -252,8 +252,9 @@ export function renderMapViewSnapshot(ctx, options) {
 
       const g = ctx.createRadialGradient(m.x, m.y, 0, m.x, m.y, fovLen);
       if (!online) {
-        g.addColorStop(0, "rgba(110,110,110,0.30)");
-        g.addColorStop(1, "rgba(110,110,110,0.05)");
+        g.addColorStop(0, "rgba(110,110,110,0.45)");
+        g.addColorStop(0.6, "rgba(110,110,110,0.15)");
+        g.addColorStop(1, "rgba(110,110,110,0.02)");
       } else {
         g.addColorStop(0, `rgba(${rgb},0.45)`);
         g.addColorStop(0.6, `rgba(${rgb},0.15)`);

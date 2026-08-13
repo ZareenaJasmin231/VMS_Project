@@ -6,7 +6,7 @@ from app.core.database import mongo_client
 from datetime import datetime, timezone, timedelta
 
 # ── Config ─────────────────────────────────────────────────────────
-MQTT_BROKER  = "192.168.126.36"
+MQTT_BROKER  = "192.168.126.200"
 MQTT_PORT    = int(os.environ.get("MQTT_PORT", 1883))
 
 # Topics to subscribe:
@@ -20,7 +20,7 @@ MQTT_TOPICS  = [
 ]
 
 MONGO_URI    = os.environ.get("MONGO_URI", "mongodb://localhost:27017")
-MONGO_DB     = os.environ.get("MONGO_DB_NAME")
+MONGO_DB     = os.environ.get("MONGO_DB_NAME", "vms_database")
 MONGO_COL    = "mqtt_logs"
 
 SKIP_TOPICS  = {"connection", "status", "birth", "lwt"}
@@ -28,7 +28,6 @@ SKIP_TOPICS  = {"connection", "status", "birth", "lwt"}
 # ───────────────────────────────────────────────────────────────────
 IST = timezone(timedelta(hours=5, minutes=30))
 
-mongo_client = mongo_client
 collection   = mongo_client[MONGO_DB][MONGO_COL]
 
 
@@ -104,8 +103,11 @@ def on_message(client, userdata, msg):
             "message":          {"data": payload},
         }
 
-        result = collection.insert_one(document)
-        print(f"[{datetime.now(IST).strftime('%Y-%m-%d %H:%M:%S')}] [SAVED/{brand.upper()}] {result.inserted_id} | ip={ip_addr} | type={document['type']}")
+        try:
+            result = collection.insert_one(document)
+            print(f"[{datetime.now(IST).strftime('%Y-%m-%d %H:%M:%S')}] [SAVED/{brand.upper()}] {result.inserted_id} | ip={ip_addr} | type={document['type']}")
+        except Exception as e:
+            print(f"[{datetime.now(IST).strftime('%Y-%m-%d %H:%M:%S')}] [DB ERROR/{brand.upper()}] Failed to insert document: {e}")
         return
 
     # ── External AI System alerts ──────────────────────────
@@ -154,8 +156,11 @@ def on_message(client, userdata, msg):
             "message":         {"data": payload},
         }
 
-        result = collection.insert_one(document)
-        print(f"[{datetime.now(IST).strftime('%Y-%m-%d %H:%M:%S')}] [SAVED/AI] {result.inserted_id} | ip={cam_ip} | type={alert_type}")
+        try:
+            result = collection.insert_one(document)
+            print(f"[{datetime.now(IST).strftime('%Y-%m-%d %H:%M:%S')}] [SAVED/AI] {result.inserted_id} | ip={cam_ip} | type={alert_type}")
+        except Exception as e:
+            print(f"[{datetime.now(IST).strftime('%Y-%m-%d %H:%M:%S')}] [DB ERROR/AI] Failed to insert document: {e}")
         return
 
     # ── Axis-native MQTT events (existing logic) ────────────────────
@@ -244,8 +249,11 @@ def on_message(client, userdata, msg):
         }
     }
 
-    result = collection.insert_one(document)
-    print(f"[{datetime.now(IST).strftime('%Y-%m-%d %H:%M:%S')}] [SAVED] {result.inserted_id} | type={event_type} | scenario={event_name}")
+    try:
+        result = collection.insert_one(document)
+        print(f"[{datetime.now(IST).strftime('%Y-%m-%d %H:%M:%S')}] [SAVED] {result.inserted_id} | type={event_type} | scenario={event_name}")
+    except Exception as e:
+        print(f"[{datetime.now(IST).strftime('%Y-%m-%d %H:%M:%S')}] [DB ERROR] Failed to insert document: {e}")
 
 
 # ── Run Client ─────────────────────────────────────────────────────

@@ -22,6 +22,7 @@ from app.core.database import mongo_client
 from app.services.ai import mask_service
 
 from app.services.camera.onvif_service import get_camera_system_time
+from recorder.segment_uploader import SegmentUploader, BUFFER_DIR
 
 # ── Default recordings directory (can be overridden at runtime) ──
 _DEFAULT_RECORDINGS_DIR = os.environ.get("RECORDINGS_DIR", "/recording")
@@ -298,6 +299,7 @@ class CameraRecorder:
         self.current_chunk_duration = 300
         
         self.stop_event = threading.Event()
+        self.uploader = None
 
     def is_alive(self) -> bool:
         return self.state in ("RECORDING", "TERMINATING")
@@ -535,8 +537,16 @@ class CameraRecorder:
                     "-map",            "0:v",
                     "-map",            "0:a?",
                 ])
-            backend_port = os.environ.get("BACKEND_PORT", 8000)
-            http_url = f"http://127.0.0.1:{backend_port}/_seg/{self.stream_name}/{date_str}/{self.time_str}/%03d"
+            backend_port = int(os.environ.get("BACKEND_PORT", 8000))
+            if not self.uploader or not self.uploader.is_alive():
+                self.uploader = SegmentUploader(self.stream_name, backend_port)
+                self.uploader.start()
+            self.uploader.is_recording = True
+            
+            local_buffer = os.path.join(BUFFER_DIR, self.stream_name, date_str, self.time_str)
+            os.makedirs(local_buffer, exist_ok=True)
+            out_pattern = os.path.join(local_buffer, "%03d.ts").replace("\\", "/")
+            
             cmd.extend([
                 "-f",              "segment",
                 "-segment_time",   "10",
@@ -544,12 +554,7 @@ class CameraRecorder:
                 "-segment_format", "mpegts",
                 "-movflags", "+faststart",
                 "-avoid_negative_ts", "make_zero",
-                "-method", "PUT",
-                "-http_persistent", "1",
-                "-reconnect", "1",
-                "-reconnect_streamed", "1",
-                "-reconnect_delay_max", "5",
-                http_url
+                out_pattern
             ])
         else:
             cmd = [
@@ -575,8 +580,16 @@ class CameraRecorder:
                     "-map",            "0:v",
                     "-map",            "0:a?",
                 ])
-            backend_port = os.environ.get("BACKEND_PORT", 8000)
-            http_url = f"http://127.0.0.1:{backend_port}/_seg/{self.stream_name}/{date_str}/{self.time_str}/%03d"
+            backend_port = int(os.environ.get("BACKEND_PORT", 8000))
+            if not self.uploader or not self.uploader.is_alive():
+                self.uploader = SegmentUploader(self.stream_name, backend_port)
+                self.uploader.start()
+            self.uploader.is_recording = True
+            
+            local_buffer = os.path.join(BUFFER_DIR, self.stream_name, date_str, self.time_str)
+            os.makedirs(local_buffer, exist_ok=True)
+            out_pattern = os.path.join(local_buffer, "%03d.ts").replace("\\", "/")
+            
             cmd.extend([
                 "-f",              "segment",
                 "-segment_time",   "10",
@@ -584,12 +597,7 @@ class CameraRecorder:
                 "-segment_format", "mpegts",
                 "-movflags", "+faststart",
                 "-avoid_negative_ts", "make_zero",
-                "-method", "PUT",
-                "-http_persistent", "1",
-                "-reconnect", "1",
-                "-reconnect_streamed", "1",
-                "-reconnect_delay_max", "5",
-                http_url
+                out_pattern
             ])
 
         _actively_recording_streams.add(self.stream_name)
@@ -622,6 +630,8 @@ class CameraRecorder:
                 pass
             self.state = "TERMINATING"
             self.terminate_start = time.time()
+            if self.uploader:
+                self.uploader.is_recording = False
         else:
             self.state = "IDLE"
 

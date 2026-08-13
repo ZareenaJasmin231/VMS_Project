@@ -869,7 +869,7 @@ const CameraStreamPanel = ({ d, liveData, isRefreshing, onRefresh }) => {
           title="Refresh stream data"
           style={{
             background: 'none', border: 'none', cursor: 'pointer',
-            color: isRefreshing ? '#4b5563' : '#6366f1', padding: '2px 4px',
+            color: isRefreshing ? 'var(--text-muted)' : 'var(--accent)', padding: '2px 4px',
             display: 'flex', alignItems: 'center', gap: 4, fontSize: 14
           }}>
           <Icon type="refresh" size={12}/>
@@ -879,9 +879,9 @@ const CameraStreamPanel = ({ d, liveData, isRefreshing, onRefresh }) => {
 
       {!hasAnyStreamData && !isRefreshing && (
         <div style={{
-          background: '#1f2937', borderRadius: 6, padding: '8px 10px',
-          color: "rgba(255, 255, 255, 0.5)", fontSize: 14, marginBottom: 8,
-          border: '1px solid #374151', display: 'flex', alignItems: 'center', gap: 6
+          background: 'var(--bg-secondary)', borderRadius: 6, padding: '8px 10px',
+          color: "var(--text-muted)", fontSize: 14, marginBottom: 8,
+          border: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', gap: 6
         }}>
           <Icon type="alert" size={12}/>
           Stream data not yet polled. Click Refresh or wait for the next cycle.
@@ -891,39 +891,39 @@ const CameraStreamPanel = ({ d, liveData, isRefreshing, onRefresh }) => {
       <div className="stream-grid">
         <div className="stream-stat">
           <span className="stream-label">Bitrate</span>
-          <span className="stream-val" style={{ color: cam.stream_bitrate_mbps != null ? '#e5e7eb' : '#4b5563' }}>
+          <span className="stream-val" style={{ color: cam.stream_bitrate_mbps != null ? 'var(--text-primary)' : 'var(--text-muted)' }}>
             {cam.stream_bitrate_mbps != null ? `${cam.stream_bitrate_mbps} Mbps` : '—'}
           </span>
         </div>
         <div className="stream-stat">
           <span className="stream-label">FPS</span>
-          <span className="stream-val" style={{ color: cam.stream_fps != null ? '#e5e7eb' : '#4b5563' }}>
+          <span className="stream-val" style={{ color: cam.stream_fps != null ? 'var(--text-primary)' : 'var(--text-muted)' }}>
             {cam.stream_fps != null ? cam.stream_fps : '—'}
           </span>
         </div>
         <div className="stream-stat">
           <span className="stream-label">Status</span>
           <span className={`stream-val ${cam.stream_status === 'healthy' ? 'txt-green' : cam.stream_status ? 'txt-red' : ''}`}
-                style={{ color: !cam.stream_status ? '#4b5563' : undefined }}>
+                style={{ color: !cam.stream_status ? 'var(--text-muted)' : undefined }}>
             {cam.stream_status || '—'}
           </span>
         </div>
         <div className="stream-stat">
           <span className="stream-label">Resolution</span>
-          <span className="stream-val" style={{ color: cam.stream_resolution != null ? '#e5e7eb' : '#4b5563' }}>
-            {cam.stream_resolution || '—'}
+          <span className="stream-val" style={{ color: cam.stream_resolution != null ? 'var(--text-primary)' : 'var(--text-muted)' }}>
+            {cam.stream_resolution != null ? cam.stream_resolution : '—'}
           </span>
         </div>
         <div className="stream-stat">
           <span className="stream-label">Codec</span>
-          <span className="stream-val" style={{ color: cam.codec != null ? '#e5e7eb' : '#4b5563' }}>
-            {cam.codec || '—'}
+          <span className="stream-val" style={{ color: cam.codec != null ? 'var(--text-primary)' : 'var(--text-muted)' }}>
+            {cam.codec != null ? cam.codec : '—'}
           </span>
         </div>
         <div className="stream-stat">
           <span className="stream-label">Dropped Frames</span>
           <span className={`stream-val ${cam.dropped_frames > 0 ? 'txt-yellow' : cam.dropped_frames === 0 ? 'txt-green' : ''}`}
-                style={{ color: cam.dropped_frames == null ? '#4b5563' : undefined }}>
+                style={{ color: cam.dropped_frames == null ? 'var(--text-muted)' : undefined }}>
             {cam.dropped_frames != null ? cam.dropped_frames : '—'}
           </span>
         </div>
@@ -947,12 +947,12 @@ const CameraStreamPanel = ({ d, liveData, isRefreshing, onRefresh }) => {
       {(cam.onvif_url || cam.rtsp_url) && (
         <div style={{ marginTop: 8 }}>
           {cam.onvif_url && (
-            <div className="detail-row" style={{ fontSize: 13, color: "rgba(255, 255, 255, 0.5)" }}>
+            <div className="detail-row" style={{ fontSize: 13, color: "var(--text-muted)" }}>
               <label>ONVIF URL</label><span style={{ wordBreak: 'break-all' }}>{cam.onvif_url}</span>
             </div>
           )}
           {cam.rtsp_url && (
-            <div className="detail-row" style={{ fontSize: 13, color: "rgba(255, 255, 255, 0.5)" }}>
+            <div className="detail-row" style={{ fontSize: 13, color: "var(--text-muted)" }}>
               <label>RTSP URL</label><span style={{ wordBreak: 'break-all' }}>{cam.rtsp_url}</span>
             </div>
           )}
@@ -960,7 +960,7 @@ const CameraStreamPanel = ({ d, liveData, isRefreshing, onRefresh }) => {
       )}
 
       {cam.stream_last_polled && (
-        <div style={{ marginTop: 6, fontSize: 13, color: "rgba(255, 255, 255, 0.5)", textAlign: 'right' }}>
+        <div style={{ marginTop: 6, fontSize: 13, color: "var(--text-muted)", textAlign: 'right' }}>
           Last polled: {new Date(cam.stream_last_polled).toLocaleTimeString()}
         </div>
       )}
