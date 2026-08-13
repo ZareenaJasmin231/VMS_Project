@@ -15,6 +15,14 @@ import useActivityLogger from "../../hooks/useActivityLogger";
 
 
 const STREAM_API = import.meta.env.VITE_API_URL;
+// Map backend status values to frontend-expected values for StatusBadge
+function normalizeStatus(raw) {
+  if (!raw) return "Offline";
+  const s = raw.toLowerCase();
+  if (["online", "streaming", "active", "running"].includes(s)) return "Online";
+  if (["offline", "stopped", "error", "not_registered"].includes(s)) return "Offline";
+  return raw;
+}
 
 function getAuthHeaders() {
   const t = localStorage.getItem("miradorai_token");
@@ -139,7 +147,7 @@ function ContextMenu({ x, y, onEdit, onRemove, onStreamProfiles, onClose }) {
 
 // ─── Edit Device Modal ────────────────────────────────────────────────────────
 // Group reassignment is kept here — useful for moving a camera after the fact.
-function EditDeviceModal({ device, groups, onClose, onSave }) {
+export function EditDeviceModal({ device, groups, onClose, onSave }) {
   const { theme } = useTheme();
   const [form, setForm] = useState({
     device_name: device.device_name || device.name || "",
@@ -394,6 +402,7 @@ export default function AddDevicesPage({ onNavigate }) {
                 return {
                   ...localCam,
                   ...match,
+                  status: normalizeStatus(match.status || localCam.status),
                   group_id: localCam.group_id && localCam.group_id !== "default" ? localCam.group_id : (match.group_id || "default"),
                 };
               }
@@ -405,7 +414,7 @@ export default function AddDevicesPage({ onNavigate }) {
               (b.id && localCam.id && b.id === localCam.id) ||
               (b._id && localCam.id && b._id === localCam.id) ||
               (!b.stream_key && !b.id && b.ip === localCam.ip)
-            ));
+            )).map((b) => ({ ...b, status: normalizeStatus(b.status) }));
             return [...updated, ...backendOnly];
           });
         }
