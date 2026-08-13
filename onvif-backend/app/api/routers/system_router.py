@@ -206,7 +206,8 @@ def health():
         "camera_usage": {
             "used": active_cams,
             "licensed": max_cams
-        }
+        },
+        "cluster_mode": os.environ.get("CLUSTER_MODE") == "1"
     })
 
 @router.get("/discover-devices", dependencies=[Depends(verify_token)])

@@ -590,11 +590,11 @@ def kill_orphaned_ffmpeg_processes():
 def calculate_hardware_scaling_report(target_camera_counts=None):
     """
     Calculates empirical baseline usage per camera and projects hardware specifications
-    required for deployment targets (e.g. 10, 25, 50, 100, 250 cameras) specifically
+    required for deployment targets (e.g. 10, 25, 50, 100, 250, 500, 1000 cameras) specifically
     tailored for CPU-only software mode or GPU accelerated mode.
     """
     if target_camera_counts is None:
-        target_camera_counts = [10, 25, 50, 100, 250]
+        target_camera_counts = [10, 25, 50, 100, 250, 500, 1000]
 
     gpu_info = _check_gpu_availability()
     metrics = get_vms_process_metrics()
@@ -611,10 +611,19 @@ def calculate_hardware_scaling_report(target_camera_counts=None):
     avg_cpu_per_camera = round((ffmpeg_cpu_total + worker_cpu_total) / active_stream_count, 2)
     avg_ram_mb_per_camera = round((ffmpeg_ram_total + worker_ram_total) / active_stream_count, 1)
     
-    if avg_cpu_per_camera < 3.0:
-        avg_cpu_per_camera = 6.0
+    # Convert the measured system-wide percentage back to absolute logical cores
+    num_cores = psutil.cpu_count() or 1
+    measured_cores_per_camera = (avg_cpu_per_camera / 100.0) * num_cores
+    
+    # Set a sane minimum of 0.05 logical cores (5% of a core) per camera if idle
+    if measured_cores_per_camera < 0.05:
+        measured_cores_per_camera = 0.05
+
+    # Update avg_cpu_per_camera for UI display (show it as percentage of a single core for clarity)
+    avg_cpu_per_camera = round(measured_cores_per_camera * 100, 1)
+
     if avg_ram_mb_per_camera < 30.0:
-        avg_ram_mb_per_camera = 120.0
+        avg_ram_mb_per_camera = 90.0
 
     infra_ram_base_gb = 4.0
     infra_cpu_base_cores = 2.0
@@ -624,7 +633,8 @@ def calculate_hardware_scaling_report(target_camera_counts=None):
 
     scaling_projections = []
     for count in target_camera_counts:
-        cpu_cores_needed = max(4, int(infra_cpu_base_cores + (count * 0.4)))
+        # Scale CPU dynamically based on the true baseline (plus 20% safety margin)
+        cpu_cores_needed = max(4, int(infra_cpu_base_cores + (count * measured_cores_per_camera * 1.2)))
         total_ram_mb_needed = (count * avg_ram_mb_per_camera) + (infra_ram_base_gb * 1024)
         recommended_ram_gb = max(16, int((total_ram_mb_needed / 1024) * 1.25))
         

@@ -8,6 +8,7 @@ import PTZControls from "../../components/shared/PTZControls";
 import { useAuth } from "../../context/AuthContext";
 import { useTheme } from "../../context/ThemeContext";
 import "./LiveViewPage.css";
+import { EditDeviceModal } from "../devices/AddDevicesPage";
 import { useWebSocket } from "../../hooks/useWebSocket";
 
 const API = import.meta.env.VITE_API_URL || "";
@@ -48,7 +49,6 @@ const GRID_OPTIONS = [
   { id: "8x8", label: "8x8 Grid", rows: 8, cols: 8 },
   { id: "15x15", label: "15x15 Grid", rows: 15, cols: 15 },
   { id: "16x16", label: "16x16 Grid", rows: 16, cols: 16 },
-
   { id: "spotlight", label: "Spotlight", rows: 4, cols: 4, isSpotlight: true, pageSize: 8 }
 ];
 
@@ -567,7 +567,7 @@ function AlertsPanel({ isOpen, onAlertCountUpdate, onTotalAlertCountChange, live
         const filtered = (data.alerts || [])
           .filter((a) => {
              const t = (a.type || "").toLowerCase();
-             return t !== "unknown" && t !== "" && !t.includes("tns1:") && !t.includes("motion");
+             return t !== "unknown" && t !== "";
           })
           .filter(isAlertAllowed);
         const perCamCounts = {};
@@ -681,7 +681,7 @@ function AlertsPanel({ isOpen, onAlertCountUpdate, onTotalAlertCountChange, live
       const payload = alertEnvelope.data;
       // Skip motion alerts from built-in feed
       const wsType = (payload.type || "").toLowerCase();
-      if (wsType.includes("motion")) return;
+
       // Skip alerts from disabled or deleted cameras
       const wsIp = normalizeIp(payload.ip || payload.serial || "");
       if (wsIp && allowedIps.size > 0 && !allowedIps.has(wsIp)) return;
@@ -1083,7 +1083,7 @@ function AlertsPanel({ isOpen, onAlertCountUpdate, onTotalAlertCountChange, live
 // ── CameraCell ────────────────────────────────────────────────────
 // maxBitrate is in Kbps — passed into WebRTCPlayer as a real SDP b=TIAS constraint.
 // Grid default: 2000 Kbps (2 Mbps). Fullscreen: 10000 Kbps (10 Mbps).
-function CameraCell({ device, streamMode, onFullscreen, alertCount, onBadgeClick, isRecording, onLiveChange, maxBitrate, badgeMode }) {
+function CameraCell({ device, streamMode, onFullscreen, alertCount, onBadgeClick, isRecording, onLiveChange, maxBitrate, badgeMode, hideName }) {
   const showRec = localStorage.getItem("miradorai_show_rec_ind") !== "false";
   const [isLive, setIsLive] = useState(false);
   const [localStreamMode, setLocalStreamMode] = useState(streamMode);
@@ -1104,11 +1104,13 @@ function CameraCell({ device, streamMode, onFullscreen, alertCount, onBadgeClick
 
   // Calculate the target stream key based on stored codec metadata.
   // We prefer the sub_stream_key for grid cells to save bandwidth.
-  // If the camera is known to be H.265, we default to the transcoder path (_h264)
-  // to avoid the initial 400 Bad Request error. The player will handle fallback.
-  const baseStreamKey = device.sub_stream_key || device.stream_key || device.stream_key || device.live_stream || (device.ip ? device.ip.replace(/\./g, "_") : "");
+  const mainStreamKey = device.stream_key || device.live_stream || (device.ip ? device.ip.replace(/\./g, "_") : "");
+  const baseStreamKey = device.sub_stream_key || mainStreamKey;
   const activeCodec = String(device.live_codec || device.codec || "").toUpperCase();
   const isH265 = ["H.265", "H265", "HEVC"].includes(activeCodec);
+  
+  // Use the transcoded path for the base stream (sub stream) if it's H.265.
+  // MediaMTX runOnDemand will handle transcoding the sub stream dynamically.
   const streamKeyToUse = isH265 ? `${baseStreamKey}_h264` : baseStreamKey;
 
   return (
@@ -1154,7 +1156,7 @@ function CameraCell({ device, streamMode, onFullscreen, alertCount, onBadgeClick
 
       <div className="lv-cell__header">
         {isLive && <span className="lv-live-dot" />}
-        <span className="lv-cell__name">{device.name || device.device_name}</span>
+        {!hideName && <span className="lv-cell__name">{device.name || device.device_name}</span>}
        
         {isLive && showRec && isRecording && (
           <span className="lv-rec-dot" />
@@ -1337,8 +1339,54 @@ function SequenceDropdown({ value, onChange, sequences }) {
   );
 }
 
+// ── Context Menu ──────────────────────────────────────────────────
+function ContextMenu({ x, y, onEdit, onStreamProfiles, onClose }) {
+  const menuRef = useRef(null);
+
+  useEffect(() => {
+    const handle = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) onClose();
+    };
+    document.addEventListener("mousedown", handle);
+    document.addEventListener("contextmenu", handle);
+    return () => {
+      document.removeEventListener("mousedown", handle);
+      document.removeEventListener("contextmenu", handle);
+    };
+  }, [onClose]);
+
+  return (
+    <div
+      ref={menuRef}
+      className="ctx-menu"
+      style={{
+        position: "fixed",
+        top: Math.min(y, window.innerHeight - 150),
+        left: Math.min(x, window.innerWidth - 180),
+        zIndex: 9999,
+      }}
+    >
+      <button className="ctx-item" onClick={() => { onStreamProfiles(); onClose(); }}>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14" style={{ flexShrink: 0 }}>
+          <path d="M15 10l4.553-2.276A1 1 0 0121 8.723v6.554a1 1 0 01-1.447.894L15 14"/>
+          <rect x="1" y="6" width="15" height="12" rx="2"/>
+        </svg>
+        Stream Profiles
+      </button>
+      <div className="ctx-divider" />
+      <button className="ctx-item" onClick={() => { onEdit(); onClose(); }}>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14" style={{ flexShrink: 0 }}>
+          <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
+          <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
+        </svg>
+        Edit
+      </button>
+    </div>
+  );
+}
+
 // ── LiveViewPage ──────────────────────────────────────────────────
-export default function LiveViewPage() {
+export default function LiveViewPage({ onNavigate }) {
   const { user } = useAuth();
   const { theme } = useTheme();
   const [devices,      setDevices]      = useState(loadDevices);
@@ -1386,6 +1434,54 @@ export default function LiveViewPage() {
   const [fsLive,       setFsLive]       = useState(false);
   const [fsStreamMode, setFsStreamMode] = useState(streamMode);
   const [fsPtzOpen,    setFsPtzOpen]    = useState(false);
+
+  const [ctxMenu, setCtxMenu] = useState(null);
+  const [editDevice, setEditDevice] = useState(null);
+  const [groups] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("miradorai_groups") || "[]"); }
+    catch { return []; }
+  });
+
+  const handleRowContextMenu = useCallback((e, deviceId) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setCtxMenu({ x: e.clientX, y: e.clientY, deviceId });
+  }, []);
+
+  const handleEditDevice = useCallback((deviceId) => {
+    const device = devices.find((d) => d.id === deviceId);
+    if (device) setEditDevice(device);
+  }, [devices]);
+
+  const handleSaveDevice = useCallback(async (updated) => {
+    try {
+      if (updated.device_name) {
+        updated.name = updated.device_name;
+      }
+      const { name, ...payload } = updated;
+      await fetch(`${API}/api/cameras/by-ip/${updated.ip}`, {
+        method: "PUT",
+        headers: getAuthHeaders(),
+        body: JSON.stringify(payload),
+      });
+    } catch (e) {
+      console.error("Failed to update DB:", e);
+    }
+    setDevices((prev) => {
+      const next = prev.map((d) => d.id === updated.id ? updated : d);
+      try { localStorage.setItem("miradorai_devices", JSON.stringify(next)); } catch { }
+      return next;
+    });
+  }, []);
+
+  const handleStreamProfiles = useCallback((deviceId) => {
+    const device = devices.find((d) => d.id === deviceId);
+    if (device && device.ip) {
+      localStorage.setItem("miradorai_selected_camera_ip", device.ip);
+    }
+    localStorage.setItem("miradorai_selected_camera_id", String(deviceId));
+    if (onNavigate) onNavigate("stream-profiles");
+  }, [devices, onNavigate]);
 
   useEffect(() => {
     setFsStreamMode(streamMode);
@@ -1494,7 +1590,7 @@ export default function LiveViewPage() {
               changed = true;
               next.push({
                 id: cam.id || cam._id || cam.reader_id || camIp,
-                name: cam.name || cam.camera_name || `AI Cam (${camIp})`,
+                name: cam.name || cam.camera_name || cam.device_name || `AI Cam (${camIp})`,
                 ip: camIp,
                 rtsp_url: cam.rtsp_url || "",
                 source: cam.source || "AI_WEBHOOK",
@@ -1771,6 +1867,9 @@ export default function LiveViewPage() {
   const isSpotlight = currentGridOption.isSpotlight;
   const gridSize = isSpotlight ? currentGridOption.pageSize : rows * cols;
 
+  const dynamicGap = cols >= 15 ? "4px" : cols >= 8 ? "4px" : cols >= 6 ? "8px" : "14px";
+  const dynamicRadius = cols >= 15 ? "2px" : cols >= 8 ? "4px" : cols >= 6 ? "8px" : "12px";
+  const dynamicBorder = cols >= 15 ? "0px" : "1px";
   const totalPages = Math.max(1, Math.ceil(sortedActiveCams.length / gridSize));
   
   useEffect(() => {
@@ -1780,6 +1879,35 @@ export default function LiveViewPage() {
   }, [totalPages, currentPage]);
 
   const pageCams = sortedActiveCams.slice((currentPage - 1) * gridSize, currentPage * gridSize);
+
+  // Fullscreen keyboard navigation (Left/Right Arrows)
+  useEffect(() => {
+    if (!fsDevice) return;
+
+    const handleKeyDown = (e) => {
+      if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+        const currentIndex = sortedActiveCams.findIndex(c => c.id === fsDevice.id);
+        if (currentIndex === -1) return;
+        
+        let nextIndex;
+        if (e.key === "ArrowLeft") {
+          nextIndex = currentIndex > 0 ? currentIndex - 1 : sortedActiveCams.length - 1;
+        } else {
+          nextIndex = currentIndex < sortedActiveCams.length - 1 ? currentIndex + 1 : 0;
+        }
+        
+        const nextCam = sortedActiveCams[nextIndex];
+        if (nextCam) {
+          e.preventDefault();
+          setFsLive(false);
+          setFsDevice(nextCam);
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [fsDevice, sortedActiveCams]);
 
   useEffect(() => {
     if (pageCams && pageCams.length > 0) {
@@ -2190,10 +2318,10 @@ export default function LiveViewPage() {
                 className="lv-grid"
                 style={{
                   display: "grid",
-                  gridTemplateColumns: `repeat(${cols}, 1fr)`,
-                  gridTemplateRows: `repeat(${rows}, 1fr)`,
-                  gap: "14px",
-                  padding: "16px 16px 0 16px",
+                  gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`,
+                  gridTemplateRows: `repeat(${rows}, minmax(0, 1fr))`,
+                  gap: dynamicGap,
+                  padding: `${dynamicGap} ${dynamicGap} 0 ${dynamicGap}`,
                   background: "transparent"
                 }}
               >
@@ -2206,7 +2334,7 @@ export default function LiveViewPage() {
                     <div
                       key={cam ? cam.id : `empty-${i}`}
                       className={`lv-cell ${isSelected ? "lv-cell--selected" : ""} ${hasAlert ? "lv-cell--alert" : ""}`}
-                      style={spotlightStyle}
+                      style={{ ...spotlightStyle, borderRadius: dynamicRadius, borderWidth: dynamicBorder }}
                       onClick={() => {
                         const target = cam ? cam.id : `empty-${i}`;
                         setSelectedCamId(selectedCamId === target ? null : target);
@@ -2214,6 +2342,11 @@ export default function LiveViewPage() {
                       onDoubleClick={(e) => {
                         if (cam) {
                           openFullscreen(cam, e);
+                        }
+                      }}
+                      onContextMenu={(e) => {
+                        if (cam) {
+                          handleRowContextMenu(e, cam.id);
                         }
                       }}
                       draggable={!!cam}
@@ -2243,7 +2376,8 @@ export default function LiveViewPage() {
                             }
                             onLiveChange={handleLiveChange}
                             maxBitrate={2000}
-                            badgeMode={["8x8", "6x6"].includes(layout) ? "micro" : !["1x1", "2x2"].includes(layout) ? "compact" : "normal"}
+                            badgeMode={["6x6", "8x8", "15x15", "16x16"].includes(layout) ? "micro" : !["1x1", "2x2"].includes(layout) ? "compact" : "normal"}
+                            hideName={["15x15", "16x16"].includes(layout)}
                           />
                         : <EmptyCell index={i} />
                       }
@@ -2321,6 +2455,24 @@ export default function LiveViewPage() {
           }}
           activeCams={activeCams}
           onClose={() => setShowSequenceModal(false)}
+        />
+      )}
+
+      {ctxMenu && (
+        <ContextMenu
+          x={ctxMenu.x}
+          y={ctxMenu.y}
+          onEdit={() => handleEditDevice(ctxMenu.deviceId)}
+          onStreamProfiles={() => handleStreamProfiles(ctxMenu.deviceId)}
+          onClose={() => setCtxMenu(null)}
+        />
+      )}
+      {editDevice && (
+        <EditDeviceModal
+          device={editDevice}
+          groups={groups}
+          onClose={() => setEditDevice(null)}
+          onSave={handleSaveDevice}
         />
       )}
       </div>

@@ -90,12 +90,22 @@ class CameraMotionDetector(threading.Thread):
         print(f"[MOTION DETECT] ▶ Starting motion detector for {self.stream_name} on sub-stream: {sub_rtsp}")
         
         cap = cv2.VideoCapture(sub_rtsp, cv2.CAP_FFMPEG)
+        if not cap.isOpened():
+            print(f"[MOTION DETECT] ⚠ Failed to open {self.stream_name} with TCP. Trying UDP...")
+            os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = "rtsp_transport;udp|stimeout;2000000"
+            cap = cv2.VideoCapture(sub_rtsp, cv2.CAP_FFMPEG)
+            os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = "rtsp_transport;tcp|stimeout;2000000" # reset for others
+            
+        if cap.isOpened():
+            print(f"[MOTION DETECT] ✅ Successfully connected to {self.stream_name}")
+            
         # Use MOG2 background subtractor — sensitive settings for indoor cameras
         fgbg = cv2.createBackgroundSubtractorMOG2(history=200, varThreshold=10, detectShadows=False)
         morph_kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
         
         last_process_time = 0
         consecutive_failures = 0
+        first_motion_logged = False
         
         while not self.stop_event.is_set():
             ret = cap.grab()
@@ -160,6 +170,10 @@ class CameraMotionDetector(threading.Thread):
                         # Trigger if the single largest moving object is > 200 pixels
                         # This ignores swaying balloons, shadows, and camera noise.
                         if max_area > 200:
+                            if not first_motion_logged:
+                                print(f"[MOTION DETECT] 🏃 Motion triggered for {self.stream_name} (max_area={max_area})!")
+                                first_motion_logged = True
+
                             self.no_motion_count = 0
 
                             # Trigger motion for the recorder (keeps recording alive across chunks)

@@ -242,7 +242,69 @@ async def delete_camera_by_ip(ip: str):
         },
     ))
     return {"success": True, "ip": ip, "streams_stopped": stopped}
+@router.delete("/cameras/delete-by-rtsp", dependencies=[Depends(verify_token)])
+async def delete_camera_by_rtsp(request: Request):
+    global devices
+    data = await request.json()
+    rtsp_url = (data.get("rtsp_url") or "").strip()
+    if not rtsp_url:
+        raise HTTPException(status_code=400, detail="rtsp_url is required")
 
+    matched = [d for d in devices if d.get("rtsp_url") == rtsp_url]
+    if not matched and cameras_col is not None:
+        db_doc = cameras_col.find_one({"rtsp_url": rtsp_url, "is_deleted": {"$ne": True}})
+        if db_doc:
+            matched = [db_doc]
+
+    if not matched:
+        raise HTTPException(status_code=404, detail=f"No camera found with rtsp_url: {rtsp_url}")
+
+    ip = matched[0].get("ip") or matched[0].get("ip_address") or ""
+    stopped = []
+    for device in matched:
+        stream_name = device.get("stream_key")
+        if not stream_name:
+            continue
+        recorder.stop_camera(stream_name)
+        stopped.append(stream_name)
+        print(f"[DELETE-RTSP] ⏹ Stopped recorder for {stream_name}")
+        try:
+            remove_stream(stream_name)
+            print(f"[DELETE-RTSP] MediaMTX unregister {stream_name}")
+        except Exception as e:
+            print(f"[DELETE-RTSP] OME unregister failed for {stream_name} (non-fatal): {e}")
+        _watchdog_failures.pop(stream_name, None)
+
+    devices = [d for d in devices if d.get("rtsp_url") != rtsp_url]
+    save_devices(devices)
+
+    if cameras_col is not None:
+        now = datetime.utcnow()
+        update_doc = {
+            "$set": {
+                "is_deleted": True,
+                "deleted_at": now
+            }
+        }
+        result = cameras_col.update_many({"rtsp_url": rtsp_url}, update_doc)
+        print(f"[DELETE-RTSP] 🗑 MongoDB: soft-deleted {result.modified_count} camera(s) for rtsp_url {rtsp_url}")
+
+        if ip and recordings_col is not None:
+            rec_res = recordings_col.update_many({"camera_ip": ip}, update_doc)
+            print(f"[DELETE-RTSP] Cascade: soft-deleted {rec_res.modified_count} recordings for IP {ip}")
+        if ip and analytics_col is not None:
+            al_res = analytics_col.update_many({"ip": ip}, update_doc)
+            print(f"[DELETE-RTSP] Cascade: soft-deleted {al_res.modified_count} alerts for IP {ip}")
+
+    # ── Redis Stream: camera.deleted ──────────────────────────────────────────
+    asyncio.create_task(_redis_publish(
+        _CAM_STREAM(), "camera.deleted",
+        {
+            "ip_address": ip,
+            "rtsp_url": rtsp_url
+        },
+    ))
+    return {"success": True, "rtsp_url": rtsp_url, "ip": ip, "streams_stopped": stopped}
 @router.delete("/cameras/{ip}/hard", dependencies=[Depends(verify_token)])
 async def hard_delete_camera(ip: str):
     """
