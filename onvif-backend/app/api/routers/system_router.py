@@ -75,7 +75,7 @@ async def run_discovery_pipeline():
                 device["stream_key"]    = None
                 device["stream_status"] = "credentials_required"
                 continue
-            stream_name = normalize_stream_name(ip)
+            stream_name = normalize_stream_name(ip, None, device.get("device_name") or device.get("name"))
 
             if stream_exists_in_mediamtx(stream_name):
                 print(f"[BACKGROUND-DISCOVERY] ✅ {ip} already in MediaMTX")
