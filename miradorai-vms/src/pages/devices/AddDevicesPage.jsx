@@ -399,9 +399,11 @@ export default function AddDevicesPage({ onNavigate }) {
               }
               
               if (match) {
+                const matchName = match.name || match.device_name || match.camera_name;
                 return {
                   ...localCam,
                   ...match,
+                  name: matchName || localCam.name,
                   status: normalizeStatus(match.status || localCam.status),
                   group_id: localCam.group_id && localCam.group_id !== "default" ? localCam.group_id : (match.group_id || "default"),
                 };
@@ -540,10 +542,13 @@ export default function AddDevicesPage({ onNavigate }) {
 
   const handleSaveDevice = useCallback(async (updated) => {
     try {
-      if (updated.device_name) {
-        updated.name = updated.device_name;
+      const payload = { ...updated };
+      if (payload.name && !payload.device_name) {
+        payload.device_name = payload.name;
       }
-      const { name, ... payload } = updated;
+      if (payload.device_name && !payload.name) {
+        payload.name = payload.device_name;
+      }
       await fetch(`${STREAM_API}/api/cameras/by-ip/${updated.ip}`, {
         method: "PUT",
         headers: getAuthHeaders(),

@@ -1455,10 +1455,13 @@ export default function LiveViewPage({ onNavigate }) {
 
   const handleSaveDevice = useCallback(async (updated) => {
     try {
-      if (updated.device_name) {
-        updated.name = updated.device_name;
+      const payload = { ...updated };
+      if (payload.name && !payload.device_name) {
+        payload.device_name = payload.name;
       }
-      const { name, ...payload } = updated;
+      if (payload.device_name && !payload.name) {
+        payload.name = payload.device_name;
+      }
       await fetch(`${API}/api/cameras/by-ip/${updated.ip}`, {
         method: "PUT",
         headers: getAuthHeaders(),
@@ -1565,16 +1568,19 @@ export default function LiveViewPage({ onNavigate }) {
               backend = backendCams.find(c => c.ip === d.ip);
             }
             if (!backend) return d;
+            const backendName = backend.name || backend.device_name || backend.camera_name;
             const needsUpdate =
               (backend.reader_id && d.reader_id !== backend.reader_id) ||
               (backend.sub_stream_key && d.sub_stream_key !== backend.sub_stream_key) ||
               (backend.sub_stream_rtsp && d.sub_stream_rtsp !== backend.sub_stream_rtsp) ||
               (backend.stream_key && d.stream_key !== backend.stream_key) ||
-              (backend.source && d.source !== backend.source);
+              (backend.source && d.source !== backend.source) ||
+              (backendName && d.name !== backendName);
             if (!needsUpdate) return d;
             changed = true;
             return {
               ...d,
+              name:            backendName             || d.name,
               source:          backend.source          || d.source,
               reader_id:       backend.reader_id       || d.reader_id,
               stream_key:      backend.stream_key      || d.stream_key,

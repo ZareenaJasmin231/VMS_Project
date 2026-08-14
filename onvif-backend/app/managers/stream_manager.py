@@ -111,6 +111,7 @@ def load_devices():
                     "enabled":        d.get("enabled", True),
                     "manufacturer":   d.get("manufacturer", "Unknown"),
                     "model":          d.get("model", "Unknown"),
+                    "device_name":    d.get("device_name") or d.get("name") or d.get("camera_name"),
                     "active_live_profile": d.get("active_live_profile", ""),
                     "active_rec_profile":  d.get("active_rec_profile", ""),
                     "recording_profile":   d.get("recording_profile", ""),
