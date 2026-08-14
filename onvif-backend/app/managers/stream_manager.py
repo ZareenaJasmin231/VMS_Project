@@ -32,10 +32,10 @@ WATCHDOG_BACKOFF_RESET = 10
 _watchdog_failures = {}
 _watchdog_cycle = 0
 
-def normalize_stream_name(ip: str, suffix: str = None) -> str:
+def normalize_stream_name(ip: str, suffix: str = None, device_name: str = None) -> str:
     base = ip.strip().replace(".", "_")
     if suffix:
-        clean_suffix = re.sub(r'[^a-zA-Z0-9]', '', suffix)
+        clean_suffix = re.sub(r'[^a-zA-Z0-9\-_]', '', suffix)
         if clean_suffix:
             return f"{base}_{clean_suffix}"
     return base

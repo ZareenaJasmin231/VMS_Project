@@ -42,6 +42,7 @@ function usePersistedDevices() {
     setDevices((prev) => {
       const next = typeof updater === "function" ? updater(prev) : updater;
       try { localStorage.setItem("miradorai_devices", JSON.stringify(next)); } catch { }
+      window.dispatchEvent(new Event("devicesUpdated"));
       return next;
     });
   };
@@ -387,7 +388,8 @@ export default function AddDevicesPage({ onNavigate }) {
           const data = await res.json();
           const backendDevices = Array.isArray(data) ? data : (data.devices || []);
           setDevices((prev) => {
-            const updated = prev.map((localCam) => {
+            const updated = [];
+            prev.forEach((localCam) => {
               let match = backendDevices.find((b) => 
                 (b.stream_key && localCam.stream_key && b.stream_key === localCam.stream_key) ||
                 (b.id && localCam.id && b.id === localCam.id) ||
@@ -395,28 +397,30 @@ export default function AddDevicesPage({ onNavigate }) {
                 (b.ip && localCam.ip && b.rtsp_url && localCam.rtsp_url && b.ip === localCam.ip && b.rtsp_url === localCam.rtsp_url)
               );
               if (!match) {
-                match = backendDevices.find((b) => b.ip === localCam.ip);
+                match = backendDevices.find((b) => b.ip === localCam.ip && b.channel === localCam.channel);     
               }
               
               if (match) {
-                const matchName = match.name || match.device_name || match.camera_name;
-                return {
+                const computedBackendName = match.name || match.device_name || (`${match.manufacturer || ""} ${match.model || ""}`.trim());
+                updated.push({
                   ...localCam,
                   ...match,
-                  name: matchName || localCam.name,
+                  name: computedBackendName || localCam.name || `Camera @ ${match.ip}`,
                   status: normalizeStatus(match.status || localCam.status),
                   group_id: localCam.group_id && localCam.group_id !== "default" ? localCam.group_id : (match.group_id || "default"),
-                };
+                });
               }
-              return localCam;
             });
             
             const backendOnly = backendDevices.filter((b) => !prev.some((localCam) => 
               (b.stream_key && localCam.stream_key && b.stream_key === localCam.stream_key) ||
               (b.id && localCam.id && b.id === localCam.id) ||
               (b._id && localCam.id && b._id === localCam.id) ||
-              (!b.stream_key && !b.id && b.ip === localCam.ip)
-            )).map((b) => ({ ...b, status: normalizeStatus(b.status) }));
+              (!b.stream_key && !b.id && b.ip === localCam.ip && b.channel === localCam.channel)
+            )).map((b) => {
+              const bName = b.name || b.device_name || (`${b.manufacturer || ""} ${b.model || ""}`.trim()) || `Camera @ ${b.ip}`;
+              return { ...b, name: bName, status: normalizeStatus(b.status) };
+            });
             return [...updated, ...backendOnly];
           });
         }
@@ -542,13 +546,10 @@ export default function AddDevicesPage({ onNavigate }) {
 
   const handleSaveDevice = useCallback(async (updated) => {
     try {
-      const payload = { ...updated };
-      if (payload.name && !payload.device_name) {
-        payload.device_name = payload.name;
+      if (updated.device_name) {
+        updated.name = updated.device_name;
       }
-      if (payload.device_name && !payload.name) {
-        payload.name = payload.device_name;
-      }
+      const { name, ... payload } = updated;
       await fetch(`${STREAM_API}/api/cameras/by-ip/${updated.ip}`, {
         method: "PUT",
         headers: getAuthHeaders(),
@@ -701,7 +702,8 @@ export default function AddDevicesPage({ onNavigate }) {
 
     for (let i = 0; i < channelsToEnroll.length; i++) {
       const ch = channelsToEnroll[i];
-      const safeChannel = ch.source ?? 0;
+      // Force channel to 0 for single physical cameras to ensure merging with Stream URL adds
+      const safeChannel = channelsToEnroll.length === 1 ? 0 : (ch.source ?? 0);
       setEnrollMsg(`Registering camera ${i + 1} of ${channelsToEnroll.length}…`);
 
       const probeRes = await fetch(`${STREAM_API}/api/onvif/probe`, {
@@ -761,8 +763,8 @@ export default function AddDevicesPage({ onNavigate }) {
       setDevices((prev) => {
         const existingIndex = prev.findIndex(
           (item) =>
-            (item.stream_key && item.stream_key === streamKey) ||
-            (!item.stream_key && item.ip === ip && (item.channel ?? 0) === safeChannel)
+            (item.stream_key && streamKey && item.stream_key === streamKey) ||
+            (item.ip === ip && item.channel === safeChannel)
         );
 
         if (existingIndex !== -1) {
@@ -859,8 +861,7 @@ export default function AddDevicesPage({ onNavigate }) {
         setDevices((prev) => {
           const existingIndex = prev.findIndex(
             (item) =>
-              (item.stream_key && item.stream_key === streamKey) ||
-              item.rtsp_url === url
+            (item.stream_key && streamKey && item.stream_key === streamKey) ||              item.rtsp_url === url
           );
           if (existingIndex !== -1) {
             entry.id = prev[existingIndex].id;
@@ -886,7 +887,9 @@ export default function AddDevicesPage({ onNavigate }) {
           group_id: groupId,                      // ✅ from modal field
         };
         setDevices((prev) => {
-          const existingIndex = prev.findIndex((item) => item.rtsp_url === url);
+           const existingIndex = prev.findIndex((item) => 
+            item.rtsp_url === url
+          );
           if (existingIndex !== -1) {
             entry.id = prev[existingIndex].id;
             const next = [...prev];
@@ -1347,9 +1350,9 @@ export default function AddDevicesPage({ onNavigate }) {
               </button>
             </div>
             <div className="modal-body" style={{ padding: "20px" }}>
-              {previewDevice.ws_url ? (
+              {(previewDevice.ws_url || previewDevice.stream_key) ? (
                 <div style={{ position: "relative", width: "100%", aspectRatio: "16/9", borderRadius: "8px", overflow: "hidden", border: "1px solid var(--border-light)" }}>
-                  <WebRTCPlayer_MediaMTX streamKey={previewDevice.stream_key || previewDevice.stream_key || (previewDevice.ip ? previewDevice.ip.replace(/\./g, "_") : "")} cameraId={previewDevice.id} />
+                  <WebRTCPlayer_MediaMTX streamKey={previewDevice.stream_key || (previewDevice.ip ? previewDevice.ip.replace(/\./g, "_") : "")} cameraId={previewDevice.id} />
                 </div>
               ) : (
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "12px", minHeight: "260px", color: "var(--text-secondary)" }}>
@@ -1366,7 +1369,7 @@ export default function AddDevicesPage({ onNavigate }) {
               )}
               <div style={{ marginTop: "14px", display: "flex", justifyContent: "space-between", fontSize: "12px", color: "var(--text-muted)" }}>
                 <span>IP Address: <strong>{previewDevice.ip}</strong></span>
-                <span>Status: <strong style={{ color: previewDevice.stream_status === "streaming" ? "var(--teal)" : "var(--text-muted)" }}>{previewDevice.stream_status || "offline"}</strong></span>
+                <span>Status: <strong style={{ color: previewDevice.stream_status === "streaming" || previewDevice.status === "Online" ? "var(--teal)" : "var(--text-muted)" }}>{previewDevice.stream_status || "offline"}</strong></span>
               </div>
             </div>
           </div>
