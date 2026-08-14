@@ -190,7 +190,17 @@ export default function MediaPlayerPage() {
   const videoRef = useRef(null);
   const playerWrap = useRef(null);
 
-  const [cameras] = useState(loadDevices);
+  const [cameras, setCameras] = useState(loadDevices);
+  
+  useEffect(() => {
+    const handleStorage = () => setCameras(loadDevices());
+    window.addEventListener("storage", handleStorage);
+    window.addEventListener("devicesUpdated", handleStorage);
+    return () => {
+      window.removeEventListener("storage", handleStorage);
+      window.removeEventListener("devicesUpdated", handleStorage);
+    };
+  }, []);
   const [recordingCameras, setRecordingCameras] = useState([]);
   const [activeRecorders, setActiveRecorders] = useState([]);
   const [selectedCam, setSelectedCam] = useState(null);
@@ -231,21 +241,21 @@ export default function MediaPlayerPage() {
     const normalized = camId.replace(/_/g, ".");
     const found = filteredCameras.find(
       (c) =>
-        (c.ip && c.ip.replace(/_/g, ".") === normalized) ||
         String(c.id) === String(camId) ||
-        c.name === camId
+        c.name === camId ||
+        c.stream_key === camId
     );
     if (found) {
       return {
-        name: found.name || `Camera ${normalized}`,
-        ip: found.ip || normalized
+        name: found.name || camId,
+        ip: found.ip || camId
       };
     }
     return {
-      name: `Camera ${normalized}`,
-      ip: normalized
+      name: camId,
+      ip: camId
     };
-  }, [cameras]);
+  }, [filteredCameras]);
 
   const selectedCamInfo = useMemo(() => {
     return getCameraInfo(selectedCam?.stream_key);

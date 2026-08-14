@@ -483,7 +483,7 @@ async def onvif_probe(req: ProbeRequest):
 
         print("FINAL RTSP:", rtsp)
         suffix = f"cam{req.channel}" if req.channel > 0 else None
-        stream_name = normalize_stream_name(req.ip, suffix)
+        stream_name = normalize_stream_name(req.ip, suffix, getattr(req, "device_name", None))
 
         # ── Extract sub-stream RTSP from ONVIF profiles ───────────────────
         # probe_camera() already labels profiles as MAIN / SUB / EXTRA.
@@ -683,18 +683,34 @@ async def register_rtsp_stream(req: StreamRegisterRequest):
     # cloud/NVR-hosted cameras like this one issue a fresh, single-use
     # token in the RTSP path on every fetch, so hashing the URL would
     # mint a new stream name every time.
-    base_stream_name = normalize_stream_name(host)
+    base_stream_name = normalize_stream_name(host, None, getattr(req, "device_name", None))
     stream_name = base_stream_name
 
-    existing_same_ip = [d for d in devices if d.get("ip") == host or d.get("stream_key", "").startswith(base_stream_name)]
-    existing = next((d for d in existing_same_ip if d.get("rtsp_url") == rtsp), None)
+    existing = next((d for d in devices if d.get("rtsp_url") == rtsp), None)
 
-    if not existing and len(existing_same_ip) > 0:
-        import uuid
-        uid = uuid.uuid4().hex[:8]
-        stream_name = f"{base_stream_name}_{uid}"
-        print(f"[RTSP] IP {host} already exists with different URL. Using new stream_name: {stream_name}")
-    elif existing:
+
+    if not existing:
+            if any(d.get("stream_key") == base_stream_name for d in devices) or any(d.get("ip") == host for d in devices):
+                req_device_name = getattr(req, "device_name", None)
+                if req_device_name and req_device_name.strip():
+                    import re
+                    last_octet = host.strip().split(".")[-1]
+                    safe_name = req_device_name.strip().replace(" ", "_")
+                    safe_name = re.sub(r'[^a-zA-Z0-9_\-]', '', safe_name)
+                    stream_name = f"{safe_name}_{last_octet}"
+                    
+                    if any(d.get("stream_key") == stream_name for d in devices):
+                        import uuid
+                        uid = uuid.uuid4().hex[:8]
+                        stream_name = f"{stream_name}_{uid}"
+                else:
+                    import uuid
+                    uid = uuid.uuid4().hex[:8]
+                    stream_name = f"{base_stream_name}_{uid}"
+                    print(f"[RTSP] Stream name {base_stream_name} already exists. Using new stream_name: {stream_name}")
+            else:
+                stream_name = base_stream_name
+    else:
         stream_name = existing.get("stream_key", base_stream_name)
 
     if existing and stream_exists(stream_name):
@@ -861,7 +877,8 @@ async def assign_streams(req: StreamAssignRequest):
     import time
 
     host        = req.ip.strip()
-    base_stream_name = normalize_stream_name(host) 
+    base_stream_name = normalize_stream_name(host, None, getattr(req, "device_name", None)) 
+ 
 
     print(f"[ASSIGN] {host}: live={req.live_profile!r}  rec={req.recording_profile!r}")
     print(f"[ASSIGN] live_rtsp={req.live_rtsp!r}")

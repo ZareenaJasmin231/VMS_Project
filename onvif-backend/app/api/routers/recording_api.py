@@ -861,8 +861,27 @@ def list_recordings_cameras():
             query["file_path"] = {"$regex": f"^minio:{escaped_parent}/"}
         
         db_cams = _collection.distinct("camera_id", query)
+        from app.utils.minio_client import minio_client, MINIO_BUCKET
         for cam in db_cams:
-            results.add(cam)
+             # Dynamic check: verify camera actually exists in MinIO
+            doc = _collection.find_one({"camera_id": cam, "file_path": {"$regex": f"^minio:{escaped_parent}/"}})
+            if doc and "file_path" in doc and minio_client:
+                path_parts = doc["file_path"].replace("minio:", "", 1).split("/")
+                if len(path_parts) >= 3:
+                    cam_prefix = "/".join(path_parts[:3]) + "/"
+                    try:
+                        objects = minio_client.list_objects(MINIO_BUCKET, prefix=cam_prefix, recursive=True)
+                        if any(True for _ in objects):
+                            results.add(cam)
+                        else:
+                            # Cleanup stale DB records since folder was manually deleted
+                            _collection.delete_many({"camera_id": cam, "file_path": {"$regex": f"^minio:{escaped_parent}/"}})
+                    except Exception:
+                        results.add(cam)
+                else:
+                    results.add(cam)
+            else:
+                results.add(cam)
     except Exception as e:
         print(f"[API] Error fetching distinct cameras from recordings: {e}")
 
