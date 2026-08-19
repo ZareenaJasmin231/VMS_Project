@@ -76,7 +76,11 @@ class LoggerWrapper:
 
     def write(self, message):
         if getattr(self._local, "in_write", False):
-            sys.__stdout__.write(message)
+            try:
+                sys.__stdout__.write(message)
+            except UnicodeEncodeError:
+                enc = getattr(sys.__stdout__, 'encoding', 'utf-8') or 'utf-8'
+                sys.__stdout__.write(message.encode(enc, errors='replace').decode(enc))
             return
         
         self._local.in_write = True
@@ -95,7 +99,11 @@ class LoggerWrapper:
         finally:
             self._local.in_write = False
 
-        sys.__stdout__.write(message)
+        try:
+            sys.__stdout__.write(message)
+        except UnicodeEncodeError:
+            enc = getattr(sys.__stdout__, 'encoding', 'utf-8') or 'utf-8'
+            sys.__stdout__.write(message.encode(enc, errors='replace').decode(enc))
 
     def isatty(self):
         return getattr(sys.__stdout__, "isatty", lambda: False)()
@@ -137,7 +145,9 @@ snapshots_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static
 os.makedirs(snapshots_dir, exist_ok=True)
 app.mount("/api/snapshots", StaticFiles(directory=snapshots_dir), name="snapshots")
 
+
 # Register all routers
+from app.api.routers.groups_router import router as groups_router
 app.include_router(events_ws_router)
 app.include_router(auth_router)
 app.include_router(playback_router)
@@ -147,6 +157,7 @@ app.include_router(dashboard_router)
 app.include_router(system_router)
 app.include_router(storage_router_ext)
 app.include_router(dashboard_diagnostics_router)
+app.include_router(groups_router)
 
 app.include_router(segment_router)
 app.include_router(recording_router)

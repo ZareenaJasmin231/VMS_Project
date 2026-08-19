@@ -39,9 +39,24 @@ def start():
             print(f"[SCHEDULER] [ERROR] Failed to load cameras for stream health: {e}")
             devices = []
 
+        async def log_retention_worker():
+            from datetime import datetime, timedelta, timezone
+            from app.core.database import db
+            while True:
+                try:
+                    if db is not None:
+                        cutoff_date = (datetime.now(timezone.utc) - timedelta(days=180)).isoformat()
+                        db["ui_logs"].delete_many({"timestamp": {"$lt": cutoff_date}})
+                        db["terminal_logs"].delete_many({"timestamp": {"$lt": cutoff_date}})
+                        print("[SCHEDULER] DB log retention cleanup completed.")
+                except Exception as e:
+                    print(f"[SCHEDULER] DB log retention error: {e}")
+                await asyncio.sleep(86400) # run once a day
+
         await asyncio.gather(
             email_report_worker(),
             start_health_monitoring(devices, cameras_col),
+            log_retention_worker(),
             # start_storage_audit(),
 
         )
