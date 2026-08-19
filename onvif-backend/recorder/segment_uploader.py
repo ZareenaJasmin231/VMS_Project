@@ -5,7 +5,7 @@ import requests
 import threading
 import shutil
 
-BUFFER_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "devices_data", "segment_buffer"))
+BUFFER_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "VMS_segment_buffer"))
 MAX_BUFFER_SIZE_BYTES = 5 * 1024 * 1024 * 1024  # 5GB
 
 _cleanup_thread = None

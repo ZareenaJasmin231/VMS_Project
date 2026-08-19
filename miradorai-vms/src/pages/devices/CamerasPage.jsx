@@ -9,16 +9,11 @@ import MaskingPage from "./MaskingPage";
 import { useNavigate } from "react-router-dom";
 import useActivityLogger from "../../hooks/useActivityLogger";
 
+import useGroups from "../../hooks/useGroups";
+
 function loadDevices() {
   try {
     const saved = localStorage.getItem("miradorai_devices");
-    return saved ? JSON.parse(saved) : [];
-  } catch { return []; }
-}
-
-function loadGroups() {
-  try {
-    const saved = localStorage.getItem("miradorai_groups");
     return saved ? JSON.parse(saved) : [];
   } catch { return []; }
 }
@@ -27,17 +22,13 @@ function saveDevices(devices) {
   try { localStorage.setItem("miradorai_devices", JSON.stringify(devices)); } catch {}
 }
 
-function saveGroups(groupsData) {
-  try { localStorage.setItem("miradorai_groups", JSON.stringify(groupsData)); } catch {}
-}
-
 const API_BASE = import.meta.env.VITE_API_URL;
 const INLINE_PAGES = ["masking"];
 
 export default function CamerasPage({ onNavigate, onCameraSelect }) {
   const { theme } = useTheme();
   const [cameras, setCameras]           = useState(loadDevices);
-  const [groups, setGroups]             = useState(loadGroups);
+  const [groups, setGroups, fetchGroups]= useGroups();
   const [filter, setFilter]             = useState("");
   const [selected, setSelected]         = useState(null);
   const [checked, setChecked]           = useState([]);
@@ -56,7 +47,7 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
   const navigate = useNavigate();
   const { logAction } = useActivityLogger();
 
-  const handleSaveGroupName = (groupId) => {
+  const handleSaveGroupName = async (groupId) => {
     if (!editingGroupName.trim()) {
       setEditingGroupId(null);
       return;
@@ -65,8 +56,22 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
       g.id === groupId ? { ...g, name: editingGroupName.trim() } : g
     );
     setGroups(updatedGroups);
-    saveGroups(updatedGroups);
     setEditingGroupId(null);
+
+    try {
+      const token = localStorage.getItem("miradorai_token");
+      await fetch(`${API_BASE}/api/groups/${groupId}`, {
+        method: "PUT",
+        headers: {
+          "Authorization": token ? `Bearer ${token}` : "",
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ name: editingGroupName.trim() })
+      });
+      fetchGroups(); // refresh to get latest state
+    } catch (e) {
+      console.error("Failed to update group name", e);
+    }
   };
 
   // ── Build grouped data ──
@@ -84,7 +89,10 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
       }
       acc[gid].cameras.push(cam);
       return acc;
-    }, {})
+    }, groups.reduce((acc, g) => {
+      acc[g.id] = { group_id: g.id, name: g.name, cameras: [] };
+      return acc;
+    }, { default: { group_id: "default", name: "Default", cameras: [] } }))
   );
 
   // Filter groups by search
@@ -195,7 +203,7 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
     }
   };
 
-  const handleMoveToGroup = (targetGroupId) => {
+  const handleMoveToGroup = async (targetGroupId) => {
     const updated = cameras.map(c =>
       groupChecked.includes(c.id)
         ? { ...c, group_id: targetGroupId }
@@ -203,6 +211,26 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
     );
     setCameras(updated);
     saveDevices(updated);
+    
+    // Call backend API for each moved camera
+    const token = localStorage.getItem("miradorai_token");
+    for (const cam of updated) {
+      if (groupChecked.includes(cam.id)) {
+        try {
+          await fetch(`${API_BASE}/api/cameras/by-ip/${cam.ip}`, {
+            method: "PUT",
+            headers: {
+              "Authorization": "Bearer " + (token || ""),
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ group_id: targetGroupId })
+          });
+        } catch (e) {
+          console.error("Failed to update camera group on backend", e);
+        }
+      }
+    }
+
     setShowMoveModal(false);
     setGroupChecked([]);
     setSelectedGroup(null);
@@ -335,7 +363,21 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
     // Remove the selected groups from the groups state and localStorage
     const updatedGroups = groups.filter(g => !checked.includes(g.id));
     setGroups(updatedGroups);
-    saveGroups(updatedGroups);
+
+    for (const gid of checked) {
+      try {
+        const token = localStorage.getItem("miradorai_token");
+        await fetch(`${API_BASE}/api/groups/${gid}`, {
+          method: "DELETE",
+          headers: {
+            "Authorization": token ? `Bearer ${token}` : "",
+          }
+        });
+      } catch (e) {
+        console.error("Failed to delete group", e);
+      }
+    }
+    fetchGroups(); // sync with backend
 
     setChecked([]);
     setSelectedGroup(null);

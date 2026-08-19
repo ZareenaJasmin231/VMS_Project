@@ -93,10 +93,9 @@
 .modal-field { display: flex; flex-direction: column; gap: 5px; }
 .modal-label {
   font-size: 11.5px; font-weight: 500;
-  color: #ffffff !important;
+  color: var(--text-secondary);
   text-transform: uppercase; letter-spacing: 0.04em;
 }
-[data-theme="light"] .modal-label { color: var(--text-muted); }
 .modal-input {
   background: var(--bg-elevated);
   border: 1px solid var(--border-light);

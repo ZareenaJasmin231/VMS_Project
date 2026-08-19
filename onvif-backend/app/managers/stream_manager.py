@@ -79,7 +79,7 @@ def load_devices():
                 pass
 
             # docs = list(cameras_col.find({}, {"_id": 0}))
-            docs = list(cameras_col.find({"is_deleted": {"$ne": True}}, {"_id": 0}))
+            docs = list(cameras_col.find({"is_deleted": {"$ne": True}}))
 
             if docs:
                 unique_cams = {}
@@ -98,6 +98,10 @@ def load_devices():
                 print(f"[STARTUP] Loaded {len(docs)} cameras ({len(deduped)} unique IPs) from MongoDB")
                 
                 final_list = [{
+                    "id":             str(d.get("_id")) if d.get("_id") else d.get("id"),
+                    "group_id":       d.get("group_id"),
+                    "mac":            d.get("mac", "—"),
+                    "status":         d.get("status"),
                     "stream_key":     d.get("stream_key") or normalize_stream_name(d.get("ip_address") or d.get("ip")),
                     "rtsp_url":       d.get("rtsp_url"),
                     "recording_rtsp": d.get("recording_rtsp", d.get("rtsp_url")),
@@ -112,6 +116,7 @@ def load_devices():
                     "manufacturer":   d.get("manufacturer", "Unknown"),
                     "model":          d.get("model", "Unknown"),
                     "device_name":    d.get("device_name") or d.get("name") or d.get("camera_name"),
+                    "name":           d.get("name") or d.get("device_name"),
                     "active_live_profile": d.get("active_live_profile", ""),
                     "active_rec_profile":  d.get("active_rec_profile", ""),
                     "recording_profile":   d.get("recording_profile", ""),
@@ -119,7 +124,6 @@ def load_devices():
                     "motion_only":          d.get("motion_only", False),
                     "live_codec":           d.get("live_codec", "H.264"),
                     "codec":                d.get("codec"),
-
                     "shard_prefix":         d.get("shard_prefix"),
                     "assigned_worker":      d.get("assigned_worker"),
                     "reader_id":            d.get("reader_id"),

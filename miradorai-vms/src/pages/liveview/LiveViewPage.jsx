@@ -10,30 +10,35 @@ import { useTheme } from "../../context/ThemeContext";
 import "./LiveViewPage.css";
 import { EditDeviceModal } from "../devices/AddDevicesPage";
 import { useWebSocket } from "../../hooks/useWebSocket";
+import useGroups from "../../hooks/useGroups";
 
 const API = import.meta.env.VITE_API_URL || "";
 
 function getAuthHeaders() {
   const token =
-      localStorage.getItem("miradorai_token") ||
-      localStorage.getItem("token") ||
-      localStorage.getItem("authToken");
-  return token ? { "Authorization": "Bearer " + token } : {};
+    localStorage.getItem("miradorai_token") ||
+    localStorage.getItem("token") ||
+    localStorage.getItem("authToken");
+  return token ? { Authorization: "Bearer " + token } : {};
 }
 
 function loadDevices() {
-  try { return JSON.parse(localStorage.getItem("miradorai_devices") || "[]"); }
-  catch { return []; }
+  try {
+    return JSON.parse(localStorage.getItem("miradorai_devices") || "[]");
+  } catch {
+    return [];
+  }
 }
 
 function getCameraNameByIpOrSerial(ipOrSerial) {
   if (!ipOrSerial) return "";
   const norm = ipOrSerial.replace(/_/g, ".");
   const devices = loadDevices();
-  const found = devices.find(d => 
-    (d.ip && d.ip.replace(/_/g, ".") === norm) || 
-    (d.serial && d.serial === ipOrSerial) ||
-    String(d.id) === String(ipOrSerial)
+  const found = devices.find(
+    (d) =>
+      (d.ip && d.ip.replace(/_/g, ".") === norm) ||
+      (d.serial && d.serial === ipOrSerial) ||
+      String(d.id) === String(ipOrSerial),
   );
   return found ? found.name : "";
 }
@@ -49,7 +54,14 @@ const GRID_OPTIONS = [
   { id: "8x8", label: "8x8 Grid", rows: 8, cols: 8 },
   { id: "15x15", label: "15x15 Grid", rows: 15, cols: 15 },
   { id: "16x16", label: "16x16 Grid", rows: 16, cols: 16 },
-  { id: "spotlight", label: "Spotlight", rows: 4, cols: 4, isSpotlight: true, pageSize: 8 }
+  {
+    id: "spotlight",
+    label: "Spotlight",
+    rows: 4,
+    cols: 4,
+    isSpotlight: true,
+    pageSize: 8,
+  },
 ];
 
 const MASK_CANVAS_W = 640;
@@ -58,35 +70,64 @@ const MASK_CANVAS_H = 360;
 // ── Read enabled alert types from Action Rules ────────────────────
 function getEnabledAlertTypes() {
   try {
-    const rules = JSON.parse(localStorage.getItem("miradorai_action_rules") || "[]");
+    const rules = JSON.parse(
+      localStorage.getItem("miradorai_action_rules") || "[]",
+    );
     if (rules.length === 0) {
-      return ["motion", "object", "device", "occupancy", "linecrossing", "objectinarea", "tampering"];
+      return [
+        "motion",
+        "object",
+        "device",
+        "occupancy",
+        "linecrossing",
+        "objectinarea",
+        "tampering",
+      ];
     }
     return rules
       .filter((r) => r.enabled)
       .map((r) => (r.trigger || "").toLowerCase());
   } catch {
-    return ["motion", "object", "device", "occupancy", "linecrossing", "objectinarea", "tampering"];
+    return [
+      "motion",
+      "object",
+      "device",
+      "occupancy",
+      "linecrossing",
+      "objectinarea",
+      "tampering",
+    ];
   }
 }
 
 // ── Check if a single alert passes the enabled filter ─────────────
 function isAlertAllowed(alert) {
   const enabledTypes = getEnabledAlertTypes();
-  const type     = (alert.type     || "").toLowerCase();
+  const type = (alert.type || "").toLowerCase();
   const scenario = (alert.scenario || "").toLowerCase();
 
   if (enabledTypes.length === 0) return true;
 
   return enabledTypes.some((t) => {
     const key = t.toLowerCase();
-    if (key.includes("motion"))       return type.includes("motion")       || scenario.includes("motion");
-    if (key.includes("tamper"))       return type.includes("tamper")       || scenario.includes("tamper");
-    if (key.includes("object"))       return type.includes("object")       || type.includes("objectinarea") || type.includes("detection");
-    if (key.includes("occupancy"))    return type.includes("occupancy")    || scenario.includes("occupancy");
-    if (key.includes("linecrossing")) return type.includes("linecrossing") || type.includes("crossing");
-    if (key.includes("loitering"))    return type.includes("loitering")    || scenario.includes("loitering");
-    if (key.includes("intrusion"))    return type.includes("intrusion")    || scenario.includes("intrusion");
+    if (key.includes("motion"))
+      return type.includes("motion") || scenario.includes("motion");
+    if (key.includes("tamper"))
+      return type.includes("tamper") || scenario.includes("tamper");
+    if (key.includes("object"))
+      return (
+        type.includes("object") ||
+        type.includes("objectinarea") ||
+        type.includes("detection")
+      );
+    if (key.includes("occupancy"))
+      return type.includes("occupancy") || scenario.includes("occupancy");
+    if (key.includes("linecrossing"))
+      return type.includes("linecrossing") || type.includes("crossing");
+    if (key.includes("loitering"))
+      return type.includes("loitering") || scenario.includes("loitering");
+    if (key.includes("intrusion"))
+      return type.includes("intrusion") || scenario.includes("intrusion");
     return true;
   });
 }
@@ -98,11 +139,12 @@ function MaskOverlay({ ip }) {
   useEffect(() => {
     if (!ip) return;
     fetch(`${API}/api/masks/${encodeURIComponent(ip)}`)
-      .then(r => r.json())
-      .then(data => setMasks((data.masks || []).filter(m => m.enabled !== false)))
+      .then((r) => r.json())
+      .then((data) =>
+        setMasks((data.masks || []).filter((m) => m.enabled !== false)),
+      )
       .catch(() => {});
   }, [ip]);
-
 
   if (!masks.length) return null;
 
@@ -112,25 +154,19 @@ function MaskOverlay({ ip }) {
       viewBox={`0 0 ${MASK_CANVAS_W} ${MASK_CANVAS_H}`}
       preserveAspectRatio="none"
       style={{
-        position:      "absolute",
-        top:           0,
-        left:          0,
-        width:         "100%",
-        height:        "100%",
+        position: "absolute",
+        top: 0,
+        left: 0,
+        width: "100%",
+        height: "100%",
         pointerEvents: "none",
-        zIndex:        10,
+        zIndex: 10,
       }}
     >
-      {masks.map(mask => {
+      {masks.map((mask) => {
         if (!mask.points?.length) return null;
         const pointsStr = mask.points.map(([x, y]) => `${x},${y}`).join(" ");
-        return (
-          <polygon
-            key={mask.id}
-            points={pointsStr}
-            fill="black"
-          />
-        );
+        return <polygon key={mask.id} points={pointsStr} fill="black" />;
       })}
     </svg>
   );
@@ -139,20 +175,23 @@ function MaskOverlay({ ip }) {
 // ── AlertPopup ────────────────────────────────────────────────────
 export function AlertPopup({ ip, alerts, onClose }) {
   const [playingAlert, setPlayingAlert] = useState(null);
-  const [videoUrl,     setVideoUrl]     = useState(null);
+  const [videoUrl, setVideoUrl] = useState(null);
   const [videoLoading, setVideoLoading] = useState(false);
-  const [videoError,   setVideoError]   = useState(null);
-  const [sharpness,    setSharpness]    = useState(0);
+  const [videoError, setVideoError] = useState(null);
+  const [sharpness, setSharpness] = useState(0);
 
   const cssFilter = useMemo(() => {
-    const sharpnessContrast = 1 + (sharpness / 400);
+    const sharpnessContrast = 1 + sharpness / 400;
     return `contrast(${sharpnessContrast.toFixed(3)})`;
   }, [sharpness]);
 
   const videoRef = useRef(null);
   const hlsRef = useRef(null);
   const playerWrap = useRef(null);
-  const { zoom, zoomTransform, handlers } = useDigitalZoom(playerWrap, videoRef);
+  const { zoom, zoomTransform, handlers } = useDigitalZoom(
+    playerWrap,
+    videoRef,
+  );
 
   useEffect(() => {
     return () => {
@@ -253,13 +292,15 @@ export function AlertPopup({ ip, alerts, onClose }) {
 
       if (!res.ok) {
         let errMsg = `Server error ${res.status}`;
-        try { const e = await res.json(); errMsg = e.error || errMsg; } catch {}
+        try {
+          const e = await res.json();
+          errMsg = e.error || errMsg;
+        } catch {}
         throw new Error(errMsg);
       }
 
       const data = await res.json();
       setVideoUrl(data.clipUrl);
-
     } catch (e) {
       console.error("[AlertPopup] playback error:", e);
       setVideoError(e.message || "Playback failed");
@@ -280,15 +321,25 @@ export function AlertPopup({ ip, alerts, onClose }) {
   };
 
   return (
-    <div className="alp-overlay" onClick={onClose}>
+    <div
+      className="alp-overlay"
+      onClick={onClose}
+      onWheel={(e) => e.stopPropagation()}
+    >
       <div className="alp-modal" onClick={(e) => e.stopPropagation()}>
-a
         <div className="alp-header">
           <div className="alp-header__left">
             {playingAlert && (
               <button className="alp-back-btn" onClick={handleBack}>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
-                  <path d="M15 18l-6-6 6-6"/>
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  width="14"
+                  height="14"
+                >
+                  <path d="M15 18l-6-6 6-6" />
                 </svg>
                 Back
               </button>
@@ -299,28 +350,40 @@ a
                 : (() => {
                     const name = getCameraNameByIpOrSerial(ip);
                     const formattedIp = (ip || "").replace(/_/g, ".");
-                    return name ? `Alerts — ${name} (${formattedIp})` : `Alerts — ${formattedIp}`;
+                    return name
+                      ? `Alerts — ${name} (${formattedIp})`
+                      : `Alerts — ${formattedIp}`;
                   })()}
             </span>
           </div>
-          <button className="alp-close-btn" onClick={onClose}>✕</button>
+          <button className="alp-close-btn" onClick={onClose}>
+            ✕
+          </button>
         </div>
 
         {playingAlert && (
           <div className="alp-player-area">
-
             {videoLoading && (
               <div className="alp-video-state">
                 <div className="alp-spinner" />
-                <span>Loading clip&hellip; (decrypting ±10 s around alert)</span>
+                <span>
+                  Loading clip&hellip; (decrypting ±10 s around alert)
+                </span>
               </div>
             )}
 
             {videoError && !videoLoading && (
               <div className="alp-video-state alp-video-state--error">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" width="32" height="32">
-                  <circle cx="12" cy="12" r="10"/>
-                  <path d="M12 8v4M12 16h.01"/>
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  width="32"
+                  height="32"
+                >
+                  <circle cx="12" cy="12" r="10" />
+                  <path d="M12 8v4M12 16h.01" />
                 </svg>
                 <span>{videoError}</span>
               </div>
@@ -328,33 +391,60 @@ a
 
             {videoUrl && !videoLoading && (
               <>
-                <div 
+                <div
                   ref={playerWrap}
                   {...handlers}
-                  style={{ overflow: "hidden", cursor: zoom > 1 ? "grab" : "default", position: "relative", width: "100%", background: "#000" }}
+                  style={{
+                    overflow: "hidden",
+                    cursor: zoom > 1 ? "grab" : "default",
+                    position: "relative",
+                    width: "100%",
+                    background: "#000",
+                  }}
                 >
                   <video
                     key={videoUrl}
                     ref={videoRef}
                     className="alp-video"
                     controls
+                    controlsList="nodownload noremoteplayback"
                     autoPlay
                     playsInline
-                    style={{ width: "100%", display: "block", background: "#000", transform: zoomTransform, filter: cssFilter, transition: "filter 0.1s ease" }}
+                    disablePictureInPicture
+                    disableRemotePlayback
+                    style={{
+                      width: "100%",
+                      display: "block",
+                      background: "#000",
+                      transform: zoomTransform,
+                      filter: cssFilter,
+                      transition: "filter 0.1s ease",
+                    }}
                   />
                 </div>
 
-                <div className="alp-sharpness-container" style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "8px",
-                  marginTop: "10px",
-                  background: "rgba(255,255,255,0.03)",
-                  padding: "6px 12px",
-                  borderRadius: "6px",
-                  border: "1px solid rgba(255,255,255,0.06)"
-                }}>
-                  <span style={{ fontSize: "11px", fontWeight: "600", color: "#94a3b8" }}>SHARPNESS:</span>
+                <div
+                  className="alp-sharpness-container"
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    marginTop: "10px",
+                    background: "rgba(255,255,255,0.03)",
+                    padding: "6px 12px",
+                    borderRadius: "6px",
+                    border: "1px solid rgba(255,255,255,0.06)",
+                  }}
+                >
+                  <span
+                    style={{
+                      fontSize: "11px",
+                      fontWeight: "600",
+                      color: "#94a3b8",
+                    }}
+                  >
+                    SHARPNESS:
+                  </span>
                   <input
                     type="range"
                     min="-100"
@@ -362,10 +452,24 @@ a
                     step="5"
                     value={sharpness}
                     onChange={(e) => setSharpness(Number(e.target.value))}
-                    style={{ flex: 1, height: "3px", accentColor: "#10b981", cursor: "pointer" }}
+                    style={{
+                      flex: 1,
+                      height: "3px",
+                      accentColor: "#10b981",
+                      cursor: "pointer",
+                    }}
                   />
-                  <span style={{ fontSize: "11px", fontFamily: "monospace", color: "#10b981", minWidth: "28px", textAlign: "right" }}>
-                    {sharpness > 0 ? "+" : ""}{sharpness}
+                  <span
+                    style={{
+                      fontSize: "11px",
+                      fontFamily: "monospace",
+                      color: "#10b981",
+                      minWidth: "28px",
+                      textAlign: "right",
+                    }}
+                  >
+                    {sharpness > 0 ? "+" : ""}
+                    {sharpness}
                   </span>
                 </div>
               </>
@@ -391,37 +495,46 @@ a
                 return (
                   <div key={i} className="alp-row">
                     <div className="alp-row__info">
-                      <span className="alp-row__type">{alert.type || "Unknown"}</span>
+                      <span className="alp-row__type">
+                        {alert.type || "Unknown"}
+                      </span>
                       <span className="alp-row__time">
                         {alert.time
                           ? alert.time.split("T")[1]?.split("+")[0]
                           : alert.received_at}
                       </span>
                     </div>
-                      <button
-                        className="alp-view-btn"
-                        onClick={() => handleView(alert)}
-                      >
-                        View
-                      </button>
+                    <button
+                      className="alp-view-btn"
+                      onClick={() => handleView(alert)}
+                    >
+                      View
+                    </button>
                   </div>
                 );
               })
             )}
           </div>
         )}
-
       </div>
     </div>
   );
 }
 
 // ── AlertsPanel ───────────────────────────────────────────────────
-function AlertsPanel({ isOpen, onAlertCountUpdate, onTotalAlertCountChange, liveStatus, alertSource, setAlertSource, devices: devicesProp }) {
-  const [alerts,     setAlerts]     = useState([]);
-  const [loading,    setLoading]    = useState(true);
+function AlertsPanel({
+  isOpen,
+  onAlertCountUpdate,
+  onTotalAlertCountChange,
+  liveStatus,
+  alertSource,
+  setAlertSource,
+  devices: devicesProp,
+}) {
+  const [alerts, setAlerts] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [zoomedImage, setZoomedImage] = useState(null);
-  
+
   const [alertTypeFilter, setAlertTypeFilter] = useState("All");
   const [cameraFilter, setCameraFilter] = useState("All");
   const [searchQuery, setSearchQuery] = useState("");
@@ -438,42 +551,62 @@ function AlertsPanel({ isOpen, onAlertCountUpdate, onTotalAlertCountChange, live
     }
     return alert.type || "Unknown";
   }, []);
-  
+
   const getDisplayCamera = useCallback((alert) => {
     const name = getCameraNameByIpOrSerial(alert.ip || alert.serial);
-    const displayId = (alert.ip || alert.serial || "Unknown").replace(/_/g, ".");
+    const displayId = (alert.ip || alert.serial || "Unknown").replace(
+      /_/g,
+      ".",
+    );
     return name ? `${name} (${displayId})` : displayId;
   }, []);
 
   const availableTypes = useMemo(() => {
     const types = new Set();
-    alerts.forEach(a => types.add(getDisplayType(a)));
+    alerts.forEach((a) => types.add(getDisplayType(a)));
     return ["All", ...Array.from(types).sort()];
   }, [alerts, getDisplayType]);
 
   const availableCameras = useMemo(() => {
     const cams = new Set();
-    alerts.forEach(a => cams.add(getDisplayCamera(a)));
+    alerts.forEach((a) => cams.add(getDisplayCamera(a)));
     return ["All", ...Array.from(cams).sort()];
   }, [alerts, getDisplayCamera]);
 
   const filteredAlerts = useMemo(() => {
     const now = new Date().getTime();
-    return alerts.filter(a => {
-      const typeMatch = alertTypeFilter === "All" || getDisplayType(a) === alertTypeFilter;
-      const camMatch = cameraFilter === "All" || getDisplayCamera(a) === cameraFilter;
-      
+    return alerts.filter((a) => {
+      const typeMatch =
+        alertTypeFilter === "All" || getDisplayType(a) === alertTypeFilter;
+      const camMatch =
+        cameraFilter === "All" || getDisplayCamera(a) === cameraFilter;
+
       let searchMatch = true;
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         const typeStr = getDisplayType(a).toLowerCase();
         const camStr = getDisplayCamera(a).toLowerCase();
-        const rawLoc = (a.rawData?.locationName || a.rawData?.location || "").toLowerCase();
-        const rawPerson = (a.rawData?.empName || a.rawData?.employeeName || a.rawData?.personName || a.rawData?.name || a.rawData?.label || "").toLowerCase();
-        
-        searchMatch = typeStr.includes(q) || camStr.includes(q) || rawLoc.includes(q) || rawPerson.includes(q);
+        const rawLoc = (
+          a.rawData?.locationName ||
+          a.rawData?.location ||
+          ""
+        ).toLowerCase();
+        const rawPerson = (
+          a.rawData?.empName ||
+          a.rawData?.employeeName ||
+          a.rawData?.personName ||
+          a.rawData?.name ||
+          a.rawData?.label ||
+          ""
+        ).toLowerCase();
+
+        searchMatch =
+          typeStr.includes(q) ||
+          camStr.includes(q) ||
+          rawLoc.includes(q) ||
+          rawPerson.includes(q);
       }
-      
+
       let timeMatch = true;
       if (timeFilter !== "all") {
         const alertTimeStr = a.time || a.received_at;
@@ -482,13 +615,21 @@ function AlertsPanel({ isOpen, onAlertCountUpdate, onTotalAlertCountChange, live
           const diffHours = (now - alertTime) / (1000 * 60 * 60);
           if (timeFilter === "1h") timeMatch = diffHours <= 1;
           if (timeFilter === "24h") timeMatch = diffHours <= 24;
-          if (timeFilter === "7d") timeMatch = diffHours <= (24 * 7);
+          if (timeFilter === "7d") timeMatch = diffHours <= 24 * 7;
         }
       }
-      
+
       return typeMatch && camMatch && searchMatch && timeMatch;
     });
-  }, [alerts, alertTypeFilter, cameraFilter, searchQuery, timeFilter, getDisplayType, getDisplayCamera]);
+  }, [
+    alerts,
+    alertTypeFilter,
+    cameraFilter,
+    searchQuery,
+    timeFilter,
+    getDisplayType,
+    getDisplayCamera,
+  ]);
 
   // Reset filters when source changes
   useEffect(() => {
@@ -530,12 +671,14 @@ function AlertsPanel({ isOpen, onAlertCountUpdate, onTotalAlertCountChange, live
     if (!ip || !time) return null;
     return `${API}/api/event-playback/snapshot?ip=${encodeURIComponent(ip)}&time=${encodeURIComponent(time)}`;
   };
- 
+
   const fetchLiveSnapshotForIp = async (ip) => {
     if (!ip) return null;
     try {
       const ipDot = (ip || "").replace(/_/g, ".");
-      const res = await fetch(`${API}/api/camera/brand/snapshot/${encodeURIComponent(ipDot)}`);
+      const res = await fetch(
+        `${API}/api/camera/brand/snapshot/${encodeURIComponent(ipDot)}`,
+      );
       if (!res.ok) return null;
       const data = await res.json();
       return data?.snapshot || null; // data.snapshot is a data:image/... base64 string
@@ -546,12 +689,13 @@ function AlertsPanel({ isOpen, onAlertCountUpdate, onTotalAlertCountChange, live
 
   // Build a Set of IPs that are enabled and not deleted — alerts outside this set are suppressed
   const allowedIps = useMemo(() => {
-    const cams = (devicesProp && devicesProp.length > 0) ? devicesProp : loadDevices();
+    const cams =
+      devicesProp && devicesProp.length > 0 ? devicesProp : loadDevices();
     const set = new Set();
     cams
-      .filter(d => d.enabled !== false && d.isdeleted !== true)
-      .forEach(d => {
-        if (d.ip) set.add((d.ip).replace(/_/g, "."));
+      .filter((d) => d.enabled !== false && d.isdeleted !== true)
+      .forEach((d) => {
+        if (d.ip) set.add(d.ip.replace(/_/g, "."));
       });
     return set;
   }, [devicesProp]);
@@ -559,15 +703,20 @@ function AlertsPanel({ isOpen, onAlertCountUpdate, onTotalAlertCountChange, live
   const fetchAlerts = useCallback(async () => {
     try {
       if (alertSource === "builtin") {
-        const res  = await fetch(`${API}/api/alerts?limit=5000`, {
-          headers: getAuthHeaders()
+        const res = await fetch(`${API}/api/alerts?limit=5000`, {
+          headers: getAuthHeaders(),
         });
         if (!res.ok) return;
         const data = await res.json();
         const filtered = (data.alerts || [])
           .filter((a) => {
-             const t = (a.type || "").toLowerCase();
-             return t !== "unknown" && t !== "";
+            const t = (a.type || "").toLowerCase();
+            return (
+              t !== "unknown" &&
+              t !== "" &&
+              !t.includes("tns1:") &&
+              !t.includes("motion")
+            );
           })
           .filter(isAlertAllowed);
         const perCamCounts = {};
@@ -587,7 +736,7 @@ function AlertsPanel({ isOpen, onAlertCountUpdate, onTotalAlertCountChange, live
             finalAlerts.push(alert);
           }
         });
-        
+
         finalAlerts.sort((a, b) => {
           const tA = new Date(a.time || a.received_at).getTime() || 0;
           const tB = new Date(b.time || b.received_at).getTime() || 0;
@@ -595,75 +744,100 @@ function AlertsPanel({ isOpen, onAlertCountUpdate, onTotalAlertCountChange, live
         });
 
         // Only show alerts for cameras that are enabled and not deleted
-        const activeAlerts = allowedIps.size > 0
-          ? finalAlerts.filter(a => {
-              const ip = normalizeIp(a.ip || "");
-              return !ip || allowedIps.has(ip);
-            })
-          : finalAlerts;
+        const activeAlerts =
+          allowedIps.size > 0
+            ? finalAlerts.filter((a) => {
+                const ip = normalizeIp(a.ip || "");
+                return !ip || allowedIps.has(ip);
+              })
+            : finalAlerts;
         setAlerts(activeAlerts);
 
         // Fire off live snapshot fetches for the top recent alerts (non-blocking)
         (async () => {
           try {
             const toFetch = finalAlerts.slice(0, 30); // limit concurrent calls
-            await Promise.all(toFetch.map(async (a) => {
-              if (a.isExternal) return;
-              const ip = a.ip || a.serial || "";
-              const snap = await fetchLiveSnapshotForIp(ip);
-              if (snap) {
-                setAlerts((prev) => prev.map((p) => ((p === a) ? { ...p, liveSnapshot: snap } : p)));
-              }
-            }));
+            await Promise.all(
+              toFetch.map(async (a) => {
+                if (a.isExternal) return;
+                const ip = a.ip || a.serial || "";
+                const snap = await fetchLiveSnapshotForIp(ip);
+                if (snap) {
+                  setAlerts((prev) =>
+                    prev.map((p) =>
+                      p === a ? { ...p, liveSnapshot: snap } : p,
+                    ),
+                  );
+                }
+              }),
+            );
           } catch (e) {
             // ignore
           }
         })();
-
       } else {
         // External AI Alerts Mode — separate call per reader_id
-        const activeCams = (devicesProp && devicesProp.length > 0) ? devicesProp : loadDevices();
-        const readerIds = activeCams.map(d => d.reader_id).filter(Boolean);
+        const activeCams =
+          devicesProp && devicesProp.length > 0 ? devicesProp : loadDevices();
+        const readerIds = activeCams.map((d) => d.reader_id).filter(Boolean);
 
         if (readerIds.length === 0) return; // no registered AI cameras yet
 
         const authHeader = {
-          "Authorization": "Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ7XCJpZFwiOlwiN2MxYzVhMzYtOGM0ZS00YzdlLTlkNmEtMWE3ZjFlOWQyYTQxXCIsXCJlbWFpbFwiOlwiYWRtaW5AbWlyYWRvci5haVwiLFwidGVuYW50SWRcIjpcIjZhNWVkMmE0LWI2MTQtNDY3My1iOWUzLTFiYTEwNzM4M2VmZVwiLFwiZmlyc3ROYW1lXCI6XCJBZG1pblwiLFwibGFzdE5hbWVcIjpudWxsfSIsImlhdCI6MTc4NDY5OTc0OX0.70FwbJjKRihC_YRN3w2icZKgWxld_zKFjrMoRVDyYMQ",
-          "Content-Type": "application/json"
+          Authorization:
+            "Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ7XCJpZFwiOlwiN2MxYzVhMzYtOGM0ZS00YzdlLTlkNmEtMWE3ZjFlOWQyYTQxXCIsXCJlbWFpbFwiOlwiYWRtaW5AbWlyYWRvci5haVwiLFwidGVuYW50SWRcIjpcIjZhNWVkMmE0LWI2MTQtNDY3My1iOWUzLTFiYTEwNzM4M2VmZVwiLFwiZmlyc3ROYW1lXCI6XCJBZG1pblwiLFwibGFzdE5hbWVcIjpudWxsfSIsImlhdCI6MTc4NDY5OTc0OX0.70FwbJjKRihC_YRN3w2icZKgWxld_zKFjrMoRVDyYMQ",
+          "Content-Type": "application/json",
         };
 
         // Fire one request per reader_id in parallel
         const responses = await Promise.all(
-          readerIds.map(rid =>
-            fetch(`/external-ai-api/getalert?readerIds=${encodeURIComponent(rid)}&page=1&size=50`, { headers: authHeader })
-              .then(r => r.ok ? r.json() : { data: [] })
-              .catch(() => ({ data: [] }))
-          )
+          readerIds.map((rid) =>
+            fetch(
+              `/external-ai-api/getalert?readerIds=${encodeURIComponent(rid)}&page=1&size=50`,
+              { headers: authHeader },
+            )
+              .then((r) => (r.ok ? r.json() : { data: [] }))
+              .catch(() => ({ data: [] })),
+          ),
         );
 
         // Merge all results into one flat list
         const fixUrl = (imgUrl) => {
           if (!imgUrl) return "";
-          if (imgUrl.includes("localhost:9000"))          return imgUrl.replace("http://localhost:9000",          "http://192.168.126.201:8006");
-          if (imgUrl.includes("127.0.0.1:9000"))          return imgUrl.replace("http://127.0.0.1:9000",          "http://192.168.126.201:8006");
-          if (imgUrl.includes("192.168.126.201:9000"))    return imgUrl.replace("http://192.168.126.201:9000",    "http://192.168.126.201:8006");
+          if (imgUrl.includes("localhost:9000"))
+            return imgUrl.replace(
+              "http://localhost:9000",
+              "http://192.168.126.201:8006",
+            );
+          if (imgUrl.includes("127.0.0.1:9000"))
+            return imgUrl.replace(
+              "http://127.0.0.1:9000",
+              "http://192.168.126.201:8006",
+            );
+          if (imgUrl.includes("192.168.126.201:9000"))
+            return imgUrl.replace(
+              "http://192.168.126.201:9000",
+              "http://192.168.126.201:8006",
+            );
           return imgUrl;
         };
 
-        const mapped = responses.flatMap(extData =>
-          (extData.data || []).map(item => ({
+        const mapped = responses.flatMap((extData) =>
+          (extData.data || []).map((item) => ({
             isExternal: true,
-            id:     item.id,
-            ip:     item.readerIp || "",
+            id: item.id,
+            ip: item.readerIp || "",
             serial: item.readerId || "",
-            time:   item.detectionTime || "",
-            image:  fixUrl(item.image || ""),
+            time: item.detectionTime || "",
+            image: fixUrl(item.image || ""),
             status: item.statusName || "Active",
-            rawData: item
-          }))
+            rawData: item,
+          })),
         );
 
-        mapped.sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
+        mapped.sort(
+          (a, b) => new Date(b.time).getTime() - new Date(a.time).getTime(),
+        );
         setAlerts(mapped);
       }
     } catch (e) {
@@ -672,7 +846,9 @@ function AlertsPanel({ isOpen, onAlertCountUpdate, onTotalAlertCountChange, live
       setLoading(false);
     }
   }, [onAlertCountUpdate, liveStatus, alertSource, devicesProp, allowedIps]);
-    const { isConnected: isWsConnected, eventsByTopic } = useWebSocket(["alerts"]);
+  const { isConnected: isWsConnected, eventsByTopic } = useWebSocket([
+    "alerts",
+  ]);
 
   // Listen to incoming WebSocket alerts in real time
   useEffect(() => {
@@ -681,6 +857,11 @@ function AlertsPanel({ isOpen, onAlertCountUpdate, onTotalAlertCountChange, live
       const payload = alertEnvelope.data;
       // Skip motion alerts from built-in feed
       const wsType = (payload.type || "").toLowerCase();
+      if (
+        !payload.isExternal &&
+        (wsType.includes("motion") || wsType.includes("tns1:"))
+      )
+        return;
 
       // Skip alerts from disabled or deleted cameras
       const wsIp = normalizeIp(payload.ip || payload.serial || "");
@@ -688,7 +869,7 @@ function AlertsPanel({ isOpen, onAlertCountUpdate, onTotalAlertCountChange, live
       const newAlert = {
         ...payload,
         thumbnailUrl: buildAlertThumbnailUrl(payload),
-        thumbnailAltUrl: buildAlertThumbnailAltUrl(payload)
+        thumbnailAltUrl: buildAlertThumbnailAltUrl(payload),
       };
 
       // fetch live snapshot for real-time alert (non-blocking)
@@ -701,7 +882,10 @@ function AlertsPanel({ isOpen, onAlertCountUpdate, onTotalAlertCountChange, live
           }
         } catch (e) {}
         setAlerts((prev) => {
-          const exists = prev.some((a) => (a.alert_id || a._id) === (newAlert.alert_id || newAlert._id));
+          const exists = prev.some(
+            (a) =>
+              (a.alert_id || a._id) === (newAlert.alert_id || newAlert._id),
+          );
           if (exists) return prev;
           return [newAlert, ...prev].slice(0, 500);
         });
@@ -712,140 +896,281 @@ function AlertsPanel({ isOpen, onAlertCountUpdate, onTotalAlertCountChange, live
   useEffect(() => {
     fetchAlerts();
     if (isWsConnected) return; // Zero HTTP polling when WebSocket is connected
-    const interval = setInterval(fetchAlerts, 5000);    return () => clearInterval(interval);
+    const interval = setInterval(fetchAlerts, 5000);
+    return () => clearInterval(interval);
   }, [fetchAlerts, isWsConnected]);
 
   return (
-    <div className={`lv-alerts-panel ${!isOpen ? "lv-alerts-panel--collapsed" : ""}`}>
-
+    <div
+      className={`lv-alerts-panel ${!isOpen ? "lv-alerts-panel--collapsed" : ""}`}
+    >
       <div className="lv-alerts-panel__header">
         <div className="lv-alerts-panel__title">
           <span className="lv-alerts-panel__dot" />
           Alerts
-          <span className="lv-alerts-panel__count">{filteredAlerts.length}</span>
+          <span className="lv-alerts-panel__count">
+            {filteredAlerts.length}
+          </span>
         </div>
-
-
       </div>
 
       <div className="lv-alerts-panel__filters-container">
         <div className="lv-alerts-search">
-          <svg className="lv-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
-            <circle cx="11" cy="11" r="8"/>
-            <path d="M21 21l-4.35-4.35"/>
+          <svg
+            className="lv-search-icon"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            width="14"
+            height="14"
+          >
+            <circle cx="11" cy="11" r="8" />
+            <path d="M21 21l-4.35-4.35" />
           </svg>
-          <input 
-            type="text" 
-            placeholder="Search alerts..." 
+          <input
+            type="text"
+            placeholder="Search alerts..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
           {searchQuery && (
-            <button className="lv-alerts-search-clear" onClick={() => setSearchQuery("")} title="Clear search">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="12" height="12">
+            <button
+              className="lv-alerts-search-clear"
+              onClick={() => setSearchQuery("")}
+              title="Clear search"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                width="12"
+                height="12"
+              >
                 <line x1="18" y1="6" x2="6" y2="18" />
                 <line x1="6" y1="6" x2="18" y2="18" />
               </svg>
             </button>
           )}
         </div>
-        
+
         <div className="lv-alerts-panel__filters">
-          <div className={`lv-select-wrapper lv-dropdown-container ${alertTypeFilter !== "All" ? "is-active" : ""}`}>
-            <svg className="lv-select-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <div
+            className={`lv-select-wrapper lv-dropdown-container ${alertTypeFilter !== "All" ? "is-active" : ""}`}
+          >
+            <svg
+              className="lv-select-icon"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
               <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
             </svg>
-            <div 
+            <div
               className="lv-alerts-filter-select"
-              onClick={() => { setIsTypeDropdownOpen(!isTypeDropdownOpen); setIsCameraDropdownOpen(false); }}
+              onClick={() => {
+                setIsTypeDropdownOpen(!isTypeDropdownOpen);
+                setIsCameraDropdownOpen(false);
+              }}
               title="Filter by Alert Type"
-              style={{ userSelect: "none", display: "flex", alignItems: "center" }}
+              style={{
+                userSelect: "none",
+                display: "flex",
+                alignItems: "center",
+              }}
             >
-              <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, paddingRight: "10px" }}>
+              <span
+                style={{
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                  flex: 1,
+                  paddingRight: "10px",
+                }}
+              >
                 {alertTypeFilter === "All" ? "Event Type" : alertTypeFilter}
               </span>
             </div>
-            <svg className="lv-select-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={isTypeDropdownOpen ? { transform: 'rotate(180deg)' } : {}}>
+            <svg
+              className="lv-select-arrow"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              style={isTypeDropdownOpen ? { transform: "rotate(180deg)" } : {}}
+            >
               <polyline points="6 9 12 15 18 9" />
             </svg>
             {isTypeDropdownOpen && (
-              <div className="lv-filter-dropdown" style={{ width: "100%", maxHeight: "300px", overflowY: "auto" }}>
+              <div
+                className="lv-filter-dropdown"
+                style={{ width: "100%", maxHeight: "300px", overflowY: "auto" }}
+              >
                 <button
                   className={`lv-filter-dropdown-item ${alertTypeFilter === "All" ? "selected" : ""}`}
-                  onClick={() => { setAlertTypeFilter("All"); setIsTypeDropdownOpen(false); }}
+                  onClick={() => {
+                    setAlertTypeFilter("All");
+                    setIsTypeDropdownOpen(false);
+                  }}
                 >
                   Event Type
                 </button>
-                {availableTypes.filter(t => t !== "All").map(t => (
-                  <button
-                    key={t}
-                    className={`lv-filter-dropdown-item ${alertTypeFilter === t ? "selected" : ""}`}
-                    onClick={() => { setAlertTypeFilter(t); setIsTypeDropdownOpen(false); }}
-                  >
-                    {t}
-                  </button>
-                ))}
+                {availableTypes
+                  .filter((t) => t !== "All")
+                  .map((t) => (
+                    <button
+                      key={t}
+                      className={`lv-filter-dropdown-item ${alertTypeFilter === t ? "selected" : ""}`}
+                      onClick={() => {
+                        setAlertTypeFilter(t);
+                        setIsTypeDropdownOpen(false);
+                      }}
+                    >
+                      {t}
+                    </button>
+                  ))}
               </div>
             )}
           </div>
 
-          <div className={`lv-select-wrapper lv-dropdown-container ${cameraFilter !== "All" ? "is-active" : ""}`}>
-            <svg className="lv-select-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <div
+            className={`lv-select-wrapper lv-dropdown-container ${cameraFilter !== "All" ? "is-active" : ""}`}
+          >
+            <svg
+              className="lv-select-icon"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
               <path d="M23 7l-7 5 7 5V7z" />
               <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
             </svg>
-            <div 
+            <div
               className="lv-alerts-filter-select"
-              onClick={() => { setIsCameraDropdownOpen(!isCameraDropdownOpen); setIsTypeDropdownOpen(false); }}
+              onClick={() => {
+                setIsCameraDropdownOpen(!isCameraDropdownOpen);
+                setIsTypeDropdownOpen(false);
+              }}
               title="Filter by Camera"
-              style={{ userSelect: "none", display: "flex", alignItems: "center" }}
+              style={{
+                userSelect: "none",
+                display: "flex",
+                alignItems: "center",
+              }}
             >
-              <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, paddingRight: "10px" }}>
+              <span
+                style={{
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                  flex: 1,
+                  paddingRight: "10px",
+                }}
+              >
                 {cameraFilter === "All" ? "Camera" : cameraFilter}
               </span>
             </div>
-            <svg className="lv-select-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={isCameraDropdownOpen ? { transform: 'rotate(180deg)' } : {}}>
+            <svg
+              className="lv-select-arrow"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              style={
+                isCameraDropdownOpen ? { transform: "rotate(180deg)" } : {}
+              }
+            >
               <polyline points="6 9 12 15 18 9" />
             </svg>
             {isCameraDropdownOpen && (
-              <div className="lv-filter-dropdown" style={{ width: "100%", maxHeight: "300px", overflowY: "auto", right: 0, left: "auto" }}>
+              <div
+                className="lv-filter-dropdown"
+                style={{
+                  width: "100%",
+                  maxHeight: "300px",
+                  overflowY: "auto",
+                  right: 0,
+                  left: "auto",
+                }}
+              >
                 <button
                   className={`lv-filter-dropdown-item ${cameraFilter === "All" ? "selected" : ""}`}
-                  onClick={() => { setCameraFilter("All"); setIsCameraDropdownOpen(false); }}
+                  onClick={() => {
+                    setCameraFilter("All");
+                    setIsCameraDropdownOpen(false);
+                  }}
                 >
                   Camera
                 </button>
-                {availableCameras.filter(c => c !== "All").map(c => (
-                  <button
-                    key={c}
-                    className={`lv-filter-dropdown-item ${cameraFilter === c ? "selected" : ""}`}
-                    onClick={() => { setCameraFilter(c); setIsCameraDropdownOpen(false); }}
-                  >
-                    {c}
-                  </button>
-                ))}
+                {availableCameras
+                  .filter((c) => c !== "All")
+                  .map((c) => (
+                    <button
+                      key={c}
+                      className={`lv-filter-dropdown-item ${cameraFilter === c ? "selected" : ""}`}
+                      onClick={() => {
+                        setCameraFilter(c);
+                        setIsCameraDropdownOpen(false);
+                      }}
+                    >
+                      {c}
+                    </button>
+                  ))}
               </div>
             )}
           </div>
         </div>
 
         <div className="lv-alerts-time-filters">
-          <button className={`lv-time-btn ${timeFilter === "1h" ? "active" : ""}`} onClick={() => setTimeFilter(timeFilter === "1h" ? "all" : "1h")}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="12" height="12">
+          <button
+            className={`lv-time-btn ${timeFilter === "1h" ? "active" : ""}`}
+            onClick={() => setTimeFilter(timeFilter === "1h" ? "all" : "1h")}
+          >
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              width="12"
+              height="12"
+            >
               <circle cx="12" cy="12" r="10" />
               <polyline points="12 6 12 12 16 14" />
             </svg>
             1 hr
           </button>
-          <button className={`lv-time-btn ${timeFilter === "24h" ? "active" : ""}`} onClick={() => setTimeFilter(timeFilter === "24h" ? "all" : "24h")}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="12" height="12">
+          <button
+            className={`lv-time-btn ${timeFilter === "24h" ? "active" : ""}`}
+            onClick={() => setTimeFilter(timeFilter === "24h" ? "all" : "24h")}
+          >
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              width="12"
+              height="12"
+            >
               <circle cx="12" cy="12" r="10" />
               <polyline points="12 6 12 12 15 15" />
             </svg>
             24 hr
           </button>
-          <button className={`lv-time-btn ${timeFilter === "7d" ? "active" : ""}`} onClick={() => setTimeFilter(timeFilter === "7d" ? "all" : "7d")}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="12" height="12">
+          <button
+            className={`lv-time-btn ${timeFilter === "7d" ? "active" : ""}`}
+            onClick={() => setTimeFilter(timeFilter === "7d" ? "all" : "7d")}
+          >
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              width="12"
+              height="12"
+            >
               <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
               <line x1="16" y1="2" x2="16" y2="6" />
               <line x1="8" y1="2" x2="8" y2="6" />
@@ -855,9 +1180,12 @@ function AlertsPanel({ isOpen, onAlertCountUpdate, onTotalAlertCountChange, live
           </button>
         </div>
 
-        {(searchQuery || alertTypeFilter !== "All" || cameraFilter !== "All" || timeFilter !== "all") && (
-          <button 
-            className="lv-alerts-clear-btn" 
+        {(searchQuery ||
+          alertTypeFilter !== "All" ||
+          cameraFilter !== "All" ||
+          timeFilter !== "all") && (
+          <button
+            className="lv-alerts-clear-btn"
             onClick={() => {
               setSearchQuery("");
               setAlertTypeFilter("All");
@@ -865,7 +1193,14 @@ function AlertsPanel({ isOpen, onAlertCountUpdate, onTotalAlertCountChange, live
               setTimeFilter("all");
             }}
           >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="12" height="12">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              width="12"
+              height="12"
+            >
               <path d="M18 6L6 18M6 6l12 12" />
             </svg>
             Reset Filters
@@ -883,7 +1218,7 @@ function AlertsPanel({ isOpen, onAlertCountUpdate, onTotalAlertCountChange, live
             const isActive = alert.status === "Active";
             const ipStr = alert.ip || alert.serial || "";
             let typeClass = "lv-alert-card--other";
-            if      (ipStr.includes("235")) typeClass = "lv-alert-card--cam235";
+            if (ipStr.includes("235")) typeClass = "lv-alert-card--cam235";
             else if (ipStr.includes("238")) typeClass = "lv-alert-card--cam238";
             else if (ipStr.includes("236")) typeClass = "lv-alert-card--cam236";
             else if (ipStr.includes("240")) typeClass = "lv-alert-card--cam240";
@@ -892,10 +1227,15 @@ function AlertsPanel({ isOpen, onAlertCountUpdate, onTotalAlertCountChange, live
               ? alert.time.split("T")[1]?.split("+")[0]
               : null;
 
-            const cameraName = getCameraNameByIpOrSerial(alert.ip || alert.serial);
-            const displayId = (alert.ip || alert.serial || "Unknown").replace(/_/g, ".");
+            const cameraName = getCameraNameByIpOrSerial(
+              alert.ip || alert.serial,
+            );
+            const displayId = (alert.ip || alert.serial || "Unknown").replace(
+              /_/g,
+              ".",
+            );
             const thumbnailUrl = alert.image || alert.thumbnailUrl || null;
- 
+
             return (
               <div
                 key={i}
@@ -905,8 +1245,13 @@ function AlertsPanel({ isOpen, onAlertCountUpdate, onTotalAlertCountChange, live
                   <div className="lv-alert-card__info">
                     {!alert.isExternal && (
                       <div className="lv-alert-card__top">
-                        <span className="lv-alert-card__serial" title={displayId}>
-                          {cameraName ? `${cameraName} (${displayId})` : displayId}
+                        <span
+                          className="lv-alert-card__serial"
+                          title={displayId}
+                        >
+                          {cameraName
+                            ? `${cameraName} (${displayId})`
+                            : displayId}
                         </span>
                       </div>
                     )}
@@ -914,60 +1259,96 @@ function AlertsPanel({ isOpen, onAlertCountUpdate, onTotalAlertCountChange, live
                     {alert.isExternal ? (
                       (() => {
                         const raw = alert.rawData || {};
-                        
+
                         // Parse event subType: e.g. "fr-blacklist" -> format to "Blacklist" or "fr-blacklist"
-                        let eventType = raw.subType || raw.sourceType || "AI Event";
+                        let eventType =
+                          raw.subType || raw.sourceType || "AI Event";
                         if (eventType.startsWith("fr-")) {
                           eventType = eventType.substring(3); // e.g. "blacklist"
                         }
                         // Capitalize first letter
-                        eventType = eventType.charAt(0).toUpperCase() + eventType.slice(1);
+                        eventType =
+                          eventType.charAt(0).toUpperCase() +
+                          eventType.slice(1);
 
                         // Person/Employee name: e.g. राजेश (Rajesh) from "empName"
-                        const personName = raw.empName || raw.employeeName || raw.personName || raw.name || raw.label || "";
+                        const personName =
+                          raw.empName ||
+                          raw.employeeName ||
+                          raw.personName ||
+                          raw.name ||
+                          raw.label ||
+                          "";
                         let eventText = "";
-                        if (!personName || personName.toLowerCase().includes("unknown")) {
+                        if (
+                          !personName ||
+                          personName.toLowerCase().includes("unknown")
+                        ) {
                           eventText = "Unknown";
                         } else {
                           eventText = `${eventType} - ${personName}`;
                         }
-                        
-                        const locationText = raw.locationName || raw.location || "Tek Towers"; 
-                        const cameraText = raw.readerName || raw.cameraName || raw.camera || "Mirador";
+
+                        const locationText =
+                          raw.locationName || raw.location || "Tek Towers";
+                        const cameraText =
+                          raw.readerName ||
+                          raw.cameraName ||
+                          raw.camera ||
+                          "Mirador";
 
                         // Split detectionTime into date and time parts
                         const dtPart = raw.detectionTime || "";
                         const dateOnly = dtPart.split("T")[0] || "—";
-                        const timeOnlyPart = dtPart.includes("T") 
-                          ? dtPart.split("T")[1]?.split("+")[0] 
+                        const timeOnlyPart = dtPart.includes("T")
+                          ? dtPart.split("T")[1]?.split("+")[0]
                           : "—";
 
                         return (
                           <>
                             <div className="lv-alert-card__top">
-                              <span className="lv-alert-card__serial" style={{ fontWeight: "600", color: "#ffffff" }}>
-                                {cameraText} ({raw.readerIp || alert.ip || "Unknown"})
+                              <span
+                                className="lv-alert-card__serial"
+                                style={{ fontWeight: "600", color: "#ffffff" }}
+                              >
+                                {cameraText} (
+                                {raw.readerIp || alert.ip || "Unknown"})
                               </span>
                             </div>
 
                             <div className="lv-alert-card__row">
-                              <span className="lv-alert-card__label">Event</span>
-                              <span className="lv-alert-card__value" style={{ color: "#ff4d4f" }}>{eventText}</span>
+                              <span className="lv-alert-card__label">
+                                Event
+                              </span>
+                              <span
+                                className="lv-alert-card__value"
+                                style={{ color: "#ff4d4f" }}
+                              >
+                                {eventText}
+                              </span>
                             </div>
 
                             <div className="lv-alert-card__row">
-                              <span className="lv-alert-card__label">Location</span>
-                              <span className="lv-alert-card__value">{locationText}</span>
+                              <span className="lv-alert-card__label">
+                                Location
+                              </span>
+                              <span className="lv-alert-card__value">
+                                {locationText}
+                              </span>
                             </div>
 
                             <div className="lv-alert-card__row">
                               <span className="lv-alert-card__label">Time</span>
-                              <span className="lv-alert-card__value lv-alert-card__value--time">{timeOnlyPart}</span>
+                              <span className="lv-alert-card__value lv-alert-card__value--time">
+                                {timeOnlyPart}
+                              </span>
                             </div>
 
                             <div className="lv-alert-card__row">
                               <span className="lv-alert-card__label">Date</span>
-                              <span className="lv-alert-card__value lv-alert-card__value--date">{dateOnly}</span>
+                              <span className="lv-alert-card__value lv-alert-card__value--date">
+                                {dateOnly}
+                              </span>
                             </div>
                           </>
                         );
@@ -976,14 +1357,34 @@ function AlertsPanel({ isOpen, onAlertCountUpdate, onTotalAlertCountChange, live
                       <>
                         <div className="lv-alert-card__row">
                           <span className="lv-alert-card__label">Event</span>
-                          <span className="lv-alert-card__value">{alert.type || "—"}</span>
+                          <span className="lv-alert-card__value">
+                            {alert.type || "—"}
+                          </span>
                         </div>
 
-                        {(alert.type === "OccupancyCount" || alert.scenario === "OccupancyCount") && (
+                        {(alert.type === "OccupancyCount" ||
+                          alert.scenario === "OccupancyCount") && (
                           <div className="lv-alert-card__row">
                             <span className="lv-alert-card__label">People</span>
                             <span className="lv-alert-card__value">
-                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14" style={{marginRight:4, verticalAlign:"middle"}}><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg> {alert.human ?? alert.total ?? "—"}
+                              <svg
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                width="14"
+                                height="14"
+                                style={{
+                                  marginRight: 4,
+                                  verticalAlign: "middle",
+                                }}
+                              >
+                                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                                <circle cx="9" cy="7" r="4"></circle>
+                                <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                                <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                              </svg>{" "}
+                              {alert.human ?? alert.total ?? "—"}
                             </span>
                           </div>
                         )}
@@ -1001,7 +1402,22 @@ function AlertsPanel({ isOpen, onAlertCountUpdate, onTotalAlertCountChange, live
                           <div className="lv-alert-card__row">
                             <span className="lv-alert-card__label">Class</span>
                             <span className="lv-alert-card__value lv-alert-card__value--human">
-                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14" style={{marginRight:4, verticalAlign:"middle"}}><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg> {alert.class}
+                              <svg
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                width="14"
+                                height="14"
+                                style={{
+                                  marginRight: 4,
+                                  verticalAlign: "middle",
+                                }}
+                              >
+                                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                                <circle cx="12" cy="7" r="4"></circle>
+                              </svg>{" "}
+                              {alert.class}
                             </span>
                           </div>
                         )}
@@ -1009,7 +1425,11 @@ function AlertsPanel({ isOpen, onAlertCountUpdate, onTotalAlertCountChange, live
                         <div className="lv-alert-card__row">
                           <span className="lv-alert-card__label">Date</span>
                           <span className="lv-alert-card__value lv-alert-card__value--date">
-                            {(alert.received_at || alert.time || "").split("T")[0]}
+                            {
+                              (alert.received_at || alert.time || "").split(
+                                "T",
+                              )[0]
+                            }
                           </span>
                         </div>
                       </>
@@ -1067,11 +1487,24 @@ function AlertsPanel({ isOpen, onAlertCountUpdate, onTotalAlertCountChange, live
 
       {zoomedImage && (
         <div className="lv-image-modal" onClick={() => setZoomedImage(null)}>
-          <div className="lv-image-modal__content" onClick={(e) => e.stopPropagation()}>
-            <button className="lv-image-modal__close" onClick={() => setZoomedImage(null)}>✕</button>
-            <img src={zoomedImage.url} alt="Alert Zoom" className="lv-image-modal__img" />
+          <div
+            className="lv-image-modal__content"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              className="lv-image-modal__close"
+              onClick={() => setZoomedImage(null)}
+            >
+              ✕
+            </button>
+            <img
+              src={zoomedImage.url}
+              alt="Alert Zoom"
+              className="lv-image-modal__img"
+            />
             <div className="lv-image-modal__caption">
-              <strong>{zoomedImage.cameraName || zoomedImage.ip}</strong> — {zoomedImage.type} ({zoomedImage.time})
+              <strong>{zoomedImage.cameraName || zoomedImage.ip}</strong> —{" "}
+              {zoomedImage.type} ({zoomedImage.time})
             </div>
           </div>
         </div>
@@ -1083,7 +1516,19 @@ function AlertsPanel({ isOpen, onAlertCountUpdate, onTotalAlertCountChange, live
 // ── CameraCell ────────────────────────────────────────────────────
 // maxBitrate is in Kbps — passed into WebRTCPlayer as a real SDP b=TIAS constraint.
 // Grid default: 2000 Kbps (2 Mbps). Fullscreen: 10000 Kbps (10 Mbps).
-function CameraCell({ device, streamMode, onFullscreen, alertCount, onBadgeClick, isRecording, onLiveChange, maxBitrate, badgeMode, hideName }) {
+function CameraCell({
+  device,
+  streamMode,
+  onFullscreen,
+  alertCount,
+  onBadgeClick,
+  isRecording,
+  onLiveChange,
+  maxBitrate,
+  badgeMode,
+  hideName,
+  objectFit,
+}) {
   const showRec = localStorage.getItem("miradorai_show_rec_ind") !== "false";
   const [isLive, setIsLive] = useState(false);
   const [localStreamMode, setLocalStreamMode] = useState(streamMode);
@@ -1104,11 +1549,16 @@ function CameraCell({ device, streamMode, onFullscreen, alertCount, onBadgeClick
 
   // Calculate the target stream key based on stored codec metadata.
   // We prefer the sub_stream_key for grid cells to save bandwidth.
-  const mainStreamKey = device.stream_key || device.live_stream || (device.ip ? device.ip.replace(/\./g, "_") : "");
+  const mainStreamKey =
+    device.stream_key ||
+    device.live_stream ||
+    (device.ip ? device.ip.replace(/\./g, "_") : "");
   const baseStreamKey = device.sub_stream_key || mainStreamKey;
-  const activeCodec = String(device.live_codec || device.codec || "").toUpperCase();
+  const activeCodec = String(
+    device.live_codec || device.codec || "",
+  ).toUpperCase();
   const isH265 = ["H.265", "H265", "HEVC"].includes(activeCodec);
-  
+
   // Use the transcoded path for the base stream (sub stream) if it's H.265.
   // MediaMTX runOnDemand will handle transcoding the sub stream dynamically.
   const streamKeyToUse = isH265 ? `${baseStreamKey}_h264` : baseStreamKey;
@@ -1120,19 +1570,64 @@ function CameraCell({ device, streamMode, onFullscreen, alertCount, onBadgeClick
     >
       <div className="lv-cam__bottom-right-controls">
         {badgeMode !== "micro" && (
-          <div className="lv-cam__mute-btn" onClick={(e) => e.stopPropagation()}>
-            <input type="checkbox" id={`mute-${device.id || device.ip}`} className="muteCheckboxInput" checked={isMuted} onChange={() => setIsMuted(!isMuted)} />
-            <label htmlFor={`mute-${device.id || device.ip}`} className="toggleSwitch">
+          <div
+            className="lv-cam__mute-btn"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <input
+              type="checkbox"
+              id={`mute-${device.id || device.ip}`}
+              className="muteCheckboxInput"
+              checked={isMuted}
+              onChange={() => setIsMuted(!isMuted)}
+            />
+            <label
+              htmlFor={`mute-${device.id || device.ip}`}
+              className="toggleSwitch"
+            >
               <div className="speaker">
-                <svg xmlns="http://www.w3.org/2000/svg" version="1.0" viewBox="0 0 75 75">
-                  <path d="M39.389,13.769 L22.235,28.606 L6,28.606 L6,47.699 L21.989,47.699 L39.389,62.75 L39.389,13.769z" style={{stroke:"#fff",strokeWidth:5,strokeLinejoin:"round",fill:"#fff"}}></path>
-                  <path d="M48,27.6a19.5,19.5 0 0 1 0,21.4M55.1,20.5a30,30 0 0 1 0,35.6M61.6,14a38.8,38.8 0 0 1 0,48.6" style={{fill:"none",stroke:"#fff",strokeWidth:5,strokeLinecap:"round"}}></path>
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  version="1.0"
+                  viewBox="0 0 75 75"
+                >
+                  <path
+                    d="M39.389,13.769 L22.235,28.606 L6,28.606 L6,47.699 L21.989,47.699 L39.389,62.75 L39.389,13.769z"
+                    style={{
+                      stroke: "#fff",
+                      strokeWidth: 5,
+                      strokeLinejoin: "round",
+                      fill: "#fff",
+                    }}
+                  ></path>
+                  <path
+                    d="M48,27.6a19.5,19.5 0 0 1 0,21.4M55.1,20.5a30,30 0 0 1 0,35.6M61.6,14a38.8,38.8 0 0 1 0,48.6"
+                    style={{
+                      fill: "none",
+                      stroke: "#fff",
+                      strokeWidth: 5,
+                      strokeLinecap: "round",
+                    }}
+                  ></path>
                 </svg>
               </div>
               <div className="mute-speaker">
-                <svg version="1.0" viewBox="0 0 75 75" stroke="#fff" strokeWidth="5">
-                  <path d="m39,14-17,15H6V48H22l17,15z" fill="#fff" strokeLinejoin="round"></path>
-                  <path d="m49,26 20,24m0-24-20,24" fill="#fff" strokeLinecap="round"></path>
+                <svg
+                  version="1.0"
+                  viewBox="0 0 75 75"
+                  stroke="#fff"
+                  strokeWidth="5"
+                >
+                  <path
+                    d="m39,14-17,15H6V48H22l17,15z"
+                    fill="#fff"
+                    strokeLinejoin="round"
+                  ></path>
+                  <path
+                    d="m49,26 20,24m0-24-20,24"
+                    fill="#fff"
+                    strokeLinecap="round"
+                  ></path>
                 </svg>
               </div>
             </label>
@@ -1156,26 +1651,40 @@ function CameraCell({ device, streamMode, onFullscreen, alertCount, onBadgeClick
 
       <div className="lv-cell__header">
         {isLive && <span className="lv-live-dot" />}
-        {!hideName && <span className="lv-cell__name">{device.name || device.device_name}</span>}
-       
-        {isLive && showRec && isRecording && (
-          <span className="lv-rec-dot" />
+        {!hideName && (
+          <span className="lv-cell__name">
+            {device.name || device.device_name}
+          </span>
         )}
+
+        {isLive && showRec && isRecording && <span className="lv-rec-dot" />}
         <div className="lv-cell__actions">
-          {badgeMode !== "micro" && <span className="lv-cell__ip">{device.ip}</span>}
+          {badgeMode !== "micro" && (
+            <span className="lv-cell__ip">{device.ip}</span>
+          )}
 
           {/* PTZ Toggle Button */}
           {(device.ptz === "Yes" || device.ptz === true) && (
             <button
               className={`lv-ptz-toggle-btn ${ptzOpen ? "active" : ""}`}
-              onClick={(e) => { e.stopPropagation(); setPtzOpen((v) => !v); }}
+              onClick={(e) => {
+                e.stopPropagation();
+                setPtzOpen((v) => !v);
+              }}
               title={ptzOpen ? "Hide PTZ Controls" : "Show PTZ Controls"}
               type="button"
             >
               {/* PTZ crosshair icon */}
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="13" height="13">
-                <circle cx="12" cy="12" r="3"/>
-                <path d="M12 2v4M12 18v4M2 12h4M18 12h4"/>
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                width="13"
+                height="13"
+              >
+                <circle cx="12" cy="12" r="3" />
+                <path d="M12 2v4M12 18v4M2 12h4M18 12h4" />
               </svg>
             </button>
           )}
@@ -1186,8 +1695,13 @@ function CameraCell({ device, streamMode, onFullscreen, alertCount, onBadgeClick
             title="Expand fullscreen"
             type="button"
           >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M8 3H5a2 2 0 00-2 2v3M21 8V5a2 2 0 00-2-2h-3M3 16v3a2 2 0 002 2h3M16 21h3a2 2 0 002-2v-3"/>
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
+              <path d="M8 3H5a2 2 0 00-2 2v3M21 8V5a2 2 0 00-2-2h-3M3 16v3a2 2 0 002 2h3M16 21h3a2 2 0 002-2v-3" />
             </svg>
           </button>
         </div>
@@ -1206,6 +1720,7 @@ function CameraCell({ device, streamMode, onFullscreen, alertCount, onBadgeClick
                 badgeMode={badgeMode}
                 muted={isMuted}
                 hideBandwidth={badgeMode === "micro"}
+                objectFit={objectFit}
               />
             ) : (
               <HlsPlayer
@@ -1213,22 +1728,27 @@ function CameraCell({ device, streamMode, onFullscreen, alertCount, onBadgeClick
                 streamKey={streamKeyToUse}
                 onConnectChange={setIsLive}
                 muted={isMuted}
+                objectFit={objectFit}
               />
             )}
             <MaskOverlay ip={device.ip} />
             {/* Inline PTZ Panel */}
             {ptzOpen && (
-              <PTZControls
-                camera={device}
-                onClose={() => setPtzOpen(false)}
-              />
+              <PTZControls camera={device} onClose={() => setPtzOpen(false)} />
             )}
           </>
         ) : (
           <div className="lv-no-stream">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" width="32" height="32">
-              <path d="M23 7l-7 5 7 5V7z"/>
-              <rect x="1" y="5" width="15" height="14" rx="2"/>
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1"
+              width="32"
+              height="32"
+            >
+              <path d="M23 7l-7 5 7 5V7z" />
+              <rect x="1" y="5" width="15" height="14" rx="2" />
             </svg>
             <span>Stream not registered</span>
             <span className="lv-no-stream__ip">{device.ip}</span>
@@ -1243,9 +1763,16 @@ function CameraCell({ device, streamMode, onFullscreen, alertCount, onBadgeClick
 function EmptyCell() {
   return (
     <div className="lv-empty-cell">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="0.8" width="28" height="28">
-        <path d="M23 7l-7 5 7 5V7z"/>
-        <rect x="1" y="5" width="15" height="14" rx="2"/>
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="0.8"
+        width="28"
+        height="28"
+      >
+        <path d="M23 7l-7 5 7 5V7z" />
+        <rect x="1" y="5" width="15" height="14" rx="2" />
       </svg>
       <span>No Camera</span>
     </div>
@@ -1281,7 +1808,7 @@ function SequenceDropdown({ value, onChange, sequences }) {
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  const activeSeq = sequences.find(s => s.id === value);
+  const activeSeq = sequences.find((s) => s.id === value);
   const label = activeSeq ? activeSeq.name : "Default (All)";
 
   return (
@@ -1293,7 +1820,15 @@ function SequenceDropdown({ value, onChange, sequences }) {
         style={{ padding: "4px 10px", fontSize: "15px", height: "28px" }}
       >
         <span>{label}</span>
-        <svg className={`lv-chevron-icon ${isOpen ? "open" : ""}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="10" height="10">
+        <svg
+          className={`lv-chevron-icon ${isOpen ? "open" : ""}`}
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.5"
+          width="10"
+          height="10"
+        >
           <path d="M6 9l6 6 6-6" />
         </svg>
       </button>
@@ -1310,7 +1845,15 @@ function SequenceDropdown({ value, onChange, sequences }) {
           >
             <span className="lv-grid-dropdown-item-label">Default (All)</span>
             {value === "all" && (
-              <svg className="lv-check-icon" viewBox="0 0 24 24" fill="none" stroke="var(--teal)" strokeWidth="3" width="12" height="12">
+              <svg
+                className="lv-check-icon"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="var(--teal)"
+                strokeWidth="3"
+                width="12"
+                height="12"
+              >
                 <polyline points="20 6 9 17 4 12" />
               </svg>
             )}
@@ -1327,7 +1870,15 @@ function SequenceDropdown({ value, onChange, sequences }) {
             >
               <span className="lv-grid-dropdown-item-label">{s.name}</span>
               {value === s.id && (
-                <svg className="lv-check-icon" viewBox="0 0 24 24" fill="none" stroke="var(--teal)" strokeWidth="3" width="12" height="12">
+                <svg
+                  className="lv-check-icon"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="var(--teal)"
+                  strokeWidth="3"
+                  width="12"
+                  height="12"
+                >
                   <polyline points="20 6 9 17 4 12" />
                 </svg>
               )}
@@ -1366,16 +1917,44 @@ function ContextMenu({ x, y, onEdit, onStreamProfiles, onClose }) {
         zIndex: 9999,
       }}
     >
-      <button className="ctx-item" onClick={() => { onStreamProfiles(); onClose(); }}>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14" style={{ flexShrink: 0 }}>
-          <path d="M15 10l4.553-2.276A1 1 0 0121 8.723v6.554a1 1 0 01-1.447.894L15 14"/>
-          <rect x="1" y="6" width="15" height="12" rx="2"/>
+      <button
+        className="ctx-item"
+        onClick={() => {
+          onStreamProfiles();
+          onClose();
+        }}
+      >
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          width="14"
+          height="14"
+          style={{ flexShrink: 0 }}
+        >
+          <path d="M15 10l4.553-2.276A1 1 0 0121 8.723v6.554a1 1 0 01-1.447.894L15 14" />
+          <rect x="1" y="6" width="15" height="12" rx="2" />
         </svg>
         Stream Profiles
       </button>
       <div className="ctx-divider" />
-      <button className="ctx-item" onClick={() => { onEdit(); onClose(); }}>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14" style={{ flexShrink: 0 }}>
+      <button
+        className="ctx-item"
+        onClick={() => {
+          onEdit();
+          onClose();
+        }}
+      >
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          width="14"
+          height="14"
+          style={{ flexShrink: 0 }}
+        >
           <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
           <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
         </svg>
@@ -1389,11 +1968,11 @@ function ContextMenu({ x, y, onEdit, onStreamProfiles, onClose }) {
 export default function LiveViewPage({ onNavigate }) {
   const { user } = useAuth();
   const { theme } = useTheme();
-  const [devices,      setDevices]      = useState(loadDevices);
-  const [layout,       setLayout]       = useState(() => {
+  const [devices, setDevices] = useState(loadDevices);
+  const [layout, setLayout] = useState(() => {
     return sessionStorage.getItem("miradorai_liveview_layout") || "2x2";
   });
-  const [currentPage,  setCurrentPage]  = useState(1);
+  const [currentPage, setCurrentPage] = useState(1);
   const [gridDropdownOpen, setGridDropdownOpen] = useState(false);
   const [gridFullscreen, setGridFullscreen] = useState(false);
   const [modeDropdownOpen, setModeDropdownOpen] = useState(false);
@@ -1402,17 +1981,25 @@ export default function LiveViewPage({ onNavigate }) {
     return localStorage.getItem("liveview_stream_mode") || "webrtc";
   });
 
+  const [objectFitMode, setObjectFitMode] = useState(() => {
+    return localStorage.getItem("miradorai_object_fit") || "cover";
+  });
+
   useEffect(() => {
     localStorage.setItem("liveview_stream_mode", streamMode);
   }, [streamMode]);
 
- 
+  useEffect(() => {
+    localStorage.setItem("miradorai_object_fit", objectFitMode);
+  }, [objectFitMode]);
 
   const [stationDetails] = useState(getOrCreateStationDetails);
   const [stationName, setStationName] = useState(stationDetails.sname);
   const [isEditingName, setIsEditingName] = useState(false);
   const [appliedTimestamp, setAppliedTimestamp] = useState(() => {
-    return parseFloat(sessionStorage.getItem("miradorai_applied_layout_time") || "0");
+    return parseFloat(
+      sessionStorage.getItem("miradorai_applied_layout_time") || "0",
+    );
   });
 
   const [isTourActive, setIsTourActive] = useState(false);
@@ -1423,24 +2010,23 @@ export default function LiveViewPage({ onNavigate }) {
     try {
       const saved = localStorage.getItem("miradorai_camera_sequences");
       return saved ? JSON.parse(saved) : [];
-    } catch { return []; }
+    } catch {
+      return [];
+    }
   });
   const [activeSequenceId, setActiveSequenceId] = useState("all");
   const [showSequenceModal, setShowSequenceModal] = useState(false);
 
   const [selectedCamId, setSelectedCamId] = useState(null);
-  const [liveStatus,   setLiveStatus]   = useState({});
-  const [fsDevice,     setFsDevice]     = useState(null);
-  const [fsLive,       setFsLive]       = useState(false);
+  const [liveStatus, setLiveStatus] = useState({});
+  const [fsDevice, setFsDevice] = useState(null);
+  const [fsLive, setFsLive] = useState(false);
   const [fsStreamMode, setFsStreamMode] = useState(streamMode);
-  const [fsPtzOpen,    setFsPtzOpen]    = useState(false);
+  const [fsPtzOpen, setFsPtzOpen] = useState(false);
 
   const [ctxMenu, setCtxMenu] = useState(null);
   const [editDevice, setEditDevice] = useState(null);
-  const [groups] = useState(() => {
-    try { return JSON.parse(localStorage.getItem("miradorai_groups") || "[]"); }
-    catch { return []; }
-  });
+  const [groups, setGroups, fetchGroups] = useGroups();
 
   const handleRowContextMenu = useCallback((e, deviceId) => {
     e.preventDefault();
@@ -1448,10 +2034,13 @@ export default function LiveViewPage({ onNavigate }) {
     setCtxMenu({ x: e.clientX, y: e.clientY, deviceId });
   }, []);
 
-  const handleEditDevice = useCallback((deviceId) => {
-    const device = devices.find((d) => d.id === deviceId);
-    if (device) setEditDevice(device);
-  }, [devices]);
+  const handleEditDevice = useCallback(
+    (deviceId) => {
+      const device = devices.find((d) => d.id === deviceId);
+      if (device) setEditDevice(device);
+    },
+    [devices],
+  );
 
   const handleSaveDevice = useCallback(async (updated) => {
     try {
@@ -1471,20 +2060,25 @@ export default function LiveViewPage({ onNavigate }) {
       console.error("Failed to update DB:", e);
     }
     setDevices((prev) => {
-      const next = prev.map((d) => d.id === updated.id ? updated : d);
-      try { localStorage.setItem("miradorai_devices", JSON.stringify(next)); } catch { }
+      const next = prev.map((d) => (d.id === updated.id ? updated : d));
+      try {
+        localStorage.setItem("miradorai_devices", JSON.stringify(next));
+      } catch {}
       return next;
     });
   }, []);
 
-  const handleStreamProfiles = useCallback((deviceId) => {
-    const device = devices.find((d) => d.id === deviceId);
-    if (device && device.ip) {
-      localStorage.setItem("miradorai_selected_camera_ip", device.ip);
-    }
-    localStorage.setItem("miradorai_selected_camera_id", String(deviceId));
-    if (onNavigate) onNavigate("stream-profiles");
-  }, [devices, onNavigate]);
+  const handleStreamProfiles = useCallback(
+    (deviceId) => {
+      const device = devices.find((d) => d.id === deviceId);
+      if (device && device.ip) {
+        localStorage.setItem("miradorai_selected_camera_ip", device.ip);
+      }
+      localStorage.setItem("miradorai_selected_camera_id", String(deviceId));
+      if (onNavigate) onNavigate("stream-profiles");
+    },
+    [devices, onNavigate],
+  );
 
   useEffect(() => {
     setFsStreamMode(streamMode);
@@ -1494,19 +2088,19 @@ export default function LiveViewPage({ onNavigate }) {
   // No auto-fallback to HLS from fullscreen either.
   const handleFsWebRTCError = () => {};
 
-  const [fsMenuOpen,   setFsMenuOpen]   = useState(false);
+  const [fsMenuOpen, setFsMenuOpen] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [alertCounts,  setAlertCounts]  = useState({});
-  const [popupIp,      setPopupIp]      = useState(null);
-  const [popupAlerts,  setPopupAlerts]  = useState([]);
+  const [alertCounts, setAlertCounts] = useState({});
+  const [popupIp, setPopupIp] = useState(null);
+  const [popupAlerts, setPopupAlerts] = useState([]);
   const [activeRecorders, setActiveRecorders] = useState([]);
   const [alertsPanelOpen, setAlertsPanelOpenState] = useState(() => {
     return localStorage.getItem("miradorai_live_alerts_open") === "true";
   });
 
   const setAlertsPanelOpen = useCallback((val) => {
-    setAlertsPanelOpenState(prev => {
-      const newVal = typeof val === 'function' ? val(prev) : val;
+    setAlertsPanelOpenState((prev) => {
+      const newVal = typeof val === "function" ? val(prev) : val;
       localStorage.setItem("miradorai_live_alerts_open", String(newVal));
       return newVal;
     });
@@ -1527,12 +2121,17 @@ export default function LiveViewPage({ onNavigate }) {
           const data = await res.json();
           const currentStartupId = data.startup_id;
           if (currentStartupId) {
-            const savedStartupId = sessionStorage.getItem("miradorai_backend_startup_id");
+            const savedStartupId = sessionStorage.getItem(
+              "miradorai_backend_startup_id",
+            );
             if (savedStartupId && savedStartupId !== currentStartupId) {
               setLayout("2x2");
               sessionStorage.setItem("miradorai_liveview_layout", "2x2");
             }
-            sessionStorage.setItem("miradorai_backend_startup_id", currentStartupId);
+            sessionStorage.setItem(
+              "miradorai_backend_startup_id",
+              currentStartupId,
+            );
           }
         }
       } catch (e) {
@@ -1549,30 +2148,43 @@ export default function LiveViewPage({ onNavigate }) {
   useEffect(() => {
     const syncStreamKeys = async () => {
       try {
-        const res = await fetch(`${API}/api/cameras`, { headers: getAuthHeaders() });
+        const res = await fetch(`${API}/api/cameras`, {
+          headers: getAuthHeaders(),
+        });
         if (!res.ok) return;
         const backendCams = await res.json();
         if (!Array.isArray(backendCams) || backendCams.length === 0) return;
 
-        setDevices(prev => {
+        setDevices((prev) => {
           let changed = false;
-          const existingIps = new Set(prev.map(d => d.ip).filter(Boolean));
-          const next = prev.map(d => {
-            let backend = backendCams.find(c => 
-              (c.stream_key && d.stream_key && c.stream_key === d.stream_key) ||
-              (c.id && d.id && c.id === d.id) ||
-              (c._id && d.id && c._id === d.id) ||
-              (c.ip && d.ip && c.rtsp_url && d.rtsp_url && c.ip === d.ip && c.rtsp_url === d.rtsp_url)
+          const existingIps = new Set(prev.map((d) => d.ip).filter(Boolean));
+          const next = prev.map((d) => {
+            let backend = backendCams.find(
+              (c) =>
+                (c.stream_key &&
+                  d.stream_key &&
+                  c.stream_key === d.stream_key) ||
+                (c.id && d.id && c.id === d.id) ||
+                (c._id && d.id && c._id === d.id) ||
+                (c.ip &&
+                  d.ip &&
+                  c.rtsp_url &&
+                  d.rtsp_url &&
+                  c.ip === d.ip &&
+                  c.rtsp_url === d.rtsp_url),
             );
             if (!backend) {
-              backend = backendCams.find(c => c.ip === d.ip);
+              backend = backendCams.find((c) => c.ip === d.ip);
             }
             if (!backend) return d;
-            const backendName = backend.name || backend.device_name || backend.camera_name;
+            const backendName =
+              backend.name || backend.device_name || backend.camera_name;
             const needsUpdate =
               (backend.reader_id && d.reader_id !== backend.reader_id) ||
-              (backend.sub_stream_key && d.sub_stream_key !== backend.sub_stream_key) ||
-              (backend.sub_stream_rtsp && d.sub_stream_rtsp !== backend.sub_stream_rtsp) ||
+              (backend.sub_stream_key &&
+                d.sub_stream_key !== backend.sub_stream_key) ||
+              (backend.sub_stream_rtsp &&
+                d.sub_stream_rtsp !== backend.sub_stream_rtsp) ||
               (backend.stream_key && d.stream_key !== backend.stream_key) ||
               (backend.source && d.source !== backend.source) ||
               (backendName && d.name !== backendName);
@@ -1580,12 +2192,14 @@ export default function LiveViewPage({ onNavigate }) {
             changed = true;
             return {
               ...d,
-              name:            backendName             || d.name,
-              source:          backend.source          || d.source,
-              reader_id:       backend.reader_id       || d.reader_id,
-              stream_key:      backend.stream_key      || d.stream_key,
-              sub_stream_key:  backend.sub_stream_key  || d.sub_stream_key  || null,
-              sub_stream_rtsp: backend.sub_stream_rtsp || d.sub_stream_rtsp || null,
+              name: backendName || d.name,
+              source: backend.source || d.source,
+              reader_id: backend.reader_id || d.reader_id,
+              stream_key: backend.stream_key || d.stream_key,
+              sub_stream_key:
+                backend.sub_stream_key || d.sub_stream_key || null,
+              sub_stream_rtsp:
+                backend.sub_stream_rtsp || d.sub_stream_rtsp || null,
             };
           });
 
@@ -1596,20 +2210,26 @@ export default function LiveViewPage({ onNavigate }) {
               changed = true;
               next.push({
                 id: cam.id || cam._id || cam.reader_id || camIp,
-                name: cam.name || cam.camera_name || cam.device_name || `AI Cam (${camIp})`,
+                name:
+                  cam.name ||
+                  cam.camera_name ||
+                  cam.device_name ||
+                  `AI Cam (${camIp})`,
                 ip: camIp,
                 rtsp_url: cam.rtsp_url || "",
                 source: cam.source || "AI_WEBHOOK",
                 reader_id: cam.reader_id,
                 enabled: cam.enabled !== false,
                 status: cam.status || "Active",
-                stream_key: cam.stream_key || camIp.replace(/\./g, "_")
+                stream_key: cam.stream_key || camIp.replace(/\./g, "_"),
               });
             }
           }
 
           if (changed) {
-            try { localStorage.setItem("miradorai_devices", JSON.stringify(next)); } catch {}
+            try {
+              localStorage.setItem("miradorai_devices", JSON.stringify(next));
+            } catch {}
           }
           return changed ? next : prev;
         });
@@ -1618,9 +2238,9 @@ export default function LiveViewPage({ onNavigate }) {
       }
     };
     syncStreamKeys();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  
+
   const fsRef = useRef(null);
   const fsMenuRef = useRef(null);
   const dropdownRef = useRef(null);
@@ -1628,7 +2248,7 @@ export default function LiveViewPage({ onNavigate }) {
   const showRec = localStorage.getItem("miradorai_show_rec_ind") !== "false";
 
   const handleLiveChange = useCallback((ip, isLive) => {
-    setLiveStatus(prev => {
+    setLiveStatus((prev) => {
       if (prev[ip] === isLive) return prev;
       return { ...prev, [ip]: isLive };
     });
@@ -1650,13 +2270,15 @@ export default function LiveViewPage({ onNavigate }) {
   const toggleGridFullscreen = () => {
     if (!gridAreaRef.current) return;
     if (!document.fullscreenElement) {
-      gridAreaRef.current.requestFullscreen?.()
+      gridAreaRef.current
+        .requestFullscreen?.()
         .then(() => setGridFullscreen(true))
-        .catch(err => console.error("Error going fullscreen:", err));
+        .catch((err) => console.error("Error going fullscreen:", err));
     } else {
-      document.exitFullscreen?.()
+      document
+        .exitFullscreen?.()
         .then(() => setGridFullscreen(false))
-        .catch(err => console.error("Error exiting fullscreen:", err));
+        .catch((err) => console.error("Error exiting fullscreen:", err));
     }
   };
 
@@ -1665,14 +2287,15 @@ export default function LiveViewPage({ onNavigate }) {
       setGridFullscreen(!!document.fullscreenElement);
     };
     document.addEventListener("fullscreenchange", handleFsChange);
-    return () => document.removeEventListener("fullscreenchange", handleFsChange);
+    return () =>
+      document.removeEventListener("fullscreenchange", handleFsChange);
   }, []);
 
   useEffect(() => {
     const fetchRecordingStatus = async () => {
       try {
         const res = await fetch(`${API}/api/recordings/status`, {
-          headers: getAuthHeaders()
+          headers: getAuthHeaders(),
         });
         if (res.ok) {
           const data = await res.json();
@@ -1696,7 +2319,7 @@ export default function LiveViewPage({ onNavigate }) {
   useEffect(() => {
     const onChange = () => {
       const active = !!(
-        document.fullscreenElement       ||
+        document.fullscreenElement ||
         document.webkitFullscreenElement ||
         document.mozFullScreenElement
       );
@@ -1706,32 +2329,41 @@ export default function LiveViewPage({ onNavigate }) {
         setFsLive(false);
       }
     };
-    document.addEventListener("fullscreenchange",       onChange);
+    document.addEventListener("fullscreenchange", onChange);
     document.addEventListener("webkitfullscreenchange", onChange);
-    document.addEventListener("mozfullscreenchange",    onChange);
+    document.addEventListener("mozfullscreenchange", onChange);
     return () => {
-      document.removeEventListener("fullscreenchange",       onChange);
+      document.removeEventListener("fullscreenchange", onChange);
       document.removeEventListener("webkitfullscreenchange", onChange);
-      document.removeEventListener("mozfullscreenchange",    onChange);
+      document.removeEventListener("mozfullscreenchange", onChange);
     };
   }, []);
 
   useEffect(() => {
     const loadInitialCounts = async () => {
       try {
-        const res  = await fetch(`${API}/api/alerts?limit=100`, {
-          headers: getAuthHeaders()
+        const res = await fetch(`${API}/api/alerts?limit=100`, {
+          headers: getAuthHeaders(),
         });
         const data = await res.json();
         const counts = {};
         // Build active IP set: only enabled + non-deleted cameras
-        const activeDevices = loadDevices().filter(d => d.enabled !== false && d.isdeleted !== true);
-        const activeIpSet = new Set(activeDevices.map(d => (d.ip || "").replace(/_/g, ".")));
+        const activeDevices = loadDevices().filter(
+          (d) => d.enabled !== false && d.isdeleted !== true,
+        );
+        const activeIpSet = new Set(
+          activeDevices.map((d) => (d.ip || "").replace(/_/g, ".")),
+        );
         (data.alerts || [])
           .filter((a) => a.status === "Active")
           .filter((a) => {
-             const t = (a.type || "").toLowerCase();
-             return t !== "unknown" && t !== "" && !t.includes("tns1:") && !t.includes("motion");
+            const t = (a.type || "").toLowerCase();
+            return (
+              t !== "unknown" &&
+              t !== "" &&
+              !t.includes("tns1:") &&
+              !t.includes("motion")
+            );
           })
           .filter(isAlertAllowed)
           .forEach((alert) => {
@@ -1751,11 +2383,12 @@ export default function LiveViewPage({ onNavigate }) {
 
   useEffect(() => {
     if (!fsDevice || !fsRef.current) return;
-    const el  = fsRef.current;
-    const req = el.requestFullscreen
-      || el.webkitRequestFullscreen
-      || el.mozRequestFullScreen
-      || el.msRequestFullscreen;
+    const el = fsRef.current;
+    const req =
+      el.requestFullscreen ||
+      el.webkitRequestFullscreen ||
+      el.mozRequestFullScreen ||
+      el.msRequestFullscreen;
     if (req) {
       req.call(el).catch((err) => {
         console.warn("[LiveView] requestFullscreen failed:", err.message);
@@ -1774,11 +2407,15 @@ export default function LiveViewPage({ onNavigate }) {
   }, []);
 
   const exitFullscreen = useCallback(() => {
-    const exit = document.exitFullscreen
-      || document.webkitExitFullscreen
-      || document.mozCancelFullScreen
-      || document.msExitFullscreen;
-    if (exit && (document.fullscreenElement || document.webkitFullscreenElement)) {
+    const exit =
+      document.exitFullscreen ||
+      document.webkitExitFullscreen ||
+      document.mozCancelFullScreen ||
+      document.msExitFullscreen;
+    if (
+      exit &&
+      (document.fullscreenElement || document.webkitFullscreenElement)
+    ) {
       exit.call(document).catch(() => {});
     } else {
       setFsDevice(null);
@@ -1788,23 +2425,27 @@ export default function LiveViewPage({ onNavigate }) {
     }
   }, []);
 
- 
   const openAlertPopup = useCallback(async (ip) => {
     try {
-      const res  = await fetch(`${API}/api/alerts?limit=100`, {
-        headers: getAuthHeaders()
+      const res = await fetch(`${API}/api/alerts?limit=100`, {
+        headers: getAuthHeaders(),
       });
       const data = await res.json();
       const normIp = (ip || "").replace(/_/g, ".");
       const filtered = (data.alerts || [])
         .filter((a) => a.status === "Active")
         .filter((a) => {
-           const t = (a.type || "").toLowerCase();
-           return t !== "unknown" && t !== "" && !t.includes("tns1:") && !t.includes("motion");
+          const t = (a.type || "").toLowerCase();
+          return (
+            t !== "unknown" &&
+            t !== "" &&
+            !t.includes("tns1:") &&
+            !t.includes("motion")
+          );
         })
         .filter(isAlertAllowed)
         .filter((a) => (a.ip || "").replace(/_/g, ".") === normIp);
-      
+
       filtered.sort((a, b) => {
         const tA = new Date(a.time || a.received_at).getTime() || 0;
         const tB = new Date(b.time || b.received_at).getTime() || 0;
@@ -1825,26 +2466,39 @@ export default function LiveViewPage({ onNavigate }) {
 
   const activeCams = useMemo(() => {
     const enabledCams = devices.filter((d) => d.enabled !== false);
-    if (user?.role === "admin" || !user?.allowedCameras || user?.allowedCameras.length === 0) {
+    if (
+      user?.role === "admin" ||
+      !user?.allowedCameras ||
+      user?.allowedCameras.length === 0
+    ) {
       return enabledCams;
     }
-    return enabledCams.filter(c => user.allowedCameras.includes(String(c.id)));
+    return enabledCams.filter((c) =>
+      user.allowedCameras.includes(String(c.id)),
+    );
   }, [devices, user]);
-  const onlineCams    = activeCams.filter((d) => d.ws_url || d.rtsp_url || d.source === "AI_WEBHOOK");
+  const onlineCams = activeCams.filter(
+    (d) => d.ws_url || d.rtsp_url || d.source === "AI_WEBHOOK",
+  );
   const disabledCount = devices.length - activeCams.length;
 
   const activeSequence = useMemo(() => {
-    return sequences.find(s => s.id === activeSequenceId);
+    return sequences.find((s) => s.id === activeSequenceId);
   }, [activeSequenceId, sequences]);
 
   const filteredActiveCams = useMemo(() => {
     if (!activeSequence) return activeCams;
-    return activeCams.filter(c => activeSequence.cameraIds.includes(String(c.id)));
+    return activeCams.filter((c) =>
+      activeSequence.cameraIds.includes(String(c.id)),
+    );
   }, [activeCams, activeSequence]);
 
   useEffect(() => {
     if (activeSequenceId === "all") {
-      const val = parseInt(localStorage.getItem("miradorai_dwell_time") || "10", 10);
+      const val = parseInt(
+        localStorage.getItem("miradorai_dwell_time") || "10",
+        10,
+      );
       setDwellTime(val);
     } else if (activeSequence) {
       setDwellTime(activeSequence.dwellTime);
@@ -1860,31 +2514,37 @@ export default function LiveViewPage({ onNavigate }) {
         return bCount - aCount;
       }
 
-      const aIdx = devices.findIndex(d => d.id === a.id);
-      const bIdx = devices.findIndex(d => d.id === b.id);
+      const aIdx = devices.findIndex((d) => d.id === a.id);
+      const bIdx = devices.findIndex((d) => d.id === b.id);
       return aIdx - bIdx;
     });
   }, [filteredActiveCams, alertCounts, devices]);
 
-  const currentGridOption = GRID_OPTIONS.find(o => o.id === layout) || GRID_OPTIONS[3];
+  const currentGridOption =
+    GRID_OPTIONS.find((o) => o.id === layout) || GRID_OPTIONS[3];
   const rows = currentGridOption.rows;
   const cols = currentGridOption.cols;
   // const gridSize = rows * cols;
   const isSpotlight = currentGridOption.isSpotlight;
   const gridSize = isSpotlight ? currentGridOption.pageSize : rows * cols;
 
-  const dynamicGap = cols >= 15 ? "4px" : cols >= 8 ? "4px" : cols >= 6 ? "8px" : "14px";
-  const dynamicRadius = cols >= 15 ? "2px" : cols >= 8 ? "4px" : cols >= 6 ? "8px" : "12px";
+  const dynamicGap =
+    cols >= 15 ? "4px" : cols >= 8 ? "4px" : cols >= 6 ? "8px" : "14px";
+  const dynamicRadius =
+    cols >= 15 ? "2px" : cols >= 8 ? "4px" : cols >= 6 ? "8px" : "12px";
   const dynamicBorder = cols >= 15 ? "0px" : "1px";
   const totalPages = Math.max(1, Math.ceil(sortedActiveCams.length / gridSize));
-  
+
   useEffect(() => {
     if (currentPage > totalPages) {
       setCurrentPage(totalPages);
     }
   }, [totalPages, currentPage]);
 
-  const pageCams = sortedActiveCams.slice((currentPage - 1) * gridSize, currentPage * gridSize);
+  const pageCams = sortedActiveCams.slice(
+    (currentPage - 1) * gridSize,
+    currentPage * gridSize,
+  );
 
   // Fullscreen keyboard navigation (Left/Right Arrows)
   useEffect(() => {
@@ -1892,16 +2552,20 @@ export default function LiveViewPage({ onNavigate }) {
 
     const handleKeyDown = (e) => {
       if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
-        const currentIndex = sortedActiveCams.findIndex(c => c.id === fsDevice.id);
+        const currentIndex = sortedActiveCams.findIndex(
+          (c) => c.id === fsDevice.id,
+        );
         if (currentIndex === -1) return;
-        
+
         let nextIndex;
         if (e.key === "ArrowLeft") {
-          nextIndex = currentIndex > 0 ? currentIndex - 1 : sortedActiveCams.length - 1;
+          nextIndex =
+            currentIndex > 0 ? currentIndex - 1 : sortedActiveCams.length - 1;
         } else {
-          nextIndex = currentIndex < sortedActiveCams.length - 1 ? currentIndex + 1 : 0;
+          nextIndex =
+            currentIndex < sortedActiveCams.length - 1 ? currentIndex + 1 : 0;
         }
-        
+
         const nextCam = sortedActiveCams[nextIndex];
         if (nextCam) {
           e.preventDefault();
@@ -1920,15 +2584,17 @@ export default function LiveViewPage({ onNavigate }) {
       pageCams.forEach((cam) => {
         const isCamFullscreen = fsDevice && fsDevice.id === cam.id;
         const mode = isCamFullscreen ? "fullscreen" : "grid";
-        
+
         fetch(`${API}/api/system/cameras/${cam.ip}/view-mode`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            ...getAuthHeaders()
+            ...getAuthHeaders(),
           },
-          body: JSON.stringify({ mode })
-        }).catch((err) => console.error("[VMS-VIEWMODE] Error updating view mode:", err));
+          body: JSON.stringify({ mode }),
+        }).catch((err) =>
+          console.error("[VMS-VIEWMODE] Error updating view mode:", err),
+        );
       });
     }
   }, [fsDevice, currentPage, layout, sortedActiveCams]);
@@ -1937,19 +2603,19 @@ export default function LiveViewPage({ onNavigate }) {
     const sendHeartbeat = async () => {
       try {
         const res = await fetch(`${API}/api/viewing-stations/heartbeat`, {
-          method: 'POST',
+          method: "POST",
           headers: {
-            'Content-Type': 'application/json',
-            ...getAuthHeaders()
+            "Content-Type": "application/json",
+            ...getAuthHeaders(),
           },
           body: JSON.stringify({
             station_id: stationDetails.sid,
             name: stationName,
             grid: layout,
-            device_order: devices.map(d => d.id),
+            device_order: devices.map((d) => d.id),
             applied_timestamp: appliedTimestamp,
-            active_feeds_count: pageCams.length
-          })
+            active_feeds_count: pageCams.length,
+          }),
         });
 
         if (res.ok) {
@@ -1957,14 +2623,16 @@ export default function LiveViewPage({ onNavigate }) {
           if (data.success && data.pushed_layout) {
             const pushed = data.pushed_layout;
 
-            setDevices(prevDevices => {
+            setDevices((prevDevices) => {
               const newOrder = pushed.device_order;
               const matched = [];
               const remaining = [...prevDevices];
 
               for (const id of newOrder) {
                 if (!id) continue;
-                const idx = remaining.findIndex(d => String(d.id) === String(id));
+                const idx = remaining.findIndex(
+                  (d) => String(d.id) === String(id),
+                );
                 if (idx !== -1) {
                   matched.push(remaining[idx]);
                   remaining.splice(idx, 1);
@@ -1978,7 +2646,10 @@ export default function LiveViewPage({ onNavigate }) {
 
             setLayout(pushed.grid);
             setAppliedTimestamp(pushed.timestamp);
-            sessionStorage.setItem("miradorai_applied_layout_time", String(pushed.timestamp));
+            sessionStorage.setItem(
+              "miradorai_applied_layout_time",
+              String(pushed.timestamp),
+            );
 
             window.dispatchEvent(new Event("storage"));
           }
@@ -1991,7 +2662,14 @@ export default function LiveViewPage({ onNavigate }) {
     sendHeartbeat();
     const interval = setInterval(sendHeartbeat, 30000);
     return () => clearInterval(interval);
-  }, [stationDetails.sid, stationName, layout, devices, appliedTimestamp, pageCams.length]);
+  }, [
+    stationDetails.sid,
+    stationName,
+    layout,
+    devices,
+    appliedTimestamp,
+    pageCams.length,
+  ]);
 
   useEffect(() => {
     if (!isTourActive || totalPages <= 1) return;
@@ -2016,38 +2694,43 @@ export default function LiveViewPage({ onNavigate }) {
     e.preventDefault();
   }, []);
 
-  const handleDrop = useCallback((e, targetCamId, targetIndex) => {
-    e.preventDefault();
-    const sourceCamId = dragCamId.current;
-    if (!sourceCamId) return;
+  const handleDrop = useCallback(
+    (e, targetCamId, targetIndex) => {
+      e.preventDefault();
+      const sourceCamId = dragCamId.current;
+      if (!sourceCamId) return;
 
-    setDevices((prevDevices) => {
-      const newDevices = [...prevDevices];
-      const sourceIdx = newDevices.findIndex((d) => d.id === sourceCamId);
-      let targetIdx = -1;
+      setDevices((prevDevices) => {
+        const newDevices = [...prevDevices];
+        const sourceIdx = newDevices.findIndex((d) => d.id === sourceCamId);
+        let targetIdx = -1;
 
-      if (targetCamId) {
-        targetIdx = newDevices.findIndex((d) => d.id === targetCamId);
-      } else {
-        const targetCamInPage = pageCams[targetIndex];
-        if (targetCamInPage) {
-          targetIdx = newDevices.findIndex((d) => d.id === targetCamInPage.id);
+        if (targetCamId) {
+          targetIdx = newDevices.findIndex((d) => d.id === targetCamId);
+        } else {
+          const targetCamInPage = pageCams[targetIndex];
+          if (targetCamInPage) {
+            targetIdx = newDevices.findIndex(
+              (d) => d.id === targetCamInPage.id,
+            );
+          }
         }
-      }
 
-      if (sourceIdx !== -1 && targetIdx !== -1 && sourceIdx !== targetIdx) {
-        const temp = newDevices[sourceIdx];
-        newDevices[sourceIdx] = newDevices[targetIdx];
-        newDevices[targetIdx] = temp;
+        if (sourceIdx !== -1 && targetIdx !== -1 && sourceIdx !== targetIdx) {
+          const temp = newDevices[sourceIdx];
+          newDevices[sourceIdx] = newDevices[targetIdx];
+          newDevices[targetIdx] = temp;
 
-        localStorage.setItem("miradorai_devices", JSON.stringify(newDevices));
-        window.dispatchEvent(new Event("storage"));
-      }
-      return newDevices;
-    });
+          localStorage.setItem("miradorai_devices", JSON.stringify(newDevices));
+          window.dispatchEvent(new Event("storage"));
+        }
+        return newDevices;
+      });
 
-    dragCamId.current = null;
-  }, [pageCams]);
+      dragCamId.current = null;
+    },
+    [pageCams],
+  );
 
   const handleLayoutChange = (layoutId) => {
     setLayout(layoutId);
@@ -2058,429 +2741,725 @@ export default function LiveViewPage({ onNavigate }) {
     <div className="lv-page" data-theme={theme}>
       <div className="lv-main-content">
         <div className="lv-top-bar-container">
-        <div className="lv-top-header">
-          <div className="lv-top-header__left">
-            <h1 className="lv-page-title">Live View</h1>
-            <div className="lv-online-status">
-              <span className="lv-live-dot" />
-              <span>{onlineCams.length} online</span>
-            </div>
-            
-            <div className="lv-filter-group" style={{ marginLeft: "16px" }}>
-              <div className="lv-filter-item">
-                {isEditingName ? (
-                  <input
-                    type="text"
-                    className="lv-station-name-input"
-                    value={stationName}
-                    onChange={(e) => {
-                      setStationName(e.target.value);
-                      sessionStorage.setItem("miradorai_workstation_name", e.target.value);
-                    }}
-                    onBlur={() => setIsEditingName(false)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") setIsEditingName(false);
-                    }}
-                    autoFocus
+          <div className="lv-top-header">
+            <div className="lv-top-header__left">
+              <h1 className="lv-page-title">Live View</h1>
+              <div className="lv-online-status">
+                <span className="lv-live-dot" />
+                <span>{onlineCams.length} online</span>
+              </div>
+
+              <div className="lv-filter-group" style={{ marginLeft: "16px" }}>
+                <div className="lv-filter-item">
+                  {isEditingName ? (
+                    <input
+                      type="text"
+                      className="lv-station-name-input"
+                      value={stationName}
+                      onChange={(e) => {
+                        setStationName(e.target.value);
+                        sessionStorage.setItem(
+                          "miradorai_workstation_name",
+                          e.target.value,
+                        );
+                      }}
+                      onBlur={() => setIsEditingName(false)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") setIsEditingName(false);
+                      }}
+                      autoFocus
+                    />
+                  ) : (
+                    <span
+                      onClick={() => setIsEditingName(true)}
+                      style={{
+                        cursor: "pointer",
+                        flex: 1,
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "6px",
+                      }}
+                    >
+                      {stationName}
+                      <svg
+                        className="lv-chevron-icon"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2.5"
+                        width="10"
+                        height="10"
+                        style={{ marginLeft: "4px" }}
+                      >
+                        <path d="M6 9l6 6 6-6" />
+                      </svg>
+                    </span>
+                  )}
+                </div>
+
+                <div className="lv-filter-divider" />
+
+                <div className="lv-filter-item lv-dropdown-container">
+                  <span
+                    className="lv-blue-dot"
+                    style={{ background: "#3fb950", marginRight: "6px" }}
                   />
-                ) : (
-                  <span onClick={() => setIsEditingName(true)} style={{ cursor: "pointer", flex: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", display: "flex", alignItems: "center", gap: "6px" }}>
-                    {stationName}
-                    <svg className="lv-chevron-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="10" height="10" style={{ marginLeft: "4px" }}>
+                  <span
+                    style={{
+                      color: "#3fb950",
+                      cursor: "pointer",
+                      flex: 1,
+                      whiteSpace: "nowrap",
+                      display: "flex",
+                      alignItems: "center",
+                    }}
+                    onClick={() => setModeDropdownOpen(!modeDropdownOpen)}
+                  >
+                    {streamMode === "hls"
+                      ? "Standard Latency"
+                      : "Ultra-Low Latency"}
+                    <svg
+                      className={`lv-chevron-icon ${modeDropdownOpen ? "open" : ""}`}
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.5"
+                      width="10"
+                      height="10"
+                      style={{ marginLeft: "8px" }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setModeDropdownOpen(!modeDropdownOpen);
+                      }}
+                    >
                       <path d="M6 9l6 6 6-6" />
                     </svg>
                   </span>
-                )}
-              </div>
-
-              <div className="lv-filter-divider" />
-
-              <div className="lv-filter-item lv-dropdown-container">
-                <span className="lv-blue-dot" style={{ background: "#3fb950", marginRight: "6px" }} />
-                <span style={{ color: "#3fb950", cursor: "pointer", flex: 1, whiteSpace: "nowrap", display: "flex", alignItems: "center" }} onClick={() => setModeDropdownOpen(!modeDropdownOpen)}>
-                  {streamMode === "hls" ? "Standard Latency" : "Ultra-Low Latency"}
-                  <svg className={`lv-chevron-icon ${modeDropdownOpen ? 'open' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="10" height="10" style={{ marginLeft: '8px' }} onClick={(e) => { e.stopPropagation(); setModeDropdownOpen(!modeDropdownOpen); }}>
-                    <path d="M6 9l6 6 6-6" />
-                  </svg>
-                </span>
-                {modeDropdownOpen && (
-                  <div className="lv-filter-dropdown">
-                    <button
-                      className={`lv-filter-dropdown-item ${streamMode === "webrtc" ? "selected" : ""}`}
-                      onClick={() => { setStreamMode("webrtc"); setModeDropdownOpen(false); }}
-                    >
-                      Ultra-Low Latency
-                    </button>
-                    <button
-                      className={`lv-filter-dropdown-item ${streamMode === "hls" ? "selected" : ""}`}
-                      onClick={() => { setStreamMode("hls"); setModeDropdownOpen(false); }}
-                    >
-                      Standard Latency
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              <div className="lv-filter-divider" />
-
-              <div className="lv-filter-item lv-dropdown-container" ref={dropdownRef}>
-                <span style={{ cursor: "pointer", flex: 1, whiteSpace: "nowrap", display: "flex", alignItems: "center" }} onClick={() => setGridDropdownOpen(!gridDropdownOpen)}>
-                  {currentGridOption.label.replace(' Grid', '')}
-                  <svg className={`lv-chevron-icon ${gridDropdownOpen ? 'open' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="10" height="10" style={{ marginLeft: '8px', opacity: 0.8 }} onClick={(e) => { e.stopPropagation(); setGridDropdownOpen(!gridDropdownOpen); }}>
-                    <path d="M6 9l6 6 6-6" />
-                  </svg>
-                </span>
-                {gridDropdownOpen && (
-                  <div className="lv-filter-dropdown">
-                    {GRID_OPTIONS.map((opt) => (
+                  {modeDropdownOpen && (
+                    <div className="lv-filter-dropdown">
                       <button
-                        key={opt.id}
-                        className={`lv-filter-dropdown-item ${layout === opt.id ? "selected" : ""}`}
-                        onClick={() => { handleLayoutChange(opt.id); setGridDropdownOpen(false); }}
+                        className={`lv-filter-dropdown-item ${streamMode === "webrtc" ? "selected" : ""}`}
+                        onClick={() => {
+                          setStreamMode("webrtc");
+                          setModeDropdownOpen(false);
+                        }}
                       >
-                        {opt.label.replace(' Grid', '')}
+                        Ultra-Low Latency
                       </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-          <div className="lv-top-header__right">
-            <div className="lv-filter-group" style={{ marginRight: "12px" }}>
-              <div className="lv-filter-item lv-dropdown-container" onClick={(e) => { e.stopPropagation(); setShowSequenceModal(true); }}>
-                <span style={{ whiteSpace: "nowrap", cursor: "pointer" }}>
-                  + Sequence
-                </span>
-              </div>
-
-              <div className="lv-filter-divider" />
-
-              <div className="lv-filter-item">
-                <button
-                  onClick={() => setIsTourActive(!isTourActive)}
-                  title={isTourActive ? "Pause Tour" : "Start Auto Sequence Tour"}
-                  type="button"
-                  className={`lv-tour-btn ${isTourActive ? "active" : ""}`}
-                  style={{ background: 'none', border: 'none', padding: 0, marginRight: '6px', cursor: 'pointer', color: isTourActive ? '#3fb950' : 'inherit', opacity: 0.8, display: 'flex' }}
-                >
-                  {isTourActive ? (
-                    <svg viewBox="0 0 24 24" fill="currentColor" width="12" height="12"><rect x="5" y="4" width="4" height="16" rx="1"/><rect x="15" y="4" width="4" height="16" rx="1"/></svg>
-                  ) : (
-                    <svg viewBox="0 0 24 24" fill="currentColor" width="12" height="12"><path d="M6 4l15 8-15 8z"/></svg>
+                      <button
+                        className={`lv-filter-dropdown-item ${streamMode === "hls" ? "selected" : ""}`}
+                        onClick={() => {
+                          setStreamMode("hls");
+                          setModeDropdownOpen(false);
+                        }}
+                      >
+                        Standard Latency
+                      </button>
+                    </div>
                   )}
-                </button>
-                <span style={{ opacity: 0.9, marginRight: '4px' }}>Dwell</span>
-                <input
-                  type="number"
-                  className="lv-dwell-input"
-                  value={dwellTime}
-                  min="3"
-                  max="300"
-                  onChange={(e) => {
-                    const val = Math.max(3, parseInt(e.target.value) || 3);
-                    setDwellTime(val);
-                    localStorage.setItem("miradorai_dwell_time", String(val));
-                  }}
-                  disabled={isTourActive || activeSequenceId !== "all"}
-                />
-                <span style={{ fontWeight: "500", color: "var(--text-secondary)", marginLeft: '2px' }}>s</span>
+                </div>
+
+                <div className="lv-filter-divider" />
+
+                <div
+                  className="lv-filter-item lv-dropdown-container"
+                  ref={dropdownRef}
+                >
+                  <span
+                    style={{
+                      cursor: "pointer",
+                      flex: 1,
+                      whiteSpace: "nowrap",
+                      display: "flex",
+                      alignItems: "center",
+                    }}
+                    onClick={() => setGridDropdownOpen(!gridDropdownOpen)}
+                  >
+                    {currentGridOption.label.replace(" Grid", "")}
+                    <svg
+                      className={`lv-chevron-icon ${gridDropdownOpen ? "open" : ""}`}
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.5"
+                      width="10"
+                      height="10"
+                      style={{ marginLeft: "8px", opacity: 0.8 }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setGridDropdownOpen(!gridDropdownOpen);
+                      }}
+                    >
+                      <path d="M6 9l6 6 6-6" />
+                    </svg>
+                  </span>
+                  {gridDropdownOpen && (
+                    <div className="lv-filter-dropdown">
+                      {GRID_OPTIONS.map((opt) => (
+                        <button
+                          key={opt.id}
+                          className={`lv-filter-dropdown-item ${layout === opt.id ? "selected" : ""}`}
+                          onClick={() => {
+                            handleLayoutChange(opt.id);
+                            setGridDropdownOpen(false);
+                          }}
+                        >
+                          {opt.label.replace(" Grid", "")}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
-            <button
-              className="lv-icon-btn"
-              onClick={toggleGridFullscreen}
-              title={gridFullscreen ? "Exit Fullscreen" : "Fullscreen Grid"}
-              type="button"
-            >
-              {gridFullscreen ? (
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16">
-                  <path d="M4 14h6v6M20 10h-6V4M14 10l7-7M10 14l-7 7" />
+            <div className="lv-top-header__right">
+              <div className="lv-filter-group" style={{ marginRight: "12px" }}>
+                <div className="lv-filter-item lv-fit-mode-toggle">
+                  <button
+                    type="button"
+                    onClick={() => setObjectFitMode("contain")}
+                    title="Fit Mode"
+                    className={`lv-fit-mode-btn ${objectFitMode === "contain" ? "lv-fit-mode-btn--active" : ""}`}
+                  >
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      width="16"
+                      height="16"
+                    >
+                      <rect
+                        x="3"
+                        y="3"
+                        width="18"
+                        height="18"
+                        rx="2"
+                        ry="2"
+                        strokeOpacity="0.3"
+                      />
+                      <rect x="3" y="7" width="18" height="10" />
+                    </svg>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setObjectFitMode("cover")}
+                    title="Fill Mode"
+                    className={`lv-fit-mode-btn ${objectFitMode === "cover" ? "lv-fit-mode-btn--active" : ""}`}
+                  >
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      width="16"
+                      height="16"
+                    >
+                      <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                    </svg>
+                  </button>
+                </div>
+
+                <div className="lv-filter-divider" />
+
+                <div
+                  className="lv-filter-item lv-dropdown-container"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowSequenceModal(true);
+                  }}
+                >
+                  <span style={{ whiteSpace: "nowrap", cursor: "pointer" }}>
+                    + Sequence
+                  </span>
+                </div>
+
+                <div className="lv-filter-divider" />
+
+                <div className="lv-filter-item">
+                  <button
+                    onClick={() => setIsTourActive(!isTourActive)}
+                    title={
+                      isTourActive ? "Pause Tour" : "Start Auto Sequence Tour"
+                    }
+                    type="button"
+                    className={`lv-tour-btn ${isTourActive ? "active" : ""}`}
+                    style={{
+                      background: "none",
+                      border: "none",
+                      padding: 0,
+                      marginRight: "6px",
+                      cursor: "pointer",
+                      color: isTourActive ? "#3fb950" : "inherit",
+                      opacity: 0.8,
+                      display: "flex",
+                    }}
+                  >
+                    {isTourActive ? (
+                      <svg
+                        viewBox="0 0 24 24"
+                        fill="currentColor"
+                        width="12"
+                        height="12"
+                      >
+                        <rect x="5" y="4" width="4" height="16" rx="1" />
+                        <rect x="15" y="4" width="4" height="16" rx="1" />
+                      </svg>
+                    ) : (
+                      <svg
+                        viewBox="0 0 24 24"
+                        fill="currentColor"
+                        width="12"
+                        height="12"
+                      >
+                        <path d="M6 4l15 8-15 8z" />
+                      </svg>
+                    )}
+                  </button>
+                  <span style={{ opacity: 0.9, marginRight: "4px" }}>
+                    Dwell
+                  </span>
+                  <input
+                    type="number"
+                    className="lv-dwell-input"
+                    value={dwellTime}
+                    min="3"
+                    max="300"
+                    onChange={(e) => {
+                      const val = Math.max(3, parseInt(e.target.value) || 3);
+                      setDwellTime(val);
+                      localStorage.setItem("miradorai_dwell_time", String(val));
+                    }}
+                    disabled={isTourActive || activeSequenceId !== "all"}
+                  />
+                  <span
+                    style={{
+                      fontWeight: "500",
+                      color: "var(--text-secondary)",
+                      marginLeft: "2px",
+                    }}
+                  >
+                    s
+                  </span>
+                </div>
+              </div>
+              <button
+                className="lv-icon-btn"
+                onClick={toggleGridFullscreen}
+                title={gridFullscreen ? "Exit Fullscreen" : "Fullscreen Grid"}
+                type="button"
+              >
+                {gridFullscreen ? (
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    width="16"
+                    height="16"
+                  >
+                    <path d="M4 14h6v6M20 10h-6V4M14 10l7-7M10 14l-7 7" />
+                  </svg>
+                ) : (
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    width="16"
+                    height="16"
+                  >
+                    <path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3" />
+                  </svg>
+                )}
+              </button>
+              <button
+                className={`lv-icon-btn ${alertsPanelOpen ? "active" : ""}`}
+                onClick={() => setAlertsPanelOpen(!alertsPanelOpen)}
+                title={
+                  alertsPanelOpen ? "Hide Alerts Panel" : "Show Alerts Panel"
+                }
+                type="button"
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  width="16"
+                  height="16"
+                >
+                  <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+                  <path d="M13.73 21a2 2 0 0 1-3.46 0" />
                 </svg>
-              ) : (
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16">
-                  <path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3" />
-                </svg>
-              )}
-            </button>
-            <button
-              className={`lv-icon-btn ${alertsPanelOpen ? "active" : ""}`}
-              onClick={() => setAlertsPanelOpen(!alertsPanelOpen)}
-              title={alertsPanelOpen ? "Hide Alerts Panel" : "Show Alerts Panel"}
-              type="button"
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16">
-                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-                <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-              </svg>
-              {totalAlertsCount > 0 && <span className="lv-alert-badge-dot" />}
-            </button>
+                {totalAlertsCount > 0 && (
+                  <span className="lv-alert-badge-dot" />
+                )}
+              </button>
+            </div>
           </div>
         </div>
-      </div>
 
-      <div className="lv-main-area">
-
-        {fsDevice && (
-          <div ref={fsRef} className="lv-fullscreen-overlay" tabIndex={-1} onDoubleClick={exitFullscreen}>
-            <div className="lv-fullscreen-overlay__bar">
-              <div className="lv-fullscreen-overlay__info">
-                {fsLive && <span className="lv-live-dot" />}
-                <span className="lv-fullscreen-overlay__name">{fsDevice.name}</span>
-                {fsLive && showRec && (activeRecorders.includes(fsDevice?.stream_key) || activeRecorders.includes(fsDevice?.stream_key)) && (
-                  <span className="lv-rec-dot" />
-                )}
-                <span className="lv-fullscreen-overlay__ip">{fsDevice.ip}</span>
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                {/* PTZ toggle in fullscreen */}
-                <button
-                  className={`lv-ptz-toggle-btn ${fsPtzOpen ? "active" : ""}`}
-                  onClick={() => setFsPtzOpen((v) => !v)}
-                  title={fsPtzOpen ? "Hide PTZ Controls" : "PTZ Controls"}
-                  type="button"
-                  style={{ width: 32, height: 32 }}
+        <div className="lv-main-area">
+          {fsDevice && (
+            <div
+              ref={fsRef}
+              className="lv-fullscreen-overlay"
+              tabIndex={-1}
+              onDoubleClick={exitFullscreen}
+            >
+              <div className="lv-fullscreen-overlay__bar">
+                <div className="lv-fullscreen-overlay__info">
+                  {fsLive && <span className="lv-live-dot" />}
+                  <span className="lv-fullscreen-overlay__name">
+                    {fsDevice.name}
+                  </span>
+                  {fsLive &&
+                    showRec &&
+                    (activeRecorders.includes(fsDevice?.stream_key) ||
+                      activeRecorders.includes(fsDevice?.stream_key)) && (
+                      <span className="lv-rec-dot" />
+                    )}
+                  <span className="lv-fullscreen-overlay__ip">
+                    {fsDevice.ip}
+                  </span>
+                </div>
+                <div
+                  style={{ display: "flex", alignItems: "center", gap: "8px" }}
                 >
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15">
-                    <circle cx="12" cy="12" r="3"/>
-                    <path d="M12 2v4M12 18v4M2 12h4M18 12h4"/>
-                  </svg>
-                </button>
-                <button
-                  className="lv-fullscreen-overlay__exit"
-                  onClick={exitFullscreen}
-                  type="button"
-                  title="Exit fullscreen (Esc)"
-                >
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="13" height="13">
-                    <path d="M8 3v3a2 2 0 01-2 2H3M21 8h-3a2 2 0 01-2-2V3M3 16h3a2 2 0 012 2v3M16 21v-3a2 2 0 012-2h3"/>
-                  </svg>
-                  Exit Fullscreen
-                </button>
-              </div>
-            </div>
-            <div className="lv-fullscreen-overlay__player" style={{ position: "relative" }}>
-              {fsStreamMode === "webrtc" ? (() => {
-                const baseFsKey = fsDevice.stream_key || fsDevice.stream_key || fsDevice.live_stream || "";
-                const activeCodec = String(fsDevice.live_codec || fsDevice.codec || "").toUpperCase();
-                const isH265 = ["H.265", "H265", "HEVC"].includes(activeCodec);
-                const fsStreamKeyToUse = isH265 ? `${baseFsKey}_h264` : baseFsKey;
-                
-                return (
-                  <WebRTCPlayer_MediaMTX
-                    key={`fs-${fsStreamKeyToUse}`}
-                    streamKey={fsStreamKeyToUse}
-                    cameraId={fsDevice.id}
-                    onConnectChange={setFsLive}
-                    maxBitrate={10000}
-                  />
-                );
-              })() : (
-                <HlsPlayer
-                  key={`fs-hls-${fsDevice.stream_key || fsDevice.stream_key || fsDevice.live_stream}`}
-                  streamKey={fsDevice.stream_key || fsDevice.stream_key || fsDevice.live_stream}
-                  onConnectChange={setFsLive}
-                />
-              )}
-              <MaskOverlay ip={fsDevice.ip} />
-              {/* PTZ panel in fullscreen */}
-              {fsPtzOpen && (
-                <PTZControls
-                  camera={fsDevice}
-                  onClose={() => setFsPtzOpen(false)}
-                />
-              )}
-            </div>
-          </div>
-        )}
-
-        <div className="lv-grid-area" ref={gridAreaRef}>
-          {devices.length === 0 ? (
-            <div className="lv-empty">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="0.8" width="64" height="64">
-                <path d="M23 7l-7 5 7 5V7z"/>
-                <rect x="1" y="5" width="15" height="14" rx="2"/>
-              </svg>
-              <p>No cameras enrolled yet.</p>
-              <p className="lv-empty__sub">Go to <strong>Add Devices</strong> to enroll cameras.</p>
-            </div>
-
-          ) : activeCams.length === 0 ? (
-            <div className="lv-empty">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="0.8" width="64" height="64">
-                <path d="M23 7l-7 5 7 5V7z"/>
-                <rect x="1" y="5" width="15" height="14" rx="2"/>
-                <line x1="2" y1="2" x2="22" y2="22" stroke="currentColor" strokeWidth="1.2"/>
-              </svg>
-              <p>All cameras are disabled.</p>
-              <p className="lv-empty__sub">
-                Enable cameras in <strong>Manage Camera Groups</strong> to view streams.
-              </p>
-            </div>
-
-          ) : (
-            <>
-              <div
-                className="lv-grid"
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`,
-                  gridTemplateRows: `repeat(${rows}, minmax(0, 1fr))`,
-                  gap: dynamicGap,
-                  padding: `${dynamicGap} ${dynamicGap} 0 ${dynamicGap}`,
-                  background: "transparent"
-                }}
-              >
-                {Array.from({ length: gridSize }).map((_, i) => {
-                  const cam = pageCams[i];
-                  const hasAlert = cam ? (alertCounts[cam.ip] > 0) : false;
-                  const isSelected = cam ? (selectedCamId === cam.id) : (selectedCamId === `empty-${i}`);
-                  const spotlightStyle = (isSpotlight && i === 0) ? { gridColumn: "span 3", gridRow: "span 3" } : {};
-                  return (
-                    <div
-                      key={cam ? cam.id : `empty-${i}`}
-                      className={`lv-cell ${isSelected ? "lv-cell--selected" : ""} ${hasAlert ? "lv-cell--alert" : ""}`}
-                      style={{ ...spotlightStyle, borderRadius: dynamicRadius, borderWidth: dynamicBorder }}
-                      onClick={() => {
-                        const target = cam ? cam.id : `empty-${i}`;
-                        setSelectedCamId(selectedCamId === target ? null : target);
-                      }}
-                      onDoubleClick={(e) => {
-                        if (cam) {
-                          openFullscreen(cam, e);
-                        }
-                      }}
-                      onContextMenu={(e) => {
-                        if (cam) {
-                          handleRowContextMenu(e, cam.id);
-                        }
-                      }}
-                      draggable={!!cam}
-                      onDragStart={(e) => cam && handleDragStart(e, cam.id)}
-                      onDragOver={handleDragOver}
-                      onDrop={(e) => handleDrop(e, cam ? cam.id : null, i)}
+                  {/* PTZ toggle in fullscreen */}
+                  <button
+                    className={`lv-ptz-toggle-btn ${fsPtzOpen ? "active" : ""}`}
+                    onClick={() => setFsPtzOpen((v) => !v)}
+                    title={fsPtzOpen ? "Hide PTZ Controls" : "PTZ Controls"}
+                    type="button"
+                    style={{ width: 32, height: 32 }}
+                  >
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      width="15"
+                      height="15"
                     >
-                      {cam
-                        ? <CameraCell
+                      <circle cx="12" cy="12" r="3" />
+                      <path d="M12 2v4M12 18v4M2 12h4M18 12h4" />
+                    </svg>
+                  </button>
+                  <button
+                    className="lv-fullscreen-overlay__exit"
+                    onClick={exitFullscreen}
+                    type="button"
+                    title="Exit fullscreen (Esc)"
+                  >
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      width="13"
+                      height="13"
+                    >
+                      <path d="M8 3v3a2 2 0 01-2 2H3M21 8h-3a2 2 0 01-2-2V3M3 16h3a2 2 0 012 2v3M16 21v-3a2 2 0 012-2h3" />
+                    </svg>
+                    Exit Fullscreen
+                  </button>
+                </div>
+              </div>
+              <div
+                className="lv-fullscreen-overlay__player"
+                style={{ position: "relative" }}
+              >
+                {fsStreamMode === "webrtc" ? (
+                  (() => {
+                    const baseFsKey =
+                      fsDevice.stream_key ||
+                      fsDevice.stream_key ||
+                      fsDevice.live_stream ||
+                      "";
+                    const activeCodec = String(
+                      fsDevice.live_codec || fsDevice.codec || "",
+                    ).toUpperCase();
+                    const isH265 = ["H.265", "H265", "HEVC"].includes(
+                      activeCodec,
+                    );
+                    const fsStreamKeyToUse = isH265
+                      ? `${baseFsKey}_h264`
+                      : baseFsKey;
+
+                    return (
+                      <WebRTCPlayer_MediaMTX
+                        key={`fs-${fsStreamKeyToUse}`}
+                        streamKey={fsStreamKeyToUse}
+                        cameraId={fsDevice.id}
+                        onConnectChange={setFsLive}
+                        maxBitrate={10000}
+                        objectFit={objectFitMode}
+                      />
+                    );
+                  })()
+                ) : (
+                  <HlsPlayer
+                    key={`fs-hls-${fsDevice.stream_key || fsDevice.stream_key || fsDevice.live_stream}`}
+                    streamKey={
+                      fsDevice.stream_key ||
+                      fsDevice.stream_key ||
+                      fsDevice.live_stream
+                    }
+                    onConnectChange={setFsLive}
+                    objectFit={objectFitMode}
+                  />
+                )}
+                <MaskOverlay ip={fsDevice.ip} />
+                {/* PTZ panel in fullscreen */}
+                {fsPtzOpen && (
+                  <PTZControls
+                    camera={fsDevice}
+                    onClose={() => setFsPtzOpen(false)}
+                  />
+                )}
+              </div>
+            </div>
+          )}
+
+          <div className="lv-grid-area" ref={gridAreaRef}>
+            {devices.length === 0 ? (
+              <div className="lv-empty">
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="0.8"
+                  width="64"
+                  height="64"
+                >
+                  <path d="M23 7l-7 5 7 5V7z" />
+                  <rect x="1" y="5" width="15" height="14" rx="2" />
+                </svg>
+                <p>No cameras enrolled yet.</p>
+                <p className="lv-empty__sub">
+                  Go to <strong>Add Devices</strong> to enroll cameras.
+                </p>
+              </div>
+            ) : activeCams.length === 0 ? (
+              <div className="lv-empty">
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="0.8"
+                  width="64"
+                  height="64"
+                >
+                  <path d="M23 7l-7 5 7 5V7z" />
+                  <rect x="1" y="5" width="15" height="14" rx="2" />
+                  <line
+                    x1="2"
+                    y1="2"
+                    x2="22"
+                    y2="22"
+                    stroke="currentColor"
+                    strokeWidth="1.2"
+                  />
+                </svg>
+                <p>All cameras are disabled.</p>
+                <p className="lv-empty__sub">
+                  Enable cameras in <strong>Manage Camera Groups</strong> to
+                  view streams.
+                </p>
+              </div>
+            ) : (
+              <>
+                <div
+                  className="lv-grid"
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`,
+                    gridTemplateRows: `repeat(${rows}, minmax(0, 1fr))`,
+                    gap: dynamicGap,
+                    padding: `${dynamicGap} ${dynamicGap} 0 ${dynamicGap}`,
+                    background: "transparent",
+                  }}
+                >
+                  {Array.from({ length: gridSize }).map((_, i) => {
+                    const cam = pageCams[i];
+                    const hasAlert = cam ? alertCounts[cam.ip] > 0 : false;
+                    const isSelected = cam
+                      ? selectedCamId === cam.id
+                      : selectedCamId === `empty-${i}`;
+                    const spotlightStyle =
+                      isSpotlight && i === 0
+                        ? { gridColumn: "span 3", gridRow: "span 3" }
+                        : {};
+                    return (
+                      <div
+                        key={cam ? cam.id : `empty-${i}`}
+                        className={`lv-cell ${isSelected ? "lv-cell--selected" : ""} ${hasAlert ? "lv-cell--alert" : ""}`}
+                        style={{
+                          ...spotlightStyle,
+                          borderRadius: dynamicRadius,
+                          borderWidth: dynamicBorder,
+                        }}
+                        onClick={() => {
+                          const target = cam ? cam.id : `empty-${i}`;
+                          setSelectedCamId(
+                            selectedCamId === target ? null : target,
+                          );
+                        }}
+                        onDoubleClick={(e) => {
+                          if (cam) {
+                            openFullscreen(cam, e);
+                          }
+                        }}
+                        onContextMenu={(e) => {
+                          if (cam) {
+                            handleRowContextMenu(e, cam.id);
+                          }
+                        }}
+                        draggable={!!cam}
+                        onDragStart={(e) => cam && handleDragStart(e, cam.id)}
+                        onDragOver={handleDragOver}
+                        onDrop={(e) => handleDrop(e, cam ? cam.id : null, i)}
+                      >
+                        {cam ? (
+                          <CameraCell
                             device={cam}
                             streamMode={streamMode}
                             onFullscreen={(e) => openFullscreen(cam, e)}
                             alertCount={alertCounts[cam?.ip] || 0}
                             onBadgeClick={() => {
                               setSidePlaybackCam(cam);
-                              window.dispatchEvent(new Event("collapse-sidebar"));
+                              window.dispatchEvent(
+                                new Event("collapse-sidebar"),
+                              );
                             }}
                             isRecording={
-                              cam && (
-                                activeRecorders.includes(cam.stream_key) ||
+                              cam &&
+                              (activeRecorders.includes(cam.stream_key) ||
                                 activeRecorders.includes(cam.stream_key) ||
                                 activeRecorders.includes(cam.ip) ||
-                                (cam.ip && activeRecorders.includes(cam.ip.replace(/\./g, "_"))) ||
+                                (cam.ip &&
+                                  activeRecorders.includes(
+                                    cam.ip.replace(/\./g, "_"),
+                                  )) ||
                                 activeRecorders.includes(cam.reader_id) ||
-                                activeRecorders.includes(cam.id)
-                              )
+                                activeRecorders.includes(cam.id))
                             }
                             onLiveChange={handleLiveChange}
                             maxBitrate={2000}
-                            badgeMode={["6x6", "8x8", "15x15", "16x16"].includes(layout) ? "micro" : !["1x1", "2x2"].includes(layout) ? "compact" : "normal"}
+                            badgeMode={
+                              ["6x6", "8x8", "15x15", "16x16"].includes(layout)
+                                ? "micro"
+                                : !["1x1", "2x2"].includes(layout)
+                                  ? "compact"
+                                  : "normal"
+                            }
                             hideName={["15x15", "16x16"].includes(layout)}
+                            objectFit={objectFitMode}
                           />
-                        : <EmptyCell index={i} />
-                      }
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* Pagination Bar */}
-              {activeCams.length > 0 && (
-                <div className="lv-pagination">
-                  <button
-                    className="lv-page-btn"
-                    disabled={currentPage === 1}
-                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                    type="button"
-                  >
-                    &lt; Prev
-                  </button>
-                  <span className="lv-page-info">
-                    {currentPage} / {totalPages}
-                  </span>
-                  <button
-                    className="lv-page-btn"
-                    disabled={currentPage === totalPages}
-                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                    type="button"
-                  >
-                    Next &gt;
-                  </button>
+                        ) : (
+                          <EmptyCell index={i} />
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
-              )}
-            </>
+
+                {/* Pagination Bar */}
+                {activeCams.length > 0 && (
+                  <div className="lv-pagination">
+                    <button
+                      className="lv-page-btn"
+                      disabled={currentPage === 1}
+                      onClick={() =>
+                        setCurrentPage((prev) => Math.max(1, prev - 1))
+                      }
+                      type="button"
+                    >
+                      &lt; Prev
+                    </button>
+                    <span className="lv-page-info">
+                      {currentPage} / {totalPages}
+                    </span>
+                    <button
+                      className="lv-page-btn"
+                      disabled={currentPage === totalPages}
+                      onClick={() =>
+                        setCurrentPage((prev) => Math.min(totalPages, prev + 1))
+                      }
+                      type="button"
+                    >
+                      Next &gt;
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+
+          {/* ── Side Playback Panel ── */}
+          {sidePlaybackCam && (
+            <SidePlaybackPanel
+              camera={sidePlaybackCam}
+              onClose={() => setSidePlaybackCam(null)}
+              alertSource={alertSource}
+            />
           )}
+
+          {/* ── Alerts panel ── */}
+          <AlertsPanel
+            onAlertCountUpdate={setAlertCounts}
+            onTotalAlertCountChange={setTotalAlertsCount}
+            isOpen={alertsPanelOpen}
+            liveStatus={liveStatus}
+            alertSource={alertSource}
+            setAlertSource={setAlertSource}
+            devices={devices}
+          />
         </div>
 
-        {/* ── Side Playback Panel ── */}
-        {sidePlaybackCam && (
-          <SidePlaybackPanel
-            camera={sidePlaybackCam}
-            onClose={() => setSidePlaybackCam(null)}
-            alertSource={alertSource}
+        {/* ── Alert Popup — outside lv-main-area so it overlays everything ── */}
+        {popupIp && (
+          <AlertPopup ip={popupIp} alerts={popupAlerts} onClose={closePopup} />
+        )}
+
+        {/* ── Sequence Manager Modal ── */}
+        {showSequenceModal && (
+          <SequenceManagerModal
+            sequences={sequences}
+            setSequences={(next) => {
+              setSequences(next);
+              localStorage.setItem(
+                "miradorai_camera_sequences",
+                JSON.stringify(next),
+              );
+            }}
+            activeCams={activeCams}
+            onClose={() => setShowSequenceModal(false)}
           />
         )}
 
-        {/* ── Alerts panel ── */}
-        <AlertsPanel
-          onAlertCountUpdate={setAlertCounts}
-          onTotalAlertCountChange={setTotalAlertsCount}
-          isOpen={alertsPanelOpen}
-          liveStatus={liveStatus}
-          alertSource={alertSource}
-          setAlertSource={setAlertSource}
-          devices={devices}
-        />
-
-      </div>
-
-      {/* ── Alert Popup — outside lv-main-area so it overlays everything ── */}
-      {popupIp && (
-        <AlertPopup
-          ip={popupIp}
-          alerts={popupAlerts}
-          onClose={closePopup}
-        />
-      )}
-
-      {/* ── Sequence Manager Modal ── */}
-      {showSequenceModal && (
-        <SequenceManagerModal
-          sequences={sequences}
-          setSequences={(next) => {
-            setSequences(next);
-            localStorage.setItem("miradorai_camera_sequences", JSON.stringify(next));
-          }}
-          activeCams={activeCams}
-          onClose={() => setShowSequenceModal(false)}
-        />
-      )}
-
-      {ctxMenu && (
-        <ContextMenu
-          x={ctxMenu.x}
-          y={ctxMenu.y}
-          onEdit={() => handleEditDevice(ctxMenu.deviceId)}
-          onStreamProfiles={() => handleStreamProfiles(ctxMenu.deviceId)}
-          onClose={() => setCtxMenu(null)}
-        />
-      )}
-      {editDevice && (
-        <EditDeviceModal
-          device={editDevice}
-          groups={groups}
-          onClose={() => setEditDevice(null)}
-          onSave={handleSaveDevice}
-        />
-      )}
+        {ctxMenu && (
+          <ContextMenu
+            x={ctxMenu.x}
+            y={ctxMenu.y}
+            onEdit={() => handleEditDevice(ctxMenu.deviceId)}
+            onStreamProfiles={() => handleStreamProfiles(ctxMenu.deviceId)}
+            onClose={() => setCtxMenu(null)}
+          />
+        )}
+        {editDevice && (
+          <EditDeviceModal
+            device={editDevice}
+            groups={groups}
+            onClose={() => setEditDevice(null)}
+            onSave={handleSaveDevice}
+          />
+        )}
       </div>
     </div>
   );
@@ -2489,9 +3468,18 @@ export default function LiveViewPage({ onNavigate }) {
 // ── SequenceManagerModal ──
 import { useState as useModalState } from "react";
 
-function SequenceManagerModal({ sequences, setSequences, activeCams, onClose }) {
+function SequenceManagerModal({
+  sequences,
+  setSequences,
+  activeCams,
+  onClose,
+}) {
   const [editingSeq, setEditingSeq] = useModalState(null); // Sequence object or "new"
-  const [form, setForm] = useModalState({ name: "", dwellTime: 10, cameraIds: [] });
+  const [form, setForm] = useModalState({
+    name: "",
+    dwellTime: 10,
+    cameraIds: [],
+  });
 
   const handleStartCreate = () => {
     setForm({ name: "", dwellTime: 10, cameraIds: [] });
@@ -2499,15 +3487,19 @@ function SequenceManagerModal({ sequences, setSequences, activeCams, onClose }) 
   };
 
   const handleStartEdit = (seq) => {
-    setForm({ name: seq.name, dwellTime: seq.dwellTime, cameraIds: [...seq.cameraIds] });
+    setForm({
+      name: seq.name,
+      dwellTime: seq.dwellTime,
+      cameraIds: [...seq.cameraIds],
+    });
     setEditingSeq(seq);
   };
 
   const handleCheckboxChange = (camId, checked) => {
-    setForm(prev => {
+    setForm((prev) => {
       const cameraIds = checked
         ? [...prev.cameraIds, String(camId)]
-        : prev.cameraIds.filter(id => id !== String(camId));
+        : prev.cameraIds.filter((id) => id !== String(camId));
       return { ...prev, cameraIds };
     });
   };
@@ -2525,39 +3517,60 @@ function SequenceManagerModal({ sequences, setSequences, activeCams, onClose }) 
         id: "seq-" + Math.random().toString(36).substring(2, 9),
         name: form.name.trim(),
         dwellTime: form.dwellTime,
-        cameraIds: form.cameraIds
+        cameraIds: form.cameraIds,
       };
       setSequences([...sequences, newSeq]);
     } else {
-      const updated = sequences.map(s => s.id === editingSeq.id ? {
-        ...s,
-        name: form.name.trim(),
-        dwellTime: form.dwellTime,
-        cameraIds: form.cameraIds
-      } : s);
+      const updated = sequences.map((s) =>
+        s.id === editingSeq.id
+          ? {
+              ...s,
+              name: form.name.trim(),
+              dwellTime: form.dwellTime,
+              cameraIds: form.cameraIds,
+            }
+          : s,
+      );
       setSequences(updated);
     }
     setEditingSeq(null);
   };
 
   const handleDelete = (seqId) => {
-    if (!window.confirm("Are you sure you want to delete this sequence?")) return;
-    setSequences(sequences.filter(s => s.id !== seqId));
+    if (!window.confirm("Are you sure you want to delete this sequence?"))
+      return;
+    setSequences(sequences.filter((s) => s.id !== seqId));
   };
 
   return (
     <div className="modal-overlay" onClick={onClose} style={{ zIndex: 10000 }}>
-      <div className="modal-box um-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: "520px" }}>
+      <div
+        className="modal-box um-modal"
+        onClick={(e) => e.stopPropagation()}
+        style={{ maxWidth: "520px" }}
+      >
         <div className="modal-header">
           <h2 className="modal-title">
-            {editingSeq ? (editingSeq === "new" ? "Create Camera Sequence" : "Edit Camera Sequence") : "Manage Camera Sequences"}
+            {editingSeq
+              ? editingSeq === "new"
+                ? "Create Camera Sequence"
+                : "Edit Camera Sequence"
+              : "Manage Camera Sequences"}
           </h2>
-          <button className="modal-close" onClick={editingSeq ? () => setEditingSeq(null) : onClose}>✕</button>
+          <button
+            className="modal-close"
+            onClick={editingSeq ? () => setEditingSeq(null) : onClose}
+          >
+            ✕
+          </button>
         </div>
 
         {editingSeq ? (
           <form onSubmit={handleSave}>
-            <div className="modal-body" style={{ maxHeight: "60vh", overflowY: "auto" }}>
+            <div
+              className="modal-body"
+              style={{ maxHeight: "60vh", overflowY: "auto" }}
+            >
               <div className="form-group">
                 <label className="form-label">Sequence Name</label>
                 <input
@@ -2571,59 +3584,104 @@ function SequenceManagerModal({ sequences, setSequences, activeCams, onClose }) 
               </div>
 
               <div className="form-group">
-                <label className="form-label">Camera Dwell Time (seconds)</label>
+                <label className="form-label">
+                  Camera Dwell Time (seconds)
+                </label>
                 <input
                   type="number"
                   className="form-input"
                   value={form.dwellTime}
                   min="3"
                   max="300"
-                  onChange={(e) => setForm({ ...form, dwellTime: Math.max(3, parseInt(e.target.value) || 3) })}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      dwellTime: Math.max(3, parseInt(e.target.value) || 3),
+                    })
+                  }
                   required
                 />
               </div>
 
               <div className="form-group">
                 <label className="form-label">Select Cameras in Sequence</label>
-                <div style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "10px",
-                  background: "var(--bg-elevated)",
-                  border: "1px solid var(--border)",
-                  borderRadius: "6px",
-                  padding: "12px",
-                  maxHeight: "180px",
-                  overflowY: "auto"
-                }}>
-                  {activeCams.map(cam => {
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "10px",
+                    background: "var(--bg-elevated)",
+                    border: "1px solid var(--border)",
+                    borderRadius: "6px",
+                    padding: "12px",
+                    maxHeight: "180px",
+                    overflowY: "auto",
+                  }}
+                >
+                  {activeCams.map((cam) => {
                     const isChecked = form.cameraIds.includes(String(cam.id));
                     return (
-                      <label key={cam.id} style={{ display: "flex", alignItems: "center", gap: "10px", cursor: "pointer", fontSize: "13px", color: "var(--text-primary)" }}>
+                      <label
+                        key={cam.id}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "10px",
+                          cursor: "pointer",
+                          fontSize: "13px",
+                          color: "var(--text-primary)",
+                        }}
+                      >
                         <input
                           type="checkbox"
                           checked={isChecked}
-                          onChange={(e) => handleCheckboxChange(cam.id, e.target.checked)}
+                          onChange={(e) =>
+                            handleCheckboxChange(cam.id, e.target.checked)
+                          }
                           style={{ accentColor: "var(--teal)" }}
                         />
-                        <span>{cam.name} ({cam.ip})</span>
+                        <span>
+                          {cam.name} ({cam.ip})
+                        </span>
                       </label>
                     );
                   })}
                   {activeCams.length === 0 && (
-                    <span style={{ fontSize: "13px", color: "var(--text-muted)", textAlign: "center" }}>No active cameras found.</span>
+                    <span
+                      style={{
+                        fontSize: "13px",
+                        color: "var(--text-muted)",
+                        textAlign: "center",
+                      }}
+                    >
+                      No active cameras found.
+                    </span>
                   )}
                 </div>
               </div>
             </div>
             <div className="modal-footer">
-              <button type="button" className="btn-secondary" onClick={() => setEditingSeq(null)}>Back</button>
-              <button type="submit" className="btn-primary">Save Sequence</button>
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => setEditingSeq(null)}
+              >
+                Back
+              </button>
+              <button type="submit" className="btn-primary">
+                Save Sequence
+              </button>
             </div>
           </form>
         ) : (
           <div className="modal-body">
-            <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "12px" }}>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "flex-end",
+                marginBottom: "12px",
+              }}
+            >
               <button
                 type="button"
                 className="btn-primary"
@@ -2633,27 +3691,49 @@ function SequenceManagerModal({ sequences, setSequences, activeCams, onClose }) 
               </button>
             </div>
 
-            <div style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: "8px",
-              maxHeight: "280px",
-              overflowY: "auto"
-            }}>
-              {sequences.map(seq => (
-                <div key={seq.id} style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  padding: "12px 14px",
-                  background: "var(--bg-elevated)",
-                  border: "1px solid var(--border)",
-                  borderRadius: "8px"
-                }}>
-                  <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
-                    <span style={{ color: "var(--text-primary)", fontSize: "14px", fontWeight: "600" }}>{seq.name}</span>
-                    <span style={{ color: "var(--text-muted)", fontSize: "11.5px" }}>
-                      {seq.dwellTime}s dwell | {seq.cameraIds.length} camera{seq.cameraIds.length !== 1 ? "s" : ""}
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "8px",
+                maxHeight: "280px",
+                overflowY: "auto",
+              }}
+            >
+              {sequences.map((seq) => (
+                <div
+                  key={seq.id}
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    padding: "12px 14px",
+                    background: "var(--bg-elevated)",
+                    border: "1px solid var(--border)",
+                    borderRadius: "8px",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "2px",
+                    }}
+                  >
+                    <span
+                      style={{
+                        color: "var(--text-primary)",
+                        fontSize: "14px",
+                        fontWeight: "600",
+                      }}
+                    >
+                      {seq.name}
+                    </span>
+                    <span
+                      style={{ color: "var(--text-muted)", fontSize: "11.5px" }}
+                    >
+                      {seq.dwellTime}s dwell | {seq.cameraIds.length} camera
+                      {seq.cameraIds.length !== 1 ? "s" : ""}
                     </span>
                   </div>
                   <div style={{ display: "flex", gap: "6px" }}>
@@ -2675,7 +3755,14 @@ function SequenceManagerModal({ sequences, setSequences, activeCams, onClose }) 
                 </div>
               ))}
               {sequences.length === 0 && (
-                <div style={{ textAlign: "center", padding: "30px 10px", color: "var(--text-muted)", fontSize: "13.5px" }}>
+                <div
+                  style={{
+                    textAlign: "center",
+                    padding: "30px 10px",
+                    color: "var(--text-muted)",
+                    fontSize: "13.5px",
+                  }}
+                >
                   No custom sequences created. Click Create Sequence above.
                 </div>
               )}

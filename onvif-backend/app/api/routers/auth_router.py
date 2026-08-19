@@ -57,8 +57,18 @@ async def auth_login(req: LoginRequest, request: Request, background_tasks: Back
     if users_col is None:
         raise HTTPException(status_code=500, detail="Database not connected")
     user = users_col.find_one({"email": req.email, "is_deleted": {"$ne": True}})
-
-
+    
+    client_ip = request.headers.get("X-Forwarded-For")
+    if client_ip:
+        client_ip = client_ip.split(",")[0].strip()
+    else:
+        client_ip = request.headers.get("X-Real-IP") or (request.client.host if request.client else None)
+        
+    if client_ip:
+        if client_ip.startswith("::ffff:"):
+            client_ip = client_ip.replace("::ffff:", "")
+        elif client_ip == "::1":
+            client_ip = "127.0.0.1"
 
     if not user:
         if auth_logs_col is not None:
@@ -68,7 +78,7 @@ async def auth_login(req: LoginRequest, request: Request, background_tasks: Back
                     "email":     req.email,
                     "role":      None,
                     "timestamp": datetime.utcnow().isoformat(),
-                    "ip":        request.client.host if request.client else None,
+                    "ip":        client_ip,
                     "reason":    "user_not_found"
                 })
             except Exception:
@@ -82,17 +92,13 @@ async def auth_login(req: LoginRequest, request: Request, background_tasks: Back
                     "email":     user["email"],
                     "role":      user.get("role"),
                     "timestamp": datetime.utcnow().isoformat(),
-                    "ip":        request.client.host if request.client else None,
+                    "ip":        client_ip,
                     "reason":    "invalid_password"
                 })
             except Exception:
                 pass
         raise HTTPException(status_code=401, detail="Invalid email or password")
     
-
-
-
-
     if auth_logs_col is not None:
         try:
             auth_logs_col.insert_one({
@@ -100,7 +106,7 @@ async def auth_login(req: LoginRequest, request: Request, background_tasks: Back
                 "email":     user["email"],
                 "role":      user["role"],
                 "timestamp": datetime.utcnow().isoformat(),
-                "ip":        request.client.host if request.client else None,
+                "ip":        client_ip,
             })
         except Exception:
             pass
@@ -126,6 +132,36 @@ async def auth_login(req: LoginRequest, request: Request, background_tasks: Back
             "allowedCameras": user.get("allowedCameras", [])
         }
     }
+
+@router.post("/visit")
+async def auth_visit(request: Request):
+    client_ip = request.headers.get("X-Forwarded-For")
+    if client_ip:
+        client_ip = client_ip.split(",")[0].strip()
+    else:
+        client_ip = request.headers.get("X-Real-IP") or (request.client.host if request.client else None)
+        
+    if client_ip:
+        if client_ip.startswith("::ffff:"):
+            client_ip = client_ip.replace("::ffff:", "")
+        elif client_ip == "::1":
+            client_ip = "127.0.0.1"
+        
+    if auth_logs_col is not None:
+        try:
+            auth_logs_col.insert_one({
+                "type":      "pre_authentication",
+                "email":     None,
+                "role":      None,
+                "timestamp": datetime.utcnow().isoformat(),
+                "ip":        client_ip,
+                "reason":    "system_accessed"
+            })
+        except Exception as e:
+            print(f"[AUTH] Failed to log visit: {e}")
+            pass
+            
+    return {"success": True}
 
 @router.post("/forgot-password")
 def auth_forgot_password(req: ForgotPasswordRequest):
@@ -231,15 +267,18 @@ def auth_reset_password(req: ResetPasswordRequest):
 async def list_users(background_tasks: BackgroundTasks, user=Depends(require_admin)):
     if users_col is None:
         raise HTTPException(status_code=500, detail="Database not connected")
-    all_users = list(users_col.find({"is_deleted": {"$ne": True}}, {"_id": 0, "password": 0}))
+    all_users = list(users_col.find({"is_deleted": {"$ne": True}}, {"_id": 0}))
     
     # ── Redis Stream: user.list_requested ─────────────────────────────────────
+    import copy
+    redis_users = copy.deepcopy(all_users)
     background_tasks.add_task(
         _redis_publish,
         _USER_STREAM(), "user.list_requested",
-        {"count": len(all_users), "users": all_users}
+        {"count": len(redis_users), "users": redis_users}
     )
-    
+    for u in all_users:
+        u.pop("password", None)
     return {"success": True, "users": all_users}
 
 @router.post("/users")

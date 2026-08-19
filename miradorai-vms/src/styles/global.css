@@ -122,6 +122,8 @@ input, select, button, textarea { font-family: var(--font-ui); }
 
 .app-content {
   flex: 1;
+  display: flex;
+  flex-direction: column;
   overflow-y: auto;
   background: var(--bg-base);
 }

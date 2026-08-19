@@ -50,24 +50,8 @@ function usePersistedDevices() {
   return [devices, updateDevices];
 }
 
-// ─── Persisted Groups ────────────────────────────────────────────────────────
-function usePersistedGroups() {
-  const [groups, setGroups] = useState(() => {
-    try {
-      const saved = localStorage.getItem("miradorai_groups");
-      return saved ? JSON.parse(saved) : [];
-    } catch { return []; }
-  });
-  const updateGroups = (updater) => {
-    setGroups((prev) => {
-      const next = typeof updater === "function" ? updater(prev) : updater;
-      try { localStorage.setItem("miradorai_groups", JSON.stringify(next)); } catch { }
-      return next;
-    });
-  };
+import useGroups from "../../hooks/useGroups";
 
-  return [groups, updateGroups];
-}
 
 // ─── Empty State ─────────────────────────────────────────────────────────────
 function EmptyState() {
@@ -366,7 +350,7 @@ export default function AddDevicesPage({ onNavigate }) {
   const [refreshing, setRefreshing] = useState(false);
   const [successEnrollData, setSuccessEnrollData] = useState(null);
   const [devices, setDevices] = usePersistedDevices();
-  const [groups, setGroups] = usePersistedGroups();
+  const [groups, setGroups, fetchGroups] = useGroups();
   const [ctxMenu, setCtxMenu] = useState(null);
   const [editDevice, setEditDevice] = useState(null);
   const [deviceToRemove, setDeviceToRemove] = useState(null);
@@ -511,20 +495,44 @@ export default function AddDevicesPage({ onNavigate }) {
     setShowCreateGroup(true);
   };
 
-  const handleCreateGroupSubmit = (name) => {
-    setGroups((prev) => [
-      ...prev,
-      { id: `group-${Date.now()}`, name }
-    ]);
+  const handleCreateGroupSubmit = async (name) => {
+    try {
+      const token = localStorage.getItem("miradorai_token");
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/groups`, {
+        method: "POST",
+        headers: {
+          "Authorization": token ? `Bearer ${token}` : "",
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ name })
+      });
+      if (res.ok) {
+        const newGroup = await res.json();
+        setGroups((prev) => [...prev, newGroup]);
+      }
+    } catch (e) {
+      console.error("Failed to create group", e);
+    }
   };
 
   // ── Delete Group ─────────────────────────────────────────────────────────
-  const handleDeleteGroup = (groupId) => {
+  const handleDeleteGroup = async (groupId) => {
     if (!window.confirm("Delete this group? Cameras will move to Default.")) return;
+    
+    try {
+      const token = localStorage.getItem("miradorai_token");
+      await fetch(`${import.meta.env.VITE_API_URL}/api/groups/${groupId}`, {
+        method: "DELETE",
+        headers: { "Authorization": token ? `Bearer ${token}` : "" }
+      });
+      fetchGroups();
+    } catch (e) {
+      console.error("Failed to delete group", e);
+    }
+    
     setDevices((prev) =>
       prev.map((d) => d.group_id === groupId ? { ...d, group_id: "default" } : d)
     );
-    setGroups((prev) => prev.filter((g) => g.id !== groupId));
     if (activeGroup === groupId) setActiveGroup("all");
   };
 

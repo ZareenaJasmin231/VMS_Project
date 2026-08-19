@@ -4,7 +4,7 @@ import { Volume2, VolumeX } from "lucide-react";
 import { useImageConfig } from "../../hooks/useImageConfig";
 import LiveSpinner from "./LiveSpinner";
 
-function HlsPlayer({ streamKey, streamUrl, muted = true, autoplay = true, className = "", onConnectChange }) {
+function HlsPlayer({ streamKey, streamUrl, muted = true, autoplay = true, className = "", onConnectChange, objectFit = "contain" }) {
   const videoRef = useRef(null);
   const containerRef = useRef(null);
   const hlsRef = useRef(null);
@@ -158,10 +158,12 @@ function HlsPlayer({ streamKey, streamUrl, muted = true, autoplay = true, classN
         ref={videoRef}
         playsInline
         muted={muted}
+        disablePictureInPicture
+        disableRemotePlayback
         style={{
           width: "100%",
           height: "100%",
-          objectFit: "cover",
+          objectFit: objectFit,
           display: "block",
           filter: cssFilter || "none",
           transform: cssTransform || "none",

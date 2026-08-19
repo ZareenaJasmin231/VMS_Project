@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useAuth } from "../../context/AuthContext";
 import "./LoginPage.css";
 import useActivityLogger from "../../hooks/useActivityLogger";
@@ -11,6 +11,11 @@ const LoginPage = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const { logAction } = useActivityLogger();
+
+  useEffect(() => {
+    // Log pre-authentication site visit
+    fetch('/api/auth/visit', { method: 'POST' }).catch(() => {});
+  }, []);
 
   // Sign In Form
   const [signInEmail, setSignInEmail] = useState("");

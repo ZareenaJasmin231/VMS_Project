@@ -194,8 +194,6 @@ export default function LogsPage() {
       } else if (activeTab === "ui" && category) {
         queryParams.append("category", category);
       }
-      queryParams.append("limit", "1000");
-
       // recordings tab uses /api/logs/ui with category=recording
       const endpoint = activeTab === "recordings" ? "ui" : activeTab;
       const response = await fetch(`${API_BASE}/api/logs/${endpoint}?${queryParams.toString()}`, {

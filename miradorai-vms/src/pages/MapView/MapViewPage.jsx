@@ -215,7 +215,7 @@ const StreamModal = React.memo(function StreamModal({ cam, onClose }) {
   }, [tab]);
 
   return (
-    <div className="mv-stream-overlay" onClick={onClose}>
+    <div className="mv-stream-overlay" onClick={onClose} onWheel={(e) => e.stopPropagation()}>
       <div className="mv-stream-modal" onClick={e => e.stopPropagation()}>
         <div className="mv-stream-header">
           <div>
@@ -236,11 +236,23 @@ const StreamModal = React.memo(function StreamModal({ cam, onClose }) {
           <button
             className={`mv-stream-tab ${tab === "stream" ? "mv-stream-tab--active" : ""}`}
             onClick={() => setTab("stream")}
-          >📹 Live Stream</button>
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14" style={{ marginRight: 6 }}>
+              <path d="M23 7l-7 5 7 5V7z" />
+              <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
+            </svg>
+            Live Stream
+          </button>
           <button
             className={`mv-stream-tab ${tab === "alerts" ? "mv-stream-tab--active" : ""}`}
             onClick={() => setTab("alerts")}
-          >🔔 Alerts</button>
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14" style={{ marginRight: 6 }}>
+              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+              <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+            </svg>
+            Alerts
+          </button>
         </div>
         {tab === "stream" ? (
           <div className="mv-stream-body">
@@ -1046,6 +1058,9 @@ export default function MapViewPage() {
     if (!el) return;
     const h = e => {
       if (!floorImgRef.current) return;
+      if (e.target.closest('.mv-inspector-container, .mv-stream-overlay, .vt-expanded-overlay, .mv-modal-overlay, .alp-overlay, .mv-ctx-menu, .mv-dropdown-panel, .mv-floor-hud, .mv-floor-sidebar')) {
+        return;
+      }
       e.preventDefault();
       const r = el.getBoundingClientRect();
       applyZoom(e.deltaY < 0 ? 0.15 : -0.15, e.clientX - r.left, e.clientY - r.top);
@@ -1212,12 +1227,7 @@ export default function MapViewPage() {
         status: "offline",
         isDeleted: true
       };
-      setTooltip({
-        visible: true,
-        x:       e.nativeEvent.offsetX + 14,
-        y:       e.nativeEvent.offsetY - 36,
-        text:    `${cam.name}  •  ${cam.ip}  •  ${cam.status === "online" ? "🟢 Online" : "⚫ Offline"}  •  FOV ${m.fovAngle || 60}°  •  Dir ${Math.round(m.direction || 0)}°`,
-      });
+      setTooltip(t => ({ ...t, visible: false }));
     } else {
       const hoveredZone = zonesRef.current
         .filter(z => z.floorIndex === activeFloor)
@@ -2545,7 +2555,7 @@ export default function MapViewPage() {
             )}
 
             {inspectorExpanded && (
-              <div className="mv-inspector-container">
+              <div className="mv-inspector-container" onWheel={(e) => e.stopPropagation()}>
                 {/* Modern Tab Selector */}
                 <div className="mv-inspector-tabs" style={{ position: "relative", paddingRight: "36px" }}>
                   <button

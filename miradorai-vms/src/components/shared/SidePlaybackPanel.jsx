@@ -841,6 +841,8 @@ export default function SidePlaybackPanel({ camera, onClose, alertSource = "buil
             className="side-playback-video"
             playsInline
             crossOrigin="anonymous"
+            disablePictureInPicture
+            disableRemotePlayback
             style={{ transform: zoomTransform, filter: cssFilter, transition: "filter 0.1s ease" }}
           />
         </div>

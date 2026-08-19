@@ -60,7 +60,7 @@ def get_ui_logs(
     to_date: Optional[str] = None,
     user_email: Optional[str] = None,
     category: Optional[str] = None,
-    limit: int = 1000
+    limit: int = 0
 ):
     if ui_logs_col is None:
         return {"success": False, "error": "Database not connected", "logs": []}
@@ -108,7 +108,7 @@ def get_terminal_logs(
     from_date: Optional[str] = None,
     to_date: Optional[str] = None,
     user_email: Optional[str] = None,
-    limit: int = 1000
+    limit: int = 0
 ):
     if terminal_logs_col is None:
         return {"success": False, "error": "Database not connected", "logs": []}
