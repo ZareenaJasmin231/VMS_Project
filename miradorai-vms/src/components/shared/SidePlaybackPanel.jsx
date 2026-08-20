@@ -866,13 +866,15 @@ export default function SidePlaybackPanel({ camera, onClose, alertSource = "buil
 
         {!videoUrl && !videoLoading && (
           <div className="side-playback-empty-state">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" width="48" height="48">
-              <polygon points="23 7 16 12 23 17 23 7" />
-              <rect x="1" y="5" width="15" height="14" rx="2" />
-            </svg>
-            <p>Select an alert event or an archive recording segment to begin side-by-side playback</p>
-          </div>
-        )}
+              <div className="side-playback-empty-badge">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" width="34" height="34">
+                  <rect x="2" y="4" width="20" height="16" rx="3" />
+                  <path d="M10 9l6 3-6 3V9z" fill="currentColor" opacity="0.85" />
+                </svg>
+              </div>
+              <span className="side-playback-empty-name">Playback</span>
+            </div>
+          )}
       </div>
 
       {/* Custom Scrubber Control Bar */}
