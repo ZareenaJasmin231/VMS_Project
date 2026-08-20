@@ -212,27 +212,21 @@ export default function MediaPlayerPage() {
     return cameras.filter(c => user.allowedCameras.includes(String(c.id)));
   }, [cameras, user]);
 
-  const combinedRecordingIds = useMemo(() => {
-    return Array.from(new Set([...recordingCameras, ...activeRecorders]));
-  }, [recordingCameras, activeRecorders]);
-
   const filteredRecordingCameras = useMemo(() => {
     if (user?.role === "admin" || !user?.allowedCameras || user?.allowedCameras.length === 0) {
-      return combinedRecordingIds;
+      return recordingCameras;
     }
-    return combinedRecordingIds.filter(camId => {
-      const normalized = String(camId).replace(/_/g, ".");
+    return recordingCameras.filter(camId => {
+      const normalized = camId.replace(/_/g, ".");
       const dev = cameras.find(c => 
         String(c.id) === String(camId) || 
-        c.stream_key === camId ||
         c.ip === camId || 
         (c.ip && c.ip.replace(/_/g, ".") === normalized)
       );
       if (!dev) return false;
       return user.allowedCameras.includes(String(dev.id));
     });
-  }, [combinedRecordingIds, cameras, user]);
-
+  }, [recordingCameras, cameras, user]);
 
   const actualRecordingCount = useMemo(() => {
     return filteredCameras.filter((cam) => {
@@ -1174,7 +1168,7 @@ export default function MediaPlayerPage() {
                 <button
                   className={`mp-cam-select-btn ${camDropdownOpen ? "open" : ""}`}
                   onClick={() => setCamDropdownOpen((o) => !o)}
-                  disabled={filteredRecordingCameras.length === 0}
+                  disabled={filteredCameras.length === 0}
                 >
                   <div className="mp-cam-dot" />
                   <div className="mp-cam-select-val">
@@ -1219,29 +1213,28 @@ export default function MediaPlayerPage() {
                         onKeyDown={(e) => e.stopPropagation()}
                       />
                     </div>
-                    {filteredRecordingCameras
-                      .filter(camId => {
+                    {filteredCameras
+                      .filter(cam => {
                         if (!camSearchTerm) return true;
-                        const info = getCameraInfo(camId);
                         const term = camSearchTerm.toLowerCase();
-                        return info.name.toLowerCase().includes(term) || info.ip.toLowerCase().includes(term);
+                        return (cam.name || "").toLowerCase().includes(term) || (cam.ip || "").toLowerCase().includes(term);
                       })
-                      .map((camId) => {
-                        const info = getCameraInfo(camId);
+                      .map((cam) => {
+                        const camId = cam.stream_key || String(cam.id);
                         return (
                           <div
                             key={camId}
                             className={`mp-cam-menu-item ${selectedCam?.stream_key === camId ? "active" : ""}`}
                             onClick={() => {
-                              setSelectedCam({ stream_key: camId, name: info.name });
+                              setSelectedCam({ stream_key: camId, name: cam.name || camId });
                               setPlayingFile(null);
                               setCamDropdownOpen(false);
                             }}
                           >
                             <div className={`mp-cam-dot ${selectedCam?.stream_key === camId ? "on" : ""}`} />
                             <div className="mp-cam-menu-item-info">
-                              <span className="mp-cam-menu-item-name">{info.name}</span>
-                              <span className="mp-cam-menu-item-ip">{info.ip}</span>
+                              <span className="mp-cam-menu-item-name">{cam.name || camId}</span>
+                              <span className="mp-cam-menu-item-ip">{cam.ip || ""}</span>
                             </div>
                             {selectedCam?.stream_key === camId && (
                               <svg
