@@ -212,21 +212,27 @@ export default function MediaPlayerPage() {
     return cameras.filter(c => user.allowedCameras.includes(String(c.id)));
   }, [cameras, user]);
 
+  const combinedRecordingIds = useMemo(() => {
+    return Array.from(new Set([...recordingCameras, ...activeRecorders]));
+  }, [recordingCameras, activeRecorders]);
+
   const filteredRecordingCameras = useMemo(() => {
     if (user?.role === "admin" || !user?.allowedCameras || user?.allowedCameras.length === 0) {
-      return recordingCameras;
+      return combinedRecordingIds;
     }
-    return recordingCameras.filter(camId => {
-      const normalized = camId.replace(/_/g, ".");
+    return combinedRecordingIds.filter(camId => {
+      const normalized = String(camId).replace(/_/g, ".");
       const dev = cameras.find(c => 
         String(c.id) === String(camId) || 
+        c.stream_key === camId ||
         c.ip === camId || 
         (c.ip && c.ip.replace(/_/g, ".") === normalized)
       );
       if (!dev) return false;
       return user.allowedCameras.includes(String(dev.id));
     });
-  }, [recordingCameras, cameras, user]);
+  }, [combinedRecordingIds, cameras, user]);
+
 
   const actualRecordingCount = useMemo(() => {
     return filteredCameras.filter((cam) => {
@@ -1168,7 +1174,7 @@ export default function MediaPlayerPage() {
                 <button
                   className={`mp-cam-select-btn ${camDropdownOpen ? "open" : ""}`}
                   onClick={() => setCamDropdownOpen((o) => !o)}
-                  disabled={recordingCameras.length === 0}
+                  disabled={filteredRecordingCameras.length === 0}
                 >
                   <div className="mp-cam-dot" />
                   <div className="mp-cam-select-val">
@@ -1227,7 +1233,7 @@ export default function MediaPlayerPage() {
                             key={camId}
                             className={`mp-cam-menu-item ${selectedCam?.stream_key === camId ? "active" : ""}`}
                             onClick={() => {
-                              setSelectedCam({ stream_key: camId, name: camId });
+                              setSelectedCam({ stream_key: camId, name: info.name });
                               setPlayingFile(null);
                               setCamDropdownOpen(false);
                             }}
