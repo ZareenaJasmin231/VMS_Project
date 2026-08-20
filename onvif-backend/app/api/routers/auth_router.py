@@ -1,14 +1,49 @@
 from fastapi import APIRouter, HTTPException, Depends, Request, BackgroundTasks
 from typing import Optional
 import re, asyncio, os
-from datetime import datetime
+from datetime import datetime, timedelta
 from app.schemas.auth import SignupRequest, LoginRequest, ForgotPasswordRequest, SupervisorPasswordRequest, SupervisorVerifyRequest, ResetPasswordRequest, AdminCreateUserRequest, AdminUpdateUserRequest
 from app.core.database import users_col, auth_logs_col, settings_col, supervisor_col
-from app.core.security import create_token, verify_token, require_admin
+from app.core.security import create_token, verify_token, require_admin, PUBLIC_KEY
 from app.services.redis_stream_publisher import publish_event as _redis_publish
 import bcrypt
 
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+limiter = Limiter(key_func=get_remote_address)
+
+from app.core.logger import log_security_event
+
 _USER_STREAM = lambda: os.environ.get("REDIS_STREAM_USER_EVENTS", "vms:events:user")
+
+import random
+import string
+import base64
+import uuid
+from captcha.image import ImageCaptcha
+from app.core.database import db as _db
+
+router = APIRouter(prefix="/api/auth", tags=["auth"])
+
+@router.get("/captcha")
+def get_captcha():
+    text = "".join(random.choices(string.ascii_uppercase + string.digits, k=5))
+    image = ImageCaptcha(width=280, height=90)
+    data = image.generate(text)
+    b64 = base64.b64encode(data.getvalue()).decode("utf-8")
+    
+    captcha_id = str(uuid.uuid4())
+    if _db is not None:
+        _db["captchas"].insert_one({
+            "_id": captcha_id,
+            "text": text.lower(),
+            "createdAt": datetime.utcnow()
+        })
+    
+    return {
+        "captcha_id": captcha_id,
+        "image_base64": f"data:image/png;base64,{b64}"
+    }
 
 def hash_password(password: str) -> str:
     return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
@@ -19,7 +54,10 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     except Exception:
         return False
 
-router = APIRouter(prefix="/api/auth", tags=["auth"])
+def validate_password_complexity(password: str):
+    if len(password) < 8 or not re.search(r"[A-Z]", password) or not re.search(r"[a-z]", password) or not re.search(r"[0-9]", password) or not re.search(r"[!@#$%^&*(),.?\":{}|<>]", password):
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters long and contain at least one uppercase letter, one lowercase letter, one number, and one special character")
+
 
 @router.post("/signup")
 def auth_signup(req: SignupRequest):
@@ -30,8 +68,7 @@ def auth_signup(req: SignupRequest):
     email_regex = r"^[^\s@]+@[^\s@]+\.[^\s@]+$"
     if not re.match(email_regex, req.email):
         raise HTTPException(status_code=400, detail="Invalid email format")
-    if len(req.password) < 6:
-        raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
+    validate_password_complexity(req.password)
     if req.role not in ("admin", "client", "operator"):
         raise HTTPException(status_code=400, detail="Role must be 'admin', 'client', or 'operator'")
     if users_col.find_one({"email": req.email, "is_deleted": {"$ne": True}}):
@@ -53,7 +90,8 @@ def auth_signup(req: SignupRequest):
 
 
 @router.post("/login")
-async def auth_login(req: LoginRequest, request: Request, background_tasks: BackgroundTasks):
+@limiter.limit("5/minute")
+async def auth_login(request: Request, req: LoginRequest, background_tasks: BackgroundTasks):
     if users_col is None:
         raise HTTPException(status_code=500, detail="Database not connected")
     user = users_col.find_one({"email": req.email, "is_deleted": {"$ne": True}})
@@ -70,47 +108,119 @@ async def auth_login(req: LoginRequest, request: Request, background_tasks: Back
         elif client_ip == "::1":
             client_ip = "127.0.0.1"
 
+    if user and user.get("lockout_until"):
+        if user["lockout_until"] > datetime.utcnow().isoformat():
+            log_security_event("WARNING", "LOCKOUT", f"Login attempt on locked account: {req.email}", client_ip)
+            raise HTTPException(status_code=403, detail="Account locked due to too many failed attempts")
+        else:
+            users_col.update_one({"email": req.email}, {"$set": {"failed_attempts": 0, "lockout_until": None}})
+            user["failed_attempts"] = 0
+
     if not user:
         if auth_logs_col is not None:
             try:
+                now_utc = datetime.utcnow()
+                now_ist = now_utc + timedelta(hours=5, minutes=30)
                 auth_logs_col.insert_one({
                     "type":      "login_failed",
                     "email":     req.email,
                     "role":      None,
-                    "timestamp": datetime.utcnow().isoformat(),
+                    "timestamp": now_utc.isoformat(),
+                    "timestamp_ist": now_ist.isoformat(),
                     "ip":        client_ip,
                     "reason":    "user_not_found"
                 })
             except Exception:
                 pass
+        log_security_event("WARNING", "LOGIN_FAILED", f"Login failed for non-existent user: {req.email}", client_ip)
         raise HTTPException(status_code=401, detail="Invalid email or password")
+    if user.get("failed_attempts", 0) >= 3:
+        if not req.captcha_id or not req.captcha_text:
+            from fastapi.responses import JSONResponse
+            return JSONResponse(status_code=401, content={
+                "detail": "CAPTCHA required due to multiple failed login attempts.",
+                "requires_captcha": True
+            })
+        
+        captcha_doc = _db["captchas"].find_one({"_id": req.captcha_id}) if _db is not None else None
+        
+        if not captcha_doc or captcha_doc["text"] != req.captcha_text.lower():
+            raise HTTPException(status_code=401, detail="Invalid CAPTCHA code")
+            
+        if _db is not None:
+            _db["captchas"].delete_one({"_id": req.captcha_id})
+
     if not verify_password(req.password, user["password"]):
+        failed_attempts = user.get("failed_attempts", 0) + 1
+        update_doc = {"failed_attempts": failed_attempts}
+        requires_captcha = failed_attempts >= 3
+        if failed_attempts >= 5:
+            update_doc["lockout_until"] = (datetime.utcnow() + timedelta(minutes=15)).isoformat()
+            log_security_event("CRITICAL", "LOCKOUT", f"Account locked due to 5 failed attempts: {req.email}", client_ip)
+        else:
+            log_security_event("WARNING", "LOGIN_FAILED", f"Invalid password for user: {req.email} (Attempt {failed_attempts}/5)", client_ip)
+        
+        users_col.update_one({"email": req.email}, {"$set": update_doc})
+        
         if auth_logs_col is not None:
             try:
+                now_utc = datetime.utcnow()
+                now_ist = now_utc + timedelta(hours=5, minutes=30)
                 auth_logs_col.insert_one({
                     "type":      "login_failed",
                     "email":     user["email"],
                     "role":      user.get("role"),
-                    "timestamp": datetime.utcnow().isoformat(),
+                    "timestamp": now_utc.isoformat(),
+                    "timestamp_ist": now_ist.isoformat(),
                     "ip":        client_ip,
                     "reason":    "invalid_password"
                 })
             except Exception:
                 pass
+                
+        if requires_captcha:
+            from fastapi.responses import JSONResponse
+            return JSONResponse(status_code=401, content={
+                "detail": "Invalid email or password",
+                "requires_captcha": True
+            })
         raise HTTPException(status_code=401, detail="Invalid email or password")
     
+    users_col.update_one({"email": req.email}, {"$set": {"failed_attempts": 0, "lockout_until": None}})
     if auth_logs_col is not None:
         try:
+            now_utc = datetime.utcnow()
+            now_ist = now_utc + timedelta(hours=5, minutes=30)
             auth_logs_col.insert_one({
                 "type":      "login",
                 "email":     user["email"],
                 "role":      user["role"],
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": now_utc.isoformat(),
+                "timestamp_ist": now_ist.isoformat(),
                 "ip":        client_ip,
             })
         except Exception:
             pass
-    token = create_token(user["email"], user["role"])
+    
+    log_security_event("INFO", "LOGIN_SUCCESS", f"Successful login for user: {user['email']}", client_ip)
+    
+    session_id = str(uuid.uuid4())
+    user_id_str = str(user["_id"])
+    if _db is not None:
+        now_utc = datetime.utcnow()
+        now_ist = now_utc + timedelta(hours=5, minutes=30)
+        _db["active_sessions"].update_one(
+            {"user_id": user_id_str},
+            {"$set": {
+                "session_id": session_id, 
+                "email": user["email"],
+                "updated_at": now_utc.isoformat(),
+                "updated_at_ist": now_ist.isoformat()
+            }},
+            upsert=True
+        )
+    
+    token = create_token(user_id_str, user["role"], session_id)
     
     # ── Redis Stream: user.login ──────────────────────────────────────────────
     background_tasks.add_task(
@@ -133,6 +243,41 @@ async def auth_login(req: LoginRequest, request: Request, background_tasks: Back
         }
     }
 
+@router.get("/public-key")
+def get_public_key():
+    return {"public_key": PUBLIC_KEY}
+
+@router.post("/logout")
+async def auth_logout(request: Request, payload: dict = Depends(verify_token)):
+    user_id = payload.get("sub")
+    from app.core.database import db as _db, auth_logs_col, users_col
+    
+    if _db is not None and user_id:
+        # Delete active session to invalidate token
+        _db["active_sessions"].delete_one({"user_id": user_id})
+        
+        # Add to auth audit logs
+        if auth_logs_col is not None:
+            # Try to get email for the log
+            user = users_col.find_one({"_id": user_id}) if hasattr(user_id, 'isalnum') else None
+            # If user_id is a string, we might need to convert to ObjectId, but users_col find handles string if matched
+            
+            client_ip = request.headers.get("X-Forwarded-For", request.client.host if request.client else "unknown")
+            try:
+                now_utc = datetime.utcnow()
+                now_ist = now_utc + timedelta(hours=5, minutes=30)
+                auth_logs_col.insert_one({
+                    "type":      "logout",
+                    "user_id":   user_id,
+                    "timestamp": now_utc.isoformat(),
+                    "timestamp_ist": now_ist.isoformat(),
+                    "ip":        client_ip,
+                })
+            except Exception:
+                pass
+                
+    return {"success": True, "message": "Logged out successfully"}
+
 @router.post("/visit")
 async def auth_visit(request: Request):
     client_ip = request.headers.get("X-Forwarded-For")
@@ -149,11 +294,14 @@ async def auth_visit(request: Request):
         
     if auth_logs_col is not None:
         try:
+            now_utc = datetime.utcnow()
+            now_ist = now_utc + timedelta(hours=5, minutes=30)
             auth_logs_col.insert_one({
                 "type":      "pre_authentication",
                 "email":     None,
                 "role":      None,
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": now_utc.isoformat(),
+                "timestamp_ist": now_ist.isoformat(),
                 "ip":        client_ip,
                 "reason":    "system_accessed"
             })
@@ -243,8 +391,7 @@ def auth_reset_password(req: ResetPasswordRequest):
         raise HTTPException(status_code=500, detail="Database not connected")
     if not req.email or not req.new_password or not req.confirm_password:
         raise HTTPException(status_code=400, detail="All fields are required")
-    if len(req.new_password) < 6:
-        raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
+    validate_password_complexity(req.new_password)
     if req.new_password != req.confirm_password:
         raise HTTPException(status_code=400, detail="Passwords do not match")
     user = users_col.find_one({"email": req.email, "is_deleted": {"$ne": True}})
@@ -290,8 +437,7 @@ async def create_user(req: AdminCreateUserRequest, background_tasks: BackgroundT
     email_regex = r"^[^\s@]+@[^\s@]+\.[^\s@]+$"
     if not re.match(email_regex, req.email):
         raise HTTPException(status_code=400, detail="Invalid email format")
-    if len(req.password) < 6:
-        raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
+    validate_password_complexity(req.password)
     if req.role not in ("admin", "client", "operator"):
         raise HTTPException(status_code=400, detail="Role must be 'admin', 'client', or 'operator'")
     if users_col.find_one({"email": req.email, "is_deleted": {"$ne": True}}):
@@ -343,8 +489,7 @@ async def update_user(email: str, req: AdminUpdateUserRequest, background_tasks:
         update_fields["role"] = req.role
         
     if req.password is not None and len(req.password) > 0:
-        if len(req.password) < 6:
-            raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
+        validate_password_complexity(req.password)
         update_fields["password"] = hash_password(req.password)
         
     if req.allowedCameras is not None and req.allowedCameras != existing.get("allowedCameras", []):

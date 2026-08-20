@@ -6,6 +6,8 @@ class Settings(BaseSettings):
     MINIO_SECRET_KEY: str = ""
     MEDIAMTX_API: str = "http://localhost:9997"
     JWT_SECRET: str = ""
+    RECAPTCHA_SECRET_KEY: str = ""
     class Config:
         env_file = ".env"
+        extra = "ignore"
 settings = Settings()

@@ -3,18 +3,64 @@ from datetime import datetime, timedelta
 from jose import JWTError, jwt
 from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+import uuid
 
-SECRET_KEY = os.environ.get("SECRET_KEY", "super-secret-key-for-vms")
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 365 # 365 days
+from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.backends import default_backend
+
+KEYS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "keys")
+os.makedirs(KEYS_DIR, exist_ok=True)
+
+PRIVATE_KEY_PATH = os.path.join(KEYS_DIR, "private.pem")
+PUBLIC_KEY_PATH = os.path.join(KEYS_DIR, "public.pem")
+
+def get_or_create_keys():
+    if os.path.exists(PRIVATE_KEY_PATH) and os.path.exists(PUBLIC_KEY_PATH):
+        with open(PRIVATE_KEY_PATH, "r") as f:
+            private_key = f.read()
+        with open(PUBLIC_KEY_PATH, "r") as f:
+            public_key = f.read()
+        return private_key, public_key
+    
+    # Generate new RSA key pair
+    private_key_obj = rsa.generate_private_key(
+        public_exponent=65537,
+        key_size=2048,
+        backend=default_backend()
+    )
+    private_key = private_key_obj.private_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PrivateFormat.PKCS8,
+        encryption_algorithm=serialization.NoEncryption()
+    )
+    
+    public_key_obj = private_key_obj.public_key()
+    public_key = public_key_obj.public_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PublicFormat.SubjectPublicKeyInfo
+    )
+    
+    with open(PRIVATE_KEY_PATH, "wb") as f:
+        f.write(private_key)
+    with open(PUBLIC_KEY_PATH, "wb") as f:
+        f.write(public_key)
+        
+    return private_key.decode("utf-8"), public_key.decode("utf-8")
+
+PRIVATE_KEY, PUBLIC_KEY = get_or_create_keys()
+ALGORITHM = "RS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 4 * 60 # 4 hours
 
 security_scheme = HTTPBearer(auto_error=False)
 
-def create_token(email: str, role: str):
+def create_token(email: str, role: str, session_id: str = None):
     to_encode = {"sub": email, "role": role}
+    if session_id:
+        to_encode["sid"] = session_id
     expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    encoded_jwt = jwt.encode(to_encode, PRIVATE_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 
 def verify_token(request: Request, credentials: HTTPAuthorizationCredentials = Depends(security_scheme)):
@@ -32,7 +78,22 @@ def verify_token(request: Request, credentials: HTTPAuthorizationCredentials = D
         )
         
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        payload = jwt.decode(token, PUBLIC_KEY, algorithms=[ALGORITHM])
+        
+        # Concurrent session check
+        from app.core.database import db as _db
+        if _db is not None:
+            active_sessions = _db["active_sessions"]
+            session_id = payload.get("sid")
+            user_id = payload.get("sub")
+            if session_id and user_id:
+                session_doc = active_sessions.find_one({"user_id": user_id})
+                if not session_doc or session_doc.get("session_id") != session_id:
+                    raise HTTPException(
+                        status_code=status.HTTP_401_UNAUTHORIZED,
+                        detail="Session expired or active on another device",
+                        headers={"WWW-Authenticate": "Bearer"},
+                    )
         return payload
     except JWTError:
         raise HTTPException(

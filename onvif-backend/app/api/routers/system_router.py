@@ -210,7 +210,7 @@ def health():
         "cluster_mode": os.environ.get("CLUSTER_MODE") == "1"
     })
 
-@router.get("/discover-devices", dependencies=[Depends(verify_token)])
+@router.get("/discover-devices", dependencies=[Depends(require_admin)])
 async def discover_devices():
     try:
         if not _discovery_in_progress:
@@ -226,7 +226,7 @@ async def discover_devices():
 # Camera enable / disable / delete
 # ------------------------------------------------------------------
 
-@router.get("/debug/mongo", dependencies=[Depends(verify_token)])
+@router.get("/debug/mongo", dependencies=[Depends(require_admin)])
 def debug_mongo():
     try:
         mongo_client.server_info()

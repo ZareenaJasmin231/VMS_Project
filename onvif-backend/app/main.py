@@ -9,11 +9,15 @@ try:
 except ImportError:
     pass
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 import os
 import sys
+
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from app.api.routers.auth_router import limiter
 
 if sys.platform == "win32":
     try:
@@ -122,6 +126,102 @@ class LoggerWrapper:
 sys.stdout = LoggerWrapper()
 
 app = FastAPI(title="MIRADOR ONVIF Backend", lifespan=lifespan)
+app.state.limiter = limiter
+from app.core.logger import log_security_event
+
+async def custom_rate_limit_handler(request: Request, exc: RateLimitExceeded):
+    client_ip = request.headers.get("X-Forwarded-For")
+    if client_ip:
+        client_ip = client_ip.split(",")[0].strip()
+    else:
+        client_ip = request.headers.get("X-Real-IP") or (request.client.host if request.client else "Unknown")
+    if client_ip:
+        if client_ip.startswith("::ffff:"):
+            client_ip = client_ip.replace("::ffff:", "")
+        elif client_ip == "::1":
+            client_ip = "127.0.0.1"
+
+    log_security_event("CRITICAL", "RATE_LIMIT_EXCEEDED", f"Rate limit exceeded on {request.url.path}", client_ip)
+    # return await _rate_limit_exceeded_handler(request, exc)
+    return _rate_limit_exceeded_handler(request, exc)
+
+app.add_exception_handler(RateLimitExceeded, custom_rate_limit_handler)
+
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    response.headers["Content-Security-Policy"] = "default-src 'self'"
+    response.headers["X-Frame-Options"] = "DENY"
+    return response
+
+import re as _re
+
+_INJECTION_PATTERNS = [
+    # XSS patterns
+    (_re.compile(r"<script[\s\S]*?>", _re.IGNORECASE), "XSS"),
+    (_re.compile(r"javascript\s*:", _re.IGNORECASE), "XSS"),
+    (_re.compile(r"on\w+\s*=\s*[\"']", _re.IGNORECASE), "XSS"),
+    (_re.compile(r"<\s*img[^>]+onerror", _re.IGNORECASE), "XSS"),
+    (_re.compile(r"<\s*iframe", _re.IGNORECASE), "XSS"),
+    # SQL Injection patterns
+    (_re.compile(r"(\bor\b|\band\b)\s+\d+=\d+", _re.IGNORECASE), "SQL_INJECTION"),
+    (_re.compile(r"(union\s+select|select\s+.+from|insert\s+into|drop\s+table|delete\s+from|update\s+.+set)", _re.IGNORECASE), "SQL_INJECTION"),
+    (_re.compile(r"'?\s*(or|and)\s+'?1'?\s*=\s*'?1", _re.IGNORECASE), "SQL_INJECTION"),
+    (_re.compile(r";\s*(drop|delete|truncate|alter)\s", _re.IGNORECASE), "SQL_INJECTION"),
+    (_re.compile(r"--\s*$", _re.MULTILINE), "SQL_INJECTION"),
+    # Path traversal
+    (_re.compile(r"\.\./|\.\.\\", _re.IGNORECASE), "PATH_TRAVERSAL"),
+]
+
+def _get_client_ip(request: Request) -> str:
+    ip = request.headers.get("X-Forwarded-For")
+    if ip:
+        ip = ip.split(",")[0].strip()
+    else:
+        ip = request.headers.get("X-Real-IP") or (request.client.host if request.client else "Unknown")
+    if ip:
+        if ip.startswith("::ffff:"):
+            ip = ip.replace("::ffff:", "")
+        elif ip == "::1":
+            ip = "127.0.0.1"
+    return ip or "Unknown"
+
+def _scan_for_injections(value: str, source: str, path: str, ip: str):
+    print(f"[SECURITY DEBUG] Checking {source}: {value[:200]}")
+    for pattern, attack_type in _INJECTION_PATTERNS:
+        if pattern.search(value):
+            log_security_event(
+                "CRITICAL",
+                f"INJECTION_ATTEMPT_{attack_type}",
+                f"Possible {attack_type} detected in {source} at {path} | Payload: {value[:200]}",
+                ip
+            )
+            break  # one alert per field is enough
+
+@app.middleware("http")
+async def detect_injection_attacks(request: Request, call_next):
+    ip = _get_client_ip(request)
+    path = request.url.path
+    print(f"[SECURITY] Scanning request: {request.method} {path}")
+
+    # Scan query parameters
+    for key, value in request.query_params.items():
+        _scan_for_injections(value, f"query_param[{key}]", path, ip)
+
+    # Scan request body (only for JSON endpoints, skip streaming like video/ws)
+    content_type = request.headers.get("content-type", "")
+    if "application/json" in content_type:
+        try:
+            body_bytes = await request.body()
+            if body_bytes:
+                body_str = body_bytes.decode("utf-8", errors="ignore")
+                _scan_for_injections(body_str, "request_body", path, ip)
+        except Exception:
+            pass
+
+    response = await call_next(request)
+    return response
 
 @app.on_event("startup")
 async def _startup_segment_recovery():
@@ -130,7 +230,7 @@ async def _startup_segment_recovery():
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:8000"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

@@ -4,7 +4,7 @@ from app.services.license_manager import license_manager
 import json
 from datetime import datetime
 from app.core.database import cameras_col, recordings_col, analytics_col, db as _db
-from app.core.security import verify_token
+from app.core.security import verify_token, require_admin
 from app.core.validation import validate_ip_only, validate_rtsp_url
 from app.managers.stream_manager import normalize_stream_name, get_devices_by_ip, devices, save_devices
 from app.services.camera.onvif_service import (
@@ -84,7 +84,7 @@ async def get_all_cameras():
     
     return cameras
 
-@router.post("/cameras/by-ip/{ip}/enable", dependencies=[Depends(verify_token)])
+@router.post("/cameras/by-ip/{ip}/enable", dependencies=[Depends(require_admin)])
 async def enable_camera_by_ip(ip: str):
     global devices
     matched = get_devices_by_ip(ip)
@@ -144,7 +144,7 @@ async def enable_camera_by_ip(ip: str):
     return {"success": True, "ip": ip, "streams_started": started}
 
 
-@router.post("/cameras/by-ip/{ip}/disable", dependencies=[Depends(verify_token)])
+@router.post("/cameras/by-ip/{ip}/disable", dependencies=[Depends(require_admin)])
 async def disable_camera_by_ip(ip: str):
     global devices
     matched = get_devices_by_ip(ip)
@@ -187,7 +187,7 @@ async def disable_camera_by_ip(ip: str):
     return {"success": True, "ip": ip, "streams_stopped": stopped}
 
 
-@router.delete("/cameras/by-ip/{ip}/delete", dependencies=[Depends(verify_token)])
+@router.delete("/cameras/by-ip/{ip}/delete", dependencies=[Depends(require_admin)])
 async def delete_camera_by_ip(ip: str):
     global devices
     matched = get_devices_by_ip(ip)
@@ -242,7 +242,7 @@ async def delete_camera_by_ip(ip: str):
         },
     ))
     return {"success": True, "ip": ip, "streams_stopped": stopped}
-@router.delete("/cameras/delete-by-rtsp", dependencies=[Depends(verify_token)])
+@router.delete("/cameras/delete-by-rtsp", dependencies=[Depends(require_admin)])
 async def delete_camera_by_rtsp(request: Request):
     global devices
     data = await request.json()
@@ -305,7 +305,7 @@ async def delete_camera_by_rtsp(request: Request):
         },
     ))
     return {"success": True, "rtsp_url": rtsp_url, "ip": ip, "streams_stopped": stopped}
-@router.delete("/cameras/{ip}/hard", dependencies=[Depends(verify_token)])
+@router.delete("/cameras/{ip}/hard", dependencies=[Depends(require_admin)])
 async def hard_delete_camera(ip: str):
     """
     Permanently delete a cameras collection.
@@ -329,7 +329,7 @@ async def get_trashed_cameras():
     docs = list(cameras_col.find({"is_deleted": True}, {"_id": 0}))
     return docs
 
-@router.put("/cameras/{ip}/restore", dependencies=[Depends(verify_token)])
+@router.put("/cameras/{ip}/restore", dependencies=[Depends(require_admin)])
 async def restore_camera(ip: str):
     """
     Restore a soft-deleted camera and its children.
@@ -349,7 +349,7 @@ async def restore_camera(ip: str):
         return {"success": True, "ip": ip, "restored_count": result.modified_count}
     return {"success": False, "error": "Database not available"}
 
-@router.delete("/cameras/by-stream/{stream_name}/delete", dependencies=[Depends(verify_token)])
+@router.delete("/cameras/by-stream/{stream_name}/delete", dependencies=[Depends(require_admin)])
 async def delete_camera_by_stream(stream_name: str):
     """
     Delete a camera entry by its stream_key name.
@@ -374,7 +374,7 @@ async def delete_camera_by_stream(stream_name: str):
     return {"success": True, "stream_name": stream_name, "streams_stopped": stopped}
 
 
-@router.put("/cameras/by-ip/{ip}", dependencies=[Depends(verify_token)])
+@router.put("/cameras/by-ip/{ip}", dependencies=[Depends(require_admin)])
 async def update_camera_by_ip(ip: str, request: Request):
     validate_ip_only(ip)
     data = await request.json()

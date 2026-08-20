@@ -5,10 +5,14 @@ class SignupRequest(BaseModel):
     password: str
     role:     str = "client"
 
+from typing import Optional, List
+
 class LoginRequest(BaseModel):
     email:    str
     password: str
     role:     str = "client"
+    captcha_id: Optional[str] = None
+    captcha_text: Optional[str] = None
 
 class ForgotPasswordRequest(BaseModel):
     email: str
