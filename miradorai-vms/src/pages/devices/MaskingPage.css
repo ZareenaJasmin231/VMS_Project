@@ -398,7 +398,7 @@
 /* ── Viewport (Video + Canvas) ── */
 .mp-viewport {
   position: relative;
-  aspect-ratio: 21 / 9;
+  aspect-ratio: 16 / 9;
   max-height: 420px;
   background: #000;
   width: 100%;
