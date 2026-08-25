@@ -64,7 +64,7 @@ async function applyBitrateLimit(pc, maxKbps) {
 //   - Fullscreen view: pass 10000 (10 Mbps)
 //   - Not passed:      no throttle applied (full native camera bitrate)
 // ─────────────────────────────────────────────────────────────────────────────
-function WebRTCPlayer_MediaMTX({ streamKey, cameraId, onConnectChange, onError, maxBitrate, badgeMode = "normal", muted = true, hideBandwidth = false }) {
+function WebRTCPlayer_MediaMTX({ streamKey, cameraId, onConnectChange, onError, maxBitrate, badgeMode = "normal", muted = true, hideBandwidth = false, objectFit = "contain" }) {
   const videoRef = useRef(null);
   const containerRef = useRef(null);
 
@@ -113,7 +113,7 @@ function WebRTCPlayer_MediaMTX({ streamKey, cameraId, onConnectChange, onError, 
 
     if (whepLocationRef.current) {
       try {
-        const whepUrl = new URL(whepLocationRef.current, `http://192.168.126.18:8889/${currentStreamKey}/whep`);
+        const whepUrl = new URL(whepLocationRef.current, `http://${window.location.hostname}/whep/${currentStreamKey}/whep`);
         fetch(whepUrl.toString(), { method: "DELETE", keepalive: true }).catch(() => {});
       } catch {
         // ignore
@@ -192,7 +192,7 @@ function WebRTCPlayer_MediaMTX({ streamKey, cameraId, onConnectChange, onError, 
         sdp: constrainedSdp,
       });
 
-      const response = await fetch(`http://192.168.126.18:8889/${currentStreamKey}/whep`, {
+      const response = await fetch(`http://${window.location.hostname}/whep/${currentStreamKey}/whep`, {
         method: "POST",
         headers: {
           "Content-Type": "application/sdp",
@@ -398,10 +398,12 @@ function WebRTCPlayer_MediaMTX({ streamKey, cameraId, onConnectChange, onError, 
         autoPlay
         playsInline
         muted={muted}
+        disablePictureInPicture
+        disableRemotePlayback
         style={{
           width: "100%",
           height: "100%",
-          objectFit: "contain",
+          objectFit: objectFit,
           display: "block",
           filter: cssFilter || "none",
           transform: `${cssTransform !== "none" && cssTransform ? cssTransform : ""} ${
