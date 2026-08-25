@@ -50,7 +50,7 @@ def get_or_create_keys():
 
 PRIVATE_KEY, PUBLIC_KEY = get_or_create_keys()
 ALGORITHM = "RS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 4 * 60 # 4 hours
+ACCESS_TOKEN_EXPIRE_MINUTES = 365 * 24 * 60 # 365 days
 
 security_scheme = HTTPBearer(auto_error=False)
 
@@ -87,11 +87,11 @@ def verify_token(request: Request, credentials: HTTPAuthorizationCredentials = D
             session_id = payload.get("sid")
             user_id = payload.get("sub")
             if session_id and user_id:
-                session_doc = active_sessions.find_one({"user_id": user_id})
-                if not session_doc or session_doc.get("session_id") != session_id:
+                session_doc = active_sessions.find_one({"user_id": user_id, "session_id": session_id})
+                if not session_doc:
                     raise HTTPException(
                         status_code=status.HTTP_401_UNAUTHORIZED,
-                        detail="Session expired or active on another device",
+                        detail="Session expired or invalid",
                         headers={"WWW-Authenticate": "Bearer"},
                     )
         return payload

@@ -44,6 +44,8 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
   const [confirmLoading, setConfirmLoading] = useState(false);
   const [editingGroupId, setEditingGroupId] = useState(null);
   const [editingGroupName, setEditingGroupName] = useState("");
+  const [editGroupValue, setEditGroupValue] = useState("");
+  const [uiError, setUiError] = useState("");
   const navigate = useNavigate();
   const { logAction } = useActivityLogger();
 
@@ -158,6 +160,7 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
 
   const handleDeleteGroupCams = async () => {
     const camsToRemove = cameras.filter(c => groupChecked.includes(c.id));
+    let hasError = false;
     for (const cam of camsToRemove) {
       try {
         const token = localStorage.getItem("miradorai_token");
@@ -169,12 +172,30 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
           },
           body: JSON.stringify({ rtsp_url: cam.rtsp_url })
         });
-        const data = res.ok ? await res.json() : null;
+        if (!res.ok) {
+          let errMsg = "Failed to delete camera. Admin privileges required.";
+          try {
+            const errData = await res.json();
+            errMsg = errData.detail || errMsg;
+          } catch(e) {}
+          setUiError(errMsg);
+          hasError = true;
+          break;
+        }
+        const data = await res.json();
         console.log("✅ Deleted from DB:", data);
         logAction("Camera deleted", "camera", { ip: cam.ip });
       } catch (err) {
         console.error("❌ Delete failed:", err);
+        setUiError("Network error while deleting camera.");
+        hasError = true;
+        break;
       }
+    }
+
+    if (hasError) {
+      setGroupChecked([]);
+      return;
     }
 
     const updated = cameras.filter(c => !groupChecked.includes(c.id));
@@ -337,6 +358,7 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
       .map(c => c.id);
 
     const camsToRemove = cameras.filter(c => camIdsToRemove.includes(c.id));
+    let hasError = false;
     for (const cam of camsToRemove) {
       try {
         const token = localStorage.getItem("miradorai_token");
@@ -348,12 +370,30 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
           },
           body: JSON.stringify({ rtsp_url: cam.rtsp_url })
         });
-        const data = await res.ok ? await res.json() : null;
+        if (!res.ok) {
+          let errMsg = "Failed to delete camera. Admin privileges required.";
+          try {
+            const errData = await res.json();
+            errMsg = errData.detail || errMsg;
+          } catch(e) {}
+          setUiError(errMsg);
+          hasError = true;
+          break;
+        }
+        const data = await res.json();
         console.log("✅ Deleted from DB:", data);
         logAction("Camera deleted", "camera", { ip: cam.ip });
       } catch (err) {
         console.error("❌ Delete failed:", err);
+        setUiError("Network error while deleting camera.");
+        hasError = true;
+        break;
       }
+    }
+
+    if (hasError) {
+      setChecked([]);
+      return;
     }
 
     const updated = cameras.filter(c => !camIdsToRemove.includes(c.id));
@@ -421,6 +461,18 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
         </div>
         <SearchBar value={filter} onChange={setFilter} placeholder="Filter groups or cameras..." />
       </div>
+
+      {uiError && (
+        <div style={{ background: "rgba(239, 68, 68, 0.1)", color: "#ef4444", padding: "12px 16px", borderRadius: "8px", border: "1px solid rgba(239, 68, 68, 0.3)", marginBottom: "16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16">
+              <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+            <span>{uiError}</span>
+          </div>
+          <button onClick={() => setUiError("")} style={{ background: "transparent", border: "none", color: "#ef4444", cursor: "pointer", fontSize: "16px", padding: "0 8px" }}>✕</button>
+        </div>
+      )}
 
       <div className="app-content">
         <div className={`cameras-content-layout ${selectedGroup ? "has-panel" : ""}`}>

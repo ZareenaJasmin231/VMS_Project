@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import Button from "../../components/shared/Button";
 import "./UserManagementPage.css";
 
@@ -9,12 +10,41 @@ function getAuthHeaders() {
   return token ? { 
     "Authorization": "Bearer " + token,
     "Content-Type": "application/json"
-  } : {
+} : {
     "Content-Type": "application/json"
   };
 }
 
+const PasswordRules = ({ password }) => {
+  const rules = [
+    { label: "At least 8 characters long", test: p => p.length >= 8 },
+    { label: "One uppercase letter", test: p => /[A-Z]/.test(p) },
+    { label: "One lowercase letter", test: p => /[a-z]/.test(p) },
+    { label: "One number", test: p => /[0-9]/.test(p) },
+    { label: "One special character", test: p => /[!@#$%^&*(),.?":{}|<>]/.test(p) }
+  ];
+
+  return (
+    <div style={{ marginTop: '8px', fontSize: '12px' }}>
+      {rules.map((rule, idx) => {
+        const passed = rule.test(password || "");
+        return (
+          <div key={idx} style={{ display: 'flex', alignItems: 'center', marginBottom: '4px', color: passed ? '#10b981' : '#6b7280' }}>
+            {passed ? (
+              <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" strokeWidth="2" fill="none" style={{ marginRight: '6px' }}><polyline points="20 6 9 17 4 12"/></svg>
+            ) : (
+              <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" strokeWidth="2" fill="none" style={{ marginRight: '6px' }}><circle cx="12" cy="12" r="10"/></svg>
+            )}
+            <span style={{ textDecoration: passed ? 'line-through' : 'none' }}>{rule.label}</span>
+          </div>
+        )
+      })}
+    </div>
+  );
+};
+
 export default function UserManagementPage() {
+  const navigate = useNavigate();
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -79,6 +109,17 @@ export default function UserManagementPage() {
       return;
     }
 
+    if (
+      createForm.password.length < 8 ||
+      !/[A-Z]/.test(createForm.password) ||
+      !/[a-z]/.test(createForm.password) ||
+      !/[0-9]/.test(createForm.password) ||
+      !/[!@#$%^&*(),.?":{}|<>]/.test(createForm.password)
+    ) {
+      setError("Password does not meet the complexity requirements.");
+      return;
+    }
+
     try {
       const res = await fetch(`${API}/api/auth/users`, {
         method: "POST",
@@ -120,6 +161,19 @@ export default function UserManagementPage() {
       return;
     }
 
+    if (editForm.newPassword) {
+      if (
+        editForm.newPassword.length < 8 ||
+        !/[A-Z]/.test(editForm.newPassword) ||
+        !/[a-z]/.test(editForm.newPassword) ||
+        !/[0-9]/.test(editForm.newPassword) ||
+        !/[!@#$%^&*(),.?":{}|<>]/.test(editForm.newPassword)
+      ) {
+        setError("Password does not meet the complexity requirements.");
+        return;
+      }
+    }
+
     const payload = { 
       role: editForm.role,
       allowedCameras: editForm.allowedCameras
@@ -145,6 +199,27 @@ export default function UserManagementPage() {
       }
     } catch (err) {
       setError("Network error: Could not save updates.");
+    }
+  };
+
+  const handleToggleBlock = async (user) => {
+    setError("");
+    setSuccess("");
+    try {
+      const res = await fetch(`${API}/api/auth/users/${encodeURIComponent(user.email)}`, {
+        method: "PATCH",
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ is_blocked: !user.is_blocked })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setSuccess(`User ${user.email} successfully ${!user.is_blocked ? "blocked" : "unblocked"}.`);
+        fetchUsers();
+      } else {
+        setError(data.detail || "Failed to update user status.");
+      }
+    } catch (err) {
+      setError("Network error: Could not update user status.");
     }
   };
 
@@ -271,6 +346,20 @@ export default function UserManagementPage() {
                           </svg>
                           Edit
                         </button>
+                        <button className={`m-btn ${u.is_blocked ? "m-btn--primary" : "m-btn--danger"}`} onClick={() => handleToggleBlock(u)} title={u.is_blocked ? "Unblock User" : "Block User"}>
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
+                            <path d="M18.36 6.64a9 9 0 1 1-12.73 0" />
+                            <line x1="12" y1="2" x2="12" y2="12" />
+                          </svg>
+                          {u.is_blocked ? "Unblock" : "Block"}
+                        </button>
+                        <button className="m-btn m-btn--elevated" onClick={() => navigate(`/logs?user_email=${encodeURIComponent(u.email)}&tab=ui`)} title="View User Activity">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
+                            <circle cx="12" cy="12" r="10" />
+                            <polyline points="12 6 12 12 16 14" />
+                          </svg>
+                          Activity
+                        </button>
                         <button className="m-btn m-btn--danger" onClick={() => handleDeleteUser(u)} title="Delete User Account">
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
                             <polyline points="3 6 5 6 21 6"/>
@@ -334,6 +423,7 @@ export default function UserManagementPage() {
                       )}
                     </button>
                   </div>
+                  <PasswordRules password={createForm.password} />
                 </div>
                 <div className="form-group">
                   <label className="form-label">System Access Role</label>
@@ -482,6 +572,7 @@ export default function UserManagementPage() {
                       )}
                     </button>
                   </div>
+                  <PasswordRules password={editForm.newPassword} />
                 </div>
                 <div className="form-group">
                   <label className="form-label">Confirm New Password</label>

@@ -576,7 +576,7 @@ def get_storage_management():
     display_path = _container_to_display_path(rec_dir)
 
     # Return all persisted locations
-    all_locs = list(locations_collection.find())
+    all_locs = list(locations_collection.find({"is_deleted": {"$ne": True}}))
     if not all_locs:
         # Fallback to current if none persisted
         return [{
@@ -632,7 +632,7 @@ def add_storage_location(loc: StorageLocation):
 
 @storage_router.delete("/locations")
 def remove_storage_location(container_path: str = Query(...)):
-    locations_collection.delete_one({"container_path": container_path})
+    locations_collection.update_one({"container_path": container_path}, {"$set": {"is_deleted": True}})
     return {"message": "Location removed"}
 
 
@@ -745,7 +745,7 @@ def collect_nonindexed():
 
 @storage_router.get("/schedules")
 def list_schedules():
-    docs = list(schedules_collection.find())
+    docs = list(schedules_collection.find({"is_deleted": {"$ne": True}}))
     for d in docs:
         d["id"] = str(d.get("id", d["_id"]))
         d.pop("_id", None)
@@ -770,9 +770,9 @@ def delete_schedule(sch_id: str):
     # Try to delete by both string and numeric ID for legacy support
     try:
         numeric_id = int(sch_id)
-        schedules_collection.delete_many({"id": {"$in": [str(sch_id), numeric_id]}})
+        schedules_collection.update_many({"id": {"$in": [str(sch_id), numeric_id]}}, {"$set": {"is_deleted": True}})
     except (ValueError, TypeError):
-        schedules_collection.delete_one({"id": str(sch_id)})
+        schedules_collection.update_one({"id": str(sch_id)}, {"$set": {"is_deleted": True}})
     
     # Also, find any cameras assigned to this schedule and reset them to 'always'
     _db["cameras"].update_many(

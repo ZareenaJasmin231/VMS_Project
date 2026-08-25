@@ -15,6 +15,8 @@ Configure via environment variables:
 import os
 import smtplib
 import threading
+from app.core.database import mongo_client
+
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from datetime import datetime
@@ -33,7 +35,19 @@ EMAILS_ENABLED = os.environ.get("ALERT_EMAILS_ENABLED", "true").lower() != "fals
 
 # ── Core sender ───────────────────────────────────────────────────────────
 
-def _send_email(subject: str, html_body: str):
+
+def _get_immediate_recipients(report_type: str):
+    db = mongo_client[os.environ.get("MONGO_DB_NAME")] if mongo_client else None
+    if not db:
+        return []
+    schedules = db["report_schedules"].find({"schedule_type": "immediate", "report_type": report_type, "enabled": True})
+    recipients = []
+    for s in schedules:
+        if isinstance(s.get("recipients"), list):
+            recipients.extend(s["recipients"])
+    return list(set(recipients))
+
+def _send_email(subject: str, html_body: str, to_addrs: list = None):
     """
     Sends an email in a background thread so it never blocks the event loop.
     Silently logs on failure — never raises.
@@ -41,8 +55,9 @@ def _send_email(subject: str, html_body: str):
     if not EMAILS_ENABLED:
         print(f"[EMAIL] (disabled) Would send: {subject}")
         return
-    if not ALERT_TO:
-        print(f"[EMAIL] No recipient configured (ALERT_EMAIL_TO). Skipping: {subject}")
+    all_to = list(set((ALERT_TO or []) + (to_addrs or [])))
+    if not all_to:
+        print(f"[EMAIL] No recipient configured. Skipping: {subject}")
         return
 
     def _worker():
@@ -50,7 +65,7 @@ def _send_email(subject: str, html_body: str):
             msg = MIMEMultipart("alternative")
             msg["Subject"] = subject
             msg["From"]    = ALERT_FROM
-            msg["To"]      = ", ".join(ALERT_TO)
+            msg["To"]      = ", ".join(all_to)
             msg.attach(MIMEText(html_body, "html"))
 
             with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=10) as server:
@@ -95,7 +110,9 @@ def _base_template(color: str, icon: str, title: str, rows: list[tuple]) -> str:
 
 def alert_device_offline(device_name: str, ip: str):
     """Fired when a camera or device goes offline."""
+    recipients = _get_immediate_recipients("camera_down")
     _send_email(
+        to_addrs=recipients,
         subject=f"🔴 Device Offline: {device_name} ({ip})",
         html_body=_base_template(
             color="#ef4444", icon="🔴",
@@ -180,6 +197,25 @@ def alert_switch_port_down(device_name: str, ip: str, port_name: str):
                 ("Status", "<span style='color:#ef4444'>DOWN</span>"),
                 ("Time", _ts()),
                 ("Action", "Check the cable or device connected to this port."),
+            ]
+        )
+    )
+
+def alert_storage_full(device_name: str, usage_percent: float):
+    """Fired when disk storage reaches or exceeds 95 percent."""
+    recipients = _get_immediate_recipients("storage_full")
+    _send_email(
+        subject=f"⚠️ Storage Full: {device_name} is at {usage_percent:.1f}%",
+        to_addrs=recipients,
+        html_body=_base_template(
+            color="#ef4444", icon="⚠️",
+            title=f"Storage Capacity Critical: {device_name}",
+            rows=[
+                ("Device", device_name),
+                ("Disk Usage", f"<span style='color:#ef4444'>{usage_percent:.1f}%</span>"),
+                ("Threshold", "95.0%"),
+                ("Time", _ts()),
+                ("Action", "Free up disk space immediately or expand storage to prevent recording loss."),
             ]
         )
     )

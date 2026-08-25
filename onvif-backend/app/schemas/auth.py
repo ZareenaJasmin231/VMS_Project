@@ -36,9 +36,11 @@ class AdminCreateUserRequest(BaseModel):
     password: str
     role:     str = "client"
     allowedCameras: Optional[List[str]] = None
+    is_blocked: Optional[bool] = None
 
 class AdminUpdateUserRequest(BaseModel):
     role:     Optional[str] = None
     password: Optional[str] = None
     allowedCameras: Optional[List[str]] = None
+    is_blocked: Optional[bool] = None
 

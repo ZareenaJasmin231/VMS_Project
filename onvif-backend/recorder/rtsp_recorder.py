@@ -174,6 +174,9 @@ def is_schedule_on(schedule_id: str | int | None, now: datetime) -> bool:
     if not schedule_id or str(schedule_id).lower() == "always":
         return True
     
+    if str(schedule_id).lower() == "never":
+        return False
+    
     # Try to find by ID (handling both string and numeric versions for legacy data)
     try:
         numeric_id = int(schedule_id)
@@ -354,6 +357,15 @@ class CameraRecorder:
                 return
 
             meta = _camera_data.get(self.stream_name, self.camera_data)
+            schedule_id = meta.get("assigned_schedule_id")
+            
+            # If schedule changes to inactive (e.g. Never) while recording, stop immediately
+            if not is_schedule_on(schedule_id, datetime.now()):
+                local_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                print(f"[RECORDER] [{local_time}] ⏹ Schedule became inactive. Stopping recording early for {self.stream_name}.")
+                self._stop_ffmpeg()
+                return
+
             motion_only = meta.get("motion_only", False)
             now_time = time.time()
             elapsed_total = now_time - self.chunk_start

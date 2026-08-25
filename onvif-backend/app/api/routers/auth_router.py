@@ -116,6 +116,10 @@ async def auth_login(request: Request, req: LoginRequest, background_tasks: Back
             users_col.update_one({"email": req.email}, {"$set": {"failed_attempts": 0, "lockout_until": None}})
             user["failed_attempts"] = 0
 
+    if user and user.get("is_blocked"):
+        log_security_event("WARNING", "LOGIN_BLOCKED", f"Login attempt by blocked user: {req.email}", client_ip)
+        raise HTTPException(status_code=403, detail="Your account has been blocked by an administrator")
+
     if not user:
         if auth_logs_col is not None:
             try:
@@ -206,19 +210,29 @@ async def auth_login(request: Request, req: LoginRequest, background_tasks: Back
     
     session_id = str(uuid.uuid4())
     user_id_str = str(user["_id"])
+    has_active_session = False
     if _db is not None:
         now_utc = datetime.utcnow()
         now_ist = now_utc + timedelta(hours=5, minutes=30)
-        _db["active_sessions"].update_one(
-            {"user_id": user_id_str},
-            {"$set": {
-                "session_id": session_id, 
-                "email": user["email"],
-                "updated_at": now_utc.isoformat(),
-                "updated_at_ist": now_ist.isoformat()
-            }},
-            upsert=True
-        )
+        
+        # Check if user already has active sessions
+        existing_session = _db["active_sessions"].find_one({"user_id": user_id_str})
+        session_note = "Initial login"
+        if existing_session:
+            has_active_session = True
+            session_note = f"Concurrent login of same username ({user['email']})"
+            log_security_event("INFO", "CONCURRENT_LOGIN", session_note, client_ip)
+            
+        _db["active_sessions"].insert_one({
+            "user_id": user_id_str,
+            "session_id": session_id, 
+            "email": user["email"],
+            "created_at": now_utc.isoformat(),
+            "created_at_ist": now_ist.isoformat(),
+            "updated_at": now_utc.isoformat(),
+            "updated_at_ist": now_ist.isoformat(),
+            "notes": session_note
+        })
     
     token = create_token(user_id_str, user["role"], session_id)
     
@@ -236,6 +250,7 @@ async def auth_login(request: Request, req: LoginRequest, background_tasks: Back
     return {
         "success": True,
         "token": token,
+        "has_active_session": has_active_session,
         "user": {
             "email": user["email"],
             "role": user["role"],
@@ -250,11 +265,15 @@ def get_public_key():
 @router.post("/logout")
 async def auth_logout(request: Request, payload: dict = Depends(verify_token)):
     user_id = payload.get("sub")
+    session_id = payload.get("sid")
     from app.core.database import db as _db, auth_logs_col, users_col
     
     if _db is not None and user_id:
-        # Delete active session to invalidate token
-        _db["active_sessions"].delete_one({"user_id": user_id})
+        # Delete only this specific active session to invalidate token
+        if session_id:
+            _db["active_sessions"].delete_one({"user_id": user_id, "session_id": session_id})
+        else:
+            _db["active_sessions"].delete_many({"user_id": user_id})
         
         # Add to auth audit logs
         if auth_logs_col is not None:
@@ -452,6 +471,7 @@ async def create_user(req: AdminCreateUserRequest, background_tasks: BackgroundT
         "password":  hashed_password,
         "role":      req.role,
         "allowedCameras": req.allowedCameras or [],
+        "is_blocked": req.is_blocked if req.is_blocked is not None else False,
         "createdAt": datetime.utcnow().isoformat(),
     }
     try:
@@ -468,7 +488,8 @@ async def create_user(req: AdminCreateUserRequest, background_tasks: BackgroundT
             "email": req.email,
             "role": req.role,
             "password": req.password,
-            "allowedCameras": req.allowedCameras or []
+            "allowedCameras": req.allowedCameras or [],
+            "is_blocked": req.is_blocked
 
         },
     )
@@ -495,6 +516,14 @@ async def update_user(email: str, req: AdminUpdateUserRequest, background_tasks:
     if req.allowedCameras is not None and req.allowedCameras != existing.get("allowedCameras", []):
         update_fields["allowedCameras"] = req.allowedCameras
         
+    if req.is_blocked is not None and req.is_blocked != existing.get("is_blocked"):
+        update_fields["is_blocked"] = req.is_blocked
+        # If user is blocked, instantly delete active sessions to terminate their token
+        if req.is_blocked:
+            from app.core.database import db as _db
+            if _db is not None:
+                _db["active_sessions"].delete_many({"user_id": str(existing["_id"])})
+
     if not update_fields:
         return {"success": True, "message": "No changes requested."}
         

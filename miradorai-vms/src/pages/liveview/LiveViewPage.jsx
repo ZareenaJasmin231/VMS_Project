@@ -11,6 +11,7 @@ import "./LiveViewPage.css";
 import { EditDeviceModal } from "../devices/AddDevicesPage";
 import { useWebSocket } from "../../hooks/useWebSocket";
 import useGroups from "../../hooks/useGroups";
+import * as rrweb from "rrweb";
 
 const API = import.meta.env.VITE_API_URL || "";
 
@@ -1968,6 +1969,44 @@ function ContextMenu({ x, y, onEdit, onStreamProfiles, onClose }) {
 export default function LiveViewPage({ onNavigate }) {
   const { user } = useAuth();
   const { theme } = useTheme();
+  
+  const [stationDetails] = useState(getOrCreateStationDetails);
+  
+  useEffect(() => {
+    let ws = null;
+    let stopFn = null;
+    let isRecording = false;
+
+    const apiBase = import.meta.env.VITE_API_URL || '';
+    let wsUrl = '';
+    if (apiBase) {
+      wsUrl = apiBase.replace(/^http/, 'ws') + `/ws/events?topics=station_${stationDetails.sid}`;
+    } else {
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      wsUrl = `${protocol}//${window.location.host}/ws/events?topics=station_${stationDetails.sid}`;
+    }
+
+    const connect = () => {
+      console.log("[LiveView] Connecting to WebSocket for events:", wsUrl);
+      ws = new WebSocket(wsUrl);
+      
+      ws.onmessage = (event) => {
+        // Now handled globally in GlobalLiveMirror.jsx
+      };
+      
+      ws.onclose = () => {
+        setTimeout(connect, 5000);
+      };
+    };
+    
+    connect();
+
+    return () => {
+      if (stopFn) stopFn();
+      if (ws) ws.close();
+    };
+  }, [stationDetails.sid]);
+
   const [devices, setDevices] = useState(loadDevices);
   const [layout, setLayout] = useState(() => {
     return sessionStorage.getItem("miradorai_liveview_layout") || "2x2";
@@ -1993,7 +2032,6 @@ export default function LiveViewPage({ onNavigate }) {
     localStorage.setItem("miradorai_object_fit", objectFitMode);
   }, [objectFitMode]);
 
-  const [stationDetails] = useState(getOrCreateStationDetails);
   const [stationName, setStationName] = useState(stationDetails.sname);
   const [isEditingName, setIsEditingName] = useState(false);
   const [appliedTimestamp, setAppliedTimestamp] = useState(() => {
@@ -2660,7 +2698,7 @@ export default function LiveViewPage({ onNavigate }) {
     };
 
     sendHeartbeat();
-    const interval = setInterval(sendHeartbeat, 30000);
+    const interval = setInterval(sendHeartbeat, 10000);
     return () => clearInterval(interval);
   }, [
     stationDetails.sid,

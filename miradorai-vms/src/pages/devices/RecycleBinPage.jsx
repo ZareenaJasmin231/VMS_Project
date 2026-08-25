@@ -201,7 +201,7 @@ function RecycleBinPage() {
                 <tr>
                   <th>Device Name</th>
                   <th>IP Address</th>
-                  <th>Deleted At (IST)</th>
+                  <th>Deleted At</th>
                   <th>Deleted By</th>
                   <th style={{ textAlign: "right" }}>Actions</th>
                 </tr>
@@ -212,7 +212,7 @@ function RecycleBinPage() {
                     <td style={{ color: "var(--text-primary)", fontWeight: "500" }}>{c.device_name || c.name || "Unknown"}</td>
                     <td style={{ fontFamily: "monospace", color: "var(--teal)" }}>{c.ip}</td>
                     <td>{formatIST(c.deleted_at)}</td>
-                    <td>{c.deleted_by || "Admin"}</td>
+                    <td>{c.deleted_by || (() => { try { return JSON.parse(localStorage.getItem("miradorai_user"))?.email || "admin@example.com"; } catch { return "admin@example.com"; } })()}</td>
                     <td style={{ textAlign: "right" }}>
                       <div style={{ display: "inline-flex", gap: "8px" }}>
                         <button className="m-btn m-btn--primary" onClick={() => handleRestore(c)}>

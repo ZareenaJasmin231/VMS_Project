@@ -399,6 +399,18 @@ export default function RecordingMethodPage() {
             motion_only: !!data.motion_only,
           }),
         });
+
+        if (data.schedule === "Never") {
+          try {
+            await fetch(`${BACKEND}/api/recordings/stop/${cam.stream_key}`, {
+              method: "POST",
+              headers: getAuthHeaders(),
+            });
+            console.log(`[RM] Stopped recording for ${cam.stream_key} as schedule is Never`);
+          } catch (e) {
+            console.error(`[RM] Error stopping recording for ${cam.stream_key}:`, e);
+          }
+        }
       });
 
       await Promise.all(applyTasks);
@@ -574,7 +586,12 @@ export default function RecordingMethodPage() {
                         {cam.ip && <span className="rm-item-dot">•</span>}
                         <span className="rm-item-mode">
                           {(() => {
-                            const baseMode = (!cam.assigned_schedule_id || cam.assigned_schedule_id === "Always") ? "Continuous" : "Scheduled";
+                            let baseMode = "Scheduled";
+                            if (!cam.assigned_schedule_id || cam.assigned_schedule_id === "Always") {
+                              baseMode = "Continuous";
+                            } else if (cam.assigned_schedule_id === "Never" || cam.assigned_schedule_id.toString().toLowerCase() === "never") {
+                              baseMode = "Never";
+                            }
                             return cam.motion_only ? `${baseMode} (Motion)` : baseMode;
                           })()}
                         </span>

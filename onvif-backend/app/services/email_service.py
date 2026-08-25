@@ -274,3 +274,45 @@ def send_scheduled_report(schedule: dict):
     except Exception as smtp_err:
         print(f"[EMAIL REPORT] ❌ SMTP Dispatch Failed: {smtp_err}")
         return False
+
+
+def send_manual_email(recipients: list, subject: str, body_text: str, attachments: list = None):
+    smtp_host = os.environ.get("SMTP_HOST", "smtp.gmail.com")
+    smtp_port = int(os.environ.get("SMTP_PORT", 587))
+    smtp_user = os.environ.get("SMTP_USER", "")
+    smtp_pass = os.environ.get("SMTP_PASSWORD", "")
+    sender_email = os.environ.get("ALERT_EMAIL_FROM", smtp_user or "noreply@vms.local")
+    
+    if not recipients:
+        return False, "No recipients specified"
+        
+    msg = MIMEMultipart()
+    msg["From"] = sender_email
+    msg["To"] = ", ".join(recipients)
+    msg["Subject"] = subject
+    msg["Date"] = formatdate(localtime=True)
+    msg["Message-ID"] = make_msgid()
+    
+    msg.attach(MIMEText(body_text, "html"))
+    
+    if attachments:
+        for attachment in attachments:
+            filename = attachment.get("filename")
+            file_data = attachment.get("data")
+            
+            part = MIMEBase("application", "octet-stream")
+            part.set_payload(file_data)
+            encoders.encode_base64(part)
+            part.add_header("Content-Disposition", f'attachment; filename="{filename}"')
+            msg.attach(part)
+            
+    try:
+        with smtplib.SMTP(smtp_host, smtp_port) as server:
+            server.starttls()
+            if smtp_user and smtp_pass:
+                server.login(smtp_user, smtp_pass)
+            server.send_message(msg)
+        return True, "Email sent successfully"
+    except Exception as e:
+        print(f"Error sending manual email: {e}")
+        return False, str(e)

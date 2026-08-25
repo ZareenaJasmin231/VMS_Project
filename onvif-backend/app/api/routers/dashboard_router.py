@@ -1,5 +1,5 @@
-from fastapi import APIRouter, Depends, Response, HTTPException, Request, Query
-from typing import Optional
+from fastapi import APIRouter, Depends, Response, HTTPException, Request, Query, UploadFile, File, Form
+from typing import Optional, List
 import json
 from app.core.database import db as _db, analytics_col, watch_collection, cameras_col
 from app.core.security import verify_token
@@ -683,21 +683,9 @@ def save_report_schedule(schedule: ReportScheduleSchema):
         col = _db["report_schedules"]
         doc = schedule.dict()
         doc["updated_at"] = datetime.utcnow().isoformat()
-        
-        # Check if identical schedule already exists (same report_type and schedule_type)
-        # and update it, otherwise insert a new one.
-        existing = col.find_one({
-            "report_type": doc["report_type"],
-            "schedule_type": doc["schedule_type"]
-        })
-        if existing:
-            # Reset last_run so the worker evaluates the new schedule parameters immediately
-            doc["last_run"] = None
-            col.update_one({"_id": existing["_id"]}, {"$set": doc})
-        else:
-            doc["created_at"] = datetime.utcnow().isoformat()
-            doc["last_run"] = None
-            col.insert_one(doc)
+        doc["created_at"] = datetime.utcnow().isoformat()
+        doc["last_run"] = None
+        col.insert_one(doc)
             
         return {"success": True}
     except Exception as e:
@@ -760,3 +748,65 @@ def get_process_history(
         return {"success": False, "error": str(e), "logs": []}
 
 
+
+
+@router.post("/reports/send-manual", dependencies=[Depends(verify_token)])
+async def send_manual_email_endpoint(
+    to: str = Form(...),
+    cc: Optional[str] = Form(None),
+    subject: str = Form(""),
+    body: str = Form(""),
+    files: List[UploadFile] = File(None)
+):
+    try:
+        from app.services.email_service import send_manual_email
+        recipients = [r.strip() for r in to.split(",") if r.strip()]
+        
+        if cc:
+            cc_recipients = [r.strip() for r in cc.split(",") if r.strip()]
+            recipients.extend(cc_recipients)
+            
+        attachments = []
+        if files:
+            for f in files:
+                if f.filename:
+                    data = await f.read()
+                    attachments.append({
+                        "filename": f.filename,
+                        "data": data
+                    })
+                    
+        success, msg = send_manual_email(recipients, subject, body, attachments)
+        if success:
+            try:
+                # Save to history
+                col = _db["manual_emails_history"]
+                col.insert_one({
+                    "to": to,
+                    "cc": cc or "",
+                    "subject": subject,
+                    "body": body,
+                    "timestamp": datetime.utcnow().isoformat(),
+                    "has_attachments": bool(attachments),
+                    "attachment_names": [a["filename"] for a in attachments] if attachments else []
+                })
+            except Exception as dberr:
+                print(f"Failed to log email history: {dberr}")
+            return {"success": True}
+        else:
+            return {"success": False, "error": msg}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+@router.get("/reports/manual-history", dependencies=[Depends(verify_token)])
+def get_manual_email_history():
+    try:
+        col = _db["manual_emails_history"]
+        history = list(col.find({}).sort("timestamp", -1).limit(50))
+        for h in history:
+            h["id"] = str(h["_id"])
+            del h["_id"]
+        return {"success": True, "history": history}
+    except Exception as e:
+        return {"success": False, "error": str(e)}

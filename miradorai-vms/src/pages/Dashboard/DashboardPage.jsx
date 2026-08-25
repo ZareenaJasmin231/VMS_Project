@@ -2535,7 +2535,7 @@ const DashboardPage = () => {
 
   useEffect(() => {
     fetchRecentEvents();
-    const interval = setInterval(fetchRecentEvents, 30000);
+    const interval = setInterval(fetchRecentEvents, 5000);
     return () => clearInterval(interval);
   }, []);
 
@@ -3193,7 +3193,7 @@ const DashboardPage = () => {
                   <div className="bandwidth-list-container">
                     {camerasBandwidth.top_cameras.map((cam, idx) => (
                       <div
-                        key={cam.id || idx}
+                        key={cam.id ? `${cam.id}-${idx}` : idx}
                         onClick={() => navigate("/cameras")}
                         className="bandwidth-item-row"
                         style={{
@@ -3739,9 +3739,10 @@ const DashboardPage = () => {
           backgroundColor: "rgba(0, 0, 0, 0.7)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999
         }}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ 
-            maxWidth: '750px', width: '100%', backgroundColor: 'var(--bg-card)', 
-            padding: '20px', borderRadius: '8px', border: '1px solid var(--border-color)',
-            boxShadow: '0 10px 25px rgba(0,0,0,0.5)'
+            maxWidth: '750px', width: '100%', 
+            backgroundColor: theme === 'light' ? '#ffffff' : 'var(--bg-card, #1e293b)', 
+            padding: '24px', borderRadius: '12px', border: `1px solid ${theme === 'light' ? '#e2e8f0' : 'var(--border-color, #334155)'}`,
+            boxShadow: theme === 'light' ? '0 10px 25px -5px rgba(0,0,0,0.1)' : '0 10px 25px rgba(0,0,0,0.5)'
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
               <h3 style={{ margin: 0, color: 'var(--text-primary)', fontSize: '18px' }}>Failed Recording Cameras</h3>
@@ -3763,11 +3764,32 @@ const DashboardPage = () => {
                   const headers = { ...getAuthHeaders(), "Content-Type": "application/json" };
                   
                   try {
+                    // Reset schedule to "Always" if it was intentionally set to "Never", 
+                    // otherwise the backend will just remain idle after restart
+                    if (cam.assigned_schedule_id && String(cam.assigned_schedule_id).toLowerCase() === "never") {
+                      try {
+                        await fetch(`${API_BASE}/api/recordings/assign-schedule`, {
+                          method: "POST",
+                          headers,
+                          body: JSON.stringify({
+                            camera_id: cam.id || cam.stream_key || cam.ip || cam.ip_address,
+                            schedule_id: "Always",
+                            motion_only: !!cam.motion_only
+                          })
+                        });
+                      } catch (e) {
+                        console.error("Failed to reset schedule to Always:", e);
+                      }
+                    }
+
                     // Disable then Enable to simulate a full restart
                     await fetch(`${API_BASE}/api/cameras/by-ip/${ip}/disable`, { method: "POST", headers });
                     await new Promise(resolve => setTimeout(resolve, 1500));
                     await fetch(`${API_BASE}/api/cameras/by-ip/${ip}/enable`, { method: "POST", headers });
                     alert(`Restart sequence sent for ${cam.name || cam.ip}`);
+                    
+                    // Immediately fetch updated statuses
+                    fetchRecentEvents();
                   } catch (err) {
                     console.error("Failed to restart camera:", err);
                     alert("Failed to restart camera. Check console for details.");
@@ -3798,6 +3820,9 @@ const DashboardPage = () => {
                           }
                           // 2. Check if a recording schedule is assigned and currently inactive
                           const schedId = camera.assigned_schedule_id;
+                          if (schedId && String(schedId).toLowerCase() === "never") {
+                            return "Recording mode set to Never";
+                          }
                           if (schedId && String(schedId).toLowerCase() !== "always") {
                             const sch = recordingSchedules.find(s => String(s.id) === String(schedId));
                             if (sch) {
@@ -3847,13 +3872,13 @@ const DashboardPage = () => {
                         };
                         let reason = getRecordingFailureReason(cam);
 
-                        const isScheduleReason = reason.includes("Schedule");
+                        const isScheduleReason = reason.includes("Schedule") || reason.includes("Never");
                         const reasonColor = isScheduleReason ? '#f59e0b' : reason === 'Camera Offline' ? '#ef4444' : 'var(--text-muted)';
                         const statusLabel = isScheduleReason ? 'Paused' : 'Failed';
                         const statusColor = isScheduleReason ? '#f59e0b' : '#ef4444';
 
                         return (
-                          <tr key={cam.id || idx} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                          <tr key={cam.id ? `${cam.id}-${idx}` : idx} style={{ borderBottom: '1px solid var(--border-color)' }}>
                             <td style={{ padding: '10px 8px', color: 'var(--text-primary)' }}>{cam.name || cam.stream || 'Unknown'}</td>
                             <td style={{ padding: '10px 8px', color: 'var(--text-primary)' }}>{cam.ip || cam.ip_address || 'Unknown'}</td>
                             <td style={{ padding: '10px 8px', color: statusColor, fontWeight: 600 }}>{statusLabel}</td>

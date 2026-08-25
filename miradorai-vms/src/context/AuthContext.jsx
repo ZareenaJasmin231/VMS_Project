@@ -86,7 +86,7 @@ export const AuthProvider = ({ children }) => {
   // ------------------------------------------------------------------
   // Sign In — verifies against MongoDB via backend
   // ------------------------------------------------------------------
-  const login = async (email, password, role) => {
+  const login = async (email, password, role, captchaId = null, captchaText = null) => {
     if (!email || !password) {
       return { success: false, error: "Email and password required" };
     }
@@ -98,7 +98,7 @@ export const AuthProvider = ({ children }) => {
       const res = await fetch(`${API_BASE}/api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password, role: assignedRole }),
+        body: JSON.stringify({ email, password, role: assignedRole, captcha_id: captchaId, captcha_text: captchaText }),
       });
 
       let data = null;
@@ -109,14 +109,22 @@ export const AuthProvider = ({ children }) => {
       }
 
       if (!res.ok) {
-        return { success: false, error: data?.detail || data?.message || `Server error (${res.status})` };
+        return { 
+          success: false, 
+          error: data?.detail || data?.message || `Server error (${res.status})`,
+          requires_captcha: data?.requires_captcha || false
+        };
+      }
+
+      if (data.has_active_session) {
+        return { success: true, has_active_session: true, user: data.user, token: data.token };
       }
 
       setUser(data.user);
       setSupervisorUnlocked(false);
       localStorage.setItem("miradorai_user", JSON.stringify(data.user));
       localStorage.setItem("miradorai_token", data.token);
-      return { success: true };
+      return { success: true, has_active_session: false };
     } catch (err) {
       console.error("[AUTH] Login error:", err);
       return { success: false, error: "Cannot connect to server. Please try again." };
@@ -260,7 +268,20 @@ export const AuthProvider = ({ children }) => {
   // ------------------------------------------------------------------
   // Logout
   // ------------------------------------------------------------------
-  const logout = () => {
+  const logout = async () => {
+    try {
+      const token = localStorage.getItem("miradorai_token");
+      if (token) {
+        await fetch(`${API_BASE}/api/auth/logout`, {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${token}`
+          }
+        });
+      }
+    } catch (err) {
+      console.error("[AUTH] Backend logout failed:", err);
+    }
     setUser(null);
     setSupervisorUnlocked(false);
     localStorage.removeItem("miradorai_user");
@@ -271,6 +292,12 @@ export const AuthProvider = ({ children }) => {
   const isClient       = user?.role === "client";
   const isOperator     = user?.role === "operator";
   const isAuthenticated = !!user;
+  const completeLogin = (userData, token) => {
+    setUser(userData);
+    setSupervisorUnlocked(false);
+    localStorage.setItem("miradorai_user", JSON.stringify(userData));
+    localStorage.setItem("miradorai_token", token);
+  };
 
   return (
     <AuthContext.Provider
@@ -285,6 +312,7 @@ export const AuthProvider = ({ children }) => {
         unlockSupervisor,
         lockSupervisor,
         login,
+        completeLogin,
         signup,
         forgotPassword,
         resetPassword,

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { useLocation } from "react-router-dom";
 import { useWebSocket } from "../../hooks/useWebSocket";
 import { AreaChart, Area, LineChart, Line, BarChart, Bar, PieChart, Pie, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
 import * as XLSX from 'xlsx';
@@ -29,12 +30,18 @@ const getInitialToDate = () => {
 };
 
 export default function LogsPage() {
-  const [activeTab, setActiveTab] = useState("ui");
+  const location = useLocation();
+  const queryParams = new URLSearchParams(location.search);
+  const initialUserEmail = queryParams.get("user_email") || "";
+  const initialTab = queryParams.get("tab") || "ui";
+
+  const [activeTab, setActiveTab] = useState(initialTab);
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(false);
   const [fromDate, setFromDate] = useState(getInitialFromDate());
   const [toDate, setToDate] = useState(getInitialToDate());
   const [category, setCategory] = useState("");
+  const [userEmail, setUserEmail] = useState(initialUserEmail);
   const [hasCustomToDate, setHasCustomToDate] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [expandedDetails, setExpandedDetails] = useState({});
@@ -187,6 +194,9 @@ export default function LogsPage() {
         const localDate = new Date(toDate);
         queryParams.append("to_date", localDate.toISOString());
       }
+      if (userEmail) {
+        queryParams.append("user_email", userEmail);
+      }
 
       // For the recordings tab, force category=recording on ui endpoint
       if (activeTab === "recordings") {
@@ -309,6 +319,16 @@ export default function LogsPage() {
               setToDate(val);
               setHasCustomToDate(!!val);
             }}
+          />
+        </div>
+        <div className="log-filter-group">
+          <label>User Email</label>
+          <input
+            type="text"
+            className="log-input"
+            placeholder="Filter by user email"
+            value={userEmail}
+            onChange={(e) => setUserEmail(e.target.value)}
           />
         </div>
         {activeTab === "ui" && (

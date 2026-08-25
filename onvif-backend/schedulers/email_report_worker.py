@@ -23,6 +23,9 @@ async def email_report_worker():
             
             for sch in active_schedules:
                 schedule_type = sch.get("schedule_type")
+                if schedule_type == "immediate":
+                    continue
+                    
                 last_run_str = sch.get("last_run")
                 send_time_str = sch.get("send_time", "09:00")
                 

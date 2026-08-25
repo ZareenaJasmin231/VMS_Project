@@ -1,4 +1,7 @@
 import { useState, useEffect, useRef } from "react";
+import WebRTCPlayer_MediaMTX from "../../components/shared/WebRTCPlayer_MediaMTX";
+import rrwebPlayer from 'rrweb-player';
+import 'rrweb-player/dist/style.css';
 import "./ViewingStationsPage.css";
 
 const API = import.meta.env.VITE_API_URL;
@@ -71,6 +74,13 @@ export default function ViewingStationsPage() {
   const [cellAssignments, setCellAssignments] = useState([]);
   const [pushStatus, setPushStatus] = useState({ success: null, message: "" });
   const [pushing, setPushing] = useState(false);
+
+  // Monitor Station State
+  const [monitorStation, setMonitorStation] = useState(null);
+
+  const handleMonitorStation = (station) => {
+    setMonitorStation(station);
+  };
 
   // Load cameras
   useEffect(() => {
@@ -220,10 +230,31 @@ export default function ViewingStationsPage() {
                       <div className="vs-card-header">
                         <div className="vs-station-info">
                           <span className="vs-station-name">{st.name}</span>
+                          {st.email && st.email !== "Unknown" && (
+                            <span className="vs-station-id" style={{fontSize: "12px", color: "var(--primary-color)", marginTop: "-2px", marginBottom: "2px"}}>{st.email}</span>
+                          )}
                           <span className="vs-station-id">{st.station_id}</span>
                         </div>
-                        <div className={`vs-status-badge ${st.is_online ? "online" : "offline"}`}>
-                          {st.is_online ? "Online" : "Offline"}
+                        <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                          <button
+                            className="m-btn m-btn--elevated"
+                            style={{ padding: "4px 8px", fontSize: "11px" }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleMonitorStation(st);
+                            }}
+                            title="Monitor this station's screen"
+                          >
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="12" height="12" style={{ marginRight: "4px" }}>
+                              <rect x="2" y="3" width="20" height="14" rx="2" />
+                              <line x1="8" y1="21" x2="16" y2="21" />
+                              <line x1="12" y1="17" x2="12" y2="21" />
+                            </svg>
+                            Monitor
+                          </button>
+                          <div className={`vs-status-badge ${st.is_online ? "online" : "offline"}`}>
+                            {st.is_online ? "Online" : "Offline"}
+                          </div>
                         </div>
                       </div>
                       
@@ -342,8 +373,113 @@ export default function ViewingStationsPage() {
             )}
           </div>
         </div>
-
       </div>
+
+      {monitorStation && (
+        <div className="modal-overlay" onClick={() => setMonitorStation(null)}>
+          <div className="modal-box" style={{ width: "90%", maxWidth: "1200px", background: "var(--bg-surface)", border: "1px solid var(--border-color)", padding: "20px" }} onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2 className="modal-title">Live Mirror: {monitorStation.name}</h2>
+              <button className="modal-close" onClick={() => setMonitorStation(null)}>✕</button>
+            </div>
+            <div className="modal-body" style={{ minHeight: "500px", padding: 0, marginTop: "16px" }}>
+              {!monitorStation.is_online ? (
+                <div style={{ textAlign: "center", padding: "40px", color: "var(--text-muted)" }}>
+                  Station is offline.
+                </div>
+              ) : (
+                <LiveMirrorMonitor station={monitorStation} />
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
+}
+
+function LiveMirrorMonitor({ station }) {
+  const containerRef = useRef(null);
+  const playerRef = useRef(null);
+  
+  useEffect(() => {
+    let ws = null;
+    let events = [];
+    
+    const apiBase = import.meta.env.VITE_API_URL || '';
+    let wsUrl = '';
+    
+    if (apiBase) {
+      wsUrl = apiBase.replace(/^http/, 'ws') + `/ws/events?topics=station_${station.station_id}_stream`;
+    } else {
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      wsUrl = `${protocol}//${window.location.host}/ws/events?topics=station_${station.station_id}_stream`;
+    }
+    
+    console.log("[LiveMirror] Connecting to stream:", wsUrl);
+    ws = new WebSocket(wsUrl);
+    
+    ws.onopen = () => {
+       console.log("[LiveMirror] Connected! Sending start_record command to:", station.station_id);
+       ws.send(JSON.stringify({
+          action: "publish",
+          topic: `station_${station.station_id}`,
+          pub_event: "start_record",
+          data: {}
+       }));
+    };
+
+    ws.onmessage = (msg) => {
+       try {
+         const data = JSON.parse(msg.data);
+         if (data.event === "rrweb_event" && data.data) {
+            const rr_event = data.data;
+            
+            if (events.length === 0 && rr_event.type !== 2) {
+               console.log("[LiveMirror] Waiting for FullSnapshot...");
+               return;
+            }
+            
+            if (!playerRef.current) {
+               events.push(rr_event);
+               if (events.length > 1 && containerRef.current) {
+                 console.log("[LiveMirror] Initializing rrwebPlayer with", events.length, "events");
+                 playerRef.current = new rrwebPlayer({
+                   target: containerRef.current,
+                   props: {
+                     events: [...events], // Clone the array for initial setup
+                     liveMode: true,
+                     showController: false,
+                     autoPlay: true,
+                     width: containerRef.current.offsetWidth,
+                     height: containerRef.current.offsetHeight || 600,
+                   }
+                 });
+               }
+            } else {
+               // Player is already initialized, just feed it the new event
+               playerRef.current.addEvent(rr_event);
+            }
+         }
+       } catch (e) {}
+    };
+    
+    return () => {
+       if (ws && ws.readyState === WebSocket.OPEN) {
+          console.log("[LiveMirror] Sending stop_record command");
+          ws.send(JSON.stringify({
+             action: "publish",
+             topic: `station_${station.station_id}`,
+             pub_event: "stop_record",
+             data: {}
+          }));
+          ws.close();
+       }
+       if (playerRef.current) {
+           playerRef.current.pause();
+       }
+    };
+  }, [station.station_id]);
+
+  return <div ref={containerRef} style={{ width: '100%', height: '600px', backgroundColor: '#000' }} />;
 }

@@ -154,7 +154,7 @@ def main():
             # 2. Publish heartbeat periodically
             now = time.time()
             if now - last_heartbeat_time >= heartbeat_interval:
-                active_cameras = list(recorder._recorders.keys())
+                active_cameras = [name for name, rec in recorder._recorders.items() if rec.is_alive()]
                 publish_heartbeat(mongo_uri, worker_id, active_cameras, status)
                 last_heartbeat_time = now
                 

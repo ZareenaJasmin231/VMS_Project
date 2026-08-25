@@ -3,12 +3,15 @@ viewing_stations_router.py — Viewing Station management and remote layout push
 Persists viewing stations in MongoDB with JSON fallback.
 """
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from typing import List, Optional
 import os
 import json
 import time
+
+from app.core.security import verify_token
+from app.core.database import db as _db
 
 router = APIRouter(prefix="/api/viewing-stations", tags=["viewing-stations"])
 
@@ -102,13 +105,24 @@ class PushLayoutRequest(BaseModel):
 # ── Routes ───────────────────────────────────────────────────────────
 
 @router.post("/heartbeat")
-def heartbeat(req: HeartbeatRequest):
+def heartbeat(req: HeartbeatRequest, payload: dict = Depends(verify_token)):
     """
     Heartbeat endpoint. Receives current status from a station,
     updates last_seen, and checks if a layout push is pending.
     """
     now = time.time()
     existing = _get_station(req.station_id)
+
+    email = "Unknown"
+    user_id = payload.get("sub")
+    if _db is not None and user_id:
+        from bson.objectid import ObjectId
+        try:
+            user = _db["users"].find_one({"_id": ObjectId(user_id)})
+            if user:
+                email = user.get("email", "Unknown")
+        except Exception:
+            pass
 
     if existing:
         station = existing
@@ -128,6 +142,7 @@ def heartbeat(req: HeartbeatRequest):
         "device_order": req.device_order
     }
     station["active_feeds_count"] = req.active_feeds_count
+    station["email"] = email
 
     _save_station(station)
 
@@ -160,15 +175,17 @@ def list_stations():
         # Online if checked in during the last 12 seconds
         is_online = (now - last_seen) < 12.0
         
-        result.append({
-            "station_id": s.get("station_id"),
-            "name": s.get("name", "Unknown Terminal"),
-            "is_online": is_online,
-            "last_seen": last_seen,
-            "active_layout": s.get("active_layout"),
-            "pushed_layout": s.get("pushed_layout"),
-            "active_feeds_count": s.get("active_feeds_count", 0)
-        })
+        if is_online:
+            result.append({
+                "station_id": s.get("station_id"),
+                "name": s.get("name", "Unknown Terminal"),
+                "is_online": is_online,
+                "last_seen": last_seen,
+                "active_layout": s.get("active_layout"),
+                "pushed_layout": s.get("pushed_layout"),
+                "active_feeds_count": s.get("active_feeds_count", 0),
+                "email": s.get("email", "Unknown")
+            })
         
     return {"success": True, "stations": result}
 

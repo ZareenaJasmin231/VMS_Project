@@ -5,7 +5,7 @@ import useActivityLogger from "../../hooks/useActivityLogger";
 import SpecularButton from "../../components/shared/SpecularButton";
 
 const LoginPage = () => {
-  const { login, forgotPassword, resetPassword, oauthLogin, accounts } = useAuth();
+  const { login, completeLogin, forgotPassword, resetPassword, oauthLogin, accounts } = useAuth();
   const [activeForm, setActiveForm] = useState("signin"); // "signin" | "forgot"
   const [role, setRole] = useState("client");
   const [showPassword, setShowPassword] = useState(false);
@@ -21,6 +21,7 @@ const LoginPage = () => {
   const [signInEmail, setSignInEmail] = useState("");
   const [signInPassword, setSignInPassword] = useState("");
   const [signInError, setSignInError] = useState("");
+  const [activeSessionWarning, setActiveSessionWarning] = useState(null);
 
   const [oauthMessage, setOauthMessage] = useState("");
   const [oauthError, setOauthError] = useState("");
@@ -35,21 +36,66 @@ const LoginPage = () => {
   const [resetNewPassword, setResetNewPassword] = useState("");
   const [resetConfirm, setResetConfirm] = useState("");
   const [forgotSuccess, setForgotSuccess] = useState("");
+  const [requiresCaptcha, setRequiresCaptcha] = useState(false);
+  const [captchaId, setCaptchaId] = useState(null);
+  const [captchaText, setCaptchaText] = useState("");
+  const [captchaImageBase64, setCaptchaImageBase64] = useState("");
+  const [robotChecked, setRobotChecked] = useState(false);
+
+  const fetchCaptcha = async () => {
+    try {
+      const res = await fetch("/api/auth/captcha");
+      const data = await res.json();
+      setCaptchaId(data.captcha_id);
+      setCaptchaImageBase64(data.image_base64);
+      setCaptchaText("");
+    } catch (err) {
+      console.error("Failed to fetch CAPTCHA", err);
+    }
+  };
 
   const handleSignIn = async (e) => {
     e.preventDefault();
     setSignInError("");
+    setActiveSessionWarning(null);
     setIsLoading(true);
 
-    await new Promise((resolve) => setTimeout(resolve, 500));
-
-    const result = await login(signInEmail, signInPassword, role);
-
-    if (!result.success) {
-      setSignInError(result.error);
+    if (requiresCaptcha && (!robotChecked || !captchaId || !captchaText)) {
+      setSignInError("Please verify you are not a robot and enter the CAPTCHA text");
       setIsLoading(false);
       return;
     }
+
+    await new Promise((resolve) => setTimeout(resolve, 500));
+
+    const result = await login(signInEmail, signInPassword, role, captchaId, captchaText);
+
+    if (!result.success) {
+      setSignInError(result.error);
+      if (result.requires_captcha) {
+        setRequiresCaptcha(true);
+        if (!captchaImageBase64) {
+          fetchCaptcha();
+        } else if (captchaId) {
+           // Refetch captcha on failure if it's already showing
+           fetchCaptcha();
+        }
+      }
+      setIsLoading(false);
+      return;
+    }
+
+    if (result.has_active_session) {
+      setActiveSessionWarning({ user: result.user, token: result.token });
+      setIsLoading(false);
+      return;
+    }
+
+    // Reset CAPTCHA on success
+    setRequiresCaptcha(false);
+    setCaptchaId(null);
+    setCaptchaText("");
+    setRobotChecked(false);
 
     // 🔥 Activity log — user logged in
     logAction("User logged in", "auth", { email: signInEmail });
@@ -240,8 +286,78 @@ const LoginPage = () => {
               </div>
             </div>
 
+            {/* CAPTCHA */}
+            {requiresCaptcha && (
+              <div className="form-group captcha-group" style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '12px', border: '1px solid #333', borderRadius: '4px', backgroundColor: 'rgba(0,0,0,0.2)' }}>
+                  <input 
+                    type="checkbox" 
+                    id="robotCheck"
+                    checked={robotChecked}
+                    onChange={(e) => setRobotChecked(e.target.checked)}
+                    style={{ width: '20px', height: '20px', cursor: 'pointer' }}
+                  />
+                  <label htmlFor="robotCheck" style={{ margin: 0, cursor: 'pointer', fontSize: '1rem', flex: 1 }}>
+                    I'm not a robot
+                  </label>
+                  <img src="https://www.gstatic.com/recaptcha/api2/logo_48.png" alt="captcha icon" style={{ width: '28px', opacity: 0.7 }} />
+                </div>
+
+                {robotChecked && captchaImageBase64 && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <img src={captchaImageBase64} alt="CAPTCHA" style={{ flex: 1, borderRadius: '4px', border: '1px solid #333', height: '70px', objectFit: 'cover', width: '100%' }} />
+                      <button 
+                        type="button" 
+                        onClick={fetchCaptcha} 
+                        className="btn-secondary" 
+                        style={{ padding: 0, fontSize: '1.2rem', height: '32px', width: '32px', minWidth: '32px', minHeight: '32px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }} 
+                        title="Reload CAPTCHA"
+                      >
+                        ↻
+                      </button>
+                    </div>
+                    <input
+                      type="text"
+                      placeholder="Enter the letters above"
+                      value={captchaText}
+                      onChange={(e) => setCaptchaText(e.target.value)}
+                      disabled={isLoading}
+                      required={robotChecked}
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Error */}
             {signInError && <div className="error-message">{signInError}</div>}
+
+            {/* Warning */}
+            {activeSessionWarning && (
+              <div className="warning-message">
+                <p>This user already has an active session on another device.</p>
+                <div className="warning-message-actions">
+                  <button 
+                    type="button"
+                    onClick={() => setActiveSessionWarning(null)}
+                    style={{ background: 'rgba(255,255,255,0.05)', color: '#d1d5db', border: '1px solid rgba(255,255,255,0.1)', padding: '8px 14px', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: '500' }}
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    type="button"
+                    onClick={() => {
+                      completeLogin(activeSessionWarning.user, activeSessionWarning.token);
+                      logAction("User logged in (concurrent)", "auth", { email: signInEmail });
+                    }}
+                    style={{ background: 'rgba(59, 130, 246, 0.2)', color: '#93c5fd', border: '1px solid rgba(59, 130, 246, 0.4)', padding: '8px 14px', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: '600' }}
+                  >
+                    Continue Anyway
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* Sign In Button */}
             <SpecularButton

@@ -34,7 +34,10 @@ def calculate_retention_stats(free_gb):
     
     return round(avg_daily_consumption, 2), round(retention_days, 1) if retention_days else None
 
+_last_storage_alert = 0
+
 def log_diagnostics():
+    global _last_storage_alert
     if db is None:
         return
         
@@ -49,6 +52,19 @@ def log_diagnostics():
     except Exception as e:
         print(f"[DIAGNOSTICS] Error reading disk usage: {e}")
         total_gb, used_gb, free_gb = 0.0, 0.0, 0.0
+
+    usage_pct = round((used_gb / total_gb) * 100, 1) if total_gb > 0 else 0.0
+    if usage_pct >= 95.0:
+        import time
+        now = time.time()
+        # Only send once every 24 hours (86400 seconds) to avoid spam
+        if now - _last_storage_alert > 86400:
+            try:
+                from .email_alerts import alert_storage_full
+                alert_storage_full("Dashboard Storage", usage_pct)
+                _last_storage_alert = now
+            except Exception as alert_err:
+                print(f"[DIAGNOSTICS] Error sending storage alert: {alert_err}")
 
     avg_daily, retention_days = calculate_retention_stats(free_gb)
 

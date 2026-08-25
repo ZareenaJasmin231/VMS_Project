@@ -10,6 +10,7 @@ import LoginPage from "./pages/auth/LoginPage";
 import AiAnalyticsPage from "./pages/analytics/AiAnalyticsPage";
 import useActivityLogger from "./hooks/useActivityLogger"; // ✅ FIXED
 import { ThemeProvider } from "./context/ThemeContext";
+import GlobalLiveMirror from "./components/layout/GlobalLiveMirror";
 import "./styles/global.css";
 
 function AppContent() {
@@ -41,6 +42,7 @@ function AppContent() {
 
   return (
     <>
+      <GlobalLiveMirror />
       {showSplash && <SplashScreen onDone={handleSplashDone} />}
       <div
         className="app-root"
