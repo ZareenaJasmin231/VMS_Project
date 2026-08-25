@@ -445,7 +445,39 @@ export default function Schedules() {
         headers: getAuthHeaders()
       });
       const data = await res.json();
-      setSchedules(Array.isArray(data) ? data : []);
+      let fetchedSchedules = Array.isArray(data) ? data : [];
+
+      let usedScheduleIds = new Set();
+      
+      // Check local storage
+      try {
+        const saved = localStorage.getItem("miradorai_devices");
+        if (saved) {
+           const localDevs = JSON.parse(saved);
+           localDevs.forEach(d => {
+             if (d.assigned_schedule_id) usedScheduleIds.add(d.assigned_schedule_id);
+           });
+        }
+      } catch (e) {}
+
+      // Check backend
+      try {
+        const devRes = await fetch(`${BACKEND}/api/cameras`, { headers: getAuthHeaders() });
+        if (devRes.ok) {
+           const devData = await devRes.json();
+           const devices = Array.isArray(devData) ? devData : (devData.devices || []);
+           devices.forEach(d => {
+             if (d.assigned_schedule_id) usedScheduleIds.add(d.assigned_schedule_id);
+           });
+        }
+      } catch (err) {}
+
+      fetchedSchedules = fetchedSchedules.map(s => ({
+        ...s,
+        status: usedScheduleIds.has(s.id) ? "active" : "inactive"
+      }));
+
+      setSchedules(fetchedSchedules);
     } catch (err) { console.error(err); }
     finally { setLoading(false); }
   };

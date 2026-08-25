@@ -3,6 +3,8 @@ import Hls from "hls.js";
 import DatePicker from "./DatePicker";
 import { useDigitalZoom } from "../../hooks/useDigitalZoom";
 import { useWebSocket } from "../../hooks/useWebSocket";
+import { useAuth } from "../../context/AuthContext";
+import { logUIAction } from "../../hooks/useActivityLogger";
 import "./SidePlaybackPanel.css";
 
 const API = import.meta.env.VITE_API_URL || "";
@@ -99,6 +101,7 @@ export default function SidePlaybackPanel({ camera, onClose, alertSource = "buil
 
   const { zoom, zoomTransform, handlers } = useDigitalZoom(playerWrap, videoRef);
   const { isConnected: isWsConnected, eventsByTopic } = useWebSocket(["alerts"]);
+  const { user } = useAuth();
 
   // Tab State
   const [activeTab, setActiveTab] = useState("alerts"); // 'archive' | 'alerts'
@@ -544,6 +547,12 @@ export default function SidePlaybackPanel({ camera, onClose, alertSource = "buil
     setDuration(0);
     setVideoError(null);
     setVideoLoading(true);
+    
+    logUIAction(user, `Played Archive Segment: ${file.start_time}`, "recording", {
+      file: file.start_time,
+      camera_id: file.camera_id,
+      date: file.date
+    });
 
     const cb = Date.now();
     const tk = getToken();
@@ -566,6 +575,11 @@ export default function SidePlaybackPanel({ camera, onClose, alertSource = "buil
     setDuration(0);
     setVideoError(null);
     setVideoLoading(true);
+    
+    logUIAction(user, `Played Alert Event Clip: ${alert.type || 'Event'}`, "recording", {
+      alert_type: alert.type || alert.eventType || 'unknown',
+      time: alert.time || alert.received_at
+    });
 
     try {
       const time = alert.time || alert.received_at;
@@ -693,6 +707,7 @@ export default function SidePlaybackPanel({ camera, onClose, alertSource = "buil
         document.body.removeChild(a);
         setTimeout(() => URL.revokeObjectURL(blobUrl), 5000);
         showToast("Download started! (.ts file — plays in VLC and most players)");
+        logUIAction(user, "Video Downloaded", "download", { filename: a.download, file_type: "alert_ts" });
       } else {
         // Not HLS — a direct fetch+blob is safe as-is.
         const response = await fetch(videoUrl, { headers: getAuthHeaders() });
@@ -708,6 +723,7 @@ export default function SidePlaybackPanel({ camera, onClose, alertSource = "buil
         document.body.removeChild(a);
         setTimeout(() => URL.revokeObjectURL(blobUrl), 5000);
         showToast("Download started!");
+        logUIAction(user, "Video Downloaded", "download", { filename: a.download, file_type: "alert" });
       }
     } catch (err) {
       console.error("Alert download error:", err);
@@ -740,6 +756,7 @@ export default function SidePlaybackPanel({ camera, onClose, alertSource = "buil
       document.body.removeChild(a);
       setTimeout(() => URL.revokeObjectURL(blobUrl), 5000);
       showToast("Download started!");
+      logUIAction(user, "Video Downloaded", "download", { filename, file_type: "archive" });
     } catch (err) {
       console.error("Download error:", err);
       showToast("Download failed: " + err.message, "error");
