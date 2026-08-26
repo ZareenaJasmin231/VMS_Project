@@ -349,6 +349,30 @@
   animation: slideDown 0.3s ease;
 }
 
+.warning-message {
+  padding: 14px;
+  background: rgba(59, 130, 246, 0.1);
+  border: 1px solid rgba(59, 130, 246, 0.25);
+  border-radius: 8px;
+  color: #93c5fd;
+  font-size: 13px;
+  animation: slideDown 0.3s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.warning-message p {
+  margin: 0;
+  line-height: 1.4;
+}
+
+.warning-message-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
 /* Form Footer */
 .form-footer {
   text-align: center;

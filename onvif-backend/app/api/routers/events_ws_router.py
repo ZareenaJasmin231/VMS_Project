@@ -75,8 +75,15 @@ async def websocket_events_endpoint(
                         "event": "unsubscribed",
                         "timestamp": "",
                         "event_id": "",
-                        "data": {"unsubscribed_topics": req_topics}
+                        "data": {"topics": req_topics}
                     })
+
+            elif action == "publish":
+                pub_topic = payload.get("topic")
+                pub_event = payload.get("pub_event", "custom_event")
+                pub_data = payload.get("data", {})
+                if pub_topic:
+                    await ws_manager.broadcast(pub_topic, pub_event, pub_data)
 
             else:
                 logger.debug(f"[WS] Unhandled message action: {action}")
