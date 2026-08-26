@@ -285,7 +285,7 @@ export default function UserManagementPage() {
         </button>
       </div>
 
-      {error && (
+      {error && !showCreateModal && !showEditModal && (
         <div className="um-banner error-banner">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16">
             <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
@@ -294,7 +294,7 @@ export default function UserManagementPage() {
         </div>
       )}
 
-      {success && (
+      {success && !showCreateModal && !showEditModal && (
         <div className="um-banner success-banner">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16">
             <polyline points="20 6 9 17 4 12"/>
@@ -388,6 +388,12 @@ export default function UserManagementPage() {
             </div>
             <form onSubmit={handleCreateUser}>
               <div className="modal-body">
+                {error && (
+                  <div style={{ color: '#ef4444', backgroundColor: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.2)', padding: '12px', borderRadius: '6px', marginBottom: '16px', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                    {error}
+                  </div>
+                )}
                 <div className="form-group">
                   <label className="form-label">Email Address</label>
                   <input
@@ -495,6 +501,12 @@ export default function UserManagementPage() {
             </div>
             <form onSubmit={handleUpdateUser}>
               <div className="modal-body">
+                {error && (
+                  <div style={{ color: '#ef4444', backgroundColor: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.2)', padding: '12px', borderRadius: '6px', marginBottom: '16px', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                    {error}
+                  </div>
+                )}
                 <div className="form-group">
                   <label className="form-label">System Access Role</label>
                   <select

@@ -330,21 +330,6 @@ async def auth_visit(request: Request):
             
     return {"success": True}
 
-@router.post("/forgot-password")
-def auth_forgot_password(req: ForgotPasswordRequest):
-    if users_col is None:
-        raise HTTPException(status_code=500, detail="Database not connected")
-    if not req.email:
-        raise HTTPException(status_code=400, detail="Email is required")
-    user = users_col.find_one({"email": req.email, "is_deleted": {"$ne": True}})
-    if not user:
-        raise HTTPException(status_code=404, detail="No account found with this email. Please sign up instead.")
-    print(f"[AUTH] 🔑 Password reset requested for: {req.email}")
-    return {
-        "success": True,
-        "message": f"Password reset link sent to {req.email}. Check your email (demo mode)."
-    }
-
 
 @router.post("/supervisor-password")
 def auth_set_supervisor_password(req: SupervisorPasswordRequest, user=Depends(require_admin)):
@@ -403,26 +388,6 @@ def delete_supervisor_password(user=Depends(require_admin)):
     print(f"[AUTH] 🗑 Supervisor password reset by: {user.get('sub')}")
     return {"success": True, "message": "Supervisor password has been reset."}
 
-
-@router.post("/reset-password")
-def auth_reset_password(req: ResetPasswordRequest):
-    if users_col is None:
-        raise HTTPException(status_code=500, detail="Database not connected")
-    if not req.email or not req.new_password or not req.confirm_password:
-        raise HTTPException(status_code=400, detail="All fields are required")
-    validate_password_complexity(req.new_password)
-    if req.new_password != req.confirm_password:
-        raise HTTPException(status_code=400, detail="Passwords do not match")
-    user = users_col.find_one({"email": req.email, "is_deleted": {"$ne": True}})
-    if not user:
-        raise HTTPException(status_code=404, detail="Account not found")
-    hashed_password = hash_password(req.new_password)
-    users_col.update_one(
-        {"email": req.email},
-        {"$set": {"password": hashed_password, "updatedAt": datetime.utcnow().isoformat()}}
-    )
-    print(f"[AUTH] ✅ Password reset for: {req.email}")
-    return {"success": True, "message": "Password reset successfully! Please sign in."}
 
 
 # ------------------------------------------------------------------
@@ -511,7 +476,20 @@ async def update_user(email: str, req: AdminUpdateUserRequest, background_tasks:
         
     if req.password is not None and len(req.password) > 0:
         validate_password_complexity(req.password)
-        update_fields["password"] = hash_password(req.password)
+        
+        if verify_password(req.password, existing.get("password", "")):
+            raise HTTPException(status_code=400, detail="Cannot reuse the current password")
+            
+        pwd_history = existing.get("password_history", [])
+        for old_hash in pwd_history:
+            if verify_password(req.password, old_hash):
+                raise HTTPException(status_code=400, detail="Cannot reuse a recently used password")
+                
+        new_hash = hash_password(req.password)
+        update_fields["password"] = new_hash
+        
+        new_history = [existing.get("password", "")] + pwd_history
+        update_fields["password_history"] = new_history[:3]
         
     if req.allowedCameras is not None and req.allowedCameras != existing.get("allowedCameras", []):
         update_fields["allowedCameras"] = req.allowedCameras
