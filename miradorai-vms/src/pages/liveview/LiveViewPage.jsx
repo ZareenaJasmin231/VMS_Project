@@ -2225,7 +2225,9 @@ export default function LiveViewPage({ onNavigate }) {
                 d.sub_stream_rtsp !== backend.sub_stream_rtsp) ||
               (backend.stream_key && d.stream_key !== backend.stream_key) ||
               (backend.source && d.source !== backend.source) ||
-              (backendName && d.name !== backendName);
+              (backendName && d.name !== backendName) ||
+              (backend.group_id !== undefined && d.group_id !== backend.group_id);
+          
             if (!needsUpdate) return d;
             changed = true;
             return {
@@ -2234,6 +2236,7 @@ export default function LiveViewPage({ onNavigate }) {
               source: backend.source || d.source,
               reader_id: backend.reader_id || d.reader_id,
               stream_key: backend.stream_key || d.stream_key,
+              group_id: backend.group_id !== undefined ? backend.group_id : d.group_id,
               sub_stream_key:
                 backend.sub_stream_key || d.sub_stream_key || null,
               sub_stream_rtsp:
@@ -2259,6 +2262,7 @@ export default function LiveViewPage({ onNavigate }) {
                 reader_id: cam.reader_id,
                 enabled: cam.enabled !== false,
                 status: cam.status || "Active",
+                group_id: cam.group_id || "default",
                 stream_key: cam.stream_key || camIp.replace(/\./g, "_"),
               });
             }

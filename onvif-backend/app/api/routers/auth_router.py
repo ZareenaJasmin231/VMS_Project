@@ -591,8 +591,8 @@ async def hard_delete_user(email: str, user=Depends(require_admin)):
         raise HTTPException(status_code=404, detail="User not found")
         
     try:
-        users_col.delete_one({"email": email})
-        print(f"[AUTH] 🗑 Admin permanently deleted user: {email}")
+        users_col.update_one({"email": email}, {"$set": {"is_deleted": True}})
+        print(f"[AUTH] 🗑 Admin marked user for deleted: {email}")
     except Exception as e:
         print(f"[AUTH] ❌ Admin user permanent deletion failed: {e}")
         raise HTTPException(status_code=500, detail="Failed to delete user")

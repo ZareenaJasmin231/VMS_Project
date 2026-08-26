@@ -311,12 +311,12 @@ async def hard_delete_camera(ip: str):
     Permanently delete a cameras collection.
     """
     if cameras_col is not None:
-        result = cameras_col.delete_many({"$or": [{"ip": ip}, {"ip_address": ip}]})
+        result = cameras_col.update_many({"$or": [{"ip": ip}, {"ip_address": ip}]}, {"$set": {"is_deleted": True}})
         # if recordings_col is not None:
         #     recordings_col.delete_many({"camera_ip": ip})
         # if analytics_col is not None:
-        #     analytics_col.delete_many({"ip": ip})
-        return {"success": True, "ip": ip, "deleted_count": result.deleted_count}
+        #     analytics_col.update_many({"ip": ip}, {"$set": {"is_deleted": True}})
+        return {"success": True, "ip": ip, "deleted_count": result.modified_count}
     return {"success": False, "error": "Database not available"}
 
 @router.get("/cameras/trash", dependencies=[Depends(verify_token)])
@@ -369,8 +369,8 @@ async def delete_camera_by_stream(stream_name: str):
     devices = [d for d in devices if d.get("stream_key") != stream_name]
     save_devices(devices)
     if cameras_col is not None:
-        result = cameras_col.delete_many({"stream_key": stream_name})
-        print(f"[DELETE-STREAM] 🗑 MongoDB: removed {result.deleted_count} doc(s) for stream '{stream_name}'")
+        result = cameras_col.update_many({"stream_key": stream_name}, {"$set": {"is_deleted": True}})
+        print(f"[DELETE-STREAM] 🗑 MongoDB: marked {result.modified_count} doc(s) as deleted for stream '{stream_name}'")
     return {"success": True, "stream_name": stream_name, "streams_stopped": stopped}
 
 
@@ -383,7 +383,7 @@ async def update_camera_by_ip(ip: str, request: Request):
     actual_updated_fields = []
     
     if cameras_col is not None:
-        allowed_keys = {"name", "device_name", "mac", "manufacturer", "model", "rtsp_url", "group_id"}
+        allowed_keys = {"name", "device_name", "mac", "manufacturer", "model", "rtsp_url", "group_id", "thumbnail"}
         update_data = {k: v for k, v in data.items() if k in allowed_keys}
         if update_data:
             existing_doc = cameras_col.find_one({"$or": [{"ip": ip}, {"ip_address": ip}]}) or {}

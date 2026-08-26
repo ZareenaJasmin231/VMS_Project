@@ -43,6 +43,8 @@ class DesignerSaveRequest(BaseModel):
     zones:       Optional[List[Zone]]         = []
     floor_plan:  Optional[str]              = None
     ppm:         Optional[float]            = 22.0
+    slides:      Optional[List[Any]]        = None
+    active_slide_id: Optional[str]          = None
 
 
 class FloorPlanRequest(BaseModel):
@@ -95,9 +97,11 @@ def get_designer_layout(map_id: str = "default", floor_id: str = "floor_1"):
       - zones (polygons)
       - floor plan image data URL
       - ppm (pixels-per-metre)
+      - slides (array of layout slide states)
+      - active_slide_id
     """
     doc = designer_col.find_one(
-        {"map_id": map_id, "floor_id": floor_id},
+        {"map_id": map_id, "floor_id": floor_id, "is_deleted": {"$ne": True}},
         {"_id": 0}
     )
 
@@ -109,16 +113,20 @@ def get_designer_layout(map_id: str = "default", floor_id: str = "floor_1"):
             "zones":      [],
             "floor_plan": None,
             "ppm":        22.0,
+            "slides":     None,
+            "active_slide_id": None,
             "updated_at": None,
         }
 
     return {
         "map_id":     doc.get("map_id"),
         "floor_id":   doc.get("floor_id"),
-        "placed":     doc.get("placed", []),
-        "zones":      doc.get("zones", []),
+        "placed":     [c for c in doc.get("placed", []) if not c.get("is_deleted")],
+        "zones":      [z for z in doc.get("zones", []) if not z.get("is_deleted")],
         "floor_plan": doc.get("floor_plan"),
         "ppm":        doc.get("ppm", 22.0),
+        "slides":     doc.get("slides"),
+        "active_slide_id": doc.get("active_slide_id"),
         "updated_at": doc.get("updated_at"),
     }
 
@@ -130,7 +138,7 @@ def list_designer_floors(map_id: str = "default"):
     Lists all floor IDs that have a saved designer layout for a map.
     """
     docs = list(designer_col.find(
-        {"map_id": map_id},
+        {"map_id": map_id, "is_deleted": {"$ne": True}},
         {"_id": 0, "floor_id": 1, "updated_at": 1,
          "placed": 1, "zones": 1}
     ))
@@ -140,8 +148,8 @@ def list_designer_floors(map_id: str = "default"):
         "floors": [
             {
                 "floor_id":      d.get("floor_id"),
-                "camera_count":  len(d.get("placed", [])),
-                "zone_count":    len(d.get("zones", [])),
+                "camera_count":  len([c for c in d.get("placed", []) if not c.get("is_deleted")]),
+                "zone_count":    len([z for z in d.get("zones", []) if not z.get("is_deleted")]),
                 "updated_at":    d.get("updated_at"),
             }
             for d in docs
@@ -170,17 +178,26 @@ def save_designer_layout(req: DesignerSaveRequest):
     if floor_plan is None and existing:
         floor_plan = existing.get("floor_plan")
 
+    update_doc = {
+        "map_id":     req.map_id,
+        "floor_id":   req.floor_id,
+        "placed":     placed_data,
+        "zones":      zones_data,
+        "floor_plan": floor_plan,
+        "ppm":        req.ppm,
+        "updated_at": datetime.utcnow().isoformat(),
+    }
+    
+    print(f"DEBUG: Received slides? {req.slides is not None}")
+    if req.slides is not None:
+        print(f"DEBUG: Number of slides: {len(req.slides)}")
+        update_doc["slides"] = req.slides
+    if req.active_slide_id is not None:
+        update_doc["active_slide_id"] = req.active_slide_id
+
     designer_col.update_one(
         {"map_id": req.map_id, "floor_id": req.floor_id},
-        {"$set": {
-            "map_id":     req.map_id,
-            "floor_id":   req.floor_id,
-            "placed":     placed_data,
-            "zones":      zones_data,
-            "floor_plan": floor_plan,
-            "ppm":        req.ppm,
-            "updated_at": datetime.utcnow().isoformat(),
-        }},
+        {"$set": update_doc},
         upsert=True,
     )
 
@@ -208,7 +225,7 @@ def save_placed_cameras(
     placed_data = [p.dict() for p in placed]
 
     designer_col.update_one(
-        {"map_id": map_id, "floor_id": floor_id},
+        {"map_id": map_id, "floor_id": floor_id, "is_deleted": {"$ne": True}},
         {"$set": {
             "map_id":     map_id,
             "floor_id":   floor_id,
@@ -233,7 +250,7 @@ def save_zones(
     zones_data = [z.dict() for z in zones]
 
     designer_col.update_one(
-        {"map_id": map_id, "floor_id": floor_id},
+        {"map_id": map_id, "floor_id": floor_id, "is_deleted": {"$ne": True}},
         {"$set": {
             "map_id":     map_id,
             "floor_id":   floor_id,
@@ -252,7 +269,7 @@ def save_zones(
 def delete_zone(zone_id: str, map_id: str = "default", floor_id: str = "floor_1"):
     """Remove a single zone by ID from the designer document."""
     result = designer_col.update_one(
-        {"map_id": map_id, "floor_id": floor_id},
+        {"map_id": map_id, "floor_id": floor_id, "is_deleted": {"$ne": True}},
         {"$pull": {"zones": {"id": zone_id}}}
     )
     if result.modified_count == 0:
@@ -267,7 +284,7 @@ def delete_zone(zone_id: str, map_id: str = "default", floor_id: str = "floor_1"
 def delete_placed_camera(camera_id: str, map_id: str = "default", floor_id: str = "floor_1"):
     """Remove a single placed camera by its placed ID."""
     result = designer_col.update_one(
-        {"map_id": map_id, "floor_id": floor_id},
+        {"map_id": map_id, "floor_id": floor_id, "is_deleted": {"$ne": True}},
         {"$pull": {"placed": {"id": camera_id}}}
     )
     if result.modified_count == 0:
@@ -309,7 +326,7 @@ def delete_floor_plan(map_id: str = "default", floor_id: str = "floor_1"):
     Placed cameras and zones are preserved.
     """
     result = designer_col.update_one(
-        {"map_id": map_id, "floor_id": floor_id},
+        {"map_id": map_id, "floor_id": floor_id, "is_deleted": {"$ne": True}},
         {"$set": {
             "floor_plan": None,
             "updated_at": datetime.utcnow().isoformat(),
@@ -326,9 +343,9 @@ def delete_floor_plan(map_id: str = "default", floor_id: str = "floor_1"):
 # ── DELETE /api/designer ──────────────────────────────────────────
 @router.delete("", dependencies=[Depends(verify_token)])
 def delete_designer_layout(map_id: str = "default", floor_id: str = "floor_1"):
-    """Delete the entire designer document for a map + floor."""
-    result = designer_col.delete_one({"map_id": map_id, "floor_id": floor_id})
-    if result.deleted_count == 0:
+    """Soft delete the entire designer document for a map + floor."""
+    result = designer_col.update_one({"map_id": map_id, "floor_id": floor_id}, {"$set": {"is_deleted": True}})
+    if result.modified_count == 0:
         raise HTTPException(status_code=404, detail=f"No designer layout found for floor '{floor_id}'")
 
     print(f"[DESIGNER] 🗑  Deleted designer layout for map='{map_id}' floor='{floor_id}'")
@@ -338,9 +355,9 @@ def delete_designer_layout(map_id: str = "default", floor_id: str = "floor_1"):
 # ── DELETE /api/designer/all ──────────────────────────────────────
 @router.delete("/all", dependencies=[Depends(verify_token)])
 def delete_all_designer_layouts(map_id: str = "default"):
-    """Delete ALL designer documents for a map (all floors)."""
-    result = designer_col.delete_many({"map_id": map_id})
-    print(f"[DESIGNER] 🗑  Deleted all {result.deleted_count} designer document(s) for map='{map_id}'")
+    """Soft delete ALL designer documents for a map (all floors)."""
+    result = designer_col.update_many({"map_id": map_id}, {"$set": {"is_deleted": True}})
+    print(f"[DESIGNER] 🗑  Soft deleted {result.modified_count} designer document(s) for map='{map_id}'")
     return {"success": True, "map_id": map_id, "deleted_count": result.deleted_count}
 
 

@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, Depends
 from app.core.database import mongo_client
 from datetime import datetime
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, validator
 from typing import List, Optional
 from app.core.security import verify_token
 import os
@@ -29,8 +29,14 @@ class Marker(BaseModel):
 class Floor(BaseModel):
     id:           str
     name:         str
-    imageDataUrl: Optional[str] = None
+    imageDataUrl: Optional[str] = Field(None, max_length=10_485_760)    
     markers:      List[Marker]  = []
+    
+    @validator('imageDataUrl')
+    def validate_image_data_url(cls, v):
+        if v is not None and not v.startswith('data:image/'):
+            raise ValueError('Invalid image format. Must be a base64 data URL starting with data:image/')
+        return v
 
 
 class MapSaveRequest(BaseModel):
@@ -38,8 +44,13 @@ class MapSaveRequest(BaseModel):
     floors:     Optional[List[Floor]] = None
     # legacy single-floor fields
     markers:    Optional[List[Marker]] = None
-    floor_plan: Optional[str]          = None
+    floor_plan: Optional[str]          = Field(None, max_length=10_485_760)
 
+    @validator('floor_plan')
+    def validate_floor_plan(cls, v):
+        if v is not None and not v.startswith('data:image/'):
+            raise ValueError('Invalid image format. Must be a base64 data URL starting with data:image/')
+        return v
 
 # ── Zone models ───────────────────────────────────────────────────
 
@@ -80,7 +91,7 @@ def _migrate_to_floors(doc: dict) -> List[dict]:
 @router.get("", dependencies=[Depends(verify_token)])
 def get_map(map_id: str = "default"):
     # Fetch all documents for this map_id, sorted by floor_index
-    all_docs = list(maps_col.find({"map_id": map_id}, {"_id": 0}).sort("floor_index", 1))
+    all_docs = list(maps_col.find({"map_id": map_id, "is_deleted": {"$ne": True}}, {"_id": 0}).sort("floor_index", 1))
 
     if not all_docs:
         return {
@@ -128,7 +139,7 @@ def get_map(map_id: str = "default"):
             "floor_index":  doc.get("floor_index", 0),
         })
 
-    zones = zones_doc.get("zones", []) if zones_doc else []
+    zones = [z for z in zones_doc.get("zones", []) if not z.get("is_deleted")] if zones_doc else []
 
     return {
         "map_id":     map_id,
@@ -226,8 +237,8 @@ def save_zones(req: ZoneSaveRequest):
 def delete_zone(zone_id: str, map_id: str = "default"):
     """Remove a single zone by ID from the zones document."""
     result = maps_col.update_one(
-        {"map_id": map_id, "doc_type": "zones"},
-        {"$pull": {"zones": {"id": zone_id}}}
+        {"map_id": map_id, "doc_type": "zones", "zones.id": zone_id},
+        {"$set": {"zones.$.is_deleted": True}}
     )
     if result.modified_count == 0:
         raise HTTPException(status_code=404, detail=f"Zone '{zone_id}' not found")
@@ -240,15 +251,16 @@ def delete_zone(zone_id: str, map_id: str = "default"):
 @router.delete("/floor", dependencies=[Depends(verify_token)])
 def delete_floor(floor_id: str, map_id: str = "default"):
     """Delete a floor's own document from MongoDB and re-index remaining floors."""
-    result = maps_col.delete_one(
-        {"map_id": map_id, "doc_type": "floor", "floor_id": floor_id}
+    result = maps_col.update_one(
+        {"map_id": map_id, "doc_type": "floor", "floor_id": floor_id},
+        {"$set": {"is_deleted": True}}
     )
-    if result.deleted_count == 0:
+    if result.modified_count == 0:
         raise HTTPException(status_code=404, detail=f"Floor '{floor_id}' not found")
 
     # Re-index remaining floors so floor_index stays sequential (0, 1, 2 ...)
     remaining = list(
-        maps_col.find({"map_id": map_id, "doc_type": "floor"}, {"_id": 0})
+        maps_col.find({"map_id": map_id, "doc_type": "floor", "is_deleted": {"$ne": True}}, {"_id": 0})
                .sort("floor_index", 1)
     )
     for new_idx, doc in enumerate(remaining):
@@ -265,8 +277,8 @@ def delete_floor(floor_id: str, map_id: str = "default"):
 @router.delete("", dependencies=[Depends(verify_token)])
 def delete_map(map_id: str = "default"):
     """Delete ALL documents for a map (all floors + zones)."""
-    result = maps_col.delete_many({"map_id": map_id})
-    print(f"[MAPS] 🗑  Deleted all {result.deleted_count} document(s) for map '{map_id}'")
+    result = maps_col.update_many({"map_id": map_id}, {"$set": {"is_deleted": True}})
+    print(f"[MAPS] 🗑  Marked all {result.modified_count} document(s) as deleted for map '{map_id}'")
     return {"success": True, "map_id": map_id}
 
 
@@ -280,6 +292,11 @@ def save_floor_plan(payload: dict):
 
     if not floor_plan:
         raise HTTPException(status_code=400, detail="floor_plan required")
+    if len(floor_plan) > 10_485_760:
+        raise HTTPException(status_code=400, detail="floor_plan image too large (max 10MB)")
+        
+    if not floor_plan.startswith("data:image/"):
+        raise HTTPException(status_code=400, detail="Invalid image format. Must be a base64 image data URL starting with data:image/")
 
     # Try new per-floor document first
     result = maps_col.update_one(

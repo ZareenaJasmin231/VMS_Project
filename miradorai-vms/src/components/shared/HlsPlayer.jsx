@@ -19,7 +19,7 @@ function HlsPlayer({ streamKey, streamUrl, muted = true, autoplay = true, classN
   const { cssFilter, cssTransform } = useImageConfig(streamKey);
 
   // Use env var if provided, otherwise fallback to standard MediaMTX port 8888 on the same hostname
-  const HLS_BASE_URL = import.meta.env.VITE_HLS_BASE_URL || `${window.location.protocol}//${window.location.hostname}:8888`;
+  const HLS_BASE_URL = import.meta.env.VITE_HLS_BASE_URL || `${window.location.protocol}//${window.location.hostname}/hls`;
 
   const [activeStreamKey, setActiveStreamKey] = useState(streamKey);
   const [hasFallenBack, setHasFallenBack] = useState(false);

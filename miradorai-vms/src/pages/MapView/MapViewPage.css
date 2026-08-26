@@ -2904,7 +2904,7 @@
 .mv-inspector-content .mv-zone-header-btn:hover .mv-zone-btn__delete {
   opacity: 1 !important;
   max-width: 24px !important;
-  color: rgba(255, 255, 255, 0.5) !important;
+  color: var(--text-muted) !important;
 }
 
 .mv-zone-btn__delete:hover {
@@ -2913,7 +2913,7 @@
 }
 
 .mv-zone-btn__edit:hover {
-  color: #ffffff !important;
+  color: var(--text-primary) !important;
   opacity: 1 !important;
 }
 

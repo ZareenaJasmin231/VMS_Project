@@ -668,7 +668,7 @@ class ReportScheduleSchema(BaseModel):
 def get_report_schedules():
     try:
         col = _db["report_schedules"]
-        schedules = list(col.find({}))
+        schedules = list(col.find({"is_deleted": {"$ne": True}}))
         # Convert ObjectId -> string
         for s in schedules:
             s["id"] = str(s["_id"])
@@ -695,8 +695,8 @@ def save_report_schedule(schedule: ReportScheduleSchema):
 def delete_report_schedule(schedule_id: str):
     try:
         col = _db["report_schedules"]
-        res = col.delete_one({"_id": ObjectId(schedule_id)})
-        if res.deleted_count > 0:
+        res = col.update_one({"_id": ObjectId(schedule_id)}, {"$set": {"is_deleted": True}})
+        if res.modified_count > 0:
             return {"success": True}
         return {"success": False, "error": "Schedule not found"}
     except Exception as e:

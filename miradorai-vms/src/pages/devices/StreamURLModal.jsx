@@ -105,7 +105,14 @@ const css = `
   .sum-dropdown-item.active { background: var(--teal-subtle); color: var(--teal); font-weight: 500; }
 
   /* URL list */
-  .sum-url-list { display: flex; flex-direction: column; gap: 8px; }
+  .sum-url-list {
+    display: flex; flex-direction: column; gap: 8px;
+    max-height: 165px; overflow-y: auto; padding-right: 4px;
+  }
+  .sum-url-list::-webkit-scrollbar { width: 6px; }
+  .sum-url-list::-webkit-scrollbar-track { background: transparent; }
+  .sum-url-list::-webkit-scrollbar-thumb { background: var(--border-light); border-radius: 3px; }
+  .sum-url-list::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
   .sum-url-item {
     display: flex; align-items: center; gap: 8px;
     background: var(--bg-base); border: 1px solid var(--border);

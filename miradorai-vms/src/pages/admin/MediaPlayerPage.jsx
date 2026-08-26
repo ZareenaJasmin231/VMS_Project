@@ -385,7 +385,7 @@ export default function MediaPlayerPage() {
       } catch (e) { console.error("Failed to fetch recording status:", e); }
     };
     fetchRecordingStatus();
-    const interval = setInterval(fetchRecordingStatus, 8000);
+    const interval = setInterval(fetchRecordingStatus, 3000);
     return () => clearInterval(interval);
   }, []);
 

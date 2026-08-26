@@ -14,6 +14,8 @@ from recorder.encrypt_service import MASTER_KEY
 SEGMENT_QUEUE_SIZE = int(os.environ.get("SEGMENT_QUEUE_SIZE", "5"))
 MAX_CONCURRENT_UPLOADS = int(os.environ.get("MAX_CONCURRENT_UPLOADS", "16"))
 QUEUE_PUT_TIMEOUT = float(os.environ.get("QUEUE_PUT_TIMEOUT", "2.0"))
+FALLBACK_DIR = os.environ.get("FALLBACK_DIR", "/app/data/segment_buffer/minio_full")
+import glob
 
 segment_router = APIRouter(prefix="/_seg")
 
@@ -111,17 +113,24 @@ async def mongodb_checkpoint(key: str, state: dict):
 async def _verify_all_parts(key: str) -> list[int]:
     return [] # Deprecated, handled dynamically
 
-async def _cleanup_temp_parts(key: str, sources: list[str] = None):
+async def _cleanup_temp_parts(key: str, sources: list[dict] = None):
     if sources is None:
         from app.utils.minio_client import list_objects
-        sources = await asyncio.to_thread(list_objects, f"{key}_")
-    
+        minio_sources = await asyncio.to_thread(list_objects, f"{key}_")
+        sources = [{"type": "minio", "path": s} for s in minio_sources]
+        
     from app.utils.minio_client import delete_object
     for src in sources:
-        try:
-            await asyncio.to_thread(delete_object, src)
-        except Exception as e:
-            print(f"[RECEIVER] ⚠ Cleanup failed for {src}: {e}")
+        if src["type"] == "minio":
+            try:
+                await asyncio.to_thread(delete_object, src["path"])
+            except Exception as e:
+                print(f"[RECEIVER] ⚠ MinIO cleanup failed for {src['path']}: {e}")
+        else:
+            try:
+                os.remove(src["path"])
+            except Exception as e:
+                print(f"[RECEIVER] ⚠ Local cleanup failed for {src['path']}: {e}")
 
 async def mongodb_set_status(key: str, status: str, missing_segments=None):
     if recordings_col is None:
@@ -146,7 +155,7 @@ async def mongodb_set_complete(key: str, dest: str, duration_seconds: float = No
     camera_id, date_str, time_str = _parse_key_parts(key)
     update_data = {
         "status": status,
-        "file_path": f"minio:{dest}",
+        "file_path": dest if (dest.startswith("/") or dest.startswith("E:") or dest.startswith("C:") or dest.startswith("D:")) else f"minio:{dest}",
         "last_updated": datetime.utcnow()
     }
     if duration_seconds is not None:
@@ -162,36 +171,55 @@ async def mongodb_set_complete(key: str, dest: str, duration_seconds: float = No
     )
 
 class SegmentStreamReader(io.RawIOBase):
-    def __init__(self, key: str, sources: list[str]):
+    def __init__(self, key: str, sources: list[dict]):
         self.key = key
         self.sources = sources
         self.idx = 0
         self.res = None
+        self.local_f = None
         from app.utils.minio_client import minio_client, MINIO_BUCKET
         self.minio_client = minio_client
         self.MINIO_BUCKET = MINIO_BUCKET
         
     def read(self, size=-1):
-        if self.res is None:
+        if self.res is None and self.local_f is None:
             if self.idx >= len(self.sources):
                 return b""
-            from minio.error import S3Error
-            try:
-                self.res = self.minio_client.get_object(self.MINIO_BUCKET, self.sources[self.idx])
-            except S3Error as e:
-                print(f"[RECEIVER] ❌ Missing segment {self.sources[self.idx]}: {e}")
+            
+            src = self.sources[self.idx]
+            if src["type"] == "minio":
+                from minio.error import S3Error
+                try:
+                    self.res = self.minio_client.get_object(self.MINIO_BUCKET, src["path"])
+                except S3Error as e:
+                    print(f"[RECEIVER] ❌ Missing segment {src['path']}: {e}")
+                    self.idx += 1
+                    return self.read(size)
+            else:
+                try:
+                    self.local_f = open(src["path"], "rb")
+                except Exception as e:
+                    print(f"[RECEIVER] ❌ Missing local segment {src['path']}: {e}")
+                    self.idx += 1
+                    return self.read(size)
+                
+        if self.res:
+            chunk = self.res.read(size)
+            if not chunk:
+                self.res.close()
+                self.res.release_conn()
+                self.res = None
                 self.idx += 1
                 return self.read(size)
-                
-        chunk = self.res.read(size)
-        if not chunk:
-            self.res.close()
-            self.res.release_conn()
-            self.res = None
-            self.idx += 1
-            return self.read(size)
-            
-        return chunk
+            return chunk
+        elif self.local_f:
+            chunk = self.local_f.read(size)
+            if not chunk:
+                self.local_f.close()
+                self.local_f = None
+                self.idx += 1
+                return self.read(size)
+            return chunk
 
 async def _compose_and_finalize(key: str):
     dest = f"{key}.enc"
@@ -212,26 +240,71 @@ async def _compose_and_finalize(key: str):
     await mongodb_set_status(key, "COMPOSING")
     
     from app.utils.minio_client import list_objects, minio_client, MINIO_BUCKET
-    sources = await asyncio.to_thread(list_objects, f"{key}_")
-    sources = sorted(sources)
+    minio_sources = await asyncio.to_thread(list_objects, f"{key}_")
+    
+    # Gather local fallback sources
+    local_dir = os.path.join(FALLBACK_DIR, os.path.dirname(key))
+    base_name = os.path.basename(key)
+    local_sources_raw = []
+    if os.path.exists(local_dir):
+        for fname in os.listdir(local_dir):
+            if fname.startswith(f"{base_name}_") and fname.endswith(".enc"):
+                local_sources_raw.append(os.path.join(local_dir, fname))
+                
+    # Unify sources
+    all_sources = []
+    for s in minio_sources:
+        all_sources.append({"type": "minio", "path": s})
+    for s in local_sources_raw:
+        all_sources.append({"type": "local", "path": s})
+        
+    # Sort by the extracted index
+    def _extract_idx(src):
+        import re
+        m = re.search(r'_(\d+)\.enc$', src["path"])
+        return int(m.group(1)) if m else 0
+    sources = sorted(all_sources, key=_extract_idx)
     
     if not sources:
-        print(f"[RECEIVER] ❌ No segments found in MinIO for {key}_")
+        print(f"[RECEIVER] ❌ No segments found for {key}_")
         await mongodb_set_status(key, "FAILED")
         return
         
     try:
-        # Calculate actual total size directly from MinIO stat to ensure exact byte match
         total_size = 0
         for src in sources:
-            stat = await asyncio.to_thread(minio_client.stat_object, MINIO_BUCKET, src)
-            total_size += stat.size
+            if src["type"] == "minio":
+                stat = await asyncio.to_thread(minio_client.stat_object, MINIO_BUCKET, src["path"])
+                total_size += stat.size
+            else:
+                total_size += os.path.getsize(src["path"])
             
-        # Stream chunks from MinIO back to MinIO
+        compose_failed = False
         def _upload_stream():
             minio_client.put_object(MINIO_BUCKET, dest, SegmentStreamReader(key, sources), length=total_size)
             
-        await asyncio.to_thread(_upload_stream)
+        try:
+            await asyncio.to_thread(_upload_stream)
+        except Exception as e:
+            print(f"[RECEIVER] ⚠ MinIO compose failed for {dest}, falling back to local: {e}")
+            compose_failed = True
+            
+        if compose_failed:
+            local_dest = os.path.join(FALLBACK_DIR, dest)
+            os.makedirs(os.path.dirname(local_dest), exist_ok=True)
+            
+            def _write_composed_local():
+                reader = SegmentStreamReader(key, sources)
+                with open(local_dest, "wb") as f:
+                    while True:
+                        chunk = reader.read(1024 * 1024)
+                        if not chunk:
+                            break
+                        f.write(chunk)
+                        
+            await asyncio.to_thread(_write_composed_local)
+            dest = local_dest  # Override dest so DB stores local absolute path
+            
         await _cleanup_temp_parts(key, sources)
         
         # Determine precise duration of the composed file for UI/DB sync
@@ -239,7 +312,7 @@ async def _compose_and_finalize(key: str):
         try:
             from recorder import encrypt_service
             import subprocess, os
-            tmp_ts = await asyncio.to_thread(encrypt_service.decrypt_to_temp_file, f"minio:{dest}", ".ts")
+            tmp_ts = await asyncio.to_thread(encrypt_service.decrypt_to_temp_file, dest if (dest.startswith("/") or dest.startswith("E:") or dest.startswith("C:") or dest.startswith("D:")) else f"minio:{dest}", ".ts")
             if tmp_ts and os.path.exists(tmp_ts):
                 probe_cmd = [
                     "ffprobe", "-v", "error", "-show_entries", "format=duration",
@@ -274,7 +347,7 @@ async def _camera_worker(key: str):
         except asyncio.TimeoutError:
             print(f"[RECEIVER] ⏱ Timeout waiting for {key}. Forcing composition.")
             state = _recording_state.get(key)
-            if state and state["segment_count"] > 0 and state["segment_count"] < state["expected"]:
+            if state and state["segment_count"] > 0:
                 await _compose_and_finalize(key)
             break
             
@@ -287,16 +360,22 @@ async def _camera_worker(key: str):
             async with _semaphore:
                 encrypted = await asyncio.to_thread(_encrypt_segment, key, raw_bytes)
                 obj_name = f"{key}_{index:03d}.enc"
-                await asyncio.to_thread(upload_bytes, obj_name, encrypted)
+                success = await asyncio.to_thread(upload_bytes, obj_name, encrypted)
+                
+                if not success:
+                    local_path = os.path.join(FALLBACK_DIR, obj_name)
+                    os.makedirs(os.path.dirname(local_path), exist_ok=True)
+                    def _write_local():
+                        with open(local_path, "wb") as f:
+                            f.write(encrypted)
+                    await asyncio.to_thread(_write_local)
+                    print(f"[RECEIVER] 💾 Saved {obj_name} locally due to MinIO failure")
                 
             state = _recording_state[key]
             state["segment_count"] += 1
             state["bytes_written"] += len(raw_bytes)
             await mongodb_checkpoint(key, state)
             
-            if state["segment_count"] >= state["expected"]:
-                await _compose_and_finalize(key)
-                await _queues[key].put(_STOP_SENTINEL)
         except Exception as e:
             print(f"[RECEIVER] ❌ Segment {index} for {key} failed: {e}")
         finally:

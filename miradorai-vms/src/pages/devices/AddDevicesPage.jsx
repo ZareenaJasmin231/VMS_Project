@@ -31,17 +31,12 @@ function getAuthHeaders() {
 
 // ─── Persisted Devices ───────────────────────────────────────────────────────
 function usePersistedDevices() {
-  const [devices, setDevices] = useState(() => {
-    try {
-      const saved = localStorage.getItem("miradorai_devices");
-      return saved ? JSON.parse(saved) : [];
-    } catch { return []; }
-  });
+  const [devices, setDevices] = useState([]);
 
   const updateDevices = (updater) => {
     setDevices((prev) => {
       const next = typeof updater === "function" ? updater(prev) : updater;
-      try { localStorage.setItem("miradorai_devices", JSON.stringify(next)); } catch { }
+      // We are fully relying on the DB now, so no localStorage caching here.
       window.dispatchEvent(new Event("devicesUpdated"));
       return next;
     });
@@ -332,6 +327,8 @@ export default function AddDevicesPage({ onNavigate }) {
   const [showDiscovery, setShowDiscovery] = useState(false);
   const [isDeletingGroup, setIsDeletingGroup] = useState(false);
   const [confirmAction, setConfirmAction] = useState(null);
+  const [uiError, setUiError] = useState("");
+
 
   const [filterDropdownOpen, setFilterDropdownOpen] = useState(false);
   const filterDropdownRef = useRef(null);
@@ -389,6 +386,7 @@ export default function AddDevicesPage({ onNavigate }) {
                 updated.push({
                   ...localCam,
                   ...match,
+                  type: match.type || localCam.type || "entrance",
                   name: computedBackendName || localCam.name || `Camera @ ${match.ip}`,
                   status: normalizeStatus(match.status || localCam.status),
                   group_id: localCam.group_id && localCam.group_id !== "default" ? localCam.group_id : (match.group_id || "default"),
@@ -403,7 +401,7 @@ export default function AddDevicesPage({ onNavigate }) {
               (!b.stream_key && !b.id && b.ip === localCam.ip && b.channel === localCam.channel)
             )).map((b) => {
               const bName = b.name || b.device_name || (`${b.manufacturer || ""} ${b.model || ""}`.trim()) || `Camera @ ${b.ip}`;
-              return { ...b, name: bName, status: normalizeStatus(b.status) };
+              return { ...b, type: b.type || "entrance", name: bName, status: normalizeStatus(b.status) };
             });
             return [...updated, ...backendOnly];
           });
@@ -417,7 +415,7 @@ export default function AddDevicesPage({ onNavigate }) {
 
   // Capture snapshot when live preview plays
   useEffect(() => {
-    if (!previewDevice || !previewDevice.ws_url) return;
+    if (!previewDevice || (!previewDevice.ws_url && !previewDevice.stream_key)) return;
 
     let intervalId;
     let attempts = 0;
@@ -433,7 +431,7 @@ export default function AddDevicesPage({ onNavigate }) {
           ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
           const dataUrl = canvas.toDataURL("image/jpeg", 0.7);
 
-          // Update devices state - automatically persists to localStorage!
+          // Update devices state (thumbnail is updated in UI immediately and saved to DB below)
           setDevices((prev) =>
             prev.map((d) =>
               String(d.id) === String(previewDevice.id)
@@ -441,6 +439,14 @@ export default function AddDevicesPage({ onNavigate }) {
                 : d
             )
           );
+          
+          if (previewDevice.ip) {
+            fetch(`${STREAM_API}/api/cameras/by-ip/${previewDevice.ip}`, {
+              method: "PUT",
+              headers: getAuthHeaders(),
+              body: JSON.stringify({ thumbnail: dataUrl }),
+            }).catch(err => console.error("Failed to save thumbnail to DB:", err));
+          }
           
           console.log(`[SNAPSHOT] Successfully captured live frame for camera ID: ${previewDevice.id}`);
           clearInterval(intervalId);
@@ -573,13 +579,24 @@ export default function AddDevicesPage({ onNavigate }) {
     const device = devices.find((d) => d.id === deviceId);
     if (!device) return;
     try {
-      await fetch(`${STREAM_API}/api/cameras/delete-by-rtsp`, { 
+      const res = await fetch(`${STREAM_API}/api/cameras/delete-by-rtsp`, { 
         method: "DELETE",
         headers: getAuthHeaders(),
         body: JSON.stringify({ rtsp_url: device.rtsp_url })
       });
+            if (!res.ok) {
+        let errMsg = "Failed to delete camera. Admin privileges required.";
+        try {
+          const errData = await res.json();
+          errMsg = errData.detail || errMsg;
+        } catch(e) {}
+        setUiError(errMsg);
+        return; // Don't remove from UI
+      }
     } catch (err) {
       console.error("❌ Failed to delete from DB:", err);
+            setUiError("Network error while deleting camera.");
+      return;
     }
     setDevices((prev) => prev.filter((d) => d.id !== deviceId));
   }, [devices, setDevices]);
@@ -669,8 +686,8 @@ export default function AddDevicesPage({ onNavigate }) {
       return next;
     });
 
-    const allFailed = addedDevicesList.every(d => d.stream_status === "error" || d.stream_status === "not_registered" || !d.ws_url);
-    const someFailed = addedDevicesList.some(d => d.stream_status === "error" || d.stream_status === "not_registered" || !d.ws_url);
+    const allFailed = addedDevicesList.every(d => d.stream_status === "error" || d.stream_status === "not_registered" || (!d.ws_url && !d.stream_key));
+    const someFailed = addedDevicesList.some(d => d.stream_status === "error" || d.stream_status === "not_registered" || (!d.ws_url && !d.stream_key));
     
     let title = "Discovery Cameras Added";
     let desc = `Successfully registered and added ${addedDevicesList.length} camera(s) to the system.`;
@@ -914,8 +931,8 @@ export default function AddDevicesPage({ onNavigate }) {
     setEnrollMsg("");
 
     if (addedEntries.length > 0) {
-      const allFailed = addedEntries.every(d => d.stream_status === "error" || !d.ws_url);
-      const someFailed = addedEntries.some(d => d.stream_status === "error" || !d.ws_url);
+      const allFailed = addedEntries.every(d => d.stream_status === "error" || (!d.ws_url && !d.stream_key));
+      const someFailed = addedEntries.some(d => d.stream_status === "error" || (!d.ws_url && !d.stream_key));
       
       let title = addedEntries.length === 1 ? "Camera Added Successfully" : "Cameras Added Successfully";
       let desc = addedEntries.length === 1 
@@ -951,6 +968,17 @@ export default function AddDevicesPage({ onNavigate }) {
 
       {/* ── MAIN CONTENT ──────────────────────────────────────────────────── */}
       <div className="add-dev__main">
+                {uiError && (
+          <div style={{ background: "rgba(239, 68, 68, 0.1)", color: "#ef4444", padding: "12px 16px", borderRadius: "8px", border: "1px solid rgba(239, 68, 68, 0.3)", marginBottom: "16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16">
+                <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+              </svg>
+              <span>{uiError}</span>
+            </div>
+            <button onClick={() => setUiError("")} style={{ background: "transparent", border: "none", color: "#ef4444", cursor: "pointer", fontSize: "16px", padding: "0 8px" }}>✕</button>
+          </div>
+        )}
         <div className="page-header">
           <div className="page-header__left">
             <h1 className="page-title">Add <span>Devices</span></h1>
@@ -1152,14 +1180,18 @@ export default function AddDevicesPage({ onNavigate }) {
                       </td>
                       <td>
                         <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                          {d.stream_status === "streaming"
-                            ? <span className="add-dev__stream add-dev__stream--live">● LIVE</span>
-                            : d.ws_url
-                              ? <span className="add-dev__stream add-dev__stream--pending">
-                                ● {d.stream_status || "pending"}
-                              </span>
-                              : <span className="add-dev__stream add-dev__stream--none">— not registered</span>
-                          }
+                          {(() => {
+                            const ss = typeof d.stream_status === "object"
+                              ? (d.stream_status?.connected ? "streaming" : "error")
+                              : d.stream_status;
+                            return (ss === "streaming" || d.status === "Online")
+                              ? <span className="add-dev__stream add-dev__stream--live">● LIVE</span>
+                              : (d.ws_url || d.stream_key)
+                                ? <span className="add-dev__stream add-dev__stream--pending">
+                                  ● {ss || d.status || "pending"}
+                                </span>
+                                : <span className="add-dev__stream add-dev__stream--none">— not registered</span>;
+                          })()}
                           {(d.stream_count > 0 || d.stream_profiles?.length > 0) && (
                             <span style={{ fontSize: 10, color: "#4a6a99" }}>
                               {d.stream_count || d.stream_profiles?.length} profile{
@@ -1293,7 +1325,7 @@ export default function AddDevicesPage({ onNavigate }) {
                 {successEnrollData.devices.map((d, index) => (
                   <div className="success-device-card" key={index}>
                     <div className="success-device-header">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16" className="success-device-icon" style={{color: (d.stream_status === "error" || d.stream_status === "not_registered" || !d.ws_url) ? "#ef4444" : "var(--teal)"}}>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16" className="success-device-icon" style={{color: (d.stream_status === "error" || d.stream_status === "not_registered" || (!d.ws_url && !d.stream_key)) ? "#ef4444" : "var(--teal)"}}>
                         <rect x="3" y="3" width="18" height="12" rx="2" />
                         <path d="M21 10l4 3v-6l-4 3" />
                       </svg>
@@ -1377,7 +1409,9 @@ export default function AddDevicesPage({ onNavigate }) {
               )}
               <div style={{ marginTop: "14px", display: "flex", justifyContent: "space-between", fontSize: "12px", color: "var(--text-muted)" }}>
                 <span>IP Address: <strong>{previewDevice.ip}</strong></span>
-                <span>Status: <strong style={{ color: previewDevice.stream_status === "streaming" || previewDevice.status === "Online" ? "var(--teal)" : "var(--text-muted)" }}>{previewDevice.stream_status || "offline"}</strong></span>
+                <span>Status: <strong style={{ color: previewDevice.stream_status === "streaming" || previewDevice.status === "Online" ? "var(--teal)" : "var(--text-muted)" }}>
+                  {typeof previewDevice.stream_status === "object" ? (previewDevice.stream_status?.connected ? "streaming" : "error") : (previewDevice.stream_status || "offline")}
+                </strong></span>
               </div>
             </div>
           </div>

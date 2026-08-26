@@ -50,14 +50,15 @@ async def check_stream_health(devices: list, cameras_col) -> list:
         
         status = await get_stream_status(stream_name)
         
-        # Track in database
+        # Track in database - save as a string, not a dict
+        status_str = "streaming" if (status.get('exists') and status.get('connected')) else "error"
         try:
             cameras_col.update_one(
                 {"stream_key": stream_name},
                 {
                     "$set": {
                         "last_health_check": datetime.utcnow(),
-                        "stream_status": status,
+                        "stream_status": status_str,
                     }
                 }
             )

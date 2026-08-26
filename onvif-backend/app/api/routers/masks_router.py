@@ -117,7 +117,8 @@ def _set_masks(ip: str, masks: list):
 def get_masks(ip: str):
     """Return all masks for a camera."""
     masks = _get_masks(ip)
-    return {"ip": ip, "masks": masks, "count": len(masks)}
+    active_masks = [m for m in masks if not m.get("is_deleted")]
+    return {"ip": ip, "masks": active_masks, "count": len(active_masks)}
 
 
 @router.post("/{ip}")
@@ -141,20 +142,37 @@ def upsert_mask(ip: str, req: SaveMaskRequest):
 
 @router.put("/{ip}/all")
 def replace_all_masks(ip: str, req: SaveAllMasksRequest):
-    """Replace the entire mask list for a camera."""
-    masks = [m.dict() for m in req.masks]
-    _set_masks(ip, masks)
-    return {"success": True, "count": len(masks)}
+    incoming_masks = [m.dict() for m in req.masks]
+    incoming_ids = {m["id"] for m in incoming_masks}
+    
+    existing_masks = _get_masks(ip)
+    
+    final_masks = []
+    
+    # 1. Add all incoming masks
+    final_masks.extend(incoming_masks)
+    
+    # 2. Add existing masks that were NOT in incoming, marked as deleted
+    for em in existing_masks:
+        if em.get("id") not in incoming_ids:
+            em["is_deleted"] = True
+            final_masks.append(em)
+            
+    _set_masks(ip, final_masks)
+    return {"success": True, "count": len(final_masks)}
 
 
 @router.delete("/{ip}/{mask_id}")
 def delete_mask(ip: str, mask_id: str):
     """Delete a single mask by id."""
     masks   = _get_masks(ip)
-    before  = len(masks)
-    masks   = [m for m in masks if m.get("id") != mask_id]
+    found = False
+    for m in masks:
+        if m.get("id") == mask_id:
+            m["is_deleted"] = True
+            found = True
 
-    if len(masks) == before:
+    if not found:
         raise HTTPException(status_code=404, detail=f"Mask {mask_id} not found for {ip}")
 
     _set_masks(ip, masks)
@@ -165,6 +183,9 @@ def delete_mask(ip: str, mask_id: str):
 @router.delete("/{ip}")
 def delete_all_masks(ip: str):
     """Delete all masks for a camera."""
-    _set_masks(ip, [])
+    masks = _get_masks(ip)
+    for m in masks:
+        m["is_deleted"] = True
+    _set_masks(ip, masks)
     print(f"[MASKS] Cleared all masks for {ip}")
     return {"success": True, "ip": ip}

@@ -39,10 +39,10 @@ function getAuthHeaders() {
 // ── LocalStorage ──────────────────────────────────────────────────────
 const LS_KEY      = "miradorai_map_floors_v2_" + MAP_ID;
 const LS_ZONE_KEY = "miradorai_map_zones_v1_" + MAP_ID;
-function lsSave(v)     { try { localStorage.setItem(LS_KEY,      JSON.stringify(v)); } catch {} }
-function lsLoad()      { try { return JSON.parse(localStorage.getItem(LS_KEY)      || "null"); } catch { return null; } }
-function lsZoneSave(v) { try { localStorage.setItem(LS_ZONE_KEY, JSON.stringify(v)); } catch {} }
-function lsZoneLoad()  { try { return JSON.parse(localStorage.getItem(LS_ZONE_KEY) || "null"); } catch { return null; } }
+function lsSave(v)     {}
+function lsLoad()      { return null; }
+function lsZoneSave(v) {}
+function lsZoneLoad()  { return null; }
 
 // ── API ───────────────────────────────────────────────────────────────
 async function apiGetMap() {

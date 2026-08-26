@@ -24,19 +24,26 @@ function getAuthHeaders() {
 }
 
 // ── API helpers ───────────────────────────────────────────────────────────────
-async function apiSaveLayout({ placed, zones, ppm, floorPlan = null }) {
+async function apiSaveLayout({ placed, zones, ppm, floorPlan = null, slides = null, activeSlideId = null }) {
   try {
+    const bodyObj = {
+      map_id: MAP_ID,
+      floor_id: FLOOR_ID,
+      placed: placed.map(p => ({ id: p.id, x: p.x, y: p.y, direction: p.direction, camera: p.camera, ...(p.labelOffset ? { labelOffset: p.labelOffset } : {}) })),
+      zones: zones.map(z => ({ id: z.id, name: z.name, color: z.color, polygon: z.polygon, isShape: z.isShape || false, isBoomBarrier: z.isBoomBarrier || false })),
+      ppm,
+      floor_plan: floorPlan,
+    };
+    if (slides) {
+      bodyObj.slides = slides;
+    }
+    if (activeSlideId) {
+      bodyObj.active_slide_id = activeSlideId;
+    }
     await fetch(`${API}/api/designer`, {
       method: "POST",
       headers: getAuthHeaders(),
-      body: JSON.stringify({
-        map_id: MAP_ID,
-        floor_id: FLOOR_ID,
-        placed: placed.map(p => ({ id: p.id, x: p.x, y: p.y, direction: p.direction, camera: p.camera, ...(p.labelOffset ? { labelOffset: p.labelOffset } : {}) })),
-        zones: zones.map(z => ({ id: z.id, name: z.name, color: z.color, polygon: z.polygon, isShape: z.isShape || false, isBoomBarrier: z.isBoomBarrier || false })),
-        ppm,
-        floor_plan: floorPlan,
-      }),
+      body: JSON.stringify(bodyObj),
     });
   } catch (e) {
     console.error("[DESIGNER] ❌ Save failed", e);
@@ -868,7 +875,9 @@ function SpecPanel({ camera, onClose }) {
     ["Onboard SD", camera.onboardStorage ? `Yes — up to ${camera.onboardStorageMaxGB} GB` : "No"],
     ["PoE", camera.poe ? "Yes" : "No"],
     ["IP Rating", camera.ip],
-    ["Coverage", `≈ ${camera.coverageArea.toLocaleString()} m²`],
+    // ["Coverage", `≈ ${camera.coverageArea.toLocaleString()} m²`],
+    ["Coverage", camera.coverageArea != null ? `≈ ${camera.coverageArea.toLocaleString()} m²` : "—"],
+
   ];
   return (
     <div className="dv-spec-panel">
@@ -990,7 +999,7 @@ function FovVisualizer({ camera }) {
 // ── Camera drawing ────────────────────────────────────────────────────────────
 // FIX 1: clipZone now auto-detects the camera's own zone when no active zone is set.
 // This ensures FOV is always clipped to its zone even after refresh.
-function drawPlacedCamera(ctx, p, ppm, hovering, selected, zonesRef, activeZoneIdRef, highlightedId, showLabel = true, showPpm = false, hideBeam = false, iconScale = 1.20, renderLayer = "all", canvasScale = 1) {
+function drawPlacedCamera(ctx, p, ppm, hovering, selected, zonesRef, activeZoneIdRef, highlightedId, showLabel = true, showPpm = false, hideBeam = false, iconScale = 1.20, renderLayer = "all", canvasScale = 1, showMetricsVisibility = false) {
   const { x, y, direction, camera } = p;
   const col = TYPE_COLORS[camera.type] || "#3b82f6";
   const isHighlit = p.id === highlightedId;
@@ -1144,6 +1153,75 @@ function drawPlacedCamera(ctx, p, ppm, hovering, selected, zonesRef, activeZoneI
       }
       ctx.strokeStyle = col + (selected || isHighlit ? "cc" : "66");
       ctx.lineWidth = selected || isHighlit ? 1.5 : 1; ctx.stroke();
+      ctx.restore();
+    }
+    
+    if (showMetricsVisibility && !hideBeam) {
+      ctx.save();
+      // Center direction dashed line
+      ctx.beginPath();
+      ctx.setLineDash([6, 4]);
+      ctx.moveTo(originX, originY);
+      const dirX = originX + Math.cos(angle) * radius * 1.1;
+      const dirY = originY + Math.sin(angle) * radius * 1.1;
+      ctx.lineTo(dirX, dirY);
+      ctx.strokeStyle = "#3b82f6";
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      // Arrowhead for center line
+      ctx.beginPath();
+      ctx.setLineDash([]);
+      ctx.moveTo(dirX, dirY);
+      ctx.lineTo(dirX - Math.cos(angle - 0.3) * 10, dirY - Math.sin(angle - 0.3) * 10);
+      ctx.lineTo(dirX - Math.cos(angle + 0.3) * 10, dirY - Math.sin(angle + 0.3) * 10);
+      ctx.closePath();
+      ctx.fillStyle = "#3b82f6";
+      ctx.fill();
+
+      // Helper to draw arc and label
+      const drawMetricArc = (r, color, isDashed, text) => {
+        ctx.beginPath();
+        if (isDashed) ctx.setLineDash([5, 5]);
+        ctx.arc(originX, originY, r, angle - halfRad, angle + halfRad);
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        ctx.setLineDash([]);
+        
+        // Draw label rectangle in the center of the arc
+        const lx = originX + Math.cos(angle) * r;
+        const ly = originY + Math.sin(angle) * r;
+        ctx.font = "bold 10px sans-serif";
+        const tw = ctx.measureText(text).width + 10;
+        ctx.fillStyle = "white";
+        ctx.fillRect(lx - tw/2, ly - 8, tw, 16);
+        ctx.strokeStyle = color;
+        ctx.strokeRect(lx - tw/2, ly - 8, tw, 16);
+        ctx.fillStyle = color;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(text, lx, ly);
+      };
+
+      // Draw HFOV arc
+      const hfovR = radius * 0.3;
+      drawMetricArc(hfovR, "#3b82f6", false, `HFOV ${camera.hfov}°`);
+
+      // Draw IR Range arc
+      const irDist = camera.ir || camera.rangeNight || 0;
+      if (irDist > 0) {
+        const irR = Math.min(radius, irDist * ppm);
+        drawMetricArc(irR, "#10b981", true, `${irDist} m IR RANGE`);
+      }
+
+      // Draw DORI Detect arc
+      const doriDetectMeters = camera.rangeDay || 0;
+      if (doriDetectMeters > 0) {
+        const doriR = Math.min(radius, doriDetectMeters * ppm);
+        drawMetricArc(doriR, "#3b82f6", true, `${doriDetectMeters.toFixed(1)} m DORI DETECT`);
+      }
+
       ctx.restore();
     }
 
@@ -2150,6 +2228,9 @@ export default function DesignerView({ onBack }) {
   const [exportPreviewCanvas,  setExportPreviewCanvas]  = useState(null);
   const [showStats, setShowStats] = useState(false);
   const [showPpm, setShowPpm] = useState(false);
+  const [showMetricsVisibility, setShowMetricsVisibility] = useState(false);
+  const showMetricsVisibilityRef = useRef(false);
+  useEffect(() => { showMetricsVisibilityRef.current = showMetricsVisibility; }, [showMetricsVisibility]);
   const [showConfigDrawer, setShowConfigDrawer] = useState(false);
   const [inspectorExpanded, setInspectorExpanded] = useState(true);
   const [inspectorTab, setInspectorTab] = useState("cameras"); // "cameras" | "zones"
@@ -2187,22 +2268,35 @@ export default function DesignerView({ onBack }) {
   const [calibrateDistPx, setCalibrateDistPx] = useState(0);
   const [calibrateRealWidth, setCalibrateRealWidth] = useState("5.0");
   const [calibrateRealLength, setCalibrateRealLength] = useState("5.0");
+  const [calibrateRealHeight, setCalibrateRealHeight] = useState("");
 
   // Internal shadowed apiSaveLayout that updates React state for cloud save status
-  const apiSaveLayout = useCallback(async ({ placed, zones, ppm, floorPlan = null }) => {
+  const apiSaveLayout = useCallback(async ({ placed, zones, ppm, floorPlan = null, slides = null, activeSlideId = null }) => {
     setSaveStatus("saving");
     try {
+      const bodyObj = {
+        map_id: MAP_ID,
+        floor_id: FLOOR_ID,
+        placed: placed.map(p => ({ id: p.id, x: p.x, y: p.y, direction: p.direction, camera: p.camera, ...(p.labelOffset ? { labelOffset: p.labelOffset } : {}) })),
+        zones: zones.map(z => ({ id: z.id, name: z.name, color: z.color, polygon: z.polygon })),
+        ppm,
+        floor_plan: floorPlan,
+      };
+      
+      const finalSlides = slides || slidesRef.current;
+      if (finalSlides && finalSlides.length > 0) {
+        bodyObj.slides = finalSlides;
+      }
+      
+      const finalActiveId = activeSlideId || activeSlideIdRef.current;
+      if (finalActiveId) {
+        bodyObj.active_slide_id = finalActiveId;
+      }
+
       const response = await fetch(`${API}/api/designer`, {
         method: "POST",
         headers: getAuthHeaders(),
-        body: JSON.stringify({
-          map_id: MAP_ID,
-          floor_id: FLOOR_ID,
-          placed: placed.map(p => ({ id: p.id, x: p.x, y: p.y, direction: p.direction, camera: p.camera, ...(p.labelOffset ? { labelOffset: p.labelOffset } : {}) })),
-          zones: zones.map(z => ({ id: z.id, name: z.name, color: z.color, polygon: z.polygon })),
-          ppm,
-          floor_plan: floorPlan,
-        }),
+        body: JSON.stringify(bodyObj),
       });
       if (response.ok) {
         setSaveStatus("saved");
@@ -2220,9 +2314,19 @@ export default function DesignerView({ onBack }) {
     setSaveStatus("saving");
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(() => {
-      apiSaveLayout({ placed: placedList, zones: zonesList, ppm: currentPpm });
+      apiSaveLayout({ 
+        placed: placedList, 
+        zones: zonesList, 
+        ppm: currentPpm,
+        slides: slidesRef.current,
+        activeSlideId: activeSlideIdRef.current
+      }).then(() => {
+        setSaveStatus("saved");
+      }).catch(() => {
+        setSaveStatus("failed");
+      });
     }, 800);
-  }, [apiSaveLayout]);
+  }, []);
 
   // ── Canvas draw ───────────────────────────────────────────────────────────
   const getStripePattern = (ctx) => {
@@ -2530,7 +2634,8 @@ export default function DesignerView({ onBack }) {
         false,
         iconScaleRef.current,
         "beam",
-        scaleRef.current
+        scaleRef.current,
+        showMetricsVisibilityRef.current
       );
     });
 
@@ -2548,7 +2653,8 @@ export default function DesignerView({ onBack }) {
         false,
         iconScaleRef.current,
         "body",
-        scaleRef.current
+        scaleRef.current,
+        showMetricsVisibilityRef.current
       );
     });
 
@@ -2650,7 +2756,7 @@ export default function DesignerView({ onBack }) {
     });
 
     ctx.restore();
-  }, [ppm, hoveredIdx, selectedIdx, showPpm]);
+  }, [ppm, hoveredIdx, selectedIdx, showPpm, showMetricsVisibility]);
 
   const handleUndo = useCallback(() => {
     if (undoStack.length === 0) return;
@@ -2873,56 +2979,48 @@ export default function DesignerView({ onBack }) {
 
   // ── Restore layout on mount ───────────────────────────────────────────────
   useEffect(() => {
-    const savedSlidesStr = localStorage.getItem(`miradorai_slides_${MAP_ID}`);
-    const savedActiveId = localStorage.getItem(`miradorai_active_slide_${MAP_ID}`);
-
-    if (savedSlidesStr) {
-      try {
-        const parsedSlides = JSON.parse(savedSlidesStr);
+    apiLoadLayout().then(data => {
+      if (data && data.slides && data.slides.length > 0) {
+        const parsedSlides = data.slides;
         setSlides(parsedSlides);
         slidesRef.current = parsedSlides;
 
-        const activeId = (savedActiveId && parsedSlides.find(s => s.id === savedActiveId))
-          ? savedActiveId
-          : (parsedSlides.length > 0 ? parsedSlides[0].id : null);
+        const activeId = (data.active_slide_id && parsedSlides.find(s => s.id === data.active_slide_id))
+          ? data.active_slide_id
+          : parsedSlides[0].id;
 
-        if (activeId) {
-          setActiveSlideId(activeId);
-          activeSlideIdRef.current = activeId;
-          const activeSlide = parsedSlides.find(s => s.id === activeId);
-          if (activeSlide) {
-            setPpm(activeSlide.ppm || PIXELS_PER_METRE);
-            ppmRef.current = activeSlide.ppm || PIXELS_PER_METRE;
+        setActiveSlideId(activeId);
+        activeSlideIdRef.current = activeId;
+        
+        const activeSlide = parsedSlides.find(s => s.id === activeId);
+        if (activeSlide) {
+          setPpm(activeSlide.ppm || PIXELS_PER_METRE);
+          ppmRef.current = activeSlide.ppm || PIXELS_PER_METRE;
 
-            placedRef.current = activeSlide.placed || [];
-            setPlaced(activeSlide.placed || []);
+          placedRef.current = activeSlide.placed || [];
+          setPlaced(activeSlide.placed || []);
 
-            zonesRef.current = activeSlide.zones || [];
-            setZones(activeSlide.zones || []);
+          zonesRef.current = activeSlide.zones || [];
+          setZones(activeSlide.zones || []);
 
-            draftZonesRef.current = activeSlide.draftZones || [];
-            setDraftZones(activeSlide.draftZones || []);
+          draftZonesRef.current = activeSlide.draftZones || [];
+          setDraftZones(activeSlide.draftZones || []);
 
-            // Restore text annotations per slide
-            textNodesRef.current = activeSlide.textNodes || [];
-            setTextNodes(activeSlide.textNodes || []);
+          // Restore text annotations per slide
+          textNodesRef.current = activeSlide.textNodes || [];
+          setTextNodes(activeSlide.textNodes || []);
 
-            if (activeSlide.floorPlan) {
-              const img = new Image();
-              img.onload = () => {
-                floorImgRef.current = img;
-                setHasFloor(true);
-                setTimeout(fitImage, 50);
-              };
-              img.src = activeSlide.floorPlan;
-            }
+          if (activeSlide.floorPlan) {
+            const img = new Image();
+            img.onload = () => {
+              floorImgRef.current = img;
+              setHasFloor(true);
+              setTimeout(fitImage, 50);
+            };
+            img.src = activeSlide.floorPlan;
           }
         }
-      } catch (err) {
-        console.error("Failed to load slides from localStorage", err);
-      }
-    } else {
-      apiLoadLayout().then(data => {
+      } else {
         const defaultSlide = {
           id: "slide_" + Date.now(),
           name: "Floor Draft 1",
@@ -2961,26 +3059,9 @@ export default function DesignerView({ onBack }) {
             img.src = data.floor_plan;
           }
         }
-      });
-    }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Auto-save slides list and active slide ID to localStorage
-  useEffect(() => {
-    if (slides.length > 0) {
-      try {
-        localStorage.setItem(`miradorai_slides_${MAP_ID}`, JSON.stringify(slides));
-      } catch (err) {
-        console.warn("Failed to save slides to localStorage due to quota limits", err);
       }
-    }
-  }, [slides]);
-
-  useEffect(() => {
-    if (activeSlideId) {
-      localStorage.setItem(`miradorai_active_slide_${MAP_ID}`, activeSlideId);
-    }
-  }, [activeSlideId]);
+    });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Reactive Sync: Keep active slide inside slides list in sync with current canvas editor states
   useEffect(() => {
@@ -2990,10 +3071,8 @@ export default function DesignerView({ onBack }) {
       if (idx === -1) return prevSlides;
      
       const currentSlide = prevSlides[idx];
-      const hasFloorImg = floorImgRef.current ? floorImgRef.current.src : null;
       if (
         currentSlide.ppm === ppm &&
-        currentSlide.floorPlan === hasFloorImg &&
         JSON.stringify(currentSlide.placed) === JSON.stringify(placed) &&
         JSON.stringify(currentSlide.zones) === JSON.stringify(zones) &&
         JSON.stringify(currentSlide.draftZones) === JSON.stringify(draftZones) &&
@@ -3009,7 +3088,6 @@ export default function DesignerView({ onBack }) {
         placed,
         zones,
         draftZones,
-        floorPlan: hasFloorImg,
         textNodes
       };
       return updated;
@@ -3229,14 +3307,14 @@ export default function DesignerView({ onBack }) {
         }
 
         apiSaveFloorPlan(newActiveSlide.floorPlan);
-        apiSaveLayout({
-          placed: newActiveSlide.placed || [],
-          zones: newActiveSlide.zones || [],
-          ppm: newActiveSlide.ppm || PIXELS_PER_METRE
-        });
+        scheduleSave(
+          newActiveSlide.placed || [],
+          newActiveSlide.zones || [],
+          newActiveSlide.ppm || PIXELS_PER_METRE
+        );
       }
     }
-  }, [recordState, fitImage, draw]);
+  }, [recordState, fitImage, draw, scheduleSave]);
 
   const addNewSlide = useCallback((floorPlan = null, floorPlanName = null) => {
     recordState();
@@ -3291,8 +3369,8 @@ export default function DesignerView({ onBack }) {
     }
 
     apiSaveFloorPlan(floorPlan);
-    apiSaveLayout({ placed: [], zones: [], ppm: PIXELS_PER_METRE });
-  }, [recordState, fitImage, draw]);
+    scheduleSave([], [], PIXELS_PER_METRE);
+  }, [recordState, fitImage, draw, scheduleSave]);
 
   const applyZoom = useCallback((delta, cx, cy) => {
     const prev = scaleRef.current;
@@ -3826,6 +3904,7 @@ export default function DesignerView({ onBack }) {
         // Populate modal meters inputs based on current PPM
         setCalibrateRealWidth((dx / currentPpm).toFixed(2));
         setCalibrateRealLength((dy / currentPpm).toFixed(2));
+        setCalibrateRealHeight("");
        
         setShowCalibrateModal(true);
         draw();
@@ -4316,10 +4395,10 @@ export default function DesignerView({ onBack }) {
      
       apiSaveFloorPlan(croppedDataUrl);
       apiSaveZones(updatedZones);
-      apiSaveLayout({ placed: updatedPlaced, zones: updatedZones, ppm: ppmRef.current });
+      scheduleSave(updatedPlaced, updatedZones, ppmRef.current);
     };
     cImg.src = croppedDataUrl;
-  }, [draw, recordState, apiSaveLayout]);
+  }, [draw, recordState, scheduleSave]);
 
   // ── FIX 2: Remove floor plan — clears image and deletes from backend ──────
   function removeFloorPlan() {
@@ -4327,6 +4406,15 @@ export default function DesignerView({ onBack }) {
     floorImgRef.current = null;
     setHasFloor(false);
     draw();
+    
+    const activeSlideIdx = slidesRef.current.findIndex(s => s.id === activeSlideIdRef.current);
+    if (activeSlideIdx >= 0) {
+      const updatedSlides = [...slidesRef.current];
+      updatedSlides[activeSlideIdx] = { ...updatedSlides[activeSlideIdx], floorPlan: null };
+      slidesRef.current = updatedSlides;
+      setSlides(updatedSlides);
+      scheduleSave(placedRef.current, zonesRef.current, ppmRef.current);
+    }
     apiDeleteFloorPlan();
   }
 
@@ -4364,7 +4452,7 @@ export default function DesignerView({ onBack }) {
       slidesRef.current = updatedSlides;
       setSlides(updatedSlides);
       
-      localStorage.setItem(`miradorai_slides_${MAP_ID}`, JSON.stringify(updatedSlides));
+      scheduleSave(placedRef.current, zonesRef.current, ppmRef.current);
       alert(`Saved ${newVersion.name}!`);
     } else {
       alert("No camera changes detected since last save.");
@@ -4390,7 +4478,7 @@ export default function DesignerView({ onBack }) {
     highlightedCamIdRef.current = null;
     draw();
     
-    apiSaveLayout({ placed: restoredPlaced, zones: zonesRef.current, ppm: ppmRef.current });
+    scheduleSave(restoredPlaced, zonesRef.current, ppmRef.current);
   }
 
   function renameVersion(slideId, versionId, newName) {
@@ -4412,7 +4500,7 @@ export default function DesignerView({ onBack }) {
     
     slidesRef.current = updatedSlides;
     setSlides(updatedSlides);
-    localStorage.setItem(`miradorai_slides_${MAP_ID}`, JSON.stringify(updatedSlides));
+    scheduleSave(placedRef.current, zonesRef.current, ppmRef.current);
   }
 
   function deleteVersion(slideId, versionId) {
@@ -4432,7 +4520,7 @@ export default function DesignerView({ onBack }) {
         
         slidesRef.current = updatedSlides;
         setSlides(updatedSlides);
-        localStorage.setItem(`miradorai_slides_${MAP_ID}`, JSON.stringify(updatedSlides));
+        scheduleSave(placedRef.current, zonesRef.current, ppmRef.current);
       }
     );
   }
@@ -4749,10 +4837,10 @@ function buildExportCanvas(exportMode = "design", company = "mirador", overlayOp
       ctx.restore();
     });
       placedRef.current.forEach(p =>
-      drawPlacedCamera(ctx, p, ppm, false, false, zonesRef, activeZoneIdRef, null, false, false, false, iconScaleRef.current, "beam", scaleRef.current)
+      drawPlacedCamera(ctx, p, ppm, false, false, zonesRef, activeZoneIdRef, null, false, false, false, iconScaleRef.current, "beam", scaleRef.current, showMetricsVisibilityRef.current)
     );
     placedRef.current.forEach(p =>
-      drawPlacedCamera(ctx, p, ppm, false, false, zonesRef, activeZoneIdRef, null, false, false, false, iconScaleRef.current, "body", scaleRef.current)
+      drawPlacedCamera(ctx, p, ppm, false, false, zonesRef, activeZoneIdRef, null, false, false, false, iconScaleRef.current, "body", scaleRef.current, showMetricsVisibilityRef.current)
     );
     // ── Camera Stats box ──
     if (overlayOpts && overlayOpts.stats?.show !== false) {
@@ -4789,10 +4877,10 @@ function buildExportCanvas(exportMode = "design", company = "mirador", overlayOp
       ctx.restore();
     });
     placedRef.current.forEach(p =>
-      drawPlacedCamera(ctx, p, ppm, false, false, zonesRef, activeZoneIdRef, null, false, false, false, iconScaleRef.current, "beam", scaleRef.current)
+      drawPlacedCamera(ctx, p, ppm, false, false, zonesRef, activeZoneIdRef, null, false, false, false, iconScaleRef.current, "beam", scaleRef.current, showMetricsVisibilityRef.current)
     );
     placedRef.current.forEach(p =>
-      drawPlacedCamera(ctx, p, ppm, false, false, zonesRef, activeZoneIdRef, null, false, false, false, iconScaleRef.current, "body", scaleRef.current)
+      drawPlacedCamera(ctx, p, ppm, false, false, zonesRef, activeZoneIdRef, null, false, false, false, iconScaleRef.current, "body", scaleRef.current, showMetricsVisibilityRef.current)
     );
     // ── Camera Stats box ──
     if (overlayOpts && overlayOpts.stats?.show !== false) {
@@ -4823,10 +4911,10 @@ function buildExportCanvas(exportMode = "design", company = "mirador", overlayOp
       ctx.restore();
     });
     placedRef.current.forEach(p =>
-      drawPlacedCamera(ctx, p, ppm, false, false, zonesRef, activeZoneIdRef, null, false, true, false, iconScaleRef.current, "beam", scaleRef.current)
+      drawPlacedCamera(ctx, p, ppm, false, false, zonesRef, activeZoneIdRef, null, false, true, false, iconScaleRef.current, "beam", scaleRef.current, showMetricsVisibilityRef.current)
     );
     placedRef.current.forEach(p =>
-      drawPlacedCamera(ctx, p, ppm, false, false, zonesRef, activeZoneIdRef, null, false, true, false, iconScaleRef.current, "body", scaleRef.current)
+      drawPlacedCamera(ctx, p, ppm, false, false, zonesRef, activeZoneIdRef, null, false, true, false, iconScaleRef.current, "body", scaleRef.current, showMetricsVisibilityRef.current)
     );
     // ── Camera Stats box ──
     if (overlayOpts && overlayOpts.stats?.show !== false) {
@@ -5202,56 +5290,6 @@ function buildExportCanvas(exportMode = "design", company = "mirador", overlayOp
         <div className="dv-topbar__title-section" style={{ display: "flex", alignItems: "center", paddingRight: "20px", gap: "12px" }}>
           <h1 className="page-title" style={{ fontSize: "28px", margin: 0 }}>Designer View</h1>
          
-          {/* Cloud Save Status Indicator */}
-          <div style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "6px",
-            padding: "4px 10px",
-            borderRadius: "6px",
-            background: saveStatus === "saving" ? "rgba(59, 130, 246, 0.1)" : saveStatus === "failed" ? "rgba(239, 68, 68, 0.1)" : "rgba(16, 185, 129, 0.1)",
-            border: saveStatus === "saving" ? "0.5px solid rgba(59, 130, 246, 0.3)" : saveStatus === "failed" ? "0.5px solid rgba(239, 68, 68, 0.3)" : "0.5px solid rgba(16, 185, 129, 0.3)",
-            fontSize: "13px",
-            fontWeight: "600",
-            color: saveStatus === "saving" ? "#60a5fa" : saveStatus === "failed" ? "#f87171" : "#34d399",
-            transition: "all 0.3s ease"
-          }}>
-            <style>{`
-              @keyframes dv-spin {
-                0% { transform: rotate(0deg); }
-                100% { transform: rotate(360deg); }
-              }
-              .dv-status-spinner {
-                animation: dv-spin 1s linear infinite;
-              }
-            `}</style>
-            {saveStatus === "saving" && (
-              <>
-                <svg className="dv-status-spinner" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" width="12" height="12">
-                  <circle cx="12" cy="12" r="10" strokeDasharray="30 10" />
-                </svg>
-                <span>Saving to cloud...</span>
-              </>
-            )}
-            {saveStatus === "saved" && (
-              <>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" width="12" height="12">
-                  <polyline points="20 6 9 17 4 12" />
-                </svg>
-                <span>All changes saved</span>
-              </>
-            )}
-            {saveStatus === "failed" && (
-              <>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" width="12" height="12">
-                  <circle cx="12" cy="12" r="10" />
-                  <line x1="12" y1="8" x2="12" y2="12" />
-                  <line x1="12" y1="16" x2="12.01" y2="16" />
-                </svg>
-                <span>Save failed</span>
-              </>
-            )}
-          </div>
         </div>
 
         <div className="dv-topbar__actions" style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
@@ -5696,7 +5734,7 @@ function buildExportCanvas(exportMode = "design", company = "mirador", overlayOp
             <div className="dv-icon-drop-wrap" ref={layersDropRef}>
               <button
                 className={`dv-icon-btn ${
-                  (showHeatmap || showPpm || layersDropdownOpen) ? "dv-icon-btn--active" : ""
+                  (showHeatmap || showPpm || showMetricsVisibility || layersDropdownOpen) ? "dv-icon-btn--active" : ""
                 }`}
                 onClick={() => {
                   setLayersDropdownOpen(o => !o);
@@ -5712,7 +5750,7 @@ function buildExportCanvas(exportMode = "design", company = "mirador", overlayOp
                   <polyline points="2 12 12 17 22 12"/>
                 </svg>
                 <span className="dv-icon-btn__label">Layers</span>
-                {(showHeatmap || showPpm) && <span className="dv-icon-btn__dot" />}
+                {(showHeatmap || showPpm || showMetricsVisibility) && <span className="dv-icon-btn__dot" />}
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="10" height="10" className={`dv-icon-btn__chevron ${layersDropdownOpen ? "open" : ""}`}>
                   <polyline points="6 9 12 15 18 9"/>
                 </svg>
@@ -5756,6 +5794,22 @@ function buildExportCanvas(exportMode = "design", company = "mirador", overlayOp
                         {/* <span className="dv-dropdown-card__desc">PPM / DORI visual coverage categories</span> */}
                       </div>
                       <div className={`dv-dropdown-card__toggle ${showPpm ? "dv-dropdown-card__toggle--on" : ""}`} />
+                    </button>
+
+                    {/* Metrics Visibility */}
+                    <button
+                      className={`dv-dropdown-card ${showMetricsVisibility ? "dv-dropdown-card--active" : ""}`}
+                      onClick={() => { setShowMetricsVisibility(!showMetricsVisibility); setTimeout(draw, 0); }}
+                    >
+                      <div className="dv-dropdown-card__icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="24" height="24">
+                          <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
+                        </svg>
+                      </div>
+                      <div className="dv-dropdown-card__body">
+                        <span className="dv-dropdown-card__label">Metrics Visibility</span>
+                      </div>
+                      <div className={`dv-dropdown-card__toggle ${showMetricsVisibility ? "dv-dropdown-card__toggle--on" : ""}`} />
                     </button>
 
                   </div>
@@ -7039,6 +7093,8 @@ function buildExportCanvas(exportMode = "design", company = "mirador", overlayOp
             </div>
           )}
 
+
+
           {/* Floating Zoom HUD */}
           <div className="dv-zoom-hud">
             <button className="dv-zbtn dv-zbtn--fit" onClick={fitImage}>Fit</button>
@@ -7111,7 +7167,7 @@ function buildExportCanvas(exportMode = "design", company = "mirador", overlayOp
           )}
 
           {selectedPlaced && (
-            <div className="dv-selected-bar" style={{ pointerEvents: "auto", transition: "all 0.3s ease", ...(isSettingsMinimized ? { width: '48px', height: '48px', padding: '0', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', background: '#1e293b', border: '1px solid #3b82f6', overflow: 'hidden' } : {}) }}>
+            <div className="dv-selected-bar" style={{ pointerEvents: "auto", transition: "all 0.3s ease", ...(isSettingsMinimized ? { width: '48px', height: '48px', padding: '0', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', background: '#1e293b', border: '1px solid #3b82f6', overflow: 'hidden' } : { maxWidth: showConfigDrawer ? 800 : undefined }) }}>
               {isSettingsMinimized ? (
                 <button
                   onClick={() => setIsSettingsMinimized(false)}
@@ -7141,7 +7197,7 @@ function buildExportCanvas(exportMode = "design", company = "mirador", overlayOp
                       onClick={() => setShowConfigDrawer(!showConfigDrawer)}
                       style={{
                         background: "none", border: "none", color: "var(--text-muted)",
-                        fontSize: showConfigDrawer ? 16 : 14, cursor: "pointer", padding: "4px",
+                        cursor: "pointer", padding: "4px",
                         display: "flex", alignItems: "center", justifyContent: "center", transition: "color 0.15s ease",
                         flexShrink: 0,
                       }}
@@ -7149,12 +7205,13 @@ function buildExportCanvas(exportMode = "design", company = "mirador", overlayOp
                       onMouseLeave={e => e.currentTarget.style.color = "var(--text-muted)"}
                       title={showConfigDrawer ? "Hide Configuration" : "Configure Camera"}
                     >
-                      {showConfigDrawer ? "✕" : (
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" width="16" height="16">
-                          <circle cx="12" cy="12" r="3" />
-                          <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z" />
-                        </svg>
-                      )}
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" width="14" height="14">
+                        {showConfigDrawer ? (
+                          <path d="M4 17l5-5-5-5 M20 17l-5-5 5-5" />
+                        ) : (
+                          <path d="M9 17l-5-5 5-5 M15 17l5-5-5-5" />
+                        )}
+                      </svg>
                     </button>
                     <button
                       onClick={() => setIsSettingsMinimized(true)}
@@ -7163,7 +7220,7 @@ function buildExportCanvas(exportMode = "design", company = "mirador", overlayOp
                       onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}
                       title="Minimize Settings"
                     >
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" width="12" height="12">
                         <line x1="18" y1="6" x2="6" y2="18" />
                         <line x1="6" y1="6" x2="18" y2="18" />
                       </svg>
@@ -7219,8 +7276,8 @@ function buildExportCanvas(exportMode = "design", company = "mirador", overlayOp
               {showConfigDrawer && (
                 <div style={{
                   display: "flex", flexDirection: "column",
-                  gap: 12, background: "var(--bg-elevated)", border: "0.5px solid var(--border)",
-                  borderRadius: 8, padding: "12px 16px", width: 280,
+                  gap: 12, borderLeft: "0.5px solid var(--border)",
+                  paddingLeft: 16, width: 280,
                   animation: "dvSlideDown 0.2s ease-out forwards",
                 }}>
                   {/* Column 1: Scenarios */}
@@ -7499,6 +7556,30 @@ function buildExportCanvas(exportMode = "design", company = "mirador", overlayOp
                     <span style={{ fontSize: 17, color: "var(--text-secondary)" }}>meters</span>
                   </div>
                 </div>
+
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  <label style={{ fontSize: 15, fontWeight: 600, color: "var(--text-primary)" }}>Real-World Height (meters)</label>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <input
+                      type="number"
+                      step="any"
+                      value={calibrateRealHeight}
+                      onChange={e => setCalibrateRealHeight(e.target.value)}
+                      style={{
+                        flex: 1,
+                        background: "var(--bg-input)",
+                        border: "1px solid var(--border)",
+                        borderRadius: 4,
+                        color: "var(--text-primary)",
+                        fontSize: 17,
+                        padding: "8px 10px",
+                        outline: "none"
+                      }}
+                      placeholder="e.g. 3.0"
+                    />
+                    <span style={{ fontSize: 17, color: "var(--text-secondary)" }}>meters</span>
+                  </div>
+                </div>
               </div>
 
               <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 8 }}>
@@ -7528,6 +7609,7 @@ function buildExportCanvas(exportMode = "design", company = "mirador", overlayOp
                   onClick={() => {
                     const wMeters = parseFloat(calibrateRealWidth);
                     const lMeters = parseFloat(calibrateRealLength);
+                    const hMeters = parseFloat(calibrateRealHeight);
                    
                     const dx = Math.abs(calPts[1].x - calPts[0].x);
                     const dy = Math.abs(calPts[1].y - calPts[0].y);
@@ -7536,7 +7618,9 @@ function buildExportCanvas(exportMode = "design", company = "mirador", overlayOp
                     if (wMeters > 0 && dx > 0.1) {
                       ppmVals.push(dx / wMeters);
                     }
-                    if (lMeters > 0 && dy > 0.1) {
+                    if (hMeters > 0 && dy > 0.1) {
+                      ppmVals.push(dy / hMeters);
+                    } else if (lMeters > 0 && dy > 0.1) {
                       ppmVals.push(dy / lMeters);
                     }
                    

@@ -104,7 +104,12 @@ class LoggerWrapper:
             self._local.in_write = False
 
         try:
+            from datetime import datetime
+            if getattr(self,"_newline",True) and message.strip():
+                ts=datetime.now().strftime("[%Y-%m-%d %H:%M:%S]")
+                sys.__stdout__.write(ts)
             sys.__stdout__.write(message)
+            self._newline=message.endswith("\n")
         except UnicodeEncodeError:
             enc = getattr(sys.__stdout__, 'encoding', 'utf-8') or 'utf-8'
             sys.__stdout__.write(message.encode(enc, errors='replace').decode(enc))

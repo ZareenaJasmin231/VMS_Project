@@ -302,12 +302,12 @@ async def delete_ai_alert(request: Request, alert_id: Optional[str] = None):
         if target_id:
             result = None
             try:
-                result = col.delete_many({"_id": ObjectId(target_id)})
+                result = col.update_many({"_id": ObjectId(target_id)}, {"$set": {"is_deleted": True}})
             except Exception:
                 result = None
 
-            if not result or result.deleted_count == 0:
-                result = col.delete_many({
+            if not result or result.modified_count == 0:
+                result = col.update_many({
                     "$or": [
                         {"reader_id": target_id},
                         {"camera_id": target_id},
@@ -316,19 +316,19 @@ async def delete_ai_alert(request: Request, alert_id: Optional[str] = None):
                         {"alert_id": target_id},
                         {"_id": target_id}
                     ]
-                })
+                }, {"$set": {"is_deleted": True}})
 
             return AIAlertResponse(
                 status="success",
-                message=f"Deleted {result.deleted_count if result else 0} alert(s) for '{target_id}'",
+                message=f"Deleted {result.modified_count if result else 0} alert(s) for '{target_id}'",
                 alert_id=str(target_id)
             )
         elif cam_ip:
             query = {"$or": [{"ip": cam_ip}, {"ip_address": cam_ip}, {"camera_id": cam_ip}]}
-            result = col.delete_many(query)
+            result = col.update_many(query, {"$set": {"is_deleted": True}})
             return AIAlertResponse(
                 status="success",
-                message=f"Deleted {result.deleted_count} alert(s) for camera '{cam_ip}'",
+                message=f"Deleted {result.modified_count} alert(s) for camera '{cam_ip}'",
                 alert_id=cam_ip
             )
         else:

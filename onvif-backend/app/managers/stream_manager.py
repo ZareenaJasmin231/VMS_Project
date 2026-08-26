@@ -4,6 +4,32 @@ import re
 import sys
 
 from pathlib import Path
+import sys
+from datetime import datetime
+
+class TimestampLogger:
+    def __init__(self, stream):
+        self.stream = stream
+        self._newline = True
+
+    def write(self, message):
+        if not message:
+            return
+        if self._newline and message.strip():
+            timestamp = datetime.now().strftime("[%Y-%m-%d %H:%M:%S] ")
+            self.stream.write(timestamp)
+        self.stream.write(message)
+        self._newline = message.endswith("\n")
+
+    def flush(self):
+        self.stream.flush()
+
+    def __getattr__(self, attr):
+        return getattr(self.stream, attr)
+
+sys.stdout = TimestampLogger(sys.stdout)
+sys.stderr = TimestampLogger(sys.stderr)
+
 env_path = Path(__file__).parent.parent.parent.parent / ".env"
 if env_path.exists():
     for line in env_path.read_text(encoding="utf-8").splitlines():
@@ -128,6 +154,12 @@ def load_devices():
                     "assigned_worker":      d.get("assigned_worker"),
                     "reader_id":            d.get("reader_id"),
                     "source":               d.get("source"),
+                    "thumbnail":            d.get("thumbnail"),
+                    "stream_status":        (lambda s: "streaming" if isinstance(s, dict) and s.get("connected") else ("streaming" if s == "streaming" else (s if isinstance(s, str) else d.get("status"))))(d.get("stream_status", d.get("status"))),
+                    "ws_url":               d.get("ws_url"),
+                    "type":                 d.get("type", "entrance"),
+                    "stream_count":         d.get("stream_count", 0),
+                    "stream_profiles":      d.get("stream_profiles", []),
                 } for d in deduped if (d.get("ip_address") or d.get("ip")) and d.get("rtsp_url")]
                 
                 save_devices(final_list)

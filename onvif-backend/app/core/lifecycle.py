@@ -38,6 +38,12 @@ async def _startup_phase_1():
     await task_manager.start_task('gc_cleanup', _periodic_gc_loop())
     
     try:
+        from app.background.log_organizer import run_log_organizer
+        await task_manager.start_task('log_organizer', run_log_organizer())
+    except Exception as e:
+        print(f"[STARTUP] ⚠ Failed to start log organizer: {e}")
+        
+    try:
         from app.api.routers.monitoring_api import collector
         collector.start()
         print("[STARTUP] ✅ System monitoring collector thread started.")

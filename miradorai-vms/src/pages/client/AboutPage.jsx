@@ -8,11 +8,11 @@ export default function AboutPage() {
           <div className="about-logo-mark">M</div>
           <div className="about-product-name">MIRADOR VMS</div>
           <div className="about-tagline">Intelligent Video Management Platform</div>
-          <div className="about-version-badge">v1.0</div>
+          <div className="about-version-badge">v1.4.0</div>
         </div>
         <div className="about-info card">
           <div className="about-section-title">Platform Details</div>
-          {[["Version", "1.0.0"], ["Build Date", "2025-03-09"], ["Server", "MIRADOR-VMS"], ["License", "Enterprise"], ["Connected Cameras", "4"], ["Active Recordings", "0"]].map(([k, v]) => (
+          {[["Version", "1.4.0"], ["Build Date", "2025-03-09"], ["Server", "MIRADOR-VMS"], ["License", "Enterprise"], ["Connected Cameras", "4"], ["Active Recordings", "0"]].map(([k, v]) => (
             <div key={k} className="about-row">
               <span className="about-key">{k}</span>
               <span className="about-val">{v}</span>
