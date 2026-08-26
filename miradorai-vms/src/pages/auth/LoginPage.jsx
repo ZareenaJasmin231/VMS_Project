@@ -33,7 +33,7 @@ const PasswordRules = ({ password }) => {
 };
 
 const LoginPage = () => {
-  const { login, completeLogin, forgotPassword, resetPassword, oauthLogin, accounts, signup } = useAuth();
+  const { login, completeLogin,  oauthLogin, accounts, signup } = useAuth();
   const [activeForm, setActiveForm] = useState("signin"); // "signin" | "forgot" | "signup"
   const [role, setRole] = useState("client");
   const [showPassword, setShowPassword] = useState(false);
@@ -66,12 +66,12 @@ const LoginPage = () => {
 
 
   // Forgot Password Form
-  const [forgotEmail, setForgotEmail] = useState("");
-  const [forgotError, setForgotError] = useState("");
-  const [forgotStep, setForgotStep] = useState("email");
-  const [resetNewPassword, setResetNewPassword] = useState("");
-  const [resetConfirm, setResetConfirm] = useState("");
-  const [forgotSuccess, setForgotSuccess] = useState("");
+  // const [forgotEmail, setForgotEmail] = useState("");
+  // const [forgotError, setForgotError] = useState("");
+  // const [forgotStep, setForgotStep] = useState("email");
+  // const [resetNewPassword, setResetNewPassword] = useState("");
+  // const [resetConfirm, setResetConfirm] = useState("");
+  // const [forgotSuccess, setForgotSuccess] = useState("");
   const [requiresCaptcha, setRequiresCaptcha] = useState(false);
   const [captchaId, setCaptchaId] = useState(null);
   const [captchaText, setCaptchaText] = useState("");
@@ -316,7 +316,7 @@ const LoginPage = () => {
             <div className="form-group">
               <div className="password-header">
                 <label>Password</label>
-                <a
+                {/* <a
                   href="#"
                   onClick={(e) => {
                     e.preventDefault();
@@ -327,7 +327,7 @@ const LoginPage = () => {
                   className="forgot-link"
                 >
                   Forgot password?
-                </a>
+                </a> */}
               </div>
               <div className="password-input-wrapper">
                 <input
@@ -535,7 +535,7 @@ const LoginPage = () => {
 
 
         {/* Forgot Password Form */}
-        {activeForm === "forgot" && (
+        {false && activeForm === "forgot" && (
           <form onSubmit={handleForgotPassword} className="auth-form">
             {forgotStep === "email" ? (
               <>
@@ -683,7 +683,7 @@ const LoginPage = () => {
               </button>
             </div>
           </form>
-        )}
+        )} */}
 
         {/* Sign Up Form */}
         {activeForm === "signup" && (
