@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import Button from "../../components/shared/Button";
@@ -57,6 +58,7 @@ export default function UserManagementPage() {
   
   const [showPassword, setShowPassword] = useState(false);
   const [showEditPassword, setShowEditPassword] = useState(false);
+  const [showConfirmEditPassword, setShowConfirmEditPassword] = useState(false);
 
   // Form states
   const [createForm, setCreateForm] = useState({ email: "", password: "", role: "client", allowedCameras: [] });
@@ -414,14 +416,14 @@ export default function UserManagementPage() {
                 </div>
                 <div className="form-group">
                   <label className="form-label">Password</label>
-                  <div style={{ position: "relative" }}>
+                  <div style={{ position: "relative", width: "100%" }}>
                     <input
                       type={showPassword ? "text" : "password"}
                       className="form-input"
                       style={{ paddingRight: "40px" }}
                       value={createForm.password}
                       onChange={(e) => setCreateForm({ ...createForm, password: e.target.value })}
-                      placeholder="Minimum 6 characters"
+                      placeholder="Minimum 8 characters"
                       required
                     />
                     <button
@@ -570,7 +572,7 @@ export default function UserManagementPage() {
 
                 <div className="form-group">
                   <label className="form-label">New Password</label>
-                  <div style={{ position: "relative" }}>
+                  <div style={{ position: "relative", width: "100%" }}>
                     <input
                       type={showEditPassword ? "text" : "password"}
                       className="form-input"
@@ -595,13 +597,27 @@ export default function UserManagementPage() {
                 </div>
                 <div className="form-group">
                   <label className="form-label">Confirm New Password</label>
-                  <input
-                    type="password"
-                    className="form-input"
-                    value={editForm.confirmPassword}
-                    onChange={(e) => setEditForm({ ...editForm, confirmPassword: e.target.value })}
-                    placeholder="Retype password"
-                  />
+                  <div style={{ position: "relative", width: "100%" }}>
+                    <input
+                      type={showConfirmEditPassword ? "text" : "password"}
+                      className="form-input"
+                      style={{ paddingRight: "40px" }}
+                      value={editForm.confirmPassword}
+                      onChange={(e) => setEditForm({ ...editForm, confirmPassword: e.target.value })}
+                      placeholder="Retype password"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmEditPassword(!showConfirmEditPassword)}
+                      style={{ position: "absolute", right: "12px", top: "50%", transform: "translateY(-50%)", background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer", padding: 0 }}
+                    >
+                      {showConfirmEditPassword ? (
+                        <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" strokeWidth="2" fill="none"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                      ) : (
+                        <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" strokeWidth="2" fill="none"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                      )}
+                    </button>
+                  </div>
                 </div>
               </div>
               <div className="modal-footer">

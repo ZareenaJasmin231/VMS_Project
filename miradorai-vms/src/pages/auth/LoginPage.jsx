@@ -4,11 +4,40 @@ import "./LoginPage.css";
 import useActivityLogger from "../../hooks/useActivityLogger";
 import SpecularButton from "../../components/shared/SpecularButton";
 
+const PasswordRules = ({ password }) => {
+  const rules = [
+    { label: "At least 8 characters long", test: p => p.length >= 8 },
+    { label: "One uppercase letter", test: p => /[A-Z]/.test(p) },
+    { label: "One lowercase letter", test: p => /[a-z]/.test(p) },
+    { label: "One number", test: p => /[0-9]/.test(p) },
+    { label: "One special character", test: p => /[!@#$%^&*(),.?":{}|<>]/.test(p) }
+  ];
+
+  return (
+    <div style={{ marginTop: '8px', fontSize: '12px' }}>
+      {rules.map((rule, idx) => {
+        const passed = rule.test(password || "");
+        return (
+          <div key={idx} style={{ display: 'flex', alignItems: 'center', marginBottom: '4px', color: passed ? '#10b981' : '#6b7280' }}>
+            {passed ? (
+              <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" strokeWidth="2" fill="none" style={{ marginRight: '6px' }}><polyline points="20 6 9 17 4 12"/></svg>
+            ) : (
+              <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" strokeWidth="2" fill="none" style={{ marginRight: '6px' }}><circle cx="12" cy="12" r="10"/></svg>
+            )}
+            <span style={{ textDecoration: passed ? 'line-through' : 'none' }}>{rule.label}</span>
+          </div>
+        )
+      })}
+    </div>
+  );
+};
+
 const LoginPage = () => {
-  const { login, completeLogin, forgotPassword, resetPassword, oauthLogin, accounts } = useAuth();
-  const [activeForm, setActiveForm] = useState("signin"); // "signin" | "forgot"
+  const { login, completeLogin, forgotPassword, resetPassword, oauthLogin, accounts, signup } = useAuth();
+  const [activeForm, setActiveForm] = useState("signin"); // "signin" | "forgot" | "signup"
   const [role, setRole] = useState("client");
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const { logAction } = useActivityLogger();
 
@@ -22,6 +51,13 @@ const LoginPage = () => {
   const [signInPassword, setSignInPassword] = useState("");
   const [signInError, setSignInError] = useState("");
   const [activeSessionWarning, setActiveSessionWarning] = useState(null);
+
+  // Sign Up Form
+  const [signUpEmail, setSignUpEmail] = useState("");
+  const [signUpPassword, setSignUpPassword] = useState("");
+  const [signUpConfirm, setSignUpConfirm] = useState("");
+  const [signUpError, setSignUpError] = useState("");
+  const [signUpSuccess, setSignUpSuccess] = useState("");
 
   const [oauthMessage, setOauthMessage] = useState("");
   const [oauthError, setOauthError] = useState("");
@@ -100,6 +136,32 @@ const LoginPage = () => {
     // 🔥 Activity log — user logged in
     logAction("User logged in", "auth", { email: signInEmail });
 
+    setIsLoading(false);
+  };
+
+  const handleSignUp = async (e) => {
+    e.preventDefault();
+    setSignUpError("");
+    setSignUpSuccess("");
+    setIsLoading(true);
+
+    await new Promise((resolve) => setTimeout(resolve, 500));
+
+    const result = await signup(signUpEmail, signUpPassword, signUpConfirm, role);
+    if (!result.success) {
+      setSignUpError(result.error);
+    } else {
+      setSignUpSuccess(result.message);
+      logAction("User signed up", "auth", { email: signUpEmail });
+      setTimeout(() => {
+        setActiveForm("signin");
+        setSignInEmail(signUpEmail);
+        setSignUpEmail("");
+        setSignUpPassword("");
+        setSignUpConfirm("");
+        setSignUpSuccess("");
+      }, 2000);
+    }
     setIsLoading(false);
   };
 
@@ -201,6 +263,7 @@ const LoginPage = () => {
           <h1 className="login-title">
             {activeForm === "signin" && "Log in"}
             {activeForm === "forgot" && "Reset Password"}
+            {activeForm === "signup" && "Create Account"}
           </h1>
           <p className="login-subtitle">MIRADOR VMS</p>
         </div>
@@ -281,7 +344,11 @@ const LoginPage = () => {
                   onClick={() => setShowPassword(!showPassword)}
                   disabled={isLoading}
                 >
-                  {showPassword ? "👁" : "🚫"}
+                  {showPassword ? (
+                    <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" strokeWidth="2" fill="none"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                  ) : (
+                    <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" strokeWidth="2" fill="none"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                  )}
                 </button>
               </div>
             </div>
@@ -381,6 +448,13 @@ const LoginPage = () => {
             >
               {isLoading ? "Signing in..." : "Log in"}
             </SpecularButton>
+
+            <div style={{ textAlign: "center", marginTop: "1rem", fontSize: "0.9rem", color: "#9ca3af" }}>
+              Don't have an account?{" "}
+              <a href="#" onClick={(e) => { e.preventDefault(); setActiveForm("signup"); }} style={{ color: "#10b981", textDecoration: "none" }}>
+                Sign up
+              </a>
+            </div>
 
             {/* Google Login */}
             <button
@@ -526,7 +600,11 @@ const LoginPage = () => {
                       onClick={() => setShowPassword(!showPassword)}
                       disabled={isLoading}
                     >
-                      {showPassword ? "👁" : "🚫"}
+                      {showPassword ? (
+                    <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" strokeWidth="2" fill="none"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                  ) : (
+                    <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" strokeWidth="2" fill="none"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                  )}
                     </button>
                   </div>
                 </div>
@@ -548,7 +626,11 @@ const LoginPage = () => {
                       onClick={() => setShowPassword(!showPassword)}
                       disabled={isLoading}
                     >
-                      {showPassword ? "👁" : "🚫"}
+                      {showPassword ? (
+                    <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" strokeWidth="2" fill="none"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                  ) : (
+                    <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" strokeWidth="2" fill="none"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                  )}
                     </button>
                   </div>
                 </div>
@@ -599,6 +681,135 @@ const LoginPage = () => {
               >
                 ← Back to Sign In
               </button>
+            </div>
+          </form>
+        )}
+
+        {/* Sign Up Form */}
+        {activeForm === "signup" && (
+          <form onSubmit={handleSignUp} className="auth-form">
+            <div className="role-selector">
+              <label className="role-label">Register as:</label>
+              <div className="role-options">
+                <button
+                  type="button"
+                  className={`role-option ${role === "admin" ? "active" : ""}`}
+                  onClick={() => setRole("admin")}
+                >
+                  Admin
+                </button>
+                <button
+                  type="button"
+                  className={`role-option ${role === "client" ? "active" : ""}`}
+                  onClick={() => setRole("client")}
+                >
+                  Client
+                </button>
+                <button
+                  type="button"
+                  className={`role-option ${role === "operator" ? "active" : ""}`}
+                  onClick={() => setRole("operator")}
+                >
+                  Operator
+                </button>
+              </div>
+            </div>
+
+            <div className="form-group">
+              <label>Email</label>
+              <input
+                type="email"
+                placeholder="Type your email"
+                value={signUpEmail}
+                onChange={(e) => setSignUpEmail(e.target.value)}
+                disabled={isLoading}
+                required
+              />
+            </div>
+
+            <div className="form-group">
+              <label>Password</label>
+              <div className="password-input-wrapper">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  placeholder="Minimum 8 characters"
+                  value={signUpPassword}
+                  onChange={(e) => setSignUpPassword(e.target.value)}
+                  disabled={isLoading}
+                  required
+                />
+                <button
+                  type="button"
+                  className="password-toggle"
+                  onClick={() => setShowPassword(!showPassword)}
+                  disabled={isLoading}
+                >
+                  {showPassword ? (
+                    <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" strokeWidth="2" fill="none"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                  ) : (
+                    <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" strokeWidth="2" fill="none"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                  )}
+                </button>
+              </div>
+              <PasswordRules password={signUpPassword} />
+            </div>
+
+            <div className="form-group">
+              <label>Confirm Password</label>
+              <div className="password-input-wrapper">
+                <input
+                  type={showConfirmPassword ? "text" : "password"}
+                  placeholder="Confirm your password"
+                  value={signUpConfirm}
+                  onChange={(e) => setSignUpConfirm(e.target.value)}
+                  disabled={isLoading}
+                  required
+                />
+                <button
+                  type="button"
+                  className="password-toggle"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  disabled={isLoading}
+                >
+                  {showConfirmPassword ? (
+                    <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" strokeWidth="2" fill="none"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                  ) : (
+                    <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" strokeWidth="2" fill="none"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {signUpError && <div className="error-message">{signUpError}</div>}
+            {signUpSuccess && <div className="success-message">{signUpSuccess}</div>}
+
+            <SpecularButton
+              type="submit"
+              size="md"
+              radius={8}
+              tint="#10b981"
+              tintOpacity={0.10}
+              blur={4}
+              textColor="#f0fff8"
+              lineColor="#10b981"
+              baseColor="#0d3326"
+              intensity={1.2}
+              shineSize={12}
+              shineFade={38}
+              thickness={1}
+              followMouse
+              proximity={220}
+              disabled={isLoading || !signUpEmail || !signUpPassword || !signUpConfirm}
+              className="login-specular-btn"
+            >
+              {isLoading ? "Creating account..." : "Sign up"}
+            </SpecularButton>
+
+            <div style={{ textAlign: "center", marginTop: "1rem", fontSize: "0.9rem", color: "#9ca3af" }}>
+              Already have an account?{" "}
+              <a href="#" onClick={(e) => { e.preventDefault(); setActiveForm("signin"); }} style={{ color: "#10b981", textDecoration: "none" }}>
+                Log in
+              </a>
             </div>
           </form>
         )}
