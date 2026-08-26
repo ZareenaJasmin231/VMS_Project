@@ -83,7 +83,12 @@ export default function UserManagementPage() {
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        setUsers(data.users || []);
+        const sortedUsers = (data.users || []).sort((a, b) => {
+          const dateA = new Date(a.createdAt || 0);
+          const dateB = new Date(b.createdAt || 0);
+          return dateB - dateA;
+        });
+        setUsers(sortedUsers);
       } else {
         setError(data.detail || "Failed to fetch users directory.");
       }
@@ -259,12 +264,18 @@ export default function UserManagementPage() {
   const getFormatDate = (dateStr) => {
     if (!dateStr) return "N/A";
     try {
-      return new Date(dateStr).toLocaleString("en-US", {
+      let dStr = dateStr;
+      if (!dStr.endsWith("Z") && !dStr.includes("+") && !dStr.match(/-\d{2}:\d{2}$/)) {
+        // Ensure space is replaced by T for strict ISO parsing, and append Z to force UTC
+        dStr = dStr.replace(" ", "T") + "Z";
+      }
+      return new Date(dStr).toLocaleString("en-US", {
         year: "numeric",
         month: "short",
         day: "numeric",
         hour: "2-digit",
-        minute: "2-digit"
+        minute: "2-digit",
+        timeZone: "Asia/Kolkata"
       });
     } catch {
       return dateStr;
@@ -339,34 +350,30 @@ export default function UserManagementPage() {
                       </td>
                       <td className="td-date">{getFormatDate(u.createdAt)}</td>
                       <td className="td-actions">
-                        <button className="m-btn m-btn--elevated" onClick={() => handleEditClick(u)} title="Modify Role or Reset Password">
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
+                        <button className="m-btn m-btn--elevated" style={{ padding: '8px', minWidth: 'auto' }} onClick={() => handleEditClick(u)} title="Modify Role or Reset Password">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16" style={{ margin: 0 }}>
                             <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
                             <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
                           </svg>
-                          Edit
                         </button>
-                        <button className={`m-btn ${u.is_blocked ? "m-btn--primary" : "m-btn--danger"}`} onClick={() => handleToggleBlock(u)} title={u.is_blocked ? "Unblock User" : "Block User"}>
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
+                        <button className={`m-btn ${u.is_blocked ? "m-btn--primary" : "m-btn--danger"}`} style={{ padding: '8px', minWidth: 'auto' }} onClick={() => handleToggleBlock(u)} title={u.is_blocked ? "Unblock User" : "Block User"}>
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16" style={{ margin: 0 }}>
                             <path d="M18.36 6.64a9 9 0 1 1-12.73 0" />
                             <line x1="12" y1="2" x2="12" y2="12" />
                           </svg>
-                          {u.is_blocked ? "Unblock" : "Block"}
                         </button>
-                        <button className="m-btn m-btn--elevated" onClick={() => navigate(`/logs?user_email=${encodeURIComponent(u.email)}&tab=ui`)} title="View User Activity">
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
+                        <button className="m-btn m-btn--elevated" style={{ padding: '8px', minWidth: 'auto' }} onClick={() => navigate(`/logs?user_email=${encodeURIComponent(u.email)}&tab=ui`)} title="View User Activity">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16" style={{ margin: 0 }}>
                             <circle cx="12" cy="12" r="10" />
                             <polyline points="12 6 12 12 16 14" />
                           </svg>
-                          Activity
                         </button>
-                        <button className="m-btn m-btn--danger" onClick={() => handleDeleteUser(u)} title="Delete User Account">
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
+                        <button className="m-btn m-btn--danger" style={{ padding: '8px', minWidth: 'auto' }} onClick={() => handleDeleteUser(u)} title="Delete User Account">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16" style={{ margin: 0 }}>
                             <polyline points="3 6 5 6 21 6"/>
                             <path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/>
                             <path d="M10 11v6M14 11v6"/>
                           </svg>
-                          Delete
                         </button>
                       </td>
                     </tr>
