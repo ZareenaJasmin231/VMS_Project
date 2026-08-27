@@ -2,11 +2,12 @@ from fastapi import APIRouter, HTTPException, Depends, Request, BackgroundTasks
 from typing import Optional
 import re, asyncio, os
 from datetime import datetime, timedelta
-from app.schemas.auth import SignupRequest, LoginRequest, ForgotPasswordRequest, SupervisorPasswordRequest, SupervisorVerifyRequest, ResetPasswordRequest, AdminCreateUserRequest, AdminUpdateUserRequest
+from app.schemas.auth import SignupRequest, LoginRequest, ForgotPasswordRequest, SupervisorPasswordRequest, SupervisorVerifyRequest, ResetPasswordRequest, AdminCreateUserRequest, AdminUpdateUserRequest, ChangePasswordRequest, MFASetupResponse, MFAVerifyRequest
 from app.core.database import users_col, auth_logs_col, settings_col, supervisor_col
 from app.core.security import create_token, verify_token, require_admin, PUBLIC_KEY
 from app.services.redis_stream_publisher import publish_event as _redis_publish
 import bcrypt
+import pyotp
 
 from slowapi import Limiter
 from slowapi.util import get_remote_address
@@ -54,10 +55,15 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     except Exception:
         return False
 
-def validate_password_complexity(password: str):
-    if len(password) < 8 or not re.search(r"[A-Z]", password) or not re.search(r"[a-z]", password) or not re.search(r"[0-9]", password) or not re.search(r"[!@#$%^&*(),.?\":{}|<>]", password):
-        raise HTTPException(status_code=400, detail="Password must be at least 8 characters long and contain at least one uppercase letter, one lowercase letter, one number, and one special character")
-
+def validate_password_complexity(password: str, email: str = ""):
+    if len(password) < 12 or not re.search(r"[A-Z]", password) or not re.search(r"[a-z]", password) or not re.search(r"[0-9]", password) or not re.search(r"[!@#$%^&*(),.?\":{}|<>]", password):
+        raise HTTPException(status_code=400, detail="Password must be at least 12 characters long and contain at least one uppercase letter, one lowercase letter, one number, and one special character")
+    if email:
+        if email.lower() in password.lower():
+            raise HTTPException(status_code=400, detail="Password cannot contain your email address")
+        username = email.split('@')[0]
+        if username and username.lower() in password.lower():
+            raise HTTPException(status_code=400, detail="Password cannot contain your username")
 
 @router.post("/signup")
 def auth_signup(req: SignupRequest):
@@ -68,7 +74,7 @@ def auth_signup(req: SignupRequest):
     email_regex = r"^[^\s@]+@[^\s@]+\.[^\s@]+$"
     if not re.match(email_regex, req.email):
         raise HTTPException(status_code=400, detail="Invalid email format")
-    validate_password_complexity(req.password)
+    validate_password_complexity(req.password, req.email)
     if req.role not in ("admin", "client", "operator"):
         raise HTTPException(status_code=400, detail="Role must be 'admin', 'client', or 'operator'")
     if users_col.find_one({"email": req.email, "is_deleted": {"$ne": True}}):
@@ -78,6 +84,7 @@ def auth_signup(req: SignupRequest):
         "email":     req.email,
         "password":  hashed_password,
         "role":      req.role,
+        "requires_password_change": True,
         "createdAt": datetime.utcnow().isoformat(),
     }
     try:
@@ -190,6 +197,16 @@ async def auth_login(request: Request, req: LoginRequest, background_tasks: Back
             })
         raise HTTPException(status_code=401, detail="Invalid email or password")
     
+    if user.get("requires_password_change"):
+        raise HTTPException(status_code=403, detail="PASSWORD_CHANGE_REQUIRED")
+
+    if user.get("mfa_secret"):
+        if not req.mfa_code:
+            raise HTTPException(status_code=403, detail="MFA_REQUIRED")
+        totp = pyotp.TOTP(user["mfa_secret"])
+        if not totp.verify(req.mfa_code):
+            raise HTTPException(status_code=401, detail="Invalid MFA code")
+
     users_col.update_one({"email": req.email}, {"$set": {"failed_attempts": 0, "lockout_until": None}})
     if auth_logs_col is not None:
         try:
@@ -254,7 +271,8 @@ async def auth_login(request: Request, req: LoginRequest, background_tasks: Back
         "user": {
             "email": user["email"],
             "role": user["role"],
-            "allowedCameras": user.get("allowedCameras", [])
+            "allowedCameras": user.get("allowedCameras", []),
+            "mfa_enabled": bool(user.get("mfa_secret"))
         }
     }
 
@@ -421,7 +439,7 @@ async def create_user(req: AdminCreateUserRequest, background_tasks: BackgroundT
     email_regex = r"^[^\s@]+@[^\s@]+\.[^\s@]+$"
     if not re.match(email_regex, req.email):
         raise HTTPException(status_code=400, detail="Invalid email format")
-    validate_password_complexity(req.password)
+    validate_password_complexity(req.password, req.email)
     if req.role not in ("admin", "client", "operator"):
         raise HTTPException(status_code=400, detail="Role must be 'admin', 'client', or 'operator'")
     if users_col.find_one({"email": req.email, "is_deleted": {"$ne": True}}):
@@ -435,6 +453,7 @@ async def create_user(req: AdminCreateUserRequest, background_tasks: BackgroundT
         "email":     req.email,
         "password":  hashed_password,
         "role":      req.role,
+        "requires_password_change": True,
         "allowedCameras": req.allowedCameras or [],
         "is_blocked": req.is_blocked if req.is_blocked is not None else False,
         "createdAt": datetime.utcnow().isoformat(),
@@ -475,7 +494,7 @@ async def update_user(email: str, req: AdminUpdateUserRequest, background_tasks:
         update_fields["role"] = req.role
         
     if req.password is not None and len(req.password) > 0:
-        validate_password_complexity(req.password)
+        validate_password_complexity(req.password, email)
         
         if verify_password(req.password, existing.get("password", "")):
             raise HTTPException(status_code=400, detail="Cannot reuse the current password")
@@ -489,7 +508,8 @@ async def update_user(email: str, req: AdminUpdateUserRequest, background_tasks:
         update_fields["password"] = new_hash
         
         new_history = [existing.get("password", "")] + pwd_history
-        update_fields["password_history"] = new_history[:3]
+        update_fields["password_history"] = new_history[:5]
+        update_fields["requires_password_change"] = False
         
     if req.allowedCameras is not None and req.allowedCameras != existing.get("allowedCameras", []):
         update_fields["allowedCameras"] = req.allowedCameras
@@ -575,3 +595,84 @@ async def hard_delete_user(email: str, user=Depends(require_admin)):
         print(f"[AUTH] ❌ Admin user permanent deletion failed: {e}")
         raise HTTPException(status_code=500, detail="Failed to delete user")
     return {"success": True, "message": "User permanently deleted!"}
+
+
+@router.post("/change-password")
+async def change_password(req: ChangePasswordRequest, background_tasks: BackgroundTasks):
+    if users_col is None:
+        raise HTTPException(status_code=500, detail="Database not connected")
+    
+    user = users_col.find_one({"email": req.email})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+        
+    if not verify_password(req.old_password, user["password"]):
+        raise HTTPException(status_code=401, detail="Incorrect current password")
+        
+    if req.new_password != req.confirm_password:
+        raise HTTPException(status_code=400, detail="New passwords do not match")
+        
+    validate_password_complexity(req.new_password, user["email"])
+    
+    if verify_password(req.new_password, user["password"]):
+        raise HTTPException(status_code=400, detail="Cannot reuse the current password")
+        
+    pwd_history = user.get("password_history", [])
+    for old_hash in pwd_history:
+        if verify_password(req.new_password, old_hash):
+            raise HTTPException(status_code=400, detail="Cannot reuse a recently used password")
+            
+    new_hash = hash_password(req.new_password)
+    new_history = [user["password"]] + pwd_history
+    
+    update_fields = {
+        "password": new_hash,
+        "password_history": new_history[:5],
+        "requires_password_change": False,
+        "updatedAt": datetime.utcnow().isoformat()
+    }
+    
+    users_col.update_one({"_id": user["_id"]}, {"$set": update_fields})
+    return {"success": True, "message": "Password changed successfully"}
+
+@router.post("/mfa/setup", response_model=MFASetupResponse)
+async def setup_mfa(payload=Depends(verify_token)):
+    if users_col is None:
+        raise HTTPException(status_code=500, detail="Database not connected")
+    from bson.objectid import ObjectId
+    user_id = payload.get("sub")
+    user = users_col.find_one({"_id": ObjectId(user_id)}) if len(user_id) == 24 else users_col.find_one({"email": user_id})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+        
+    secret = pyotp.random_base32()
+    uri = pyotp.totp.TOTP(secret).provisioning_uri(name=user["email"], issuer_name="VMS")
+    
+    users_col.update_one({"_id": user["_id"]}, {"$set": {"temp_mfa_secret": secret}})
+    return {"secret": secret, "uri": uri}
+
+@router.post("/mfa/verify")
+async def verify_mfa(req: MFAVerifyRequest, payload=Depends(verify_token)):
+    if users_col is None:
+        raise HTTPException(status_code=500, detail="Database not connected")
+    from bson.objectid import ObjectId
+    user_id = payload.get("sub")
+    user = users_col.find_one({"_id": ObjectId(user_id)}) if len(user_id) == 24 else users_col.find_one({"email": user_id})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+        
+    secret = user.get("temp_mfa_secret")
+    if not secret:
+        raise HTTPException(status_code=400, detail="MFA setup not initiated")
+        
+    totp = pyotp.TOTP(secret)
+    if not totp.verify(req.code):
+        raise HTTPException(status_code=400, detail="Invalid MFA code")
+        
+    users_col.update_one(
+        {"_id": user["_id"]}, 
+        {"$set": {"mfa_secret": secret}, "$unset": {"temp_mfa_secret": ""}}
+    )
+    return {"success": True, "message": "MFA enabled successfully"}
+
+

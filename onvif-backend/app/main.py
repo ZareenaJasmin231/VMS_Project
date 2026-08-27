@@ -152,6 +152,14 @@ async def custom_rate_limit_handler(request: Request, exc: RateLimitExceeded):
 
 app.add_exception_handler(RateLimitExceeded, custom_rate_limit_handler)
 
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request, exc):
+    with open("crash.log", "w") as f:
+        import traceback
+        traceback.print_exc(file=f)
+    return JSONResponse(status_code=500, content={"detail": str(exc)})
+
+
 @app.middleware("http")
 async def add_security_headers(request: Request, call_next):
     response = await call_next(request)

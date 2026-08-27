@@ -25,6 +25,7 @@ import RecordingMethodPage from "../../pages/recording/Recordingmethodpage";
 import IOPortsPage from "../../pages/recording/IOPortsPage";
 import ActionRulesPage from "../../pages/recording/Actionrulespage";
 
+import ProfilePage from "../../pages/auth/ProfilePage";
 import ClientSettingsPage from "../../pages/client/ClientSettingsPage";
 import UserSettingsPage from "../../pages/client/Usersettingspage";
 import UserManagementPage from "../../pages/client/UserManagementPage";
@@ -96,7 +97,8 @@ const MAP = {
   "action-rules": ActionRulesPage,
 
   // ================= CLIENT =================
-  "client-settings": ClientSettingsPage,
+  "profile": ProfilePage,
+    "client-settings": ClientSettingsPage,
   "user-settings": UserSettingsPage,
   "user-management": UserManagementPage,
   "streaming": StreamingPage,
@@ -139,7 +141,7 @@ const CLIENT_SUPERVISOR_PAGES = ["media-player", "backup", "masking"];
 const CLIENT_BLOCKED_PAGES = ["designer-view", "topology-map", "network-health", "system-performance", "raid-mgmt", "viewing-stations", "user-management"];
 
 // Pages the OPERATOR role is allowed to access
-const OPERATOR_ALLOWED_PAGES = ["live-view", "map-view", "client-settings"];
+const OPERATOR_ALLOWED_PAGES = ["live-view", "map-view", "client-settings", "profile"];
 
 // Friendly names for the supervisor modal
 const SUPERVISOR_PAGE_NAMES = {
@@ -201,3 +203,5 @@ export default function PageRenderer({ activePage, onNavigate }) {
   const Component = MAP[activePage] || DashboardPage;
   return <Component onNavigate={onNavigate || ((page) => navigate(`/${page}`))} />;
 }
+
+

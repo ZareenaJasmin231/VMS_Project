@@ -18,7 +18,7 @@ function getAuthHeaders() {
 
 const PasswordRules = ({ password }) => {
   const rules = [
-    { label: "At least 8 characters long", test: p => p.length >= 8 },
+    { label: "At least 12 characters long", test: p => p.length >= 12 },
     { label: "One uppercase letter", test: p => /[A-Z]/.test(p) },
     { label: "One lowercase letter", test: p => /[a-z]/.test(p) },
     { label: "One number", test: p => /[0-9]/.test(p) },
@@ -117,7 +117,7 @@ export default function UserManagementPage() {
     }
 
     if (
-      createForm.password.length < 8 ||
+      createForm.password.length < 12 ||
       !/[A-Z]/.test(createForm.password) ||
       !/[a-z]/.test(createForm.password) ||
       !/[0-9]/.test(createForm.password) ||
@@ -170,7 +170,7 @@ export default function UserManagementPage() {
 
     if (editForm.newPassword) {
       if (
-        editForm.newPassword.length < 8 ||
+        editForm.newPassword.length < 12 ||
         !/[A-Z]/.test(editForm.newPassword) ||
         !/[a-z]/.test(editForm.newPassword) ||
         !/[0-9]/.test(editForm.newPassword) ||
@@ -423,7 +423,7 @@ export default function UserManagementPage() {
                       style={{ paddingRight: "40px" }}
                       value={createForm.password}
                       onChange={(e) => setCreateForm({ ...createForm, password: e.target.value })}
-                      placeholder="Minimum 8 characters"
+                      placeholder="Minimum 12 characters"
                       required
                     />
                     <button

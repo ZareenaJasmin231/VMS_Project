@@ -13,6 +13,7 @@ class LoginRequest(BaseModel):
     role:     str = "client"
     captcha_id: Optional[str] = None
     captcha_text: Optional[str] = None
+    mfa_code: Optional[str] = None
 
 class ForgotPasswordRequest(BaseModel):
     email: str
@@ -44,3 +45,15 @@ class AdminUpdateUserRequest(BaseModel):
     allowedCameras: Optional[List[str]] = None
     is_blocked: Optional[bool] = None
 
+class ChangePasswordRequest(BaseModel):
+    email: str
+    old_password: str
+    new_password: str
+    confirm_password: str
+
+class MFASetupResponse(BaseModel):
+    secret: str
+    uri: str
+
+class MFAVerifyRequest(BaseModel):
+    code: str

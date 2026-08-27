@@ -86,7 +86,7 @@ export const AuthProvider = ({ children }) => {
   // ------------------------------------------------------------------
   // Sign In — verifies against MongoDB via backend
   // ------------------------------------------------------------------
-  const login = async (email, password, role, captchaId = null, captchaText = null) => {
+  const login = async (email, password, role, captchaId = null, captchaText = null, mfaCode = null) => {
     if (!email || !password) {
       return { success: false, error: "Email and password required" };
     }
@@ -95,42 +95,69 @@ export const AuthProvider = ({ children }) => {
     const assignedRole = validRoles.includes(role) ? role : "client";
 
     try {
-      const res = await fetch(`${API_BASE}/api/auth/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password, role: assignedRole, captcha_id: captchaId, captcha_text: captchaText }),
-      });
+  const res = await fetch(`${API_BASE}/api/auth/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      email,
+      password,
+      role: assignedRole,
+      captcha_id: captchaId,
+      captcha_text: captchaText,
+      mfa_code: mfaCode,
+    }),
+  });
 
-      let data = null;
-      try {
-        data = await res.json();
-      } catch (jsonErr) {
-        // Response was not JSON
-      }
+  console.log("PAYLOAD SENT TO BACKEND:", JSON.stringify({
+    email,
+    password,
+    role: assignedRole,
+    captcha_id: captchaId,
+    captcha_text: captchaText,
+    mfa_code: mfaCode,
+  }));
 
-      if (!res.ok) {
-        return { 
-          success: false, 
-          error: data?.detail || data?.message || `Server error (${res.status})`,
-          requires_captcha: data?.requires_captcha || false
-        };
-      }
+  let data = null;
+  try {
+    data = await res.json();
+  } catch (jsonErr) {
+    // Response was not JSON
+  }
 
-      if (data.has_active_session) {
-        return { success: true, has_active_session: true, user: data.user, token: data.token };
-      }
+  if (!res.ok) {
+    return {
+      success: false,
+      error: data?.detail || data?.message || `Server error (${res.status})`,
+      requires_captcha: data?.requires_captcha || false,
+    };
+  }
 
-      setUser(data.user);
-      setSupervisorUnlocked(false);
-      localStorage.setItem("miradorai_user", JSON.stringify(data.user));
-      localStorage.setItem("miradorai_token", data.token);
-      return { success: true, has_active_session: false };
-    } catch (err) {
-      console.error("[AUTH] Login error:", err);
-      return { success: false, error: "Cannot connect to server. Please try again." };
-    }
+  if (data.has_active_session) {
+    return {
+      success: true,
+      has_active_session: true,
+      user: data.user,
+      token: data.token,
+    };
+  }
+
+  setUser(data.user);
+  setSupervisorUnlocked(false);
+  localStorage.setItem("miradorai_user", JSON.stringify(data.user));
+  localStorage.setItem("miradorai_token", data.token);
+
+  return {
+    success: true,
+    has_active_session: false,
   };
-
+} catch (err) {
+  console.error("[AUTH] Login error:", err);
+  return {
+    success: false,
+    error: "Cannot connect to server. Please try again.",
+  };
+}
+};
   // ------------------------------------------------------------------
   // Supervisor unlock — client role uses this to access restricted pages
   // Password is set by admin via Settings > Supervisor Details (stored in localStorage)
@@ -324,3 +351,9 @@ export const AuthProvider = ({ children }) => {
     </AuthContext.Provider>
   );
 };
+
+
+
+
+
+

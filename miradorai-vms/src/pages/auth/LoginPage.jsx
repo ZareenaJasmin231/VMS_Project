@@ -6,11 +6,11 @@ import SpecularButton from "../../components/shared/SpecularButton";
 
 const PasswordRules = ({ password }) => {
   const rules = [
-    { label: "At least 8 characters long", test: p => p.length >= 8 },
+    { label: "At least 12 characters long", test: p => p.length >= 12 },
     { label: "One uppercase letter", test: p => /[A-Z]/.test(p) },
     { label: "One lowercase letter", test: p => /[a-z]/.test(p) },
     { label: "One number", test: p => /[0-9]/.test(p) },
-    { label: "One special character", test: p => /[!@#$%^&*(),.?":{}|<>]/.test(p) }
+    { label: "One special character", test: p => /[!@#\$%^&*(),.?":{}|<>]/ .test(p) }
   ];
 
   return (
@@ -52,6 +52,14 @@ const LoginPage = () => {
   const [signInError, setSignInError] = useState("");
   const [activeSessionWarning, setActiveSessionWarning] = useState(null);
 
+  // MFA Form
+  const [showMfaInput, setShowMfaInput] = useState(false);
+  const [mfaCode, setMfaCode] = useState("");
+
+  // Forced Password Change Form
+  const [showChangePassword, setShowChangePassword] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmNewPassword, setConfirmNewPassword] = useState("");
   // Sign Up Form
   const [signUpEmail, setSignUpEmail] = useState("");
   const [signUpPassword, setSignUpPassword] = useState("");
@@ -104,9 +112,22 @@ const LoginPage = () => {
 
     await new Promise((resolve) => setTimeout(resolve, 500));
 
-    const result = await login(signInEmail, signInPassword, role, captchaId, captchaText);
+    console.log("CALLING LOGIN WITH MFA CODE:", mfaCode);
+    const result = await login(signInEmail, signInPassword, role, captchaId, captchaText, mfaCode);
 
     if (!result.success) {
+      if (result.error === "PASSWORD_CHANGE_REQUIRED") {
+        setShowChangePassword(true);
+        setIsLoading(false);
+        return;
+      }
+      if (result.error === "MFA_REQUIRED") {
+        setShowMfaInput(true);
+        setSignInError(""); // clear error for MFA screen
+        setIsLoading(false);
+        return;
+      }
+
       setSignInError(result.error);
       if (result.requires_captcha) {
         setRequiresCaptcha(true);
@@ -139,6 +160,48 @@ const LoginPage = () => {
     setIsLoading(false);
   };
 
+    const handleForcedPasswordChange = async (e) => {
+    e.preventDefault();
+    setSignInError("");
+    setIsLoading(true);
+
+    if (newPassword !== confirmNewPassword) {
+      setSignInError("New passwords do not match");
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      const res = await fetch("/api/auth/change-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: signInEmail,
+          old_password: signInPassword,
+          new_password: newPassword,
+          confirm_password: confirmNewPassword
+        })
+      });
+      const data = await res.json();
+      
+      if (!res.ok) {
+        setSignInError(data.detail || data.message || "Failed to change password");
+        setIsLoading(false);
+        return;
+      }
+      
+      // Password changed! Switch back to normal login and auto-login or just clear state
+      setShowChangePassword(false);
+      setSignInPassword(newPassword); // auto-fill new password
+      setNewPassword("");
+      setConfirmNewPassword("");
+      setSignInError("Password changed successfully. Please sign in again.");
+      setIsLoading(false);
+    } catch (err) {
+      setSignInError("Network error. Please try again.");
+      setIsLoading(false);
+    }
+  };
   const handleSignUp = async (e) => {
     e.preventDefault();
     setSignUpError("");
@@ -269,7 +332,100 @@ const LoginPage = () => {
         </div>
 
         {/* Sign In Form */}
-        {activeForm === "signin" && (
+        {activeForm === "signin" && showChangePassword && (
+          <form onSubmit={handleForcedPasswordChange} className="auth-form">
+            <p style={{ color: '#d1d5db', fontSize: '14px', marginBottom: '16px' }}>Your account requires a password change.</p>
+            <div className="form-group">
+              <label>New Password</label>
+              <div className="password-input-wrapper">
+                <input type={showPassword ? "text" : "password"} placeholder="Enter new password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} disabled={isLoading} required />
+                <button type="button" className="password-toggle" onClick={() => setShowPassword(!showPassword)}>{showPassword ? 'Hide' : 'Show'}</button>
+              </div>
+              <PasswordRules password={newPassword} />
+            </div>
+            <div className="form-group">
+              <label>Confirm Password</label>
+              <div className="password-input-wrapper">
+                <input type={showConfirmPassword ? "text" : "password"} placeholder="Confirm password" value={confirmNewPassword} onChange={(e) => setConfirmNewPassword(e.target.value)} disabled={isLoading} required />
+                <button type="button" className="password-toggle" onClick={() => setShowConfirmPassword(!showConfirmPassword)}>{showConfirmPassword ? 'Hide' : 'Show'}</button>
+              </div>
+            </div>
+            {signInError && <div className="error-message">{signInError}</div>}
+            {activeSessionWarning && (
+              <div className="warning-message" style={{ marginTop: '16px', marginBottom: '16px' }}>
+                <p>This user already has an active session on another device.</p>
+                <div className="warning-message-actions">
+                  <button 
+                    type="button"
+                    onClick={() => setActiveSessionWarning(null)}
+                    style={{ background: 'rgba(255,255,255,0.05)', color: '#d1d5db', border: '1px solid rgba(255,255,255,0.1)', padding: '8px 14px', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: '500' }}
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    type="button"
+                    onClick={() => {
+                      completeLogin(activeSessionWarning.user, activeSessionWarning.token);
+                      logAction("User logged in (concurrent)", "auth", { email: signInEmail });
+                    }}
+                    style={{ background: 'rgba(59, 130, 246, 0.2)', color: '#93c5fd', border: '1px solid rgba(59, 130, 246, 0.4)', padding: '8px 14px', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: '600' }}
+                  >
+                    Continue Anyway
+                  </button>
+                </div>
+              </div>
+            )}
+
+            
+            <SpecularButton type="submit" size="md" radius={8} tint="#10b981" tintOpacity={0.1} blur={4} textColor="#f0fff8" lineColor="#10b981" baseColor="#0d3326" intensity={1.2} shineSize={12} shineFade={38} thickness={1} followMouse proximity={220} disabled={isLoading || !newPassword || !confirmNewPassword} className="login-specular-btn">
+              {isLoading ? "Updating..." : "Change Password"}
+            </SpecularButton>
+            <button type="button" onClick={() => setShowChangePassword(false)} className="link-btn" style={{ marginTop: '16px', display: 'block', width: '100%' }}>Cancel</button>
+          </form>
+        )}
+
+        {activeForm === "signin" && showMfaInput && (
+          <form onSubmit={handleSignIn} className="auth-form">
+            <p style={{ color: '#d1d5db', fontSize: '14px', marginBottom: '16px' }}>Two-Factor Authentication is enabled on this account.</p>
+            <div className="form-group">
+              <label>Authenticator Code</label>
+              <input type="text" placeholder="6-digit code" value={mfaCode} onChange={(e) => setMfaCode(e.target.value)} disabled={isLoading} required maxLength="6" />
+            </div>
+            {signInError && <div className="error-message">{signInError}</div>}
+            {activeSessionWarning && (
+              <div className="warning-message" style={{ marginTop: '16px', marginBottom: '16px' }}>
+                <p>This user already has an active session on another device.</p>
+                <div className="warning-message-actions">
+                  <button 
+                    type="button"
+                    onClick={() => setActiveSessionWarning(null)}
+                    style={{ background: 'rgba(255,255,255,0.05)', color: '#d1d5db', border: '1px solid rgba(255,255,255,0.1)', padding: '8px 14px', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: '500' }}
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    type="button"
+                    onClick={() => {
+                      completeLogin(activeSessionWarning.user, activeSessionWarning.token);
+                      logAction("User logged in (concurrent)", "auth", { email: signInEmail });
+                    }}
+                    style={{ background: 'rgba(59, 130, 246, 0.2)', color: '#93c5fd', border: '1px solid rgba(59, 130, 246, 0.4)', padding: '8px 14px', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: '600' }}
+                  >
+                    Continue Anyway
+                  </button>
+                </div>
+              </div>
+            )}
+
+            
+            <SpecularButton type="submit" size="md" radius={8} tint="#10b981" tintOpacity={0.1} blur={4} textColor="#f0fff8" lineColor="#10b981" baseColor="#0d3326" intensity={1.2} shineSize={12} shineFade={38} thickness={1} followMouse proximity={220} disabled={isLoading || !mfaCode || mfaCode.length < 6} className="login-specular-btn">
+              {isLoading ? "Verifying..." : "Verify"}
+            </SpecularButton>
+            <button type="button" onClick={() => setShowMfaInput(false)} className="link-btn" style={{ marginTop: '16px', display: 'block', width: '100%' }}>Cancel</button>
+          </form>
+        )}
+
+        {activeForm === "signin" && !showChangePassword && !showMfaInput && (
           <form onSubmit={handleSignIn} className="auth-form">
             {/* Role Selection */}
             <div className="role-selector">
@@ -399,10 +555,8 @@ const LoginPage = () => {
 
             {/* Error */}
             {signInError && <div className="error-message">{signInError}</div>}
-
-            {/* Warning */}
             {activeSessionWarning && (
-              <div className="warning-message">
+              <div className="warning-message" style={{ marginTop: '16px', marginBottom: '16px' }}>
                 <p>This user already has an active session on another device.</p>
                 <div className="warning-message-actions">
                   <button 
@@ -425,6 +579,11 @@ const LoginPage = () => {
                 </div>
               </div>
             )}
+
+            
+
+            {/* Warning */}
+            
 
             {/* Sign In Button */}
             <SpecularButton
@@ -683,7 +842,7 @@ const LoginPage = () => {
               </button>
             </div>
           </form>
-        )} */}
+        )}
 
         {/* Sign Up Form */}
         {activeForm === "signup" && (
@@ -732,7 +891,7 @@ const LoginPage = () => {
               <div className="password-input-wrapper">
                 <input
                   type={showPassword ? "text" : "password"}
-                  placeholder="Minimum 8 characters"
+                  placeholder="Minimum 12 characters"
                   value={signUpPassword}
                   onChange={(e) => setSignUpPassword(e.target.value)}
                   disabled={isLoading}
@@ -826,3 +985,9 @@ const LoginPage = () => {
 };
 
 export default LoginPage;
+
+
+
+
+
+

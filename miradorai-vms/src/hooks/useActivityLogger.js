@@ -45,6 +45,36 @@ const useActivityLogger = () => {
     }
   }, [location.pathname, isAuthenticated, user]);
 
+  // Global click listener for comprehensive tracking
+  useEffect(() => {
+    if (!isAuthenticated || !user) return;
+    
+    const handleGlobalClick = (e) => {
+      // Find the closest interactive element
+      const target = e.target.closest('button, a, input, select, [role="button"], .vs-station-card, .alp-row, [class*="card"]');
+      if (target) {
+        let elementText = target.innerText || target.value || target.getAttribute('aria-label') || target.tagName;
+        // Clean up the text
+        if (typeof elementText === 'string') {
+          elementText = elementText.substring(0, 60).replace(/\n/g, ' ').trim();
+        }
+        
+        // Exclude empty clicks or generic wrappers if they don't have useful text
+        if (elementText) {
+          logUIAction(user, `Clicked on '${elementText}'`, "click", {
+            page: location.pathname,
+            element: target.tagName,
+            className: target.className,
+            text: elementText
+          });
+        }
+      }
+    };
+    
+    document.addEventListener("click", handleGlobalClick, { capture: true });
+    return () => document.removeEventListener("click", handleGlobalClick, { capture: true });
+  }, [isAuthenticated, user, location.pathname]);
+
   return {
     logAction: (action, category, details) =>
       logUIAction(user, action, category, details),
