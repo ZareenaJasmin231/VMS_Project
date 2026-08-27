@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
+import { useWebSocket } from "../hooks/useWebSocket";
 
 const AuthContext = createContext();
 
@@ -19,6 +20,10 @@ export const AuthProvider = ({ children }) => {
   // Supervisor unlock — reset on logout / new session
   const [supervisorUnlocked, setSupervisorUnlocked] = useState(false);
 
+  // Connect to websocket to listen for global force_logout events
+  const { lastEvent } = useWebSocket(["alerts"]);
+  const processedEvents = React.useRef(new Set());
+
   // Restore session from localStorage on mount
   useEffect(() => {
     try {
@@ -34,6 +39,27 @@ export const AuthProvider = ({ children }) => {
       setIsLoading(false);
     }
   }, []);
+
+  // Listen for auth_revoked events
+  useEffect(() => {
+    if (user && lastEvent?.topic === "alerts" && lastEvent?.event === "auth_revoked") {
+      const eventId = lastEvent.event_id || lastEvent.timestamp;
+      if (!eventId || processedEvents.current.has(eventId)) return;
+      processedEvents.current.add(eventId);
+
+      const currentSession = localStorage.getItem("miradorai_session_id");
+      if (!currentSession) return; // ignore if we don't have a session locally
+
+      if (lastEvent.data?.user_email === user.email && lastEvent.data?.session_id !== currentSession) {
+        alert("Session expired: Another session has been initiated under this account.");
+        setUser(null);
+        setSupervisorUnlocked(false);
+        localStorage.removeItem("miradorai_user");
+        localStorage.removeItem("miradorai_token");
+        localStorage.removeItem("miradorai_session_id");
+      }
+    }
+  }, [lastEvent, user]);
 
   // ------------------------------------------------------------------
   // Sign Up — saves to MongoDB via backend
@@ -138,6 +164,7 @@ export const AuthProvider = ({ children }) => {
       has_active_session: true,
       user: data.user,
       token: data.token,
+      session_id: data.session_id,
     };
   }
 
@@ -145,6 +172,8 @@ export const AuthProvider = ({ children }) => {
   setSupervisorUnlocked(false);
   localStorage.setItem("miradorai_user", JSON.stringify(data.user));
   localStorage.setItem("miradorai_token", data.token);
+  // Also store the session_id to ignore my own login events!
+  if (data.session_id) localStorage.setItem("miradorai_session_id", data.session_id);
 
   return {
     success: true,
@@ -313,17 +342,19 @@ export const AuthProvider = ({ children }) => {
     setSupervisorUnlocked(false);
     localStorage.removeItem("miradorai_user");
     localStorage.removeItem("miradorai_token");
+    localStorage.removeItem("miradorai_session_id");
   };
 
   const isAdmin        = user?.role === "admin";
   const isClient       = user?.role === "client";
   const isOperator     = user?.role === "operator";
   const isAuthenticated = !!user;
-  const completeLogin = (userData, token) => {
+  const completeLogin = (userData, token, session_id = null) => {
     setUser(userData);
     setSupervisorUnlocked(false);
     localStorage.setItem("miradorai_user", JSON.stringify(userData));
     localStorage.setItem("miradorai_token", token);
+    if (session_id) localStorage.setItem("miradorai_session_id", session_id);
   };
 
   return (
@@ -351,9 +382,3 @@ export const AuthProvider = ({ children }) => {
     </AuthContext.Provider>
   );
 };
-
-
-
-
-
-

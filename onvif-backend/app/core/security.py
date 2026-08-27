@@ -94,6 +94,19 @@ def verify_token(request: Request, credentials: HTTPAuthorizationCredentials = D
                         detail="Session expired or invalid",
                         headers={"WWW-Authenticate": "Bearer"},
                     )
+                if session_doc.get("is_invalidated"):
+                    reason = session_doc.get("invalidated_reason", "unknown")
+                    if reason == "concurrent_login":
+                        raise HTTPException(
+                            status_code=status.HTTP_401_UNAUTHORIZED,
+                            detail="Session expired: Another session has been initiated under this account.",
+                            headers={"WWW-Authenticate": "Bearer"},
+                        )
+                    raise HTTPException(
+                        status_code=status.HTTP_401_UNAUTHORIZED,
+                        detail="Session expired or invalid",
+                        headers={"WWW-Authenticate": "Bearer"},
+                    )
         return payload
     except JWTError:
         raise HTTPException(

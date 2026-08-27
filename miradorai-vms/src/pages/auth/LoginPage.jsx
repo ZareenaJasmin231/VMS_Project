@@ -365,7 +365,7 @@ const LoginPage = () => {
                   <button 
                     type="button"
                     onClick={() => {
-                      completeLogin(activeSessionWarning.user, activeSessionWarning.token);
+                      completeLogin(activeSessionWarning.user, activeSessionWarning.token, activeSessionWarning.session_id);
                       logAction("User logged in (concurrent)", "auth", { email: signInEmail });
                     }}
                     style={{ background: 'rgba(59, 130, 246, 0.2)', color: '#93c5fd', border: '1px solid rgba(59, 130, 246, 0.4)', padding: '8px 14px', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: '600' }}
@@ -406,7 +406,7 @@ const LoginPage = () => {
                   <button 
                     type="button"
                     onClick={() => {
-                      completeLogin(activeSessionWarning.user, activeSessionWarning.token);
+                      completeLogin(activeSessionWarning.user, activeSessionWarning.token, activeSessionWarning.session_id);
                       logAction("User logged in (concurrent)", "auth", { email: signInEmail });
                     }}
                     style={{ background: 'rgba(59, 130, 246, 0.2)', color: '#93c5fd', border: '1px solid rgba(59, 130, 246, 0.4)', padding: '8px 14px', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: '600' }}
@@ -569,7 +569,7 @@ const LoginPage = () => {
                   <button 
                     type="button"
                     onClick={() => {
-                      completeLogin(activeSessionWarning.user, activeSessionWarning.token);
+                      completeLogin(activeSessionWarning.user, activeSessionWarning.token, activeSessionWarning.session_id);
                       logAction("User logged in (concurrent)", "auth", { email: signInEmail });
                     }}
                     style={{ background: 'rgba(59, 130, 246, 0.2)', color: '#93c5fd', border: '1px solid rgba(59, 130, 246, 0.4)', padding: '8px 14px', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: '600' }}

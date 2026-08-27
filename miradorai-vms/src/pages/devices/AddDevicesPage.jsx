@@ -129,13 +129,30 @@ function ContextMenu({ x, y, onEdit, onRemove, onStreamProfiles, onClose }) {
 // Group reassignment is kept here — useful for moving a camera after the fact.
 export function EditDeviceModal({ device, groups, onClose, onSave }) {
   const { theme } = useTheme();
+  
+  const initialRtsp = device.rtsp_url || "";
+  let initialUsername = "";
+  let initialPassword = "";
+  let initialCleanUrl = initialRtsp;
+
+  if (initialRtsp) {
+    const match = initialRtsp.match(/^(rtsps?:\/\/)(?:([^:]+)(?::([^@]+))?@)?(.*)$/i);
+    if (match) {
+      initialUsername = match[2] ? decodeURIComponent(match[2]) : "";
+      initialPassword = match[3] ? decodeURIComponent(match[3]) : "";
+      initialCleanUrl = match[1] + match[4];
+    }
+  }
+
   const [form, setForm] = useState({
     device_name: device.device_name || device.name || "",
     ip: device.ip || "",
     mac: device.mac || "",
     manufacturer: device.manufacturer || "",
     model: device.model || "",
-    rtsp_url: device.rtsp_url || "",
+    username: initialUsername,
+    password: initialPassword,
+    clean_rtsp_url: initialCleanUrl,
     group_id: device.group_id || "default",
   });
 
@@ -172,7 +189,9 @@ export function EditDeviceModal({ device, groups, onClose, onSave }) {
             { label: "MAC Address", key: "mac" },
             { label: "Manufacturer", key: "manufacturer" },
             { label: "Model", key: "model" },
-            { label: "RTSP URL", key: "rtsp_url" },
+            { label: "Username", key: "username" },
+            { label: "Password", key: "password" },
+            { label: "RTSP URL", key: "clean_rtsp_url" },
           ].map(({ label, key }) => (
             <div className="modal-field" key={key}>
               <label className="modal-label">{label}</label>
@@ -233,7 +252,23 @@ export function EditDeviceModal({ device, groups, onClose, onSave }) {
             Cancel
           </SpecularButton>
           <SpecularButton
-            onClick={() => { onSave({ ...device, ...form }); onClose(); }}
+            onClick={() => {
+              let final_rtsp_url = form.clean_rtsp_url;
+              if (form.username || form.password) {
+                const match = form.clean_rtsp_url.match(/^(rtsps?:\/\/)(.*)$/i);
+                const u = form.username ? encodeURIComponent(form.username).replace(/[!'()*]/g, c => '%' + c.charCodeAt(0).toString(16).toUpperCase()) : "";
+                const p = form.password ? encodeURIComponent(form.password).replace(/[!'()*]/g, c => '%' + c.charCodeAt(0).toString(16).toUpperCase()) : "";
+                const credentials = `${u}${p ? ':' + p : ''}@`;
+                if (match) {
+                  final_rtsp_url = `${match[1]}${credentials}${match[2]}`;
+                } else {
+                  final_rtsp_url = `rtsp://${credentials}${form.clean_rtsp_url}`;
+                }
+              }
+              const { clean_rtsp_url, username, password, ...restForm } = form;
+              onSave({ ...device, ...restForm, rtsp_url: final_rtsp_url });
+              onClose();
+            }}
             size="sm"
             radius={6}
             tint="#3b82f6"

@@ -232,13 +232,22 @@ async def auth_login(request: Request, req: LoginRequest, background_tasks: Back
         now_utc = datetime.utcnow()
         now_ist = now_utc + timedelta(hours=5, minutes=30)
         
-        # Check if user already has active sessions
-        existing_session = _db["active_sessions"].find_one({"user_id": user_id_str})
-        session_note = "Initial login"
-        if existing_session:
+        # Invalidate any existing sessions for this user
+        existing_sessions = list(_db["active_sessions"].find({"user_id": user_id_str, "is_invalidated": {"$ne": True}}))
+        if existing_sessions:
             has_active_session = True
-            session_note = f"Concurrent login of same username ({user['email']})"
-            log_security_event("INFO", "CONCURRENT_LOGIN", session_note, client_ip)
+            log_security_event("INFO", "CONCURRENT_LOGIN", f"Invalidating {len(existing_sessions)} existing sessions for user: {user['email']}", client_ip)
+            _db["active_sessions"].update_many(
+                {"user_id": user_id_str},
+                {"$set": {"is_invalidated": True, "invalidated_reason": "concurrent_login"}}
+            )
+            # Broadcast the auth_revoked event via WebSocket
+            from app.core.ws_manager import ws_manager
+            await ws_manager.broadcast(
+                topic="alerts",
+                event="auth_revoked",
+                data={"user_email": user["email"], "session_id": session_id}
+            )
             
         _db["active_sessions"].insert_one({
             "user_id": user_id_str,
@@ -248,7 +257,7 @@ async def auth_login(request: Request, req: LoginRequest, background_tasks: Back
             "created_at_ist": now_ist.isoformat(),
             "updated_at": now_utc.isoformat(),
             "updated_at_ist": now_ist.isoformat(),
-            "notes": session_note
+            "notes": "Initial login" if not has_active_session else f"Concurrent login of same username ({user['email']})"
         })
     
     token = create_token(user_id_str, user["role"], session_id)
@@ -267,6 +276,7 @@ async def auth_login(request: Request, req: LoginRequest, background_tasks: Back
     return {
         "success": True,
         "token": token,
+        "session_id": session_id,
         "has_active_session": has_active_session,
         "user": {
             "email": user["email"],

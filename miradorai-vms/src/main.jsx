@@ -22,10 +22,14 @@ window.fetch = async (...args) => {
 
   const response = await originalFetch(resource, config);
 
-  // Handle unauthorized responses globally — but only redirect once
+  // Handle unauthorized responses globally
   if (response.status === 401 && !resource.includes('/api/auth/')) {
     console.warn("Unauthorized API call:", resource);
-    // Don't auto-redirect; let the app handle auth state naturally
+    // Auto-redirect to login screen on 401 (Fallback for concurrent login)
+    localStorage.removeItem('miradorai_user');
+    localStorage.removeItem('miradorai_token');
+    localStorage.removeItem('miradorai_session_id');
+    window.location.href = '/';
   }
 
   return response;
