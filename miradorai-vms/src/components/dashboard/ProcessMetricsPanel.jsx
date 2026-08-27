@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import './ProcessMetricsPanel.css';
 
-const ProcessMetricsPanel = ({ onOpenScalingReport }) => {
+const ProcessMetricsPanel = ({ onOpenScalingReport, onOpenLiveStreamingReport }) => {
   const [metrics, setMetrics] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -135,6 +135,13 @@ const ProcessMetricsPanel = ({ onOpenScalingReport }) => {
               ⚡ Clean {summary.total_stale_orphaned_count || summary.orphaned_ffmpeg_count} Stale / Zombie Processes
             </button>
           )}
+          <button 
+            className="vms-proc-btn vms-proc-btn-primary"
+            onClick={onOpenLiveStreamingReport}
+            style={{ marginRight: '10px' }}
+          >
+            📡 Live Streaming Report
+          </button>
           <button 
             className="vms-proc-btn vms-proc-btn-primary"
             onClick={onOpenScalingReport}

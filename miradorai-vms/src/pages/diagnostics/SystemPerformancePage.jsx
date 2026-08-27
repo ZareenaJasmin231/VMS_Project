@@ -2,11 +2,13 @@ import React, { useState } from "react";
 import ProcessMetricsPanel from "../../components/dashboard/ProcessMetricsPanel";
 import ProcessHistoryPanel from "../../components/dashboard/ProcessHistoryPanel";
 import HardwareScalingReportModal from "../../components/dashboard/HardwareScalingReportModal";
+import LiveStreamingReportModal from "../../components/dashboard/LiveStreamingReportModal";
 import "./SystemPerformancePage.css";
 
 const SystemPerformancePage = () => {
   const [activeTab, setActiveTab] = useState("live"); // 'live' | 'history'
   const [isScalingModalOpen, setIsScalingModalOpen] = useState(false);
+  const [isLiveStreamingModalOpen, setIsLiveStreamingModalOpen] = useState(false);
 
   return (
     <div className="sys-perf-page">
@@ -33,7 +35,10 @@ const SystemPerformancePage = () => {
 
       <div className="sys-perf-content">
         {activeTab === 'live' ? (
-          <ProcessMetricsPanel onOpenScalingReport={() => setIsScalingModalOpen(true)} />
+          <ProcessMetricsPanel 
+            onOpenScalingReport={() => setIsScalingModalOpen(true)} 
+            onOpenLiveStreamingReport={() => setIsLiveStreamingModalOpen(true)}
+          />
         ) : (
           <ProcessHistoryPanel />
         )}
@@ -41,6 +46,11 @@ const SystemPerformancePage = () => {
         <HardwareScalingReportModal 
           isOpen={isScalingModalOpen} 
           onClose={() => setIsScalingModalOpen(false)} 
+        />
+
+        <LiveStreamingReportModal 
+          isOpen={isLiveStreamingModalOpen} 
+          onClose={() => setIsLiveStreamingModalOpen(false)} 
         />
       </div>
     </div>
