@@ -5,11 +5,18 @@ export default function CreateGroupModal({ onClose, onCreate }) {
   const [alertMsg, setAlertMsg] = useState("");
 
   const handleCreate = () => {
-    if (!name.trim()) {
+    const trimmed = name.trim();
+    if (!trimmed) {
       setAlertMsg("Group Name is a mandatory field. Please enter a group name!");
       return;
     }
-    onCreate(name.trim());
+    
+    if (!/^[a-zA-Z0-9 _-]+$/.test(trimmed)) {
+      setAlertMsg("Group Name can only contain alphanumeric characters, spaces, dashes, and underscores.");
+      return;
+    }
+    
+    onCreate(trimmed);
     onClose();
   };
 

@@ -50,12 +50,17 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
   const { logAction } = useActivityLogger();
 
   const handleSaveGroupName = async (groupId) => {
-    if (!editingGroupName.trim()) {
+    const trimmed = editingGroupName.trim();
+    if (!trimmed) {
       setEditingGroupId(null);
       return;
     }
+    if (!/^[a-zA-Z0-9 _-]+$/.test(trimmed)) {
+      setUiError("Group Name can only contain alphanumeric characters, spaces, dashes, and underscores.");
+      return;
+    }
     const updatedGroups = groups.map(g => 
-      g.id === groupId ? { ...g, name: editingGroupName.trim() } : g
+      g.id === groupId ? { ...g, name: trimmed } : g
     );
     setGroups(updatedGroups);
     setEditingGroupId(null);

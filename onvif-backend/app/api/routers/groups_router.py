@@ -35,6 +35,10 @@ async def create_group(request: Request):
     if not name:
         raise HTTPException(status_code=400, detail="Group name is required")
         
+    import re
+    if not re.match(r"^[a-zA-Z0-9 _-]+$", name):
+        raise HTTPException(status_code=400, detail="Group name contains invalid characters")
+        
     groups_col = db["groups"]
     
     group_doc = {
@@ -59,6 +63,10 @@ async def update_group(group_id: str, request: Request):
     
     if not name:
         raise HTTPException(status_code=400, detail="Group name is required")
+        
+    import re
+    if not re.match(r"^[a-zA-Z0-9 _-]+$", name):
+        raise HTTPException(status_code=400, detail="Group name contains invalid characters")
         
     groups_col = db["groups"]
     
