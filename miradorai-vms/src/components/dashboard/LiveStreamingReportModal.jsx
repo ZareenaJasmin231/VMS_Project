@@ -11,14 +11,14 @@ const LiveStreamingReportModal = ({ isOpen, onClose }) => {
         setLoading(true);
         try {
           const token = localStorage.getItem('token');
-          // We can reuse the hardware scaling report API to get the current number of active streams
-          const res = await fetch('/api/dashboard/hardware-scaling-report', {
+          // Fetch from summary API which has the real-time active_streams count that matches the dashboard
+          const res = await fetch('/api/dashboard/summary', {
             headers: { 'Authorization': token ? `Bearer ${token}` : '' }
           });
           const data = await res.json();
           setReport(data);
         } catch (err) {
-          console.error('Failed to fetch hardware report:', err);
+          console.error('Failed to fetch summary for live streaming report:', err);
         } finally {
           setLoading(false);
         }
@@ -29,11 +29,7 @@ const LiveStreamingReportModal = ({ isOpen, onClose }) => {
 
   if (!isOpen) return null;
 
-  const { 
-    current_measured_baseline = {}, 
-  } = report || {};
-
-  const activeStreams = current_measured_baseline.active_streams_measured || 0;
+  const activeStreams = report?.active_streams || 0;
   
   // Calculate Live Streaming specs based on active streams
   // RAM: ~20MB per stream (for MediaMTX)
