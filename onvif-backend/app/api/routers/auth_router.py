@@ -84,7 +84,7 @@ def auth_signup(req: SignupRequest):
         "email":     req.email,
         "password":  hashed_password,
         "role":      req.role,
-        "requires_password_change": True,
+        "requires_password_change": False,
         "createdAt": datetime.utcnow().isoformat(),
     }
     try:
@@ -227,6 +227,7 @@ async def auth_login(request: Request, req: LoginRequest, background_tasks: Back
     
     session_id = str(uuid.uuid4())
     user_id_str = str(user["_id"])
+    token = create_token(user_id_str, user["role"], session_id)
     has_active_session = False
     if _db is not None:
         now_utc = datetime.utcnow()
@@ -239,7 +240,7 @@ async def auth_login(request: Request, req: LoginRequest, background_tasks: Back
             log_security_event("INFO", "CONCURRENT_LOGIN", f"Invalidating {len(existing_sessions)} existing sessions for user: {user['email']}", client_ip)
             _db["active_sessions"].update_many(
                 {"user_id": user_id_str},
-                {"$set": {"is_invalidated": True, "invalidated_reason": "concurrent_login"}}
+                {"$set": {"is_invalidated": True, "invalidated_reason": "concurrent_login", "status": "out"}}
             )
             # Broadcast the auth_revoked event via WebSocket
             from app.core.ws_manager import ws_manager
@@ -252,6 +253,8 @@ async def auth_login(request: Request, req: LoginRequest, background_tasks: Back
         _db["active_sessions"].insert_one({
             "user_id": user_id_str,
             "session_id": session_id, 
+            "token": token,
+            "status": "in",
             "email": user["email"],
             "created_at": now_utc.isoformat(),
             "created_at_ist": now_ist.isoformat(),
@@ -259,8 +262,6 @@ async def auth_login(request: Request, req: LoginRequest, background_tasks: Back
             "updated_at_ist": now_ist.isoformat(),
             "notes": "Initial login" if not has_active_session else f"Concurrent login of same username ({user['email']})"
         })
-    
-    token = create_token(user_id_str, user["role"], session_id)
     
     # ── Redis Stream: user.login ──────────────────────────────────────────────
     background_tasks.add_task(
@@ -297,11 +298,23 @@ async def auth_logout(request: Request, payload: dict = Depends(verify_token)):
     from app.core.database import db as _db, auth_logs_col, users_col
     
     if _db is not None and user_id:
-        # Delete only this specific active session to invalidate token
+        now_utc = datetime.utcnow()
+        now_ist = now_utc + timedelta(hours=5, minutes=30)
+        update_doc = {
+            "$set": {
+                "status": "out",
+                "is_invalidated": True,
+                "invalidated_reason": "logout",
+                "updated_at": now_utc.isoformat(),
+                "updated_at_ist": now_ist.isoformat()
+            }
+        }
+        
+        # Update session status to "out" instead of deleting
         if session_id:
-            _db["active_sessions"].delete_one({"user_id": user_id, "session_id": session_id})
+            _db["active_sessions"].update_one({"user_id": user_id, "session_id": session_id}, update_doc)
         else:
-            _db["active_sessions"].delete_many({"user_id": user_id})
+            _db["active_sessions"].update_many({"user_id": user_id}, update_doc)
         
         # Add to auth audit logs
         if auth_logs_col is not None:
@@ -526,11 +539,22 @@ async def update_user(email: str, req: AdminUpdateUserRequest, background_tasks:
         
     if req.is_blocked is not None and req.is_blocked != existing.get("is_blocked"):
         update_fields["is_blocked"] = req.is_blocked
-        # If user is blocked, instantly delete active sessions to terminate their token
+        # If user is blocked, instantly update active sessions to terminate their token
         if req.is_blocked:
             from app.core.database import db as _db
             if _db is not None:
-                _db["active_sessions"].delete_many({"user_id": str(existing["_id"])})
+                now_utc = datetime.utcnow()
+                now_ist = now_utc + timedelta(hours=5, minutes=30)
+                _db["active_sessions"].update_many(
+                    {"user_id": str(existing["_id"])},
+                    {"$set": {
+                        "status": "out",
+                        "is_invalidated": True,
+                        "invalidated_reason": "user_blocked",
+                        "updated_at": now_utc.isoformat(),
+                        "updated_at_ist": now_ist.isoformat()
+                    }}
+                )
 
     if not update_fields:
         return {"success": True, "message": "No changes requested."}
