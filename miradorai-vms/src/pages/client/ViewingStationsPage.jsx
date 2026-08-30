@@ -1,7 +1,5 @@
 import { useState, useEffect, useRef } from "react";
 import WebRTCPlayer_MediaMTX from "../../components/shared/WebRTCPlayer_MediaMTX";
-import rrwebPlayer from 'rrweb-player';
-import 'rrweb-player/dist/style.css';
 import "./ViewingStationsPage.css";
 
 const API = import.meta.env.VITE_API_URL;
@@ -227,35 +225,62 @@ export default function ViewingStationsPage() {
                       className={`vs-station-card ${st.is_online ? "online" : "offline"} ${isSelected ? "selected" : ""}`}
                       onClick={() => handleEditStationLayout(st)}
                     >
-                      <div className="vs-card-header">
-                        <div className="vs-station-info">
+                      <div className="vs-card-header" style={{ display: "block" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", width: "100%" }}>
                           <span className="vs-station-name">{st.name}</span>
-                          {st.email && st.email !== "Unknown" && (
-                            <span className="vs-station-id" style={{fontSize: "12px", color: "var(--primary-color)", marginTop: "-2px", marginBottom: "2px"}}>{st.email}</span>
-                          )}
-                          <span className="vs-station-id">{st.station_id}</span>
-                        </div>
-                        <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-                          <button
-                            className="m-btn m-btn--elevated"
-                            style={{ padding: "4px 8px", fontSize: "11px" }}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleMonitorStation(st);
-                            }}
-                            title="Monitor this station's screen"
-                          >
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="12" height="12" style={{ marginRight: "4px" }}>
-                              <rect x="2" y="3" width="20" height="14" rx="2" />
-                              <line x1="8" y1="21" x2="16" y2="21" />
-                              <line x1="12" y1="17" x2="12" y2="21" />
-                            </svg>
-                            Monitor
-                          </button>
-                          <div className={`vs-status-badge ${st.is_online ? "online" : "offline"}`}>
-                            {st.is_online ? "Online" : "Offline"}
+                          <div style={{ display: "flex", gap: "8px", alignItems: "center", flexShrink: 0 }}>
+                            <button
+                              className="m-btn m-btn--elevated"
+                              style={{ padding: "4px 8px", fontSize: "11px" }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleMonitorStation(st);
+                              }}
+                              title="Monitor this station's screen"
+                            >
+                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="12" height="12" style={{ marginRight: "4px" }}>
+                                <rect x="2" y="3" width="20" height="14" rx="2" />
+                                <line x1="8" y1="21" x2="16" y2="21" />
+                                <line x1="12" y1="17" x2="12" y2="21" />
+                              </svg>
+                              Monitor
+                            </button>
+                            <div className={`vs-status-badge ${st.is_online ? "online" : "offline"}`}>
+                              {st.is_online ? "Online" : "Offline"}
+                            </div>
                           </div>
                         </div>
+
+                        {st.email && st.email !== "Unknown" && (
+                          <div style={{ marginTop: "6px" }}>
+                            <span 
+                              className="vs-station-id" 
+                              style={{
+                                fontSize: "12px", 
+                                color: "var(--text-primary)", 
+                                display: "block",
+                                whiteSpace: "nowrap",
+                                overflow: "hidden",
+                                textOverflow: "ellipsis"
+                              }}
+                              title={st.email}
+                            >
+                              {st.email}
+                            </span>
+                            <span 
+                              className="vs-station-id" 
+                              style={{
+                                fontSize: "11px", 
+                                color: "var(--text-primary)", 
+                                marginTop: "2px", 
+                                display: "block",
+                                textTransform: "capitalize"
+                              }}
+                            >
+                              Role: {st.role || "Not provided by backend"}
+                            </span>
+                          </div>
+                        )}
                       </div>
                       
                       <div className="vs-card-details">
@@ -399,13 +424,35 @@ export default function ViewingStationsPage() {
 }
 
 function LiveMirrorMonitor({ station }) {
-  const containerRef = useRef(null);
-  const playerRef = useRef(null);
+  const videoRef = useRef(null);
+  const pcRef = useRef(null);
   
   useEffect(() => {
     let ws = null;
-    let events = [];
     
+    const rtcConfig = {
+      iceServers: [
+        { urls: "stun:stun.l.google.com:19302" },
+        {
+          urls: "turn:openrelay.metered.ca:80",
+          username: "openrelayproject",
+          credential: "openrelayproject"
+        },
+        {
+          urls: "turn:openrelay.metered.ca:443?transport=tcp",
+          username: "openrelayproject",
+          credential: "openrelayproject"
+        }
+      ]
+    };
+
+    const cleanupWebRTC = () => {
+      if (pcRef.current) {
+        pcRef.current.close();
+        pcRef.current = null;
+      }
+    };
+
     const apiBase = import.meta.env.VITE_API_URL || '';
     let wsUrl = '';
     
@@ -429,39 +476,78 @@ function LiveMirrorMonitor({ station }) {
        }));
     };
 
-    ws.onmessage = (msg) => {
+    ws.onmessage = async (msg) => {
        try {
          const data = JSON.parse(msg.data);
-         if (data.event === "rrweb_event" && data.data) {
-            const rr_event = data.data;
+         
+         if (data.event === "webrtc_offer") {
+            console.log("[LiveMirror] Received webrtc_offer");
+            cleanupWebRTC();
+            const pc = new RTCPeerConnection(rtcConfig);
+            pcRef.current = pc;
+            pcRef.current.remoteDescriptionSet = false;
+            pcRef.current.iceQueue = [];
+
+            pc.ontrack = (e) => {
+                console.log("[LiveMirror] Received remote track:", e.streams[0]);
+                if (videoRef.current && e.streams && e.streams[0]) {
+                    videoRef.current.srcObject = e.streams[0];
+                    videoRef.current.play().catch(err => console.error("[LiveMirror] Autoplay blocked or failed:", err));
+                }
+            };
+
+            pc.onconnectionstatechange = () => {
+                console.log("[LiveMirror] Connection state:", pc.connectionState);
+            };
             
-            if (events.length === 0 && rr_event.type !== 2) {
-               console.log("[LiveMirror] Waiting for FullSnapshot...");
-               return;
+            pc.oniceconnectionstatechange = () => {
+                console.log("[LiveMirror] ICE connection state:", pc.iceConnectionState);
+            };
+
+            pc.onicecandidate = (e) => {
+                if (e.candidate && ws.readyState === WebSocket.OPEN) {
+                    console.log("[LiveMirror] Sending webrtc_ice_candidate");
+                    ws.send(JSON.stringify({
+                        action: "publish",
+                        topic: `station_${station.station_id}`,
+                        pub_event: "webrtc_ice_candidate",
+                        data: e.candidate
+                    }));
+                }
+            };
+
+            await pc.setRemoteDescription(new RTCSessionDescription(data.data));
+            pcRef.current.remoteDescriptionSet = true;
+            for (let c of pcRef.current.iceQueue) {
+                await pc.addIceCandidate(c);
             }
-            
-            if (!playerRef.current) {
-               events.push(rr_event);
-               if (events.length > 1 && containerRef.current) {
-                 console.log("[LiveMirror] Initializing rrwebPlayer with", events.length, "events");
-                 playerRef.current = new rrwebPlayer({
-                   target: containerRef.current,
-                   props: {
-                     events: [...events], // Clone the array for initial setup
-                     liveMode: true,
-                     showController: false,
-                     autoPlay: true,
-                     width: containerRef.current.offsetWidth,
-                     height: containerRef.current.offsetHeight || 600,
-                   }
-                 });
-               }
-            } else {
-               // Player is already initialized, just feed it the new event
-               playerRef.current.addEvent(rr_event);
+
+            const answer = await pc.createAnswer();
+            await pc.setLocalDescription(answer);
+
+            if (ws.readyState === WebSocket.OPEN) {
+                console.log("[LiveMirror] Sending webrtc_answer");
+                ws.send(JSON.stringify({
+                    action: "publish",
+                    topic: `station_${station.station_id}`,
+                    pub_event: "webrtc_answer",
+                    data: answer
+                }));
+            }
+         } else if (data.event === "webrtc_ice_candidate") {
+            console.log("[LiveMirror] Received webrtc_ice_candidate");
+            if (pcRef.current) {
+                const candidate = new RTCIceCandidate(data.data);
+                if (pcRef.current.remoteDescriptionSet) {
+                    await pcRef.current.addIceCandidate(candidate);
+                } else {
+                    pcRef.current.iceQueue.push(candidate);
+                }
             }
          }
-       } catch (e) {}
+       } catch (e) {
+         console.error("[LiveMirror] WS message error:", e);
+       }
     };
     
     return () => {
@@ -475,11 +561,19 @@ function LiveMirrorMonitor({ station }) {
           }));
           ws.close();
        }
-       if (playerRef.current) {
-           playerRef.current.pause();
-       }
+       cleanupWebRTC();
     };
   }, [station.station_id]);
 
-  return <div ref={containerRef} style={{ width: '100%', height: '600px', backgroundColor: '#000' }} />;
+  return (
+    <div style={{ width: '100%', height: '600px', backgroundColor: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <video 
+            ref={videoRef} 
+            autoPlay 
+            playsInline 
+            muted 
+            style={{ width: '100%', height: '100%', objectFit: 'contain' }} 
+        />
+    </div>
+  );
 }

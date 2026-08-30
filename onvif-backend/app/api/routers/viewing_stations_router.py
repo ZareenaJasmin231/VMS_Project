@@ -114,6 +114,7 @@ def heartbeat(req: HeartbeatRequest, payload: dict = Depends(verify_token)):
     existing = _get_station(req.station_id)
 
     email = "Unknown"
+    role = payload.get("role", "Unknown")
     user_id = payload.get("sub")
     if _db is not None and user_id:
         from bson.objectid import ObjectId
@@ -121,6 +122,7 @@ def heartbeat(req: HeartbeatRequest, payload: dict = Depends(verify_token)):
             user = _db["users"].find_one({"_id": ObjectId(user_id)})
             if user:
                 email = user.get("email", "Unknown")
+                role = user.get("role", role)
         except Exception:
             pass
 
@@ -143,6 +145,7 @@ def heartbeat(req: HeartbeatRequest, payload: dict = Depends(verify_token)):
     }
     station["active_feeds_count"] = req.active_feeds_count
     station["email"] = email
+    station["role"] = role
 
     _save_station(station)
 
@@ -184,7 +187,8 @@ def list_stations():
                 "active_layout": s.get("active_layout"),
                 "pushed_layout": s.get("pushed_layout"),
                 "active_feeds_count": s.get("active_feeds_count", 0),
-                "email": s.get("email", "Unknown")
+                "email": s.get("email", "Unknown"),
+                "role": s.get("role", "Unknown")
             })
         
     return {"success": True, "stations": result}
