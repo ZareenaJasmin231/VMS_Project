@@ -210,6 +210,16 @@ def health():
         "cluster_mode": os.environ.get("CLUSTER_MODE") == "1"
     })
 
+@router.get("/node-state")
+def node_state():
+    import subprocess
+    try:
+        output = subprocess.check_output(["sc", "query", "mirador-recorder"], text=True)
+        is_active = "RUNNING" in output
+        return {"state": "ACTIVE" if is_active else "STANDBY"}
+    except Exception as e:
+        return {"state": "UNKNOWN", "error": str(e)}
+
 @router.get("/discover-devices", dependencies=[Depends(require_admin)])
 async def discover_devices():
     try:
