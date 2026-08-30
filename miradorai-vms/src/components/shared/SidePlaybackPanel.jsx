@@ -838,13 +838,11 @@ export default function SidePlaybackPanel({ camera, onClose, alertSource = "buil
         {playingFile && (
           <div className="side-playback-hud-top">
             <span className="side-playback-hud-badge">Playback</span>
-            <span className="side-playback-hud-time">{getAbsoluteTime(currentTime) || fmt(currentTime)}</span>
           </div>
         )}
         {playingAlert && (
           <div className="side-playback-hud-top">
             <span className="side-playback-hud-badge">Event Clip</span>
-            <span className="side-playback-hud-time">{fmt(currentTime)}</span>
           </div>
         )}
 
