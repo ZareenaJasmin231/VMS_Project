@@ -230,11 +230,28 @@ export default function LogsPage() {
     fetchLogs();
   }, [activeTab, category]);
 
-  const { isConnected: isWsConnected } = useWebSocket(["alerts", "system_metrics"]);
+  const { isConnected: isWsConnected, eventsByTopic } = useWebSocket(["alerts", "system_metrics", "system_logs"]);
 
   useEffect(() => {
-    const pollMs = isWsConnected ? 30000 : 5000;
-    const interval = setInterval(() => fetchLogs(true), pollMs);
+    const wsEvent = eventsByTopic.system_logs;
+    if (wsEvent && wsEvent.data) {
+      const newLog = wsEvent.data;
+      
+      // Basic filtering to ensure it matches current tab/category
+      const isTerminal = wsEvent.event === "new_terminal_log";
+      if (activeTab === "terminal" && !isTerminal) return;
+      if (activeTab === "ui" && isTerminal) return;
+      if (activeTab === "recordings" && newLog.category !== "recording") return;
+      if (activeTab === "ui" && category && category !== "" && newLog.category !== category) return;
+
+      setLogs((prev) => [newLog, ...prev]);
+    }
+  }, [eventsByTopic.system_logs, activeTab, category]);
+
+  useEffect(() => {
+    fetchLogs();
+    if (isWsConnected) return; // Zero polling when connected
+    const interval = setInterval(() => fetchLogs(true), 5000);
     return () => clearInterval(interval);
   }, [activeTab, fromDate, toDate, category, isWsConnected]);
 

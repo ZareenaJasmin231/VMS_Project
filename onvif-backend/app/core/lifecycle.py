@@ -303,8 +303,14 @@ async def _startup_phase_2():
     except Exception as e:
         print(f"[STARTUP] ❌ Failed to start motion detector manager: {e}")
     await task_manager.start_task('system_health', system_health_collector())
+    from app.managers.health_manager import process_metrics_collector
+    await task_manager.start_task('process_metrics', process_metrics_collector())
+    from app.managers.health_manager import dashboard_overview_collector
+    await task_manager.start_task('dashboard_overview', dashboard_overview_collector())
     await task_manager.start_task('camera_health', camera_health_collector())
+
     enabled_count = sum(1 for d in my_devices if d.get("enabled") is not False)
+
     print(f"[STARTUP] 🎥 Sharded recording pool active for {enabled_count}/{len(my_devices)} enabled camera(s)")
 
     print(f"[STARTUP] ✓ Stream health monitoring started")

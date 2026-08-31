@@ -456,6 +456,7 @@ export default function MaskingSection({ device, showToast, onMasksChange }) {
   const [colorIdx, setColorIdx] = useState(0);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [applyToRecordings, setApplyToRecordings] = useState(true);
 
   // Popup Modal States
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -479,6 +480,9 @@ export default function MaskingSection({ device, showToast, onMasksChange }) {
         const loadedMasks = data.masks || [];
         setMasks(loadedMasks);
         setSavedMasks(loadedMasks);
+        if (data.apply_to_recordings !== undefined) {
+          setApplyToRecordings(data.apply_to_recordings);
+        }
       } catch (e) {
         console.error("[MASKS] Load failed:", e);
       }
@@ -629,7 +633,7 @@ export default function MaskingSection({ device, showToast, onMasksChange }) {
       const res = await fetch(`${API}/api/masks/${encodeURIComponent(device.ip)}/all`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ masks: updatedMasks }),
+        body: JSON.stringify({ masks: updatedMasks, apply_to_recordings: applyToRecordings }),
       });
       if (res.ok) {
         setMasks(updatedMasks);
@@ -704,7 +708,7 @@ export default function MaskingSection({ device, showToast, onMasksChange }) {
       const res = await fetch(`${API}/api/masks/${encodeURIComponent(device.ip)}/all`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ masks: updatedMasks }),
+        body: JSON.stringify({ masks: updatedMasks, apply_to_recordings: applyToRecordings }),
       });
       if (res.ok) {
         setMasks(updatedMasks);
@@ -728,12 +732,34 @@ export default function MaskingSection({ device, showToast, onMasksChange }) {
       const res = await fetch(`${API}/api/masks/${encodeURIComponent(device.ip)}/all`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ masks: updatedMasks }),
+        body: JSON.stringify({ masks: updatedMasks, apply_to_recordings: applyToRecordings }),
       });
       if (res.ok) {
         setMasks(updatedMasks);
         setSavedMasks(updatedMasks);
         showToast("Region status updated", "success");
+      } else {
+        throw new Error("Update failed");
+      }
+    } catch {
+      showToast("Update failed", "error");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const toggleApplyToRecordings = async () => {
+    const newVal = !applyToRecordings;
+    setSaving(true);
+    try {
+      const res = await fetch(`${API}/api/masks/${encodeURIComponent(device.ip)}/all`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ masks: masks, apply_to_recordings: newVal }),
+      });
+      if (res.ok) {
+        setApplyToRecordings(newVal);
+        showToast(newVal ? "Masks will be applied to recordings" : "Masks hidden in recordings", "success");
       } else {
         throw new Error("Update failed");
       }
@@ -897,7 +923,19 @@ export default function MaskingSection({ device, showToast, onMasksChange }) {
       {/* Regions List */}
       <div className="mp-list-head">
         <h3 className="mp-list-title">Defined Regions ({masks.length})</h3>
-        <div style={{ display: 'flex', gap: '8px' }}>
+        <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+          <label className="mp-toggle" style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', margin: 0 }}>
+            <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>Apply to Recordings</span>
+            <input 
+              type="checkbox" 
+              checked={applyToRecordings} 
+              onChange={toggleApplyToRecordings}
+            />
+            <span className="mp-toggle-track">
+              <span className="mp-toggle-thumb" />
+            </span>
+          </label>
+
           {selectedId && (
             <button className="mp-tool-btn danger" style={{ height: 26, fontSize: 11 }} onClick={() => deleteMask(selectedId)}>
               Delete Selected

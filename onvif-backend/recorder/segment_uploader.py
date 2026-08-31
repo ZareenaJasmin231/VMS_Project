@@ -123,7 +123,22 @@ class SegmentUploader(threading.Thread):
                 
                 if is_safe_to_upload:
                     date_str, time_str = session_key.split("/")
-                    success = self.upload_segment(date_str, time_str, index, file_path)
+                    
+                    # --- NEW LOGIC: map infinite 10s chunks into 5-minute sessions for the backend ---
+                    block = index // 30
+                    new_index = index % 30
+                    if block > 0:
+                        try:
+                            from datetime import datetime, timedelta
+                            dt = datetime.strptime(f"{date_str} {time_str}", "%Y-%m-%d %H-%M-%S")
+                            dt += timedelta(minutes=5 * block)
+                            date_str = dt.strftime("%Y-%m-%d")
+                            time_str = dt.strftime("%H-%M-%S")
+                        except ValueError:
+                            pass
+                    # ----------------------------------------------------------------------------------
+                    
+                    success = self.upload_segment(date_str, time_str, new_index, file_path)
                     if success:
                         try:
                             if os.path.exists(file_path):

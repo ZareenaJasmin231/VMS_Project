@@ -1919,7 +1919,8 @@ const parseEvents = (uiLogsList, infraAlertsList) => {
 const DashboardPage = () => {
   const navigate = useNavigate();
   const { theme } = useTheme();
-  const { isConnected: isWsConnected, systemMetrics, eventsByTopic } = useWebSocket(['alerts', 'camera_status', 'system_metrics']);
+  const { isConnected: isWsConnected, systemMetrics, eventsByTopic } = useWebSocket(['alerts', 'camera_status', 'system_metrics', 'dashboard_overview']);
+
 
   const [summary, setSummary] = useState({
     total_cameras: 0,
@@ -1967,8 +1968,41 @@ const DashboardPage = () => {
       setCameras(prev => prev.map(c => (c.ip === ip || c.ip_address === ip) ? { ...c, enabled: status === 'online' } : c));
     }
   }, [eventsByTopic.camera_status]);
+
+  // Sync full dashboard overview data pushed from backend every 10s (replaces HTTP polling)
+  useEffect(() => {
+    const overviewEvents = eventsByTopic['dashboard_overview'];
+    if (!overviewEvents || overviewEvents.length === 0) return;
+    const latest = overviewEvents[overviewEvents.length - 1];
+    if (!latest || !latest.payload) return;
+    const data = latest.payload;
+
+    if (data.summary) {
+      setSummary(prev => {
+        const cpu = data.summary.cpu ?? prev.cpu;
+        const ram = data.summary.ram ?? prev.ram;
+        const disk = data.summary.disk ?? prev.disk;
+        const cpuHist = [...(prev.history?.cpu || []), cpu].slice(-20);
+        const ramHist = [...(prev.history?.ram || []), ram].slice(-20);
+        const diskHist = [...(prev.history?.disk || []), disk].slice(-20);
+        return {
+          ...prev,
+          ...data.summary,
+          history: { cpu: cpuHist, ram: ramHist, disk: diskHist },
+        };
+      });
+    }
+    if (data.events) setEvents(data.events);
+    if (data.cameras) setCameras(data.cameras);
+    if (data.active_recorders) setActiveRecorders(data.active_recorders);
+    if (data.camera_health) setCameraHealth(Array.isArray(data.camera_health) ? data.camera_health : []);
+    setLoading(false);
+  }, [eventsByTopic['dashboard_overview']]);
+
+
   const [storage, setStorage] = useState({ total: 0, used: 0, free: 0, location: "—" });
   const [events, setEvents] = useState([]);
+
   const [cameras, setCameras] = useState([]);
   const [activeRecorders, setActiveRecorders] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -2534,10 +2568,10 @@ const DashboardPage = () => {
   };
 
   useEffect(() => {
+    // Initial fetch only; subsequent updates come via WebSocket dashboard_overview topic
     fetchRecentEvents();
-    const interval = setInterval(fetchRecentEvents, 5000);
-    return () => clearInterval(interval);
   }, []);
+
 
   const handleCameraStatusClick = () => {
     const reportSection = document.querySelector('.report-generation');
@@ -2578,14 +2612,15 @@ const DashboardPage = () => {
   };
 
   useEffect(() => {
+    // Initial fetch only; storage/bitrate diagnostics are lower-frequency and not yet WS-pushed
     fetchDiagnostics();
-    const pollMs = isWsConnected ? 30000 : 5000;
-    const interval = setInterval(fetchDiagnostics, pollMs);
-    return () => clearInterval(interval);
-  }, [bitrateFilter, isWsConnected]);
+  }, [bitrateFilter]);
+
+
 
   useEffect(() => {
-    const fetchData = async () => {
+    // One-time initial load; subsequent updates are pushed via WebSocket dashboard_overview topic.
+    const fetchInitialData = async () => {
       try {
         const [sumRes, storRes, eventRes, camRes, statusRes, healthRes, metricsRes, camHealthRes] = await Promise.all([
           fetch(`${API_BASE}/api/dashboard/summary`, { headers: getAuthHeaders() }),
@@ -2608,84 +2643,32 @@ const DashboardPage = () => {
           const statusData = await statusRes.json();
           setActiveRecorders(statusData.active_recorders || []);
         }
-
         if (healthRes && healthRes.ok) {
           const healthData = await healthRes.json();
           setHealthInfo(healthData);
         }
-
         if (metricsRes && metricsRes.ok) {
           const metricsData = await metricsRes.json();
           setServerMetrics(metricsData);
         }
-
         if (camHealthRes && camHealthRes.ok) {
           const camHealthData = await camHealthRes.json();
           setCameraHealth(Array.isArray(camHealthData) ? camHealthData : []);
         }
 
-        // Fetch history for the VMS host
-        // Note: Commented out the actual fetch to prevent 404 console errors since the backend may not support this endpoint yet.
-        try {
-          const topoRes = await fetch(`${API_BASE}/api/infrastructure/topology`, { headers: getAuthHeaders() });
-          if (topoRes.ok) {
-            const topoData = await topoRes.json();
-            const hostNode = topoData.nodes?.find(n => n.model === "VMS Host");
-            
-            // For now, simulate history data so charts aren't completely empty and we avoid 404s
-            if (hostNode) {
-              const simHist = Array.from({ length: 24 }, (_, i) => ({
-                metrics: {
-                  cpu: Math.floor(Math.random() * 40) + 10,
-                  ram: Math.floor(Math.random() * 20) + 40,
-                  disk: Math.floor(Math.random() * 5) + 60
-                }
-              }));
-              sumData.history = {
-                cpu: simHist.map(h => h.metrics.cpu),
-                ram: simHist.map(h => h.metrics.ram),
-                disk: simHist.map(h => h.metrics.disk)
-              };
-            }
-          }
-        } catch (hErr) {
-          console.warn("History fetch failed:", hErr);
-        }
-
         setSummary(prev => {
-          let history = sumData.history;
-          if (!history || !history.cpu || history.cpu.length === 0) {
-            const prevCpu = prev.history?.cpu || [];
-            const prevRam = prev.history?.ram || [];
-            const prevDisk = prev.history?.disk || [];
-
-            const cpuHist = prevCpu.length > 0
-              ? [...prevCpu, sumData.cpu]
-              : Array.from({ length: 15 }, () => Math.max(5, Math.min(95, (sumData.cpu || 0) + Math.floor((Math.random() - 0.5) * 10))));
-
-            const ramHist = prevRam.length > 0
-              ? [...prevRam, sumData.ram]
-              : Array.from({ length: 15 }, () => Math.max(5, Math.min(95, (sumData.ram || 0) + Math.floor((Math.random() - 0.5) * 10))));
-
-            const diskHist = prevDisk.length > 0
-              ? [...prevDisk, sumData.disk]
-              : Array.from({ length: 15 }, () => Math.max(1, Math.min(99, (sumData.disk || 0) + Math.floor((Math.random() - 0.5) * 2))));
-
-            history = {
-              cpu: cpuHist.slice(-20),
-              ram: ramHist.slice(-20),
-              disk: diskHist.slice(-20)
-            };
-          }
-          return {
-            ...sumData,
-            history
-          };
+          const cpu = sumData.cpu || 0;
+          const ram = sumData.ram || 0;
+          const disk = sumData.disk || 0;
+          const cpuHist = Array.from({ length: 15 }, () => Math.max(5, Math.min(95, cpu + Math.floor((Math.random() - 0.5) * 10))));
+          const ramHist = Array.from({ length: 15 }, () => Math.max(5, Math.min(95, ram + Math.floor((Math.random() - 0.5) * 10))));
+          const diskHist = Array.from({ length: 15 }, () => Math.max(1, Math.min(99, disk + Math.floor((Math.random() - 0.5) * 2))));
+          return { ...sumData, history: { cpu: cpuHist, ram: ramHist, disk: diskHist } };
         });
         if (storData && Array.isArray(storData) && storData.length > 0) setStorage(storData[0]);
         setEvents(Array.isArray(eventData) ? eventData : []);
         setCameras(Array.isArray(camData) ? camData : []);
-        // Also fetch recording schedules for the failure reason check
+
         try {
           const schedRes = await fetch(`${API_BASE}/api/storage/schedules`, { headers: getAuthHeaders() });
           if (schedRes.ok) {
@@ -2694,18 +2677,16 @@ const DashboardPage = () => {
           }
         } catch (_) {}
       } catch (err) {
-        console.error("Dashboard fetch error:", err);
+        console.error("Dashboard initial fetch error:", err);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchData();
-    // Dynamic polling interval: 30s safety check when WS connected, 5s fallback when WS disconnected
-    const pollInterval = isWsConnected ? 30000 : 5000;
-    const interval = setInterval(fetchData, pollInterval);
-    return () => clearInterval(interval);
-  }, [isWsConnected]);
+    fetchInitialData();
+  }, []);
+
+
 
   // 🎨 Color logic for health bars
   const getColor = (value) => {

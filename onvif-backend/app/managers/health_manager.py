@@ -60,11 +60,112 @@ async def system_health_collector():
                     "cpu": cpu,
                     "ram": ram,
                     "disk": disk,
-                    "message": f"Resource warning: CPU {cpu}%, RAM {ram}%, Disk {disk}%"
+                    "message": f"High resource usage detected: CPU={cpu}%, RAM={ram}%, Disk={disk}%"
                 })
+        except Exception as e:
+            print(f"[HEALTH] Collector error: {e}")
+        
+        await asyncio.sleep(10)
+
+async def process_metrics_collector():
+    """Periodically fetches detailed process metrics and broadcasts them over WebSocket."""
+    from app.services.monitoring.process_monitor import get_vms_process_metrics
+    while True:
+        try:
+            metrics = await asyncio.to_thread(get_vms_process_metrics)
+            if metrics.get("success", True) is not False:
+                await ws_manager.broadcast("process_metrics", "process_metrics_update", metrics)
+        except Exception as e:
+            print(f"[PROCESS METRICS] Collector error: {e}")
+        
+        await asyncio.sleep(5)
+
+
+async def dashboard_overview_collector():
+    """Collects all dashboard overview data and broadcasts via WebSocket every 10s.
+    Replaces the frontend's multiple HTTP polling loops for the main dashboard.
+    Topics: 'dashboard_overview' → event: 'dashboard_update'
+    """
+    from app.core.database import db as _db, analytics_col, cameras_col
+    from datetime import datetime, timedelta
+
+    while True:
+        try:
+            payload = {}
+
+            # 1. Summary (camera counts, alarms, health)
+            try:
+                if cameras_col is not None and analytics_col is not None:
+                    total_cameras = cameras_col.count_documents({"is_deleted": {"$ne": True}})
+                    active_streams = cameras_col.count_documents({"enabled": {"$ne": False}, "is_deleted": {"$ne": True}})
+                    today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+                    alarms_today = analytics_col.count_documents({
+                        "received_at": {"$gte": today_start.isoformat()},
+                        "is_deleted": {"$ne": True}
+                    })
+                    latest_health = _db["health_logs"].find_one({"type": "system"}, sort=[("timestamp", -1)])
+                    cpu = latest_health.get("cpu", 0) if latest_health else 0
+                    ram = latest_health.get("ram", 0) if latest_health else 0
+                    disk = latest_health.get("disk", 0) if latest_health else 0
+                    status = "Critical" if (cpu > 85 or ram > 85 or disk > 90) else ("Warning" if (cpu > 60 or ram > 60 or disk > 75) else "Healthy")
+                    payload["summary"] = {
+                        "total_cameras": total_cameras,
+                        "active_streams": active_streams,
+                        "alarms_today": alarms_today,
+                        "cpu": cpu, "ram": ram, "disk": disk,
+                        "status": status,
+                    }
+            except Exception as e:
+                print(f"[DASH WS] summary error: {e}")
+
+            # 2. Recent AI alert events (last 20)
+            try:
+                if analytics_col is not None:
+                    docs = list(
+                        analytics_col.find({"is_deleted": {"$ne": True}}, {"_id": 0})
+                        .sort("received_at", -1).limit(20)
+                    )
+                    for d in docs:
+                        if "received_at" in d and hasattr(d["received_at"], "isoformat"):
+                            d["received_at"] = d["received_at"].isoformat()
+                    payload["events"] = docs
+            except Exception as e:
+                print(f"[DASH WS] events error: {e}")
+
+            # 3. Camera list
+            try:
+                if cameras_col is not None:
+                    cams = list(cameras_col.find({}, {"_id": 0}))
+                    payload["cameras"] = cams
+            except Exception as e:
+                print(f"[DASH WS] cameras error: {e}")
+
+            # 4. Active recorders (from worker heartbeats)
+            try:
+                if _db is not None:
+                    cutoff = datetime.utcnow() - timedelta(seconds=30)
+                    active_set = set()
+                    workers = _db["worker_heartbeats"].find({"last_seen": {"$gte": cutoff}})
+                    for w in workers:
+                        for stream in w.get("active_recorders", []):
+                            active_set.add(stream)
+                    payload["active_recorders"] = sorted(list(active_set))
+            except Exception as e:
+                print(f"[DASH WS] recorders error: {e}")
+
+            # 5. Camera health
+            try:
+                if _db is not None:
+                    cam_health = list(_db["camera_health"].find({}, {"_id": 0}))
+                    payload["camera_health"] = cam_health
+            except Exception as e:
+                print(f"[DASH WS] camera_health error: {e}")
+
+            if payload:
+                await ws_manager.broadcast("dashboard_overview", "dashboard_update", payload)
 
         except Exception as e:
-            print("[SYSTEM HEALTH ERROR]", e)
+            print(f"[DASH WS] overview collector error: {e}")
 
         await asyncio.sleep(10)
 

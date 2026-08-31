@@ -32,24 +32,35 @@ MASKS_FILE = os.environ.get(
 
 def get_masks_for_ip(ip: str) -> list:
     """Return enabled masks for a given camera IP."""
+    masks = []
+    apply_to = True
+
     if _masks_col is not None:
         try:
             doc = _masks_col.find_one({"ip": ip}, {"_id": 0})
-            masks = doc.get("masks", []) if doc else []
+            if doc:
+                masks = doc.get("masks", [])
+                apply_to = doc.get("apply_to_recordings", True)
         except Exception:
-            masks = []
+            pass
     else:
         try:
             if os.path.exists(MASKS_FILE):
                 with open(MASKS_FILE) as f:
                     data = json.load(f)
-                masks = data.get(ip, [])
-            else:
-                masks = []
+                if ip in data:
+                    if isinstance(data[ip], list):
+                        masks = data[ip]
+                    else:
+                        masks = data[ip].get("masks", [])
+                        apply_to = data[ip].get("apply_to_recordings", True)
         except Exception:
-            masks = []
+            pass
 
-    return [m for m in masks if m.get("enabled", True)]
+    if not apply_to:
+        return []
+
+    return [m for m in masks if m.get("enabled", True) and not m.get("is_deleted")]
 
 
 def _poly_bounding_box(points: List[List[float]], canvas_w=640, canvas_h=360):

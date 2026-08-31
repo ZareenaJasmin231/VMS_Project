@@ -2621,25 +2621,40 @@ export default function LiveViewPage({ onNavigate }) {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [fsDevice, sortedActiveCams]);
 
-  useEffect(() => {
-    if (pageCams && pageCams.length > 0) {
-      pageCams.forEach((cam) => {
-        const isCamFullscreen = fsDevice && fsDevice.id === cam.id;
-        const mode = isCamFullscreen ? "fullscreen" : "grid";
+  // Track last sent view-mode per camera to avoid re-POSTing when nothing changed
+  const lastSentViewMode = useRef({});
 
-        fetch(`${API}/api/system/cameras/${cam.ip}/view-mode`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...getAuthHeaders(),
-          },
-          body: JSON.stringify({ mode }),
-        }).catch((err) =>
-          console.error("[VMS-VIEWMODE] Error updating view mode:", err),
-        );
-      });
-    }
-  }, [fsDevice, currentPage, layout, sortedActiveCams]);
+  useEffect(() => {
+    if (!pageCams || pageCams.length === 0) return;
+
+    // Build the new state key: fsDeviceId|page|layout
+    const stateKey = `${fsDevice?.id ?? "none"}|${currentPage}|${layout}`;
+
+    pageCams.forEach((cam) => {
+      const isCamFullscreen = fsDevice && fsDevice.id === cam.id;
+      const mode = isCamFullscreen ? "fullscreen" : "grid";
+      const camKey = `${cam.ip}:${stateKey}`;
+
+      // Skip if we already sent this exact mode for this camera in this layout state
+      if (lastSentViewMode.current[cam.ip] === camKey) return;
+      lastSentViewMode.current[cam.ip] = camKey;
+
+      fetch(`${API}/api/system/cameras/${cam.ip}/view-mode`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...getAuthHeaders(),
+        },
+        body: JSON.stringify({ mode }),
+      }).catch((err) =>
+        console.error("[VMS-VIEWMODE] Error updating view mode:", err),
+      );
+    });
+  // Intentionally excludes sortedActiveCams: alert-count resorting should NOT retrigger view-mode POSTs
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fsDevice, currentPage, layout, pageCams.length]);
+
+
 
   useEffect(() => {
     const sendHeartbeat = async () => {

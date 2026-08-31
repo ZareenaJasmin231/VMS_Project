@@ -76,28 +76,40 @@ class SaveMaskRequest(BaseModel):
 
 class SaveAllMasksRequest(BaseModel):
     masks: List[MaskModel]
+    apply_to_recordings: bool = True
 
 
 # ── Helpers ──────────────────────────────────────────────────────
 
-def _get_masks(ip: str) -> list:
+def _get_masks_doc(ip: str) -> dict:
+    """Returns the full mask document."""
     if _masks_col is not None:
         try:
             doc = _masks_col.find_one({"$or": [{"ip": ip}, {"ip_address": ip}]}, {"_id": 0})
-            return doc.get("masks", []) if doc else []
+            if doc: return doc
         except Exception as e:
             print(f"[MASKS] MongoDB get error: {e}")
-
+    
     data = _load_file()
-    return data.get(ip, [])
+    # If JSON is just a list, adapt it
+    if ip in data:
+        if isinstance(data[ip], list):
+            return {"masks": data[ip], "apply_to_recordings": True}
+        return data[ip]
+    return {"masks": [], "apply_to_recordings": True}
 
 
-def _set_masks(ip: str, masks: list):
+def _get_masks(ip: str) -> list:
+    doc = _get_masks_doc(ip)
+    return doc.get("masks", [])
+
+
+def _set_masks(ip: str, masks: list, apply_to_recordings: bool = True):
     if _masks_col is not None:
         try:
             _masks_col.update_one(
                 {"$or": [{"ip": ip}, {"ip_address": ip}]},
-                {"$set": {"ip": ip, "ip_address": ip, "masks": masks}},
+                {"$set": {"ip": ip, "ip_address": ip, "masks": masks, "apply_to_recordings": apply_to_recordings}},
                 upsert=True,
             )
             print(f"[MASKS] ✅ Saved {len(masks)} mask(s) for {ip} → MongoDB")
@@ -106,7 +118,7 @@ def _set_masks(ip: str, masks: list):
             print(f"[MASKS] MongoDB set error: {e}")
 
     data = _load_file()
-    data[ip] = masks
+    data[ip] = {"masks": masks, "apply_to_recordings": apply_to_recordings}
     _save_file(data)
     print(f"[MASKS] ✅ Saved {len(masks)} mask(s) for {ip} → JSON")
 
@@ -116,15 +128,24 @@ def _set_masks(ip: str, masks: list):
 @router.get("/{ip}")
 def get_masks(ip: str):
     """Return all masks for a camera."""
-    masks = _get_masks(ip)
+    doc = _get_masks_doc(ip)
+    masks = doc.get("masks", [])
     active_masks = [m for m in masks if not m.get("is_deleted")]
-    return {"ip": ip, "masks": active_masks, "count": len(active_masks)}
+    return {
+        "ip": ip, 
+        "masks": active_masks, 
+        "count": len(active_masks),
+        "apply_to_recordings": doc.get("apply_to_recordings", True)
+    }
+
 
 
 @router.post("/{ip}")
 def upsert_mask(ip: str, req: SaveMaskRequest):
     """Create or update a single mask by id."""
-    masks = _get_masks(ip)
+    doc = _get_masks_doc(ip)
+    masks = doc.get("masks", [])
+    apply_to = doc.get("apply_to_recordings", True)
     mask_dict = req.mask.dict()
 
     idx = next((i for i, m in enumerate(masks) if m.get("id") == req.mask.id), None)
@@ -135,7 +156,7 @@ def upsert_mask(ip: str, req: SaveMaskRequest):
         masks.append(mask_dict)
         action = "created"
 
-    _set_masks(ip, masks)
+    _set_masks(ip, masks, apply_to)
     print(f"[MASKS] {action.capitalize()} mask '{req.mask.name}' for {ip}")
     return {"success": True, "action": action, "mask": mask_dict}
 
@@ -145,7 +166,8 @@ def replace_all_masks(ip: str, req: SaveAllMasksRequest):
     incoming_masks = [m.dict() for m in req.masks]
     incoming_ids = {m["id"] for m in incoming_masks}
     
-    existing_masks = _get_masks(ip)
+    doc = _get_masks_doc(ip)
+    existing_masks = doc.get("masks", [])
     
     final_masks = []
     
@@ -158,14 +180,16 @@ def replace_all_masks(ip: str, req: SaveAllMasksRequest):
             em["is_deleted"] = True
             final_masks.append(em)
             
-    _set_masks(ip, final_masks)
+    _set_masks(ip, final_masks, req.apply_to_recordings)
     return {"success": True, "count": len(final_masks)}
 
 
 @router.delete("/{ip}/{mask_id}")
 def delete_mask(ip: str, mask_id: str):
     """Delete a single mask by id."""
-    masks   = _get_masks(ip)
+    doc = _get_masks_doc(ip)
+    masks = doc.get("masks", [])
+    apply_to = doc.get("apply_to_recordings", True)
     found = False
     for m in masks:
         if m.get("id") == mask_id:
@@ -175,7 +199,7 @@ def delete_mask(ip: str, mask_id: str):
     if not found:
         raise HTTPException(status_code=404, detail=f"Mask {mask_id} not found for {ip}")
 
-    _set_masks(ip, masks)
+    _set_masks(ip, masks, apply_to)
     print(f"[MASKS] Deleted mask {mask_id} for {ip}")
     return {"success": True, "deleted": mask_id}
 
@@ -183,9 +207,11 @@ def delete_mask(ip: str, mask_id: str):
 @router.delete("/{ip}")
 def delete_all_masks(ip: str):
     """Delete all masks for a camera."""
-    masks = _get_masks(ip)
+    doc = _get_masks_doc(ip)
+    masks = doc.get("masks", [])
+    apply_to = doc.get("apply_to_recordings", True)
     for m in masks:
         m["is_deleted"] = True
-    _set_masks(ip, masks)
+    _set_masks(ip, masks, apply_to)
     print(f"[MASKS] Cleared all masks for {ip}")
     return {"success": True, "ip": ip}

@@ -806,45 +806,71 @@ export default function MapViewPage() {
   const camerasRef = useRef(cameras);
   useEffect(() => { camerasRef.current = cameras; }, [cameras]);
 
-  const { isConnected: isWsConnected } = useWebSocket(["alerts"]);
+  const { isConnected: isWsConnected, eventsByTopic } = useWebSocket(["alerts"]);
 
-  // Fetch active alert counts periodically
+  // Process incoming real-time alerts from WebSocket
   useEffect(() => {
-    const loadCounts = async () => {
-      try {
-        const res = await fetch(`${API}/api/alerts?limit=1000`, {
-          headers: getAuthHeaders()
+    const alertEnvelope = eventsByTopic.alerts;
+    if (alertEnvelope && alertEnvelope.data) {
+      const a = alertEnvelope.data;
+      const t = (a.type || "").toLowerCase();
+      const s = (a.scenario || "").toLowerCase();
+      
+      // Filter out motion and unknown alerts
+      if (t.includes("motion") || s.includes("motion") || t === "unknown" || t === "" || t.includes("tns1:")) return;
+      if (!isAlertAllowed(a)) return;
+
+      const ip = (a.ip || a.serial || "").replace(/_/g, ".");
+      if (!ip) return;
+
+      const validIps = new Set(camerasRef.current.map(c => (c.ip || "").replace(/_/g, ".")));
+      if (!validIps.has(ip)) return;
+
+      setAlertCounts(prev => {
+        const currentCount = prev[ip] || 0;
+        const newCount = (a.status === "Active") ? currentCount + 1 : Math.max(0, currentCount - 1);
+        return { ...prev, [ip]: newCount };
+      });
+    }
+  }, [eventsByTopic.alerts]);
+
+  // Fetch active alert counts on mount (or fallback polling)
+  const loadCounts = useCallback(async () => {
+    try {
+      const res = await fetch(`${API}/api/alerts?limit=1000`, {
+        headers: getAuthHeaders()
+      });
+      const data = await res.json();
+      const counts = {};
+      
+      const validIps = new Set(camerasRef.current.map(c => (c.ip || "").replace(/_/g, ".")));
+
+      (data.alerts || [])
+        .filter((a) => {
+           const t = (a.type || "").toLowerCase();
+           const s = (a.scenario || "").toLowerCase();
+           return !t.includes("motion") && !s.includes("motion") && t !== "unknown" && t !== "" && !t.includes("tns1:");
+        })
+        .filter((a) => a.status === "Active")
+        .filter(isAlertAllowed)
+        .forEach((alert) => {
+          const ip = (alert.ip || "").replace(/_/g, ".");
+          if (ip && validIps.has(ip)) {
+            counts[ip] = (counts[ip] || 0) + 1;
+          }
         });
-        const data = await res.json();
-        const counts = {};
-        
-        const validIps = new Set(camerasRef.current.map(c => (c.ip || "").replace(/_/g, ".")));
+      setAlertCounts(counts);
+    } catch (e) {
+      console.error("[AlertCounts] load failed:", e);
+    }
+  }, []);
 
-        (data.alerts || [])
-          .filter((a) => {
-             const t = (a.type || "").toLowerCase();
-             const s = (a.scenario || "").toLowerCase();
-             return !t.includes("motion") && !s.includes("motion") && t !== "unknown" && t !== "" && !t.includes("tns1:");
-          })
-          .filter((a) => a.status === "Active")
-          .filter(isAlertAllowed)
-          .forEach((alert) => {
-            const ip = (alert.ip || "").replace(/_/g, ".");
-            if (ip && validIps.has(ip)) {
-              counts[ip] = (counts[ip] || 0) + 1;
-            }
-          });
-        setAlertCounts(counts);
-      } catch (e) {
-        console.error("[AlertCounts] load failed:", e);
-      }
-    };
-
+  useEffect(() => {
     loadCounts();
-    const pollMs = isWsConnected ? 30000 : 5000;
-    const interval = setInterval(loadCounts, pollMs);
+    if (isWsConnected) return; // Zero polling when WebSocket is connected!
+    const interval = setInterval(loadCounts, 5000);
     return () => clearInterval(interval);
-  }, [isWsConnected]);
+  }, [isWsConnected, loadCounts]);
 
 
 

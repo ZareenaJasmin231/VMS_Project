@@ -311,7 +311,7 @@ async def _compose_and_finalize(key: str):
         true_duration = duration
         try:
             from recorder import encrypt_service
-            import subprocess, os
+            import subprocess
             tmp_ts = await asyncio.to_thread(encrypt_service.decrypt_to_temp_file, dest if (dest.startswith("/") or dest.startswith("E:") or dest.startswith("C:") or dest.startswith("D:")) else f"minio:{dest}", ".ts")
             if tmp_ts and os.path.exists(tmp_ts):
                 probe_cmd = [

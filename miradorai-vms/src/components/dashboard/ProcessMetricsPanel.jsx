@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useWebSocket } from '../../hooks/useWebSocket';
 import './ProcessMetricsPanel.css';
 
 const ProcessMetricsPanel = ({ onOpenScalingReport, onOpenLiveStreamingReport }) => {
@@ -9,6 +10,8 @@ const ProcessMetricsPanel = ({ onOpenScalingReport, onOpenLiveStreamingReport })
   const [searchTerm, setSearchTerm] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
   const [actionMessage, setActionMessage] = useState(null);
+
+  const { isConnected: isWsConnected, eventsByTopic } = useWebSocket(['process_metrics']);
 
   const fetchMetrics = async () => {
     try {
@@ -35,10 +38,20 @@ const ProcessMetricsPanel = ({ onOpenScalingReport, onOpenLiveStreamingReport })
   };
 
   useEffect(() => {
+    // Initial fetch, then WS will take over
     fetchMetrics();
-    const interval = setInterval(fetchMetrics, 5000);
-    return () => clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    if (eventsByTopic['process_metrics']?.length > 0) {
+      const lastEvent = eventsByTopic['process_metrics'][eventsByTopic['process_metrics'].length - 1];
+      if (lastEvent && lastEvent.payload) {
+        setMetrics(lastEvent.payload);
+        setLoading(false);
+        setError(null);
+      }
+    }
+  }, [eventsByTopic]);
 
   const handleKillOrphaned = async () => {
     if (!window.confirm('Are you sure you want to terminate all stale duplicate and zombie processes?')) return;

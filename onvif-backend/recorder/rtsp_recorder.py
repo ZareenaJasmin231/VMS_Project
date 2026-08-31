@@ -383,9 +383,7 @@ class CameraRecorder:
                     self._stop_ffmpeg()
                     return
             else:
-                if elapsed_total >= getattr(self, "current_chunk_duration", CHUNK_SECONDS):
-                    self._stop_ffmpeg()
-                    return
+                pass # removed: we want ffmpeg to run forever instead of stopping after 5 minutes
 
         elif self.state == "TERMINATING":
             self._check_termination()
@@ -501,8 +499,7 @@ class CameraRecorder:
                 "-ignore_unknown",
                 "-fflags",         "+genpts",
                 "-rtsp_transport", "tcp",
-                "-i",              safe_url,
-                "-t",              str(self.current_chunk_duration)
+                "-i",              safe_url
             ]
             vf_filters = []
             if current_vf:
@@ -577,7 +574,6 @@ class CameraRecorder:
                 "-fflags",         "+genpts",
                 "-rtsp_transport", "tcp",
                 "-i",              safe_url,
-                "-t",              str(self.current_chunk_duration),
                 "-c:v",            "copy"
             ]
             if is_bosch:

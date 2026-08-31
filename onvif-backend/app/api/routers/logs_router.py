@@ -40,8 +40,10 @@ class TerminalLogEntry(BaseModel):
     session_id: Optional[str] = None
     timestamp: Optional[str] = None
 
+from app.core.ws_manager import ws_manager
+
 @router.post("/ui")
-def add_ui_log(log: UILogEntry):
+async def add_ui_log(log: UILogEntry):
     if ui_logs_col is None:
         return {"success": False, "error": "Database not connected"}
     
@@ -50,6 +52,13 @@ def add_ui_log(log: UILogEntry):
       doc["timestamp"] = datetime.now(timezone.utc).isoformat()        
     try:
         ui_logs_col.insert_one(doc)
+        
+        # Strip _id for WS serialization
+        ws_doc = doc.copy()
+        if "_id" in ws_doc:
+            del ws_doc["_id"]
+            
+        await ws_manager.broadcast("system_logs", "new_ui_log", ws_doc)
         return {"success": True}
     except Exception as e:
         return {"success": False, "error": str(e)}
@@ -89,7 +98,7 @@ def get_ui_logs(
         return {"success": False, "error": str(e), "logs": []}
 
 @router.post("/terminal")
-def add_terminal_log(log: TerminalLogEntry):
+async def add_terminal_log(log: TerminalLogEntry):
     if terminal_logs_col is None:
         return {"success": False, "error": "Database not connected"}
         
@@ -99,6 +108,12 @@ def add_terminal_log(log: TerminalLogEntry):
         
     try:
         terminal_logs_col.insert_one(doc)
+        
+        ws_doc = doc.copy()
+        if "_id" in ws_doc:
+            del ws_doc["_id"]
+            
+        await ws_manager.broadcast("system_logs", "new_terminal_log", ws_doc)
         return {"success": True}
     except Exception as e:
         return {"success": False, "error": str(e)}
