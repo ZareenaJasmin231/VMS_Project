@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import SearchBar from "../../components/shared/SearchBar";
 import Modal from "../../components/shared/Modal";
 import { CAMERA_FEATURES_CONFIG } from "../../data/navConfig";
@@ -48,6 +48,27 @@ export default function CamerasPage({ onNavigate, onCameraSelect }) {
   const [uiError, setUiError] = useState("");
   const navigate = useNavigate();
   const { logAction } = useActivityLogger();
+
+  useEffect(() => {
+    const fetchLatestDevices = async () => {
+      try {
+        const token = localStorage.getItem("miradorai_token");
+        const res = await fetch(`${API_BASE}/api/cameras`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const backendDevices = Array.isArray(data) ? data : (data.devices || []);
+          
+          setCameras(backendDevices);
+          saveDevices(backendDevices);
+        }
+      } catch (err) {
+        console.error("Failed to fetch latest devices from backend:", err);
+      }
+    };
+    fetchLatestDevices();
+  }, []);
 
   const handleSaveGroupName = async (groupId) => {
     const trimmed = editingGroupName.trim();
