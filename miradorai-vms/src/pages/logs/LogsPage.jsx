@@ -6,6 +6,7 @@ import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 import html2canvas from 'html2canvas';
+import useActivityLogger from "../../hooks/useActivityLogger";
 import "./LogsPage.css";
 
 const API_BASE = import.meta.env.VITE_API_URL || "";
@@ -16,6 +17,29 @@ function getAuthHeaders() {
 const formatLocalDatetime = (date) => {
   const pad = (n) => String(n).padStart(2, "0");
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+};
+
+const formatIST = (timestamp) => {
+  if (!timestamp) return "-";
+  let ts = timestamp;
+  // Ensure the timestamp is parsed as UTC if it's missing timezone info
+  if (!ts.endsWith('Z') && !ts.match(/[+-]\d{2}:\d{2}$/)) {
+    ts += 'Z';
+  }
+  try {
+    return new Date(ts).toLocaleString('en-GB', { 
+      timeZone: 'Asia/Kolkata',
+      day: 'numeric',
+      month: 'numeric',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: true
+    }).toUpperCase();
+  } catch (e) {
+    return new Date(ts).toLocaleString();
+  }
 };
 
 const getInitialFromDate = () => {
@@ -47,13 +71,14 @@ export default function LogsPage() {
   const [expandedDetails, setExpandedDetails] = useState({});
   const [cameras, setCameras] = useState([]);
   const [viewMode, setViewMode] = useState("tabular");
+  const { logAction } = useActivityLogger();
   const logsPerPage = 15;
 
   const exportToExcel = () => {
     const ws = XLSX.utils.json_to_sheet(
       logs.map(log => ({
-        Timestamp: new Date(log.timestamp).toLocaleString(),
-        User: log.user_email,
+        Timestamp: formatIST(log.timestamp),
+        User: log.user_email || log.email || "Unknown",
         Role: log.user_role?.toUpperCase() || "-",
         Category: log.category?.toUpperCase() || "-",
         Action: formatActionText(log.action),
@@ -63,6 +88,7 @@ export default function LogsPage() {
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Logs");
     XLSX.writeFile(wb, "VMS_Logs.xlsx");
+    logAction("Exported UI Logs Excel", "export", { records: logs.length, file: "VMS_Logs.xlsx" });
   };
 
   const exportToPDF = () => {
@@ -74,8 +100,8 @@ export default function LogsPage() {
 
     logs.forEach(log => {
       const logData = [
-        new Date(log.timestamp).toLocaleString(),
-        log.user_email,
+        formatIST(log.timestamp),
+        log.user_email || log.email || "Unknown",
         log.user_role?.toUpperCase() || "-",
         log.category?.toUpperCase() || "-",
         formatActionText(log.action)
@@ -89,6 +115,7 @@ export default function LogsPage() {
       startY: 20,
     });
     doc.save("VMS_Logs.pdf");
+    logAction("Exported UI Logs PDF", "export", { records: logs.length, file: "VMS_Logs.pdf" });
   };
 
   const getLogsByCategory = () => {
@@ -158,11 +185,16 @@ export default function LogsPage() {
 
   const [categoryDropdownOpen, setCategoryDropdownOpen] = useState(false);
   const categoryDropdownRef = useRef(null);
+  const [exportDropdownOpen, setExportDropdownOpen] = useState(false);
+  const exportDropdownRef = useRef(null);
 
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (categoryDropdownRef.current && !categoryDropdownRef.current.contains(e.target)) {
         setCategoryDropdownOpen(false);
+      }
+      if (exportDropdownRef.current && !exportDropdownRef.current.contains(e.target)) {
+        setExportDropdownOpen(false);
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
@@ -172,11 +204,12 @@ export default function LogsPage() {
   const categoryMap = {
     "": "All Categories",
     "auth": "Auth",
-    "navigation": "Navigation",
-    "devices": "Devices",
-    "settings": "Settings",
-    "system": "System",
-    "recording": "Recording"
+    "camera": "Cameras",
+    "click": "Clicks",
+    "export": "Export",
+    "download": "Download",
+    "recording": "Recording",
+    "settings": "Settings"
   };
 
   const fetchLogs = async (isBackground = false) => {
@@ -211,7 +244,8 @@ export default function LogsPage() {
       });
       const data = await response.json();
       if (data.success) {
-        setLogs(data.logs);
+        const filteredLogs = data.logs.filter(log => log.category !== "navigation");
+        setLogs(filteredLogs);
         if (!isBackground) {
           setCurrentPage(1);
           setExpandedDetails({});
@@ -243,6 +277,7 @@ export default function LogsPage() {
       if (activeTab === "ui" && isTerminal) return;
       if (activeTab === "recordings" && newLog.category !== "recording") return;
       if (activeTab === "ui" && category && category !== "" && newLog.category !== category) return;
+      if (newLog.category === "navigation") return;
 
       setLogs((prev) => [newLog, ...prev]);
     }
@@ -290,9 +325,8 @@ export default function LogsPage() {
 
       <div className="logs-view-toggles" style={{ display: 'flex', gap: '10px', marginTop: '-10px', marginBottom: '10px' }}>
         <button 
-          className={`logs-tab ${viewMode === "tabular" ? "active" : ""}`}
+          className={`logs-view-btn ${viewMode === "tabular" ? "active" : ""}`}
           onClick={() => setViewMode("tabular")}
-          style={{ background: viewMode === "tabular" ? "rgba(45, 212, 191, 0.15)" : "transparent", color: viewMode === "tabular" ? "var(--teal)" : "#fff", border: "1px solid rgba(255,255,255,0.1)", borderRadius: '6px', padding: '6px 12px', fontSize: '14px' }}
         >
           <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" strokeWidth="2" fill="none" style={{ verticalAlign: 'middle', marginRight: '6px' }}>
             <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
@@ -302,9 +336,8 @@ export default function LogsPage() {
           Tabular View
         </button>
         <button 
-          className={`logs-tab ${viewMode === "graphical" ? "active" : ""}`}
+          className={`logs-view-btn ${viewMode === "graphical" ? "active" : ""}`}
           onClick={() => setViewMode("graphical")}
-          style={{ background: viewMode === "graphical" ? "rgba(45, 212, 191, 0.15)" : "transparent", color: viewMode === "graphical" ? "var(--teal)" : "#fff", border: "1px solid rgba(255,255,255,0.1)", borderRadius: '6px', padding: '6px 12px', fontSize: '14px' }}
         >
           <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" strokeWidth="2" fill="none" style={{ verticalAlign: 'middle', marginRight: '6px' }}>
             <line x1="18" y1="20" x2="18" y2="10"></line>
@@ -390,18 +423,40 @@ export default function LogsPage() {
           </div>
         )}
         <div style={{ display: 'flex', gap: '12px', marginLeft: 'auto', alignSelf: 'flex-end' }}>
-          <button 
-            className="log-btn-secondary" 
-            onClick={exportToExcel}
-          >
-            Export Excel
-          </button>
-          <button 
-            className="log-btn-secondary" 
-            onClick={exportToPDF}
-          >
-            Export PDF
-          </button>
+          <div className="logs-custom-select" ref={exportDropdownRef}>
+            <button 
+              className="log-btn-secondary" 
+              style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
+              onClick={() => setExportDropdownOpen(!exportDropdownOpen)}
+            >
+              Export
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: exportDropdownOpen ? "rotate(180deg)" : "rotate(0)", transition: "transform .2s" }}>
+                <path d="M6 9l6 6 6-6"/>
+              </svg>
+            </button>
+            {exportDropdownOpen && (
+              <ul className="logs-dropdown-menu" style={{ right: 0, left: 'auto', minWidth: '120px' }}>
+                <li
+                  className="logs-dropdown-item"
+                  onClick={() => {
+                    exportToExcel();
+                    setExportDropdownOpen(false);
+                  }}
+                >
+                  Excel
+                </li>
+                <li
+                  className="logs-dropdown-item"
+                  onClick={() => {
+                    exportToPDF();
+                    setExportDropdownOpen(false);
+                  }}
+                >
+                  PDF
+                </li>
+              </ul>
+            )}
+          </div>
           <button 
             className="log-btn-primary" 
             onClick={() => {
@@ -473,8 +528,8 @@ export default function LogsPage() {
                   {(activeTab === "ui" || activeTab === "recordings") ? (
                     <>
                       <th>Role</th>
-                      {activeTab === "ui" && <th>Category</th>}
-                      <th>Camera</th>
+                      {(activeTab === "ui" && category === "") && <th>Category</th>}
+                      {(activeTab === "recordings" || category === "" || category === "camera" || category === "recording") && <th>Camera</th>}
                       <th>Action</th>
                       <th>{(activeTab === "recordings" || category === "recording") ? "Face / Details" : "Details"}</th>
                     </>
@@ -490,26 +545,28 @@ export default function LogsPage() {
               <tbody>
                 {currentLogs.map((log, i) => (
                   <tr key={i}>
-                    <td>{new Date(log.timestamp).toLocaleString()}</td>
-                    <td>{log.user_email}</td>
+                    <td>{formatIST(log.timestamp)}</td>
+                    <td>{log.user_email || log.email || "Unknown"}</td>
                     {(activeTab === "ui" || activeTab === "recordings") ? (
                       <>
                         <td>
                           <span className={`log-tag ${log.user_role}`}>
-                            {log.user_role?.toUpperCase()}
+                            {log.user_role?.toUpperCase() || "ADMIN"}
                           </span>
                         </td>
-                        {activeTab === "ui" && <td>{log.category?.toUpperCase()}</td>}
-                        <td>
-                          {log.details?.camera_id ? (
-                            <div className="log-camera-cell">
-                              <span className="log-camera-name">{getCameraName(log.details.camera_id)}</span>
-                              <span className="log-camera-ip">{log.details.camera_id.replace(/_/g, ".")}</span>
-                            </div>
-                          ) : (
-                            "-"
-                          )}
-                        </td>
+                        {(activeTab === "ui" && category === "") && <td>{log.category?.toUpperCase()}</td>}
+                        {(activeTab === "recordings" || category === "" || category === "camera" || category === "recording") && (
+                          <td>
+                            {(log.details?.camera_id || log.details?.ip) ? (
+                              <div className="log-camera-cell">
+                                <span className="log-camera-name">{getCameraName(log.details?.camera_id || log.details?.ip)}</span>
+                                <span className="log-camera-ip">{(log.details?.camera_id || log.details?.ip).replace(/_/g, ".")}</span>
+                              </div>
+                            ) : (
+                              "-"
+                            )}
+                          </td>
+                        )}
                         <td>
                           <span style={{ fontWeight: 500 }}>{formatActionText(log.action)}</span>
                         </td>

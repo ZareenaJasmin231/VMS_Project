@@ -93,6 +93,48 @@ def get_ui_logs(
         cursor = ui_logs_col.find(query, {"_id": 0}).sort("timestamp", -1).limit(limit)
         logs = list(cursor)
         
+        # Also fetch from auth_logs if category is not restrictive or is exactly 'auth'
+        if category is None or category == "auth":
+            auth_logs_col = db.get_collection("auth_logs") if db is not None else None
+            if auth_logs_col is not None:
+                auth_query = {}
+                if "timestamp" in query:
+                    auth_query["timestamp"] = query["timestamp"]
+                if "user_email" in query:
+                    auth_query["user_email"] = query["user_email"]
+                
+                auth_cursor = auth_logs_col.find(auth_query, {"_id": 0}).sort("timestamp", -1).limit(limit)
+                for alog in auth_cursor:
+                    email = alog.get("email") or alog.get("user_email") or "Unknown"
+                    action_type = (alog.get("type") or alog.get("action", "unknown")).lower()
+                    
+                    if action_type == "login":
+                        action_text = "User logged in successfully"
+                    elif action_type == "logout":
+                        action_text = "User logged out successfully"
+                    elif action_type == "login_failed":
+                        reason = alog.get("reason", "unknown error")
+                        action_text = f"User login failed ({reason})"
+                    else:
+                        action_text = f"User action ({action_type})"
+                    
+                    logs.append({
+                        "timestamp": alog.get("timestamp"),
+                        "user_email": email,
+                        "user_role": alog.get("role") or alog.get("user_role") or "ADMIN",
+                        "action": action_text,
+                        "category": "auth",
+                        "details": {
+                            "ip_address": alog.get("ip") or alog.get("ip_address"),
+                            "user_agent": alog.get("user_agent")
+                        }
+                    })
+        
+        # Sort combined logs and apply limit
+        logs.sort(key=lambda x: x.get("timestamp") or "", reverse=True)
+        if limit > 0:
+            logs = logs[:limit]
+            
         return {"success": True, "logs": logs}
     except Exception as e:
         return {"success": False, "error": str(e), "logs": []}

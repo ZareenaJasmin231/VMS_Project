@@ -7,6 +7,7 @@ import AnimatedDownloadButton from "../../components/shared/AnimatedDownloadButt
 import { useNavigate } from "react-router-dom";
 import { useWebSocket } from "../../hooks/useWebSocket";
 import { useTheme } from "../../context/ThemeContext";
+import useActivityLogger from "../../hooks/useActivityLogger";
 import "./DashboardPage.css";
 import {
   Camera,
@@ -1918,6 +1919,7 @@ const parseEvents = (uiLogsList, infraAlertsList) => {
 
 const DashboardPage = () => {
   const navigate = useNavigate();
+  const { logAction } = useActivityLogger();
   const { theme } = useTheme();
   const { isConnected: isWsConnected, systemMetrics, eventsByTopic } = useWebSocket(['alerts', 'camera_status', 'system_metrics', 'dashboard_overview']);
 
@@ -2373,6 +2375,8 @@ const DashboardPage = () => {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    logAction(`Exported ${reportTypeMap[reportType]} Report (CSV)`, "export", { records: reportData.length });
   };
 
   const handleDownloadPDF = async () => {
@@ -2484,6 +2488,7 @@ const DashboardPage = () => {
     }
 
     doc.save(`${reportType}_report_${new Date().toISOString().slice(0,10)}.pdf`);
+    logAction(`Exported ${reportTypeMap[reportType]} Report (PDF)`, "export", { records: reportData.length });
   };
 
   const handleDownloadExcel = () => {
@@ -2535,6 +2540,7 @@ const DashboardPage = () => {
     }
 
     XLSX.writeFile(wb, `${reportType}_report_${new Date().toISOString().slice(0,10)}.xlsx`);
+    logAction(`Exported ${reportTypeMap[reportType]} Report (Excel)`, "export", { records: reportData.length });
   };
 
   // Pagination for report

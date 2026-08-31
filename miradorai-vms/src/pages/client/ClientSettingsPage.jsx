@@ -135,9 +135,11 @@ function SettingRow({ label, hint, children }) {
 }
 
 import { useAuth } from "../../context/AuthContext";
+import useActivityLogger from "../../hooks/useActivityLogger";
 
 export default function ClientSettingsPage() {
   const { user } = useAuth();
+  const { logAction } = useActivityLogger();
   const role = user?.role || "client";
   
   // Format role for display: "operator" -> "Operator", "admin" -> "Admin"
@@ -266,7 +268,10 @@ export default function ClientSettingsPage() {
       <div className="page-footer">
         <span />
         <div className="page-footer-right">
-          <Button label="Apply" variant="primary" onClick={() => applyTheme(theme)} />
+          <Button label="Apply" variant="primary" onClick={() => {
+            applyTheme(theme);
+            logAction("Updated Client Settings", "settings", { theme, language, showCamNames });
+          }} />
         </div>
       </div>
     </div>
