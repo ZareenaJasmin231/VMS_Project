@@ -368,6 +368,82 @@
   min-height: 0;
 }
 
+.lv-grid-area:fullscreen {
+  background: linear-gradient(135deg, #F1F4F7 0%, #E9EDF1 100%);
+}
+.lv-grid-area:fullscreen::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: radial-gradient(rgba(20, 30, 40, 0.06) 1.5px, transparent 1.5px);
+  background-size: 22px 22px;
+  z-index: 0;
+}
+[data-theme="dark"] .lv-grid-area:fullscreen {
+  background: linear-gradient(135deg, #0f111a 0%, #151A24 100%);
+}
+[data-theme="dark"] .lv-grid-area:fullscreen::before {
+  background-image: radial-gradient(rgba(255, 255, 255, 0.04) 1.5px, transparent 1.5px);
+}
+
+.lv-grid-area:-webkit-full-screen {
+  background: linear-gradient(135deg, #F1F4F7 0%, #E9EDF1 100%);
+}
+.lv-grid-area:-webkit-full-screen::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: radial-gradient(rgba(20, 30, 40, 0.06) 1.5px, transparent 1.5px);
+  background-size: 22px 22px;
+  z-index: 0;
+}
+[data-theme="dark"] .lv-grid-area:-webkit-full-screen {
+  background: linear-gradient(135deg, #0f111a 0%, #151A24 100%);
+}
+[data-theme="dark"] .lv-grid-area:-webkit-full-screen::before {
+  background-image: radial-gradient(rgba(255, 255, 255, 0.04) 1.5px, transparent 1.5px);
+}
+
+.lv-grid-area:-moz-full-screen {
+  background: linear-gradient(135deg, #F1F4F7 0%, #E9EDF1 100%);
+}
+.lv-grid-area:-moz-full-screen::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: radial-gradient(rgba(20, 30, 40, 0.06) 1.5px, transparent 1.5px);
+  background-size: 22px 22px;
+  z-index: 0;
+}
+[data-theme="dark"] .lv-grid-area:-moz-full-screen {
+  background: linear-gradient(135deg, #0f111a 0%, #151A24 100%);
+}
+[data-theme="dark"] .lv-grid-area:-moz-full-screen::before {
+  background-image: radial-gradient(rgba(255, 255, 255, 0.04) 1.5px, transparent 1.5px);
+}
+
+.lv-grid-area:-ms-fullscreen {
+  background: linear-gradient(135deg, #F1F4F7 0%, #E9EDF1 100%);
+}
+.lv-grid-area:-ms-fullscreen::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: radial-gradient(rgba(20, 30, 40, 0.06) 1.5px, transparent 1.5px);
+  background-size: 22px 22px;
+  z-index: 0;
+}
+[data-theme="dark"] .lv-grid-area:-ms-fullscreen {
+  background: linear-gradient(135deg, #0f111a 0%, #151A24 100%);
+}
+[data-theme="dark"] .lv-grid-area:-ms-fullscreen::before {
+  background-image: radial-gradient(rgba(255, 255, 255, 0.04) 1.5px, transparent 1.5px);
+}
+
 /* ── Grid ────────────────────────────────────────── */
 .lv-grid {
   flex: 1;
