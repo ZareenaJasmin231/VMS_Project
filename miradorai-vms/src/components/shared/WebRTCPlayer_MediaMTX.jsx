@@ -113,6 +113,10 @@ function WebRTCPlayer_MediaMTX({ streamKey, cameraId, onConnectChange, onError, 
 
     if (whepLocationRef.current) {
       try {
+        //simulation replace 
+        // const portStr = window.location.port ? `:${window.location.port}` : '';
+        // const whepUrl = new URL(whepLocationRef.current, `http://${window.location.hostname}${portStr}/whep/${currentStreamKey}/whep`);
+        //simulation replace
         const whepUrl = new URL(whepLocationRef.current, `${window.location.protocol}//${window.location.hostname}/whep/${currentStreamKey}/whep`);
         fetch(whepUrl.toString(), { method: "DELETE", keepalive: true }).catch(() => {});
       } catch {
@@ -192,6 +196,10 @@ function WebRTCPlayer_MediaMTX({ streamKey, cameraId, onConnectChange, onError, 
         sdp: constrainedSdp,
       });
 
+      // simulation replace 
+      // const portStr = window.location.port ? `:${window.location.port}` : '';
+      // const response = await fetch(`http://${window.location.hostname}${portStr}/whep/${currentStreamKey}/whep`, {
+      //simulation replace
       const response = await fetch(`${window.location.protocol}//${window.location.hostname}/whep/${currentStreamKey}/whep`, {
         method: "POST",
         headers: {
