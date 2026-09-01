@@ -196,7 +196,7 @@ function CamThumbnail({ cam, marker, index, sx, sy, isExpanded, isOnline, isReco
 
   return (
     <div
-      className={`vt-thumb ${isOnline ? "vt-thumb--online" : "vt-thumb--offline"} ${isExpanded ? "vt-thumb--expanded" : ""} ${alertCount > 0 ? "vt-thumb--alert" : ""}`}
+      className={`vt-thumb ${isOnline ? "vt-thumb--online" : "vt-thumb--offline"} ${isExpanded ? "vt-thumb--expanded" : ""} ${localStorage.getItem("miradorai_show_event_ind") !== "false" && alertCount > 0 ? "vt-thumb--alert" : ""}`}
       style={{ left, top, width: THUMB_W, height: THUMB_H }}
       onClick={e => { e.stopPropagation(); isExpanded ? onClose() : onExpand(); }}
       title={`${cam.name} — click to expand`}

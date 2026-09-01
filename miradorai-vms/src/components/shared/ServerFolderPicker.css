@@ -1,0 +1,101 @@
+.sfp-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  color: var(--text-primary, #e2e8f0);
+}
+
+.sfp-header {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.sfp-up-btn, .sfp-go-btn {
+  background: var(--bg-hover, #1e293b);
+  border: 1px solid var(--border-color, #334155);
+  color: var(--text-primary, #e2e8f0);
+  border-radius: 4px;
+  padding: 6px 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sfp-up-btn:disabled, .sfp-go-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.sfp-path-input {
+  flex: 1;
+  background: var(--bg-input, #0f172a);
+  border: 1px solid var(--border-color, #334155);
+  color: var(--text-primary, #e2e8f0);
+  padding: 6px 8px;
+  border-radius: 4px;
+}
+
+.sfp-list {
+  height: 250px;
+  overflow-y: auto;
+  background: var(--bg-surface-2, #1e293b);
+  border: 1px solid var(--border-color, #334155);
+  border-radius: 4px;
+  display: flex;
+  flex-direction: column;
+}
+
+.sfp-list-item {
+  display: flex;
+  align-items: center;
+  padding: 8px 12px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.sfp-list-item:hover {
+  background: var(--bg-hover, #334155);
+}
+
+.sfp-loading, .sfp-empty {
+  padding: 20px;
+  text-align: center;
+  color: var(--text-secondary, #94a3b8);
+}
+
+.sfp-error {
+  color: #ef4444;
+  font-size: 12px;
+}
+
+.sfp-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.sfp-cancel-btn {
+  background: transparent;
+  border: 1px solid var(--border-color, #334155);
+  color: var(--text-primary, #e2e8f0);
+  padding: 6px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.sfp-select-btn {
+  background: #3b82f6;
+  border: none;
+  color: white;
+  padding: 6px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.sfp-select-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

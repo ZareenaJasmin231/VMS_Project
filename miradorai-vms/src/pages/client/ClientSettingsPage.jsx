@@ -149,12 +149,18 @@ export default function ClientSettingsPage() {
   const [theme,          setTheme]          = useState(() => localStorage.getItem("miradorai_theme") || "dark");
   const [runOnStart,     setRunOnStart]     = useState(false);
   const [showWhatsNew,   setShowWhatsNew]   = useState(true);
-  const [showCamNames,   setShowCamNames]   = useState(true);
+  const [showCamNames,   setShowCamNames]   = useState(() => {
+    const val = localStorage.getItem("miradorai_show_cam_names");
+    return val !== "false";
+  });
   const [showRecInd,     setShowRecInd]     = useState(() => {
     const val = localStorage.getItem("miradorai_show_rec_ind");
     return val !== "false";
   });
-  const [showEventInd,   setShowEventInd]   = useState(true);
+  const [showEventInd,   setShowEventInd]   = useState(() => {
+    const val = localStorage.getItem("miradorai_show_event_ind");
+    return val !== "false";
+  });
   const [flashCoverage,  setFlashCoverage]  = useState(true);
   const [language,       setLanguage]       = useState("English");
   const [shareAnonymous, setShareAnonymous] = useState(true);
@@ -211,7 +217,10 @@ export default function ClientSettingsPage() {
         {/* ── Live view ── */}
         <Section title="Live view">
           <SettingRow label="Show camera names in live views">
-            <Toggle value={showCamNames} onChange={setShowCamNames} />
+            <Toggle value={showCamNames} onChange={(val) => {
+              setShowCamNames(val);
+              localStorage.setItem("miradorai_show_cam_names", val ? "true" : "false");
+            }} />
           </SettingRow>
           <SettingRow label="Show recording indicators in live views and maps">
             <Toggle value={showRecInd} onChange={(val) => {
@@ -220,11 +229,15 @@ export default function ClientSettingsPage() {
             }} />
           </SettingRow>
           <SettingRow label="Show event indicators in live views and maps">
-            <Toggle value={showEventInd} onChange={setShowEventInd} />
+            <Toggle value={showEventInd} onChange={(val) => {
+              setShowEventInd(val);
+              localStorage.setItem("miradorai_show_event_ind", val ? "true" : "false");
+            }} />
           </SettingRow>
         </Section>
 
         {/* ── Maps ── */}
+        {/*
         <Section title="Maps">
           <SettingRow
             label="Allow flashing coverage areas for all maps"
@@ -233,6 +246,7 @@ export default function ClientSettingsPage() {
             <Toggle value={flashCoverage} onChange={setFlashCoverage} />
           </SettingRow>
         </Section>
+        */}
 
         {/* ── Language ── */}
         <Section title="Language">
@@ -248,6 +262,7 @@ export default function ClientSettingsPage() {
         </Section>
 
         {/* ── Feedback ── */}
+        {/*
         <Section title="Feedback">
           <label className="cs-checkbox-row">
             <input type="checkbox" checked={shareAnonymous}
@@ -262,6 +277,7 @@ export default function ClientSettingsPage() {
             Configuration tab.
           </p>
         </Section>
+        */}
 
       </div>
 

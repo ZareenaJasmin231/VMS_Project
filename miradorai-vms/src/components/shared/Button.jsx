@@ -1,18 +1,22 @@
 import "./Button.css";
 import SpecularButton from "./SpecularButton";
+import { useTheme } from "../../context/ThemeContext";
 
 export default function Button({ label, onClick, disabled, variant = "default", icon, type = "button", className = "" }) {
+  const { theme } = useTheme();
+  const isLight = theme === "light" || (theme === "system" && window.matchMedia("(prefers-color-scheme: light)").matches);
+
   if (variant === "primary") {
     return (
       <SpecularButton
         size="sm"
         radius={6}
         tint="#10b981"
-        tintOpacity={0.10}
+        tintOpacity={isLight ? 0.9 : 0.10}
         blur={4}
-        textColor="#f0fff8"
-        lineColor="#10b981"
-        baseColor="#0d3326"
+        textColor={isLight ? "#ffffff" : "#f0fff8"}
+        lineColor={isLight ? "#6ee7b7" : "#10b981"}
+        baseColor={isLight ? "#059669" : "#0d3326"}
         intensity={1.2}
         shineSize={12}
         shineFade={38}

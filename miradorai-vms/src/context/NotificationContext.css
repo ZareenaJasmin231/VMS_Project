@@ -1,0 +1,247 @@
+/* Toast Container Box styles */
+/* Toast Container Box styles */
+.toast-container-box {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  z-index: 9999;
+  width: 320px;
+  background-color: var(--bg-surface);
+  border-radius: var(--radius-md, 8px);
+  box-shadow: var(--shadow-lg, 0 10px 25px rgba(0,0,0,0.5));
+  border: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: slideUp 0.3s ease-out forwards;
+}
+
+@keyframes slideUp {
+  from { transform: translateY(100%); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.toast-container-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 16px;
+  background-color: var(--bg-elevated);
+  border-bottom: 1px solid var(--border);
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text-primary);
+}
+
+.toast-container-close {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s;
+}
+
+.toast-container-close:hover {
+  color: var(--text-primary);
+}
+
+.toast-list {
+  max-height: 300px;
+  overflow-y: auto;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* Custom scrollbar for toast list */
+.toast-list::-webkit-scrollbar {
+  width: 6px;
+}
+.toast-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+.toast-list::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+.toast-list::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+.toast-item {
+  background-color: var(--bg-elevated);
+  color: var(--text-primary);
+  padding: 12px 16px;
+  border-radius: var(--radius-sm, 4px);
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  border-left: 5px solid transparent;
+  animation: fadeIn 0.3s ease-out forwards;
+  transition: transform 0.2s, background-color 0.2s;
+}
+
+.toast-item:hover {
+  background-color: var(--bg-hover);
+  transform: translateX(-2px);
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes slideIn {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+.toast-danger {
+  border-left-color: var(--red); /* Red for alarms */
+}
+
+.toast-success {
+  border-left-color: var(--teal); /* Green/Teal for recovery */
+}
+
+.toast-neutral {
+  border-left-color: var(--blue); /* Blue for tasks */
+}
+
+.toast-warning {
+  border-left-color: var(--yellow); /* Orange for intercom */
+}
+
+.toast-content {
+  flex: 1;
+}
+
+.toast-title-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.toast-content strong {
+  display: block;
+  font-size: 14px;
+}
+
+.toast-time {
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.toast-body {
+  font-size: 13px;
+  color: var(--text-secondary);
+  word-break: break-word;
+  white-space: pre-line;
+}
+
+.toast-close {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  margin-left: 12px;
+  padding: 4px;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+.toast-close:hover {
+  color: var(--text-primary);
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+/* Intercom Call Modal styles */
+.intercom-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.75);
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.intercom-modal {
+  background: #222;
+  color: #fff;
+  border-radius: 8px;
+  padding: 24px;
+  width: 400px;
+  text-align: center;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+}
+
+.intercom-modal h2 {
+  margin-top: 0;
+  font-size: 20px;
+}
+
+.intercom-modal p {
+  color: #bbb;
+  margin-bottom: 20px;
+}
+
+.intercom-video-preview {
+  background: #111;
+  height: 200px;
+  border-radius: 4px;
+  margin-bottom: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.video-placeholder {
+  color: #555;
+}
+
+.intercom-actions {
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+}
+
+.intercom-actions button {
+  padding: 12px 24px;
+  border: none;
+  border-radius: 4px;
+  font-size: 16px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: filter 0.2s;
+}
+
+.intercom-actions button:hover {
+  filter: brightness(1.1);
+}
+
+.btn-accept {
+  background-color: #4caf50;
+  color: white;
+}
+
+.btn-decline {
+  background-color: #f44336;
+  color: white;
+}

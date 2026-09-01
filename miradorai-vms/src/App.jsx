@@ -10,6 +10,10 @@ import LoginPage from "./pages/auth/LoginPage";
 import AiAnalyticsPage from "./pages/analytics/AiAnalyticsPage";
 import useActivityLogger from "./hooks/useActivityLogger"; // ✅ FIXED
 import { ThemeProvider } from "./context/ThemeContext";
+
+import { UserSettingsProvider } from "./context/UserSettingsContext";
+import { NotificationProvider } from "./context/NotificationContext";
+
 import GlobalLiveMirror from "./components/layout/GlobalLiveMirror";
 import "./styles/global.css";
 
@@ -72,9 +76,13 @@ export default function App() {
   return (
     <ThemeProvider>
       <AuthProvider>
+        <UserSettingsProvider>
+          <NotificationProvider>
         <BrowserRouter>
           <AppContent />
         </BrowserRouter>
+      </NotificationProvider>
+        </UserSettingsProvider>
       </AuthProvider>
     </ThemeProvider>
   );

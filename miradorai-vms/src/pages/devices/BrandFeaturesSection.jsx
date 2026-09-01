@@ -202,7 +202,10 @@ export default function BrandFeaturesSection({ device, caps, showToast }) {
         showToast("No response from server", "error");
       } else if (data.success) {
         setSnapshot(data.snapshot);
-        showToast("Snapshot captured", "success");
+        // NEW INTEGRATION: Send to backend to save to folder
+        import('../../utils/snapshotUtils').then(({ saveSnapshotToBackend }) => {
+          saveSnapshotToBackend(data.snapshot, device.name, settings, showToast);
+        });
       } else {
         showToast(data.error || "Snapshot failed", "error");
       }

@@ -21,6 +21,7 @@ const MapCanvas = forwardRef(function MapCanvas(
     markers,
     zones = [],
     floorImgRef,
+    cadRendererRef,
     scaleRef,
     offsetRef,
     hoveredIdxRef,
@@ -35,6 +36,7 @@ const MapCanvas = forwardRef(function MapCanvas(
     onContextMenu,
     iconScale = 1.20,
     selectedIdx = null,
+    ppm = null,
   },
   ref
 ) {
@@ -99,11 +101,11 @@ const MapCanvas = forwardRef(function MapCanvas(
     let area = 0;
     const n = polygon.length;
     for (let i = 0; i < n; i++) {
-      const j = (i + 1) % n;
-      area += polygon[i].x * polygon[j].y;
-      area -= polygon[j].x * polygon[i].y;
+      const p1 = polygon[i];
+      const p2 = polygon[(i + 1) % n];
+      area += p1.x * p2.y - p2.x * p1.y;
     }
-    return Math.abs(area) / 2;
+    return Math.abs(area / 2);
   }
 
   // ── Find the zone a marker sits inside ───────────────────────────
@@ -154,17 +156,50 @@ const MapCanvas = forwardRef(function MapCanvas(
     ctx.clearRect(0, 0, W, H);
 
     const img = floorImgRef.current;
-    if (!img) return;
+    const cadRenderer = cadRendererRef?.current;
+    if (!img && !cadRenderer) return;
 
     const { x: ox, y: oy } = offsetRef.current;
     const scale = scaleRef.current;
 
-    ctx.save();
-    ctx.translate(ox, oy);
-    ctx.scale(scale, scale);
+    if (cadRenderer && typeof cadRenderer.render === "function") {
+      cadRenderer.render(ctx, { x: ox, y: oy, scale }, W, H);
+    } else if (img) {
+      ctx.save();
+      ctx.translate(ox, oy);
+      ctx.scale(scale, scale);
+      ctx.drawImage(img, 0, 0);
+      ctx.restore();
 
-    // ── 1. Floor plan ──────────────────────────────────────────────
-    ctx.drawImage(img, 0, 0);
+      // Draw physical dimensions on boundaries
+      ctx.save();
+      const finalPpm = ppm || 22;
+      const widthM = (img.width / finalPpm).toFixed(1);
+      const heightM = (img.height / finalPpm).toFixed(1);
+      
+      ctx.font = "bold 13px Inter, sans-serif";
+      ctx.fillStyle = "#10b981"; 
+      ctx.shadowColor = "#000000";
+      ctx.shadowBlur = 4;
+      
+      // Top boundary (Width)
+      const topX = ox + (img.width * scale) / 2;
+      const topY = oy - 8;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "bottom";
+      if (topY > 0) {
+        ctx.fillText(`↔ ${widthM} m`, topX, topY);
+      }
+
+      // Left boundary (Height)
+      const leftX = ox - 8;
+      const leftY = oy + (img.height * scale) / 2;
+      ctx.translate(leftX, leftY);
+      ctx.rotate(-Math.PI / 2);
+      ctx.textBaseline = "bottom";
+      ctx.fillText(`↔ ${heightM} m`, 0, 0);
+      ctx.restore();
+    }
 
     // ── 2. Dark overlay + zone-clipped FOV punch-outs ──────────────
     if (markers.length > 0) {
@@ -178,9 +213,11 @@ const MapCanvas = forwardRef(function MapCanvas(
       // Step B — erase (punch out) each camera's FOV cone from dark layer
       //          clipped to zone polygon so light stays inside the zone
       markers.forEach(m => {
+        const cam = cameras.find(c => c.id === m.camId);
         const fovAngle = m.fovAngle || 60;
         const direction = m.direction || 0;
-        const fovLen = fovAngle * 2.2 + 40;
+        const finalPpm = ppm || 22;
+        const fovLen = cam?.specs?.rangeDay ? cam.specs.rangeDay * finalPpm : (fovAngle * 2.2 + 40);
         const halfRad = (fovAngle / 2) * (Math.PI / 180);
         const angle = direction * (Math.PI / 180);
 
@@ -244,7 +281,8 @@ const MapCanvas = forwardRef(function MapCanvas(
 
         const fovAngle = m.fovAngle || 60;
         const direction = m.direction || 0;
-        const fovLen = fovAngle * 2.2 + 40;
+        const finalPpm = ppm || 22;
+        const fovLen = cam?.specs?.rangeDay ? cam.specs.rangeDay * finalPpm : (fovAngle * 2.2 + 40);
         const halfRad = (fovAngle / 2) * (Math.PI / 180);
         const angle = direction * (Math.PI / 180);
         const S = 0.62;
@@ -303,8 +341,7 @@ const MapCanvas = forwardRef(function MapCanvas(
         let g;
         if (!online) {
           g = ctx.createRadialGradient(originX, originY, 0, originX, originY, fovLen);
-          g.addColorStop(0, "rgba(110,110,110,0.60)");
-          g.addColorStop(0.55, "rgba(110,110,110,0.26)");
+          g.addColorStop(0, "rgba(110,110,110,0.14)");
           g.addColorStop(1, "rgba(110,110,110,0)");
         } else {
           g = ctx.createRadialGradient(originX, originY, 0, originX, originY, fovLen);
@@ -328,7 +365,7 @@ const MapCanvas = forwardRef(function MapCanvas(
         name: m.camName || m.camId, ip: m.camIp || "", status: "offline",
       };
       const online = cam.status === "online";
-      const hasAlert = online && alertCounts && alertCounts[cam.ip] > 0;
+      const hasAlert = localStorage.getItem("miradorai_show_event_ind") !== "false" && alertCounts && alertCounts[cam.ip] > 0;
       const isHighlit = m.camId === highlightedCamId || i === selectedIdx;
       const col = hasAlert ? "#E24B4A" : (online ? (isHighlit ? "#5aabf0" : "#1D9E75") : "#555");
       const R = 8;   // glow / hit radius
