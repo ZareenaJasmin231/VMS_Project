@@ -16,7 +16,7 @@ for _parent in [_here.parent, *_here.parents]:
         break
  
 MONGO_URI = os.environ.get("MONGO_URI", "mongodb://localhost:27017/")
-MONGO_DB_NAME = os.environ.get("MONGO_DB_NAME")
+MONGO_DB_NAME = os.environ.get("MONGO_DB_NAME", "vms_demo")
  
 def create_database_indexes(db_instance):
     """Creates optimized indexes on MongoDB collections to eliminate full table scans and high CPU load."""

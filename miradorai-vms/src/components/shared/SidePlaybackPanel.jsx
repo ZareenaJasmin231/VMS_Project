@@ -5,6 +5,7 @@ import { useDigitalZoom } from "../../hooks/useDigitalZoom";
 import { useWebSocket } from "../../hooks/useWebSocket";
 import { useAuth } from "../../context/AuthContext";
 import { logUIAction } from "../../hooks/useActivityLogger";
+import { formatEventName } from "../../pages/liveview/LiveViewPage";
 import "./SidePlaybackPanel.css";
 
 const API = import.meta.env.VITE_API_URL || "";
@@ -201,7 +202,8 @@ export default function SidePlaybackPanel({ camera, onClose, alertSource = "buil
           setAlerts(mapped);
         }
       } else {
-        const res = await fetch(`${API}/api/alerts?limit=5000`, {
+        const urlParam = alertSource === "mqtt_ai" ? "&source=external_ai" : "";
+        const res = await fetch(`${API}/api/alerts?limit=5000${urlParam}`, {
           headers: getAuthHeaders()
         });
         if (res.ok) {
@@ -247,6 +249,7 @@ export default function SidePlaybackPanel({ camera, onClose, alertSource = "buil
   }, [cameraIp, alertSource, camera]);
 
   useEffect(() => {
+    if (alertSource === "mqtt_ai") return;
     const alertEnvelope = eventsByTopic.alerts;
     if (activeTab === "alerts" && alertEnvelope && alertEnvelope.data) {
       const payload = alertEnvelope.data;
@@ -1175,7 +1178,7 @@ export default function SidePlaybackPanel({ camera, onClose, alertSource = "buil
                           )}
                         </>
                       ) : (
-                        <span className="side-playback-alert-type">{alert.type || "Active Alert"}</span>
+                        <span className="side-playback-alert-type">{formatEventName(alert.type || "Active Alert")}</span>
                       )}
                       <span className="side-playback-alert-time" style={{ display: "block", marginTop: "3px" }}>
                         {timeOnly || "—"} {dateOnly && <span style={{ color: "var(--teal)", marginLeft: "6px" }}>({dateOnly})</span>}

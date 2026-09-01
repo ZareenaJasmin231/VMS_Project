@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import AiAlertModal from "../../components/shared/AiAlertModal";
 import WebRTCPlayer_MediaMTX from "../../components/shared/WebRTCPlayer_MediaMTX";
 import HlsPlayer from "../../components/shared/HlsPlayer";
 import Hls from "hls.js";
@@ -131,6 +132,16 @@ function isAlertAllowed(alert) {
       return type.includes("intrusion") || scenario.includes("intrusion");
     return true;
   });
+}
+
+// ── Format Event Name ───────────────────────────────────────────────
+export function formatEventName(name) {
+  if (!name) return "Unknown";
+  let formatted = name;
+  if (formatted.toLowerCase() === "face_recognition") return "Face Recognition";
+  if (formatted.toLowerCase() === "intrusion") return "Intrusion";
+  if (formatted.startsWith("fr-")) formatted = formatted.substring(3);
+  return formatted.charAt(0).toUpperCase() + formatted.slice(1).replace(/_/g, " ");
 }
 
 // ── MaskOverlay ───────────────────────────────────────────────────
@@ -477,7 +488,7 @@ export function AlertPopup({ ip, alerts, onClose }) {
             )}
 
             <div className="alp-playback-meta" style={{ marginTop: "16px" }}>
-              <span className="alp-meta-chip">{playingAlert.type || "—"}</span>
+              <span className="alp-meta-chip">{formatEventName(playingAlert.type)}</span>
               <span className="alp-meta-time">
                 {playingAlert.time
                   ? playingAlert.time.split("T")[1]?.split("+")[0]
@@ -497,7 +508,7 @@ export function AlertPopup({ ip, alerts, onClose }) {
                   <div key={i} className="alp-row">
                     <div className="alp-row__info">
                       <span className="alp-row__type">
-                        {alert.type || "Unknown"}
+                        {formatEventName(alert.type)}
                       </span>
                       <span className="alp-row__time">
                         {alert.time
@@ -533,6 +544,7 @@ function AlertsPanel({
   devices: devicesProp,
 }) {
   const [alerts, setAlerts] = useState([]);
+  const [selectedAiAlert, setSelectedAiAlert] = useState(null);
   const [loading, setLoading] = useState(true);
   const [zoomedImage, setZoomedImage] = useState(null);
 
@@ -547,10 +559,9 @@ function AlertsPanel({
     if (alert.isExternal) {
       const raw = alert.rawData || {};
       let eventType = raw.subType || raw.sourceType || "AI Event";
-      if (eventType.startsWith("fr-")) eventType = eventType.substring(3);
-      return eventType.charAt(0).toUpperCase() + eventType.slice(1);
+      return formatEventName(eventType);
     }
-    return alert.type || "Unknown";
+    return formatEventName(alert.type || "Unknown");
   }, []);
 
   const getDisplayCamera = useCallback((alert) => {
@@ -703,8 +714,9 @@ function AlertsPanel({
 
   const fetchAlerts = useCallback(async () => {
     try {
-      if (alertSource === "builtin") {
-        const res = await fetch(`${API}/api/alerts?limit=5000`, {
+      if (alertSource === "builtin" || alertSource === "mqtt_ai") {
+        const urlParam = alertSource === "mqtt_ai" ? "&source=external_ai" : "";
+        const res = await fetch(`${API}/api/alerts?limit=5000${urlParam}`, {
           headers: getAuthHeaders(),
         });
         if (!res.ok) return;
@@ -849,10 +861,14 @@ function AlertsPanel({
   }, [onAlertCountUpdate, liveStatus, alertSource, devicesProp, allowedIps]);
   const { isConnected: isWsConnected, eventsByTopic } = useWebSocket([
     "alerts",
+    "vms/analytics/response"
   ]);
 
   // Listen to incoming WebSocket alerts in real time
   useEffect(() => {
+    // ── When AI Alerts mode is ON, suppress all built-in WebSocket alerts ──
+    if (alertSource === "mqtt_ai") return;
+
     const alertEnvelope = eventsByTopic.alerts;
     if (alertEnvelope && alertEnvelope.data) {
       const payload = alertEnvelope.data;
@@ -892,7 +908,7 @@ function AlertsPanel({
         });
       })();
     }
-  }, [eventsByTopic.alerts]);
+  }, [eventsByTopic.alerts, alertSource]);
 
   useEffect(() => {
     fetchAlerts();
@@ -916,6 +932,61 @@ function AlertsPanel({
       </div>
 
       <div className="lv-alerts-panel__filters-container">
+        <div style={{
+          display: 'flex', alignItems: 'center', marginBottom: '12px',
+          justifyContent: 'space-between', padding: '6px 8px',
+          borderRadius: '10px',
+          background: alertSource === 'mqtt_ai'
+            ? 'linear-gradient(135deg, rgba(6,182,212,0.15), rgba(16,185,129,0.12))'
+            : 'transparent',
+          border: alertSource === 'mqtt_ai'
+            ? '1px solid rgba(6,182,212,0.5)'
+            : '1px solid transparent',
+          transition: 'all 0.3s ease',
+          boxShadow: alertSource === 'mqtt_ai' ? '0 0 12px rgba(6,182,212,0.2)' : 'none',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            {/* Animated dot — pulses when active */}
+            <span style={{
+              width: '8px', height: '8px', borderRadius: '50%',
+              background: alertSource === 'mqtt_ai' ? '#06b6d4' : '#475569',
+              boxShadow: alertSource === 'mqtt_ai' ? '0 0 6px #06b6d4' : 'none',
+              display: 'inline-block',
+              transition: 'all 0.3s',
+            }} />
+            <span style={{
+              fontSize: '13px', fontWeight: 700,
+              letterSpacing: '0.04em',
+              color: alertSource === 'mqtt_ai' ? '#06b6d4' : 'var(--text-secondary)',
+              transition: 'color 0.3s',
+            }}>AI Analytics</span>
+          </div>
+
+          {/* Custom pill toggle */}
+          <div
+            onClick={() => setAlertSource(alertSource === 'mqtt_ai' ? 'builtin' : 'mqtt_ai')}
+            style={{
+              width: '44px', height: '24px', borderRadius: '12px', cursor: 'pointer',
+              position: 'relative',
+              background: alertSource === 'mqtt_ai'
+                ? 'linear-gradient(135deg, #06b6d4, #10b981)'
+                : 'rgba(71,85,105,0.5)',
+              border: '1px solid ' + (alertSource === 'mqtt_ai' ? '#06b6d4' : '#475569'),
+              transition: 'all 0.3s ease',
+              boxShadow: alertSource === 'mqtt_ai' ? '0 0 8px rgba(6,182,212,0.5)' : 'none',
+            }}
+          >
+            <span style={{
+              position: 'absolute', top: '3px',
+              left: alertSource === 'mqtt_ai' ? '22px' : '3px',
+              width: '16px', height: '16px', borderRadius: '50%',
+              background: '#fff',
+              transition: 'left 0.3s ease',
+              boxShadow: '0 1px 4px rgba(0,0,0,0.3)',
+            }} />
+          </div>
+        </div>
+
         <div className="lv-alerts-search">
           <svg
             className="lv-search-icon"
@@ -1244,7 +1315,7 @@ function AlertsPanel({
               >
                 <div className="lv-alert-card__layout">
                   <div className="lv-alert-card__info">
-                    {!alert.isExternal && (
+                    {(!alert.isExternal && alert.source !== 'external_ai') && (
                       <div className="lv-alert-card__top">
                         <span
                           className="lv-alert-card__serial"
@@ -1257,101 +1328,39 @@ function AlertsPanel({
                       </div>
                     )}
 
-                    {alert.isExternal ? (
+                    {alert.isExternal || alert.source === "external_ai" ? (
                       (() => {
-                        const raw = alert.rawData || {};
-
-                        // Parse event subType: e.g. "fr-blacklist" -> format to "Blacklist" or "fr-blacklist"
-                        let eventType =
-                          raw.subType || raw.sourceType || "AI Event";
-                        if (eventType.startsWith("fr-")) {
-                          eventType = eventType.substring(3); // e.g. "blacklist"
+                        const raw = alert.rawData || alert.raw || alert || {};
+                        
+                        // Extract exactly the requested keys
+                        const featureVal = raw.feature || "N/A";
+                        const typeVal = raw.type || alert.type || "N/A";
+                        let readerNameVal = raw.readerName || raw.readername || raw.reader_name || "N/A";
+                        const readerIpVal = raw.readerIp || alert.ip;
+                        if (readerIpVal && readerIpVal !== "unknown") {
+                           readerNameVal += ` (${readerIpVal.replace(/_/g, ".")})`;
                         }
-                        // Capitalize first letter
-                        eventType =
-                          eventType.charAt(0).toUpperCase() +
-                          eventType.slice(1);
-
-                        // Person/Employee name: e.g. राजेश (Rajesh) from "empName"
-                        const personName =
-                          raw.empName ||
-                          raw.employeeName ||
-                          raw.personName ||
-                          raw.name ||
-                          raw.label ||
-                          "";
-                        let eventText = "";
-                        if (
-                          !personName ||
-                          personName.toLowerCase().includes("unknown")
-                        ) {
-                          eventText = "Unknown";
-                        } else {
-                          eventText = `${eventType} - ${personName}`;
-                        }
-
-                        const locationText =
-                          raw.locationName || raw.location || "Tek Towers";
-                        const cameraText =
-                          raw.readerName ||
-                          raw.cameraName ||
-                          raw.camera ||
-                          "Mirador";
-
-                        // Split detectionTime into date and time parts
-                        const dtPart = raw.detectionTime || "";
-                        const dateOnly = dtPart.split("T")[0] || "—";
-                        const timeOnlyPart = dtPart.includes("T")
-                          ? dtPart.split("T")[1]?.split("+")[0]
-                          : "—";
-
+                        const detectionTimeVal = raw.detectionTime || raw.detection_time || alert.received_at || "N/A";
+                        
                         return (
-                          <>
+                          <div onClick={() => setSelectedAiAlert(alert)} style={{ cursor: 'pointer' }}>
+                            {/* Header line — same as camera serial in regular cards */}
                             <div className="lv-alert-card__top">
-                              <span
-                                className="lv-alert-card__serial"
-                                style={{ fontWeight: "600", color: "#ffffff" }}
-                              >
-                                {cameraText} (
-                                {raw.readerIp || alert.ip || "Unknown"})
-                              </span>
+                              <span className="lv-alert-card__serial">{readerNameVal}</span>
                             </div>
-
                             <div className="lv-alert-card__row">
-                              <span className="lv-alert-card__label">
-                                Event
-                              </span>
-                              <span
-                                className="lv-alert-card__value"
-                                style={{ color: "#ff4d4f" }}
-                              >
-                                {eventText}
-                              </span>
+                              <span className="lv-alert-card__label">Feature</span>
+                              <span className="lv-alert-card__value">{featureVal}</span>
                             </div>
-
                             <div className="lv-alert-card__row">
-                              <span className="lv-alert-card__label">
-                                Location
-                              </span>
-                              <span className="lv-alert-card__value">
-                                {locationText}
-                              </span>
+                              <span className="lv-alert-card__label">Type</span>
+                              <span className="lv-alert-card__value">{typeVal}</span>
                             </div>
-
                             <div className="lv-alert-card__row">
                               <span className="lv-alert-card__label">Time</span>
-                              <span className="lv-alert-card__value lv-alert-card__value--time">
-                                {timeOnlyPart}
-                              </span>
+                              <span className="lv-alert-card__value lv-alert-card__value--time">{detectionTimeVal}</span>
                             </div>
-
-                            <div className="lv-alert-card__row">
-                              <span className="lv-alert-card__label">Date</span>
-                              <span className="lv-alert-card__value lv-alert-card__value--date">
-                                {dateOnly}
-                              </span>
-                            </div>
-                          </>
+                          </div>
                         );
                       })()
                     ) : (
@@ -1359,7 +1368,7 @@ function AlertsPanel({
                         <div className="lv-alert-card__row">
                           <span className="lv-alert-card__label">Event</span>
                           <span className="lv-alert-card__value">
-                            {alert.type || "—"}
+                            {getDisplayType(alert)}
                           </span>
                         </div>
 
@@ -1455,7 +1464,7 @@ function AlertsPanel({
                         url: thumbnailUrl,
                         cameraName: cameraName,
                         ip: displayId,
-                        type: alert.type || "—",
+                        type: getDisplayType(alert),
                         time: timeOnly || alert.received_at
                       })}
                     >
@@ -1510,6 +1519,9 @@ function AlertsPanel({
           </div>
         </div>
       )}
+      {selectedAiAlert && (
+        <AiAlertModal alert={selectedAiAlert} onClose={() => setSelectedAiAlert(null)} />
+      )}
     </div>
   );
 }
@@ -1529,12 +1541,22 @@ function CameraCell({
   badgeMode,
   hideName,
   objectFit,
+  showAiOverlay,
+  analyticsData,
 }) {
   const showRec = localStorage.getItem("miradorai_show_rec_ind") !== "false";
+  let aiCount = 0;
+  let aiNames = [];
+  if (showAiOverlay && analyticsData && analyticsData.analytics) {
+     const distinctTypes = new Set(analyticsData.analytics.map(a => a.sourceType || a.subType || "Unknown"));
+     aiCount = distinctTypes.size;
+     aiNames = Array.from(distinctTypes).map(formatEventName);
+  }
   const [isLive, setIsLive] = useState(false);
   const [localStreamMode, setLocalStreamMode] = useState(streamMode);
   const [ptzOpen, setPtzOpen] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
+  const [showAiTooltip, setShowAiTooltip] = useState(false);
 
   useEffect(() => {
     setLocalStreamMode(streamMode);
@@ -1566,9 +1588,77 @@ function CameraCell({
 
   return (
     <div
-      className={`lv-cam ${alertCount > 0 ? "lv-cam--alert" : ""}`}
+      className={`lv-cam ${localStorage.getItem("miradorai_show_event_ind") !== "false" && alertCount > 0 ? "lv-cam--alert" : ""}`}
       style={{ position: "relative" }}
     >
+      {showAiOverlay && aiCount > 0 && (
+        <div 
+          className="lv-cam__ai-overlay-container"
+          style={{
+            position: "absolute",
+            bottom: badgeMode === "micro" ? "4px" : badgeMode === "compact" ? "6px" : "12px",
+            left: badgeMode === "micro" ? "90px" : badgeMode === "compact" ? "110px" : "135px",
+            zIndex: 20,
+          }}
+          onMouseEnter={() => setShowAiTooltip(true)}
+          onMouseLeave={() => setShowAiTooltip(false)}
+        >
+          <div
+            className="lv-cam__ai-badge"
+            style={{
+              backgroundColor: "rgba(0,0,0,0.7)",
+              color: "#fff",
+              padding: "4px 8px",
+              borderRadius: "4px",
+              fontSize: "12px",
+              fontWeight: "bold",
+              cursor: "help",
+              border: "1px solid rgba(6,182,212,0.5)",
+              boxShadow: "0 0 8px rgba(6,182,212,0.3)"
+            }}
+          >
+            {aiCount} AI
+          </div>
+          {showAiTooltip && (
+            <div 
+              className="lv-cam__ai-tooltip"
+              style={{
+                position: "absolute",
+                bottom: "100%",
+                left: "0",
+                marginBottom: "6px",
+                backgroundColor: "rgba(15, 23, 42, 0.95)",
+                border: "1px solid rgba(6,182,212,0.3)",
+                borderRadius: "6px",
+                padding: "8px 12px",
+                minWidth: "160px",
+                boxShadow: "0 4px 12px rgba(0,0,0,0.5)",
+                display: "flex",
+                flexDirection: "column",
+                gap: "6px",
+                pointerEvents: "none",
+                whiteSpace: "nowrap"
+              }}
+            >
+              <div style={{ fontSize: "11px", fontWeight: "bold", color: "#fff", marginBottom: "2px", borderBottom: "1px solid rgba(255,255,255,0.1)", paddingBottom: "4px" }}>
+                Active Analytics
+              </div>
+              {aiNames.map((name, idx) => (
+                <div key={idx} style={{ 
+                  fontSize: "11px", 
+                  color: "#cbd5e1", 
+                  display: "flex", 
+                  alignItems: "center", 
+                  gap: "6px" 
+                }}>
+                  <span style={{ width: "6px", height: "6px", borderRadius: "50%", backgroundColor: "#06b6d4" }} />
+                  {name}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
       <div className="lv-cam__bottom-right-controls">
         {badgeMode !== "micro" && (
           <div
@@ -1652,14 +1742,15 @@ function CameraCell({
 
       <div className="lv-cell__header">
         {isLive && <span className="lv-live-dot" />}
-        {!hideName && (
+        {!hideName && localStorage.getItem("miradorai_show_cam_names") !== "false" && (
           <span className="lv-cell__name">
             {device.name || device.device_name}
           </span>
         )}
 
-        {isLive && showRec && isRecording && <span className="lv-rec-dot" />}
-        <div className="lv-cell__actions">
+        {showRec && isRecording && (
+          <span className={`lv-rec-dot ${!isLive ? "lv-rec-dot--solid" : ""}`} />
+        )}        <div className="lv-cell__actions">
           {badgeMode !== "micro" && (
             <span className="lv-cell__ip">{device.ip}</span>
           )}
@@ -2146,6 +2237,55 @@ export default function LiveViewPage({ onNavigate }) {
   const [totalAlertsCount, setTotalAlertsCount] = useState(0);
   const [sidePlaybackCam, setSidePlaybackCam] = useState(null);
   const [alertSource, setAlertSource] = useState("builtin"); // 'builtin' | 'external'
+  const [analyticsConfig, setAnalyticsConfig] = useState([
+    {
+      "readerName": "EXIT",
+      "rtspUrl": "rtsp://192.168.126.235:554/MediaInput/h264",
+      "ipAddress": "192.168.126.235",
+      "analytics": [
+        { "sourceType": "face_recognition", "subType": "fr-blacklist" },
+        { "sourceType": "face_recognition", "subType": "fr-unknown" },
+        { "sourceType": "face_recognition", "subType": "fr-unauthorized" },
+        { "sourceType": "face_recognition", "subType": "fr-authorized" }
+      ]
+    },
+    {
+      "readerName": "ENTRY",
+      "rtspUrl": "rtsp://192.168.126.238:554/MediaInput/h264",
+      "ipAddress": "192.168.126.238",
+      "analytics": [
+        { "sourceType": "intrusion", "subType": "intrusion-person" },
+        { "sourceType": "face_recognition", "subType": "fr-blacklist" },
+        { "sourceType": "face_recognition", "subType": "fr-unknown" },
+        { "sourceType": "face_recognition", "subType": "fr-unauthorized" },
+        { "sourceType": "face_recognition", "subType": "fr-authorized" }
+      ]
+    },
+    {
+      "readerName": "Dahua Camera",
+      "rtspUrl": "rtsp://192.168.126.240:554/cam/realmonitor?channel=1&subtype=0",
+      "ipAddress": "192.168.126.240",
+      "analytics": [
+        { "sourceType": "intrusion", "subType": "intrusion-person" },
+        { "sourceType": "face_recognition", "subType": "fr-blacklist" },
+        { "sourceType": "face_recognition", "subType": "fr-unknown" },
+        { "sourceType": "face_recognition", "subType": "fr-unauthorized" },
+        { "sourceType": "face_recognition", "subType": "fr-authorized" }
+      ]
+    }
+  ]);
+
+  const { eventsByTopic: globalEvents } = useWebSocket(["vms/analytics/response"]);
+
+  useEffect(() => {
+    // If the backend pushes live updates to this topic, update our mock.
+    if (globalEvents && globalEvents["vms/analytics/response"]) {
+       const data = globalEvents["vms/analytics/response"].data;
+       if (Array.isArray(data)) {
+           setAnalyticsConfig(data);
+       }
+    }
+  }, [globalEvents]);
 
   useEffect(() => {
     sessionStorage.setItem("miradorai_liveview_layout", layout);
@@ -2621,38 +2761,25 @@ export default function LiveViewPage({ onNavigate }) {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [fsDevice, sortedActiveCams]);
 
-  // Track last sent view-mode per camera to avoid re-POSTing when nothing changed
-  const lastSentViewMode = useRef({});
-
   useEffect(() => {
-    if (!pageCams || pageCams.length === 0) return;
+    if (pageCams && pageCams.length > 0) {
+      pageCams.forEach((cam) => {
+        const isCamFullscreen = fsDevice && fsDevice.id === cam.id;
+        const mode = isCamFullscreen ? "fullscreen" : "grid";
 
-    // Build the new state key: fsDeviceId|page|layout
-    const stateKey = `${fsDevice?.id ?? "none"}|${currentPage}|${layout}`;
-
-    pageCams.forEach((cam) => {
-      const isCamFullscreen = fsDevice && fsDevice.id === cam.id;
-      const mode = isCamFullscreen ? "fullscreen" : "grid";
-      const camKey = `${cam.ip}:${stateKey}`;
-
-      // Skip if we already sent this exact mode for this camera in this layout state
-      if (lastSentViewMode.current[cam.ip] === camKey) return;
-      lastSentViewMode.current[cam.ip] = camKey;
-
-      fetch(`${API}/api/system/cameras/${cam.ip}/view-mode`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...getAuthHeaders(),
-        },
-        body: JSON.stringify({ mode }),
-      }).catch((err) =>
-        console.error("[VMS-VIEWMODE] Error updating view mode:", err),
-      );
-    });
-  // Intentionally excludes sortedActiveCams: alert-count resorting should NOT retrigger view-mode POSTs
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fsDevice, currentPage, layout, pageCams.length]);
+        fetch(`${API}/api/system/cameras/${cam.ip}/view-mode`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...getAuthHeaders(),
+          },
+          body: JSON.stringify({ mode }),
+        }).catch((err) =>
+          console.error("[VMS-VIEWMODE] Error updating view mode:", err),
+        );
+      });
+    }
+  }, [fsDevice, currentPage, layout, sortedActiveCams]);
 
 
 
@@ -3171,14 +3298,18 @@ export default function LiveViewPage({ onNavigate }) {
               <div className="lv-fullscreen-overlay__bar">
                 <div className="lv-fullscreen-overlay__info">
                   {fsLive && <span className="lv-live-dot" />}
-                  <span className="lv-fullscreen-overlay__name">
-                    {fsDevice.name}
-                  </span>
-                  {fsLive &&
-                    showRec &&
+                  {localStorage.getItem("miradorai_show_cam_names") !== "false" && (
+                    <span className="lv-fullscreen-overlay__name">
+                      {fsDevice.name}
+                    </span>
+                  )}
+                  {showRec &&
                     (activeRecorders.includes(fsDevice?.stream_key) ||
-                      activeRecorders.includes(fsDevice?.stream_key)) && (
-                      <span className="lv-rec-dot" />
+                     activeRecorders.includes(fsDevice?.ip) ||
+                     (fsDevice?.ip && activeRecorders.includes(fsDevice.ip.replace(/\./g, "_"))) ||
+                     activeRecorders.includes(fsDevice?.reader_id) ||
+                     activeRecorders.includes(fsDevice?.id)) && (
+                      <span className={`lv-rec-dot ${!fsLive ? "lv-rec-dot--solid" : ""}`} />
                     )}
                   <span className="lv-fullscreen-overlay__ip">
                     {fsDevice.ip}
@@ -3188,25 +3319,27 @@ export default function LiveViewPage({ onNavigate }) {
                   style={{ display: "flex", alignItems: "center", gap: "8px" }}
                 >
                   {/* PTZ toggle in fullscreen */}
-                  <button
-                    className={`lv-ptz-toggle-btn ${fsPtzOpen ? "active" : ""}`}
-                    onClick={() => setFsPtzOpen((v) => !v)}
-                    title={fsPtzOpen ? "Hide PTZ Controls" : "PTZ Controls"}
-                    type="button"
-                    style={{ width: 32, height: 32 }}
-                  >
-                    <svg
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      width="15"
-                      height="15"
+                  {(fsDevice.ptz === "Yes" || fsDevice.ptz === true) && (
+                    <button
+                      className={`lv-ptz-toggle-btn ${fsPtzOpen ? "active" : ""}`}
+                      onClick={() => setFsPtzOpen((v) => !v)}
+                      title={fsPtzOpen ? "Hide PTZ Controls" : "PTZ Controls"}
+                      type="button"
+                      style={{ width: 32, height: 32 }}
                     >
-                      <circle cx="12" cy="12" r="3" />
-                      <path d="M12 2v4M12 18v4M2 12h4M18 12h4" />
-                    </svg>
-                  </button>
+                      <svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        width="15"
+                        height="15"
+                      >
+                        <circle cx="12" cy="12" r="3" />
+                        <path d="M12 2v4M12 18v4M2 12h4M18 12h4" />
+                      </svg>
+                    </button>
+                  )}
                   <button
                     className="lv-fullscreen-overlay__exit"
                     onClick={exitFullscreen}
@@ -3344,7 +3477,7 @@ export default function LiveViewPage({ onNavigate }) {
                 >
                   {Array.from({ length: gridSize }).map((_, i) => {
                     const cam = pageCams[i];
-                    const hasAlert = cam ? alertCounts[cam.ip] > 0 : false;
+                    const hasAlert = localStorage.getItem("miradorai_show_event_ind") !== "false" && cam ? alertCounts[cam.ip] > 0 : false;
                     const isSelected = cam
                       ? selectedCamId === cam.id
                       : selectedCamId === `empty-${i}`;
@@ -3417,6 +3550,13 @@ export default function LiveViewPage({ onNavigate }) {
                             }
                             hideName={["15x15", "16x16"].includes(layout)}
                             objectFit={objectFitMode}
+                            showAiOverlay={alertSource === "mqtt_ai"}
+                            analyticsData={analyticsConfig.find(a => 
+                              a.readerName === cam.name || 
+                              a.readerName === cam.device_name || 
+                              a.readerName === cam.reader_id || 
+                              a.ipAddress === cam.ip
+                            )}
                           />
                         ) : (
                           <EmptyCell index={i} />
@@ -3484,8 +3624,7 @@ export default function LiveViewPage({ onNavigate }) {
           <AlertPopup ip={popupIp} alerts={popupAlerts} onClose={closePopup} />
         )}
 
-        {/* ── Sequence Manager Modal ── */}
-        {showSequenceModal && (
+      {showSequenceModal && (
           <SequenceManagerModal
             sequences={sequences}
             setSequences={(next) => {
