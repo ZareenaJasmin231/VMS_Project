@@ -19,7 +19,7 @@ from recorder import rtsp_recorder as recorder
 import uuid
 
 import os
-
+import sys
 STARTUP_ID = str(uuid.uuid4())
 
 MONGO_URI = os.environ.get("MONGO_URI", "mongodb://localhost:27017/")
@@ -126,6 +126,7 @@ router = APIRouter(prefix="/api", tags=["system"])
 @router.get("/health")
 def health():
     import os
+    import sys
     import socket
     from monitoring.scheduler import scheduler
     from app.core.database import mongo_client
@@ -370,4 +371,208 @@ def revalidate_license():
 # ------------------------------------------------------------------
 # Event Clips — list, play, manual save
 # ------------------------------------------------------------------
+# ------------------------------------------------------------------
+# Snapshot & Filesystem Endpoints
+# ------------------------------------------------------------------
+import base64
+from datetime import datetime
+
+class SnapshotSaveRequest(BaseModel):
+    base64_data: str
+    camera_name: str = "Unknown"
+    target_folder: str = ""
+
+@router.post("/snapshot/save")
+def save_snapshot_endpoint(req: SnapshotSaveRequest):
+    try:
+        target_folder = req.target_folder
+        if not target_folder:
+            target_folder = os.path.join(os.path.expanduser("~"), "Pictures")
+            
+        os.makedirs(target_folder, exist_ok=True)
+        
+        # Clean base64
+        b64 = req.base64_data
+        if "," in b64:
+            b64 = b64.split(",", 1)[1]
+            
+        image_bytes = base64.b64decode(b64)
+        
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        safe_cam_name = req.camera_name.replace("/", "_").replace("\\", "_")
+        filename = f"snapshot_{safe_cam_name}_{timestamp}.jpg"
+        
+        file_path = os.path.join(target_folder, filename)
+        
+        with open(file_path, "wb") as f:
+            f.write(image_bytes)
+            
+        return {"success": True, "path": file_path}
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "error": str(e)}
+
+class OpenFolderRequest(BaseModel):
+    folder_path: str
+
+@router.post("/open-folder")
+def open_folder_endpoint(req: OpenFolderRequest):
+    try:
+        path = req.folder_path
+        print(f"[DEBUG] Attempting to open folder: {path}")
+        if not path or not os.path.exists(path):
+            print(f"[DEBUG] Folder does not exist: {path}")
+            return {"success": False, "error": f"Folder does not exist: {path}"}
+            
+        if os.name == 'nt':
+            import subprocess
+            import ctypes
+            # Force open a new window so it pops to the front!
+            # explorer.exe /n, /e, "path" forces a new window
+            subprocess.Popen(['explorer.exe', '/n,', '/e,', os.path.normpath(path)])
+        else:
+            # For linux/mac
+            import subprocess
+            subprocess.Popen(["xdg-open" if sys.platform == "linux" else "open", path])
+            
+        return {"success": True}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+@router.get("/browse-directories")
+def browse_directories(path: str = ""):
+    try:
+        if not path:
+            # Return drives on Windows
+            if os.name == 'nt':
+                import string
+                from ctypes import windll
+                drives = []
+                bitmask = windll.kernel32.GetLogicalDrives()
+                for letter in string.ascii_uppercase:
+                    if bitmask & 1:
+                        drives.append(f"{letter}:\\")
+                    bitmask >>= 1
+                return {"success": True, "directories": drives, "current_path": ""}
+            else:
+                path = "/"
+                
+        if not os.path.exists(path):
+            return {"success": False, "error": "Path does not exist"}
+            
+        directories = []
+        for item in os.listdir(path):
+            full_path = os.path.join(path, item)
+            if os.path.isdir(full_path):
+                directories.append(item)
+                
+        return {"success": True, "directories": sorted(directories), "current_path": path}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+@router.get("/pick-folder")
+async def pick_folder_endpoint():
+    try:
+        def ask_dir():
+            import tkinter as tk
+            from tkinter import filedialog
+            root = tk.Tk()
+            root.withdraw()
+            root.attributes('-topmost', True)
+            folder = filedialog.askdirectory(parent=root, title="Select Snapshot Folder")
+            root.destroy()
+            return folder
+            
+        # Run in thread so it doesn't block asyncio event loop
+        import asyncio
+        folder_path = await asyncio.to_thread(ask_dir)
+        
+        if folder_path:
+            # normalize slashes for windows
+            folder_path = folder_path.replace("/", "\\")
+            return {"success": True, "path": folder_path}
+        else:
+            return {"success": False, "error": "Canceled"}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+# ------------------------------------------------------------------
+# Global OS Clipboard Monitor for Screenshots (Win+Shift+S)
+# ------------------------------------------------------------------
+import ctypes
+import base64
+from io import BytesIO
+from PIL import ImageGrab
+from app.core.ws_manager import ws_manager
+
+_clipboard_task = None
+_last_seq = None
+
+async def poll_clipboard():
+    global _last_seq
+    _last_seq = ctypes.windll.user32.GetClipboardSequenceNumber()
+    print("[Clipboard Monitor] Started polling...")
+    while True:
+        await asyncio.sleep(1)
+        try:
+            current_seq = ctypes.windll.user32.GetClipboardSequenceNumber()
+            if current_seq != _last_seq:
+                _last_seq = current_seq
+                
+                # Clipboard changed! Check if it's an image (run in thread to not block asyncio)
+                img = await asyncio.to_thread(ImageGrab.grabclipboard)
+                
+                if img and hasattr(img, 'save'):
+                    # It is an image! Convert to base64
+                    buf = BytesIO()
+                    img.convert("RGB").save(buf, format="JPEG", quality=95)
+                    b64_str = base64.b64encode(buf.getvalue()).decode("utf-8")
+                    
+                    print("[Clipboard Monitor] Detected OS screenshot. Broadcasting to clients...")
+                    # Broadcast the event to any connected frontends
+                    await ws_manager.broadcast("system", "notification", {"type": "os_screenshot", "base64": b64_str})
+        except Exception as e:
+            print(f"[Clipboard Monitor] Error: {e}")
+
+@router.on_event("startup")
+async def startup_clipboard_monitor():
+    global _clipboard_task
+    if os.name == 'nt':
+        _clipboard_task = asyncio.create_task(poll_clipboard())
+
+# ------------------------------------------------------------------
+# Native File Picker and Audio Streaming
+# ------------------------------------------------------------------
+from fastapi.responses import FileResponse
+from fastapi import Query
+
+@router.get("/pick-file")
+def pick_file_endpoint():
+    try:
+        import tkinter as tk
+        from tkinter import filedialog
+        import ctypes
+        
+        root = tk.Tk()
+        root.withdraw()
+        root.attributes("-topmost", True)
+        
+        file_path = filedialog.askopenfilename(
+            title="Select Audio File",
+            filetypes=[("Audio Files", "*.mp3 *.wav *.ogg")]
+        )
+        root.destroy()
+        
+        if file_path:
+            return {"success": True, "path": file_path.replace("/", "\\")}
+        return {"success": False, "error": "No file selected"}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+@router.get("/stream-audio")
+def stream_audio(path: str = Query(..., description="Absolute path to the audio file")):
+    if not os.path.exists(path):
+        return {"success": False, "error": "File not found"}
+    return FileResponse(path)
 
