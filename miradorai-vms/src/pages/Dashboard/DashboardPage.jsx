@@ -2189,7 +2189,8 @@ const DashboardPage = () => {
             ip_address: a.ip ? a.ip.replace(/_/g, ".") : "—",
             time_only: a.time || "—",
             scenario: a.scenario || "—",
-            classification: a.type || "—"
+            classification: a.type || "—",
+            status: (a.acknowledged_at && (a.resolved_at || a.status === "Resolved")) ? "Acknowledged & Resolved" : (a.status === "Resolved" || a.resolved_at) ? "Resolved" : (a.status === "Acknowledged" || a.acknowledged_at) ? "Acknowledged" : "Active"
           }));
           
           setReportData(formatted);
@@ -3571,7 +3572,8 @@ const DashboardPage = () => {
                               <th>Camera IP</th>
                               <th>Type</th>
                               <th>Event</th>
-                              <th>Time</th>
+                                <th>Status</th>
+                                <th>Time</th>
                               <th>Timestamp</th>
                             </>
                           )}
@@ -3634,6 +3636,7 @@ const DashboardPage = () => {
                                   </span>
                                 </td>
                                 <td>{row.scenario}</td>
+                                  <td>{row.status}</td>
                                 <td style={{ color: "#22c55e", fontWeight: "600" }}>{row.time_only}</td>
                                 <td>{row.timestamp ? new Date(row.timestamp).toLocaleString() : "—"}</td>
                               </>
@@ -3899,3 +3902,5 @@ const DashboardPage = () => {
 };
 
 export default DashboardPage;
+
+

@@ -41,6 +41,7 @@ from app.schemas.camera import (
 import hashlib
 import time
 from app.services.camera.codec_detector import detect_codec_async
+from app.services.camera.rtsp_utils import infer_camera_info_from_rtsp
 import asyncio
 import re
 import os
@@ -73,7 +74,9 @@ async def get_all_cameras():
             "device_name": c.get("name") or c.get("device_name") or f"Camera @ {c.get('ip_address') or c.get('ip')}",
             "password": c.get("password", ""),
             "username": c.get("username", ""),
-            "rtsp_url": c.get("rtsp_url", "")
+            "rtsp_url": c.get("rtsp_url", ""),
+            "manufacturer": c.get("manufacturer", ""),
+            "model": c.get("model", "")
         } for c in cameras
     ]
     
@@ -685,6 +688,12 @@ async def register_rtsp_stream(req: StreamRegisterRequest):
     # mint a new stream name every time.
     base_stream_name = normalize_stream_name(host, None, getattr(req, "device_name", None))
     stream_name = base_stream_name
+
+    if req.manufacturer == "Unknown" or not req.manufacturer:
+        inferred_info = await asyncio.to_thread(infer_camera_info_from_rtsp, rtsp)
+        if inferred_info.get("manufacturer") != "Unknown":
+            req.manufacturer = inferred_info["manufacturer"]
+            print(f"[RTSP] Inferred manufacturer: {req.manufacturer}")
 
     existing = next((d for d in devices if d.get("rtsp_url") == rtsp), None)
 

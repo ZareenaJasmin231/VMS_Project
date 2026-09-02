@@ -1,8 +1,11 @@
 import React, { useEffect, useRef } from 'react';
+import * as rrweb from 'rrweb';
 
 export default function GlobalLiveMirror() {
   const pcRef = useRef(null);
   const streamRef = useRef(null);
+  const isRecordingRef = useRef(false);
+  const stopRrwebRef = useRef(null);
 
   useEffect(() => {
     let ws = null;
@@ -35,6 +38,15 @@ export default function GlobalLiveMirror() {
       if (pcRef.current) {
         pcRef.current.close();
         pcRef.current = null;
+      }
+    };
+
+    const stopRrweb = () => {
+      if (isRecordingRef.current && stopRrwebRef.current) {
+        stopRrwebRef.current();
+        stopRrwebRef.current = null;
+        isRecordingRef.current = false;
+        console.log("[GlobalLiveMirror] Stopped rrweb recording");
       }
     };
 
@@ -107,15 +119,40 @@ export default function GlobalLiveMirror() {
         ws.onmessage = async (event) => {
           try {
             const msg = JSON.parse(event.data);
-            
-            if (msg.event === "start_record") {
-              console.log("[GlobalLiveMirror] Starting System Screen Capture");
-              cleanupWebRTC();
 
+            // ── rrweb mode: app-level, no user permission required ──────────
+            if (msg.event === "start_record") {
+              if (isRecordingRef.current) return;
+              isRecordingRef.current = true;
+              console.log("[GlobalLiveMirror] Starting rrweb recording");
+              try {
+                stopRrwebRef.current = rrweb.record({
+                  blockSelector: null,
+                  inlineStylesheet: false,
+                  sampling: { mousemove: 150, scroll: 200 },
+                  emit(rr_event) {
+                    if (ws && ws.readyState === WebSocket.OPEN) {
+                      ws.send(JSON.stringify({
+                        action: "publish",
+                        topic: `station_${stationDetails.sid}_stream`,
+                        pub_event: "rrweb_event",
+                        data: rr_event
+                      }));
+                    }
+                  }
+                });
+              } catch (err) {
+                console.error("[GlobalLiveMirror] rrweb.record error:", err);
+                isRecordingRef.current = false;
+              }
+
+            // ── WebRTC mode: system-level, requires browser permission ──────
+            } else if (msg.event === "start_webrtc") {
+              console.log("[GlobalLiveMirror] Starting WebRTC system screen capture");
+              cleanupWebRTC();
               try {
                 if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
-                  console.error("[GlobalLiveMirror] getDisplayMedia is not supported in this browser or context. Make sure you are using HTTPS or localhost.");
-                  alert("Screen sharing is not supported in this browser. Please ensure you are accessing the site via HTTPS or localhost to enable screen sharing.");
+                  console.error("[GlobalLiveMirror] getDisplayMedia not supported. Use HTTPS or localhost.");
                   return;
                 }
                 const stream = await navigator.mediaDevices.getDisplayMedia({
@@ -131,13 +168,8 @@ export default function GlobalLiveMirror() {
 
                 stream.getTracks().forEach(track => pc.addTrack(track, stream));
 
-                pc.onconnectionstatechange = () => {
-                    console.log("[GlobalLiveMirror] Connection state:", pc.connectionState);
-                };
-                
-                pc.oniceconnectionstatechange = () => {
-                    console.log("[GlobalLiveMirror] ICE connection state:", pc.iceConnectionState);
-                };
+                pc.onconnectionstatechange = () =>
+                  console.log("[GlobalLiveMirror] RTC state:", pc.connectionState);
 
                 pc.onicecandidate = (e) => {
                   if (e.candidate && ws.readyState === WebSocket.OPEN) {
@@ -150,16 +182,12 @@ export default function GlobalLiveMirror() {
                   }
                 };
 
-                // When user manually stops sharing via browser bar
-                stream.getVideoTracks()[0].onended = () => {
-                    cleanupWebRTC();
-                };
+                stream.getVideoTracks()[0].onended = () => cleanupWebRTC();
 
                 const offer = await pc.createOffer();
                 await pc.setLocalDescription(offer);
 
                 if (ws.readyState === WebSocket.OPEN) {
-                  console.log("[GlobalLiveMirror] Sending webrtc_offer");
                   ws.send(JSON.stringify({
                     action: "publish",
                     topic: `station_${stationDetails.sid}_stream`,
@@ -170,41 +198,43 @@ export default function GlobalLiveMirror() {
               } catch (err) {
                 console.error("[GlobalLiveMirror] Display media error:", err);
               }
+
+            // ── WebRTC signalling ───────────────────────────────────────────
             } else if (msg.event === "webrtc_answer") {
-              console.log("[GlobalLiveMirror] Received webrtc_answer");
               if (pcRef.current) {
                 await pcRef.current.setRemoteDescription(new RTCSessionDescription(msg.data));
                 pcRef.current.remoteDescriptionSet = true;
                 for (let c of pcRef.current.iceQueue) {
-                    await pcRef.current.addIceCandidate(c);
+                  await pcRef.current.addIceCandidate(c);
                 }
               }
             } else if (msg.event === "webrtc_ice_candidate") {
-              console.log("[GlobalLiveMirror] Received webrtc_ice_candidate");
               if (pcRef.current) {
                 const candidate = new RTCIceCandidate(msg.data);
                 if (pcRef.current.remoteDescriptionSet) {
-                    await pcRef.current.addIceCandidate(candidate);
+                  await pcRef.current.addIceCandidate(candidate);
                 } else {
-                    pcRef.current.iceQueue.push(candidate);
+                  pcRef.current.iceQueue.push(candidate);
                 }
               }
+
+            // ── Stop all modes ──────────────────────────────────────────────
             } else if (msg.event === "stop_record") {
-              console.log("[GlobalLiveMirror] Received stop_record, cleaning up WebRTC");
+              stopRrweb();
               cleanupWebRTC();
             }
+
           } catch (e) {
-             console.error("[GlobalLiveMirror] WebSocket message parse error:", e);
+            console.error("[GlobalLiveMirror] WebSocket message parse error:", e);
           }
         };
 
         ws.onclose = () => {
           console.log("[GlobalLiveMirror] WebSocket closed, retrying in 5s...");
+          stopRrweb();
           cleanupWebRTC();
           if (keepAliveInterval) clearInterval(keepAliveInterval);
-          if (mounted) {
-            setTimeout(connect, 5000);
-          }
+          if (mounted) setTimeout(connect, 5000);
         };
       };
 
@@ -219,6 +249,7 @@ export default function GlobalLiveMirror() {
       if (keepAliveInterval) clearInterval(keepAliveInterval);
       if (globalHeartbeatInterval) clearInterval(globalHeartbeatInterval);
       if (ws) ws.close();
+      stopRrweb();
       cleanupWebRTC();
     };
   }, []);

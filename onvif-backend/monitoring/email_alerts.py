@@ -219,3 +219,33 @@ def alert_storage_full(device_name: str, usage_percent: float):
             ]
         )
     )
+
+
+def alert_recording_stopped(device_name: str, ip: str, stream_name: str, exit_code: int, error_snippet: str = ""):
+    """Fired when a camera that was actively recording stops unexpectedly."""
+    recipients = _get_immediate_recipients("recording_stopped")
+    if not recipients and not ALERT_TO:
+        return
+
+    status_text = f"<span style='color:#ef4444'>RECORDING STOPPED (exit code {exit_code})</span>"
+    rows = [
+        ("Camera", device_name),
+        ("IP Address", ip),
+        ("Stream ID", stream_name),
+        ("Status", status_text),
+        ("Time", _ts()),
+    ]
+    if error_snippet:
+        rows.append(("Error Detail", f"<code style='font-size:11px;color:#fca5a5'>{error_snippet[:300]}</code>"))
+    rows.append(("Action", "Investigate the camera stream, network connection, or storage availability. Recording may have been interrupted by a stream loss, power failure, or disk issue."))
+
+    _send_email(
+        subject=f"🔴 Recording Stopped: {device_name} ({ip})",
+        to_addrs=recipients,
+        html_body=_base_template(
+            color="#ef4444", icon="🔴",
+            title=f"Recording Stopped: {device_name}",
+            rows=rows
+        )
+    )
+

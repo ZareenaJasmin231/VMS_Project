@@ -141,18 +141,21 @@ def get_alerts(
                     pass
 
         docs = list(
-            mqtt_col.find(query, {"_id": 0})
+            mqtt_col.find(query)
             .sort("_id", -1)
             .limit(limit)
         )
 
         # ── Sources that share the same flat document schema ─────────
-        # All are written via mqtt_to_db_worker after being published to
         # Mosquitto by mqtt_publisher.py (unified pipeline).
         FLAT_SOURCES = {"bosch", "dahua", "hikvision"}
-
+        
         formatted = []
         for d in docs:
+            if "_id" in d:
+                d["id"] = str(d["_id"])
+                del d["_id"]
+                
             source = d.get("source", "")
             
             if source == "external_ai":
@@ -217,6 +220,15 @@ def get_alerts(
                     "received_at": d.get("received_at"),
                     "source":    d.get("source"),
                 })
+
+        for i, item in enumerate(formatted):
+            d = docs[i]
+            item["id"] = d.get("id")
+            item["status"] = d.get("status", "Active")
+            item["acknowledged_at"] = d.get("acknowledged_at")
+            item["acknowledge_note"] = d.get("acknowledge_note")
+            item["resolved_at"] = d.get("resolved_at")
+            item["resolve_note"] = d.get("resolve_note")
 
         return {"alerts": formatted}
 
@@ -815,3 +827,75 @@ def get_manual_email_history():
         return {"success": True, "history": history}
     except Exception as e:
         return {"success": False, "error": str(e)}
+
+
+from bson import ObjectId
+
+@router.get('/alerts/details/{alert_id}', dependencies=[Depends(verify_token)])
+def get_alert_details(alert_id: str):
+    if _db is None:
+        return {'error': 'No DB'}
+    try:
+        # First check analytics_events
+        doc = _db['analytics_events'].find_one({'_id': ObjectId(alert_id)})
+        if not doc:
+            doc = _db['mqtt_logs'].find_one({'_id': ObjectId(alert_id)})
+        if not doc:
+            # Fallback search by string if it was custom id
+            doc = _db['analytics_events'].find_one({'id': alert_id})
+        if not doc:
+            doc = _db['mqtt_logs'].find_one({'id': alert_id})
+            
+        if not doc:
+            return {'error': 'Not found'}
+            
+        doc['_id'] = str(doc['_id'])
+        
+        # Fetch camera details
+        cam = None
+        if doc.get('ip'):
+            cam = _db['cameras'].find_one({'ip': doc['ip']}, {'_id': 0, 'name': 1})
+            
+        return {
+            'id': doc['_id'],
+            'ip': doc.get('ip', 'Unknown'),
+            'camera_name': cam['name'] if cam and 'name' in cam else 'Unknown',
+            'event_name': doc.get('type') or doc.get('scenario', 'Unknown'),
+            'status': doc.get('status', 'Active'),
+            'received_at': doc.get('received_at', doc.get('time', 'Unknown'))
+        }
+    except Exception as e:
+        return {'error': str(e)}
+
+@router.put('/alerts/{alert_id}/status', dependencies=[Depends(verify_token)])
+def update_alert_status(alert_id: str, payload: dict):
+    if _db is None:
+        return {'error': 'No DB'}
+    status = payload.get('status', 'Active')
+    action = payload.get('action', status)
+    note = payload.get('note', '')
+    from datetime import datetime
+    now_str = datetime.utcnow().isoformat() + 'Z'
+    update_dict = {'status': status}
+    
+    if action == 'Acknowledged':
+        update_dict['acknowledged_at'] = now_str
+        update_dict['acknowledge_note'] = note
+    elif action == 'Resolved':
+        update_dict['resolved_at'] = now_str
+        update_dict['resolve_note'] = note
+        
+    try:
+        res = _db['analytics_events'].update_one({'_id': ObjectId(alert_id)}, {'$set': update_dict})
+        if res.matched_count == 0:
+            res = _db['mqtt_logs'].update_one({'_id': ObjectId(alert_id)}, {'$set': update_dict})
+        
+        # fallback string match
+        if res.matched_count == 0:
+            res = _db['analytics_events'].update_one({'id': alert_id}, {'$set': update_dict})
+        if res.matched_count == 0:
+            res = _db['mqtt_logs'].update_one({'id': alert_id}, {'$set': update_dict})
+            
+        return {'success': True, 'status': status, 'action': action, 'note': note, 'updated_at': now_str}
+    except Exception as e:
+        return {'error': str(e)}

@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import WebRTCPlayer_MediaMTX from "../../components/shared/WebRTCPlayer_MediaMTX";
+import rrwebPlayer from 'rrweb-player';
+import 'rrweb-player/dist/style.css';
 import "./ViewingStationsPage.css";
 
 const API = import.meta.env.VITE_API_URL;
@@ -75,8 +77,10 @@ export default function ViewingStationsPage() {
 
   // Monitor Station State
   const [monitorStation, setMonitorStation] = useState(null);
+  const [monitorMode, setMonitorMode] = useState("rrweb"); // "rrweb" | "webrtc"
 
-  const handleMonitorStation = (station) => {
+  const handleMonitorStation = (station, mode) => {
+    setMonitorMode(mode);
     setMonitorStation(station);
   };
 
@@ -225,62 +229,94 @@ export default function ViewingStationsPage() {
                       className={`vs-station-card ${st.is_online ? "online" : "offline"} ${isSelected ? "selected" : ""}`}
                       onClick={() => handleEditStationLayout(st)}
                     >
-                      <div className="vs-card-header" style={{ display: "block" }}>
+                      <div className="vs-card-header" style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", width: "100%" }}>
-                          <span className="vs-station-name">{st.name}</span>
-                          <div style={{ display: "flex", gap: "8px", alignItems: "center", flexShrink: 0 }}>
-                            <button
-                              className="m-btn m-btn--elevated"
-                              style={{ padding: "4px 8px", fontSize: "11px" }}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleMonitorStation(st);
-                              }}
-                              title="Monitor this station's screen"
-                            >
-                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="12" height="12" style={{ marginRight: "4px" }}>
-                                <rect x="2" y="3" width="20" height="14" rx="2" />
-                                <line x1="8" y1="21" x2="16" y2="21" />
-                                <line x1="12" y1="17" x2="12" y2="21" />
-                              </svg>
-                              Monitor
-                            </button>
-                            <div className={`vs-status-badge ${st.is_online ? "online" : "offline"}`}>
-                              {st.is_online ? "Online" : "Offline"}
-                            </div>
+                          <div style={{ overflow: "hidden", paddingRight: "8px" }}>
+                            <span className="vs-station-name" style={{ display: "block", marginBottom: "4px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{st.name}</span>
+                            {st.email && st.email !== "Unknown" && (
+                              <>
+                                <span 
+                                  className="vs-station-id" 
+                                  style={{
+                                    fontSize: "12px", 
+                                    color: "var(--text-primary)", 
+                                    display: "block",
+                                    whiteSpace: "nowrap",
+                                    overflow: "hidden",
+                                    textOverflow: "ellipsis"
+                                  }}
+                                  title={st.email}
+                                >
+                                  {st.email}
+                                </span>
+                                <span 
+                                  className="vs-station-id" 
+                                  style={{
+                                    fontSize: "11px", 
+                                    color: "var(--text-primary)", 
+                                    marginTop: "2px", 
+                                    display: "block",
+                                    textTransform: "capitalize"
+                                  }}
+                                >
+                                  Role: {st.role || "Not provided by backend"}
+                                </span>
+                              </>
+                            )}
+                          </div>
+                          <div className={`vs-status-badge ${st.is_online ? "online" : "offline"}`} style={{ flexShrink: 0 }}>
+                            {st.is_online ? "Online" : "Offline"}
                           </div>
                         </div>
 
-                        {st.email && st.email !== "Unknown" && (
-                          <div style={{ marginTop: "6px" }}>
-                            <span 
-                              className="vs-station-id" 
-                              style={{
-                                fontSize: "12px", 
-                                color: "var(--text-primary)", 
-                                display: "block",
-                                whiteSpace: "nowrap",
-                                overflow: "hidden",
-                                textOverflow: "ellipsis"
-                              }}
-                              title={st.email}
-                            >
-                              {st.email}
-                            </span>
-                            <span 
-                              className="vs-station-id" 
-                              style={{
-                                fontSize: "11px", 
-                                color: "var(--text-primary)", 
-                                marginTop: "2px", 
-                                display: "block",
-                                textTransform: "capitalize"
-                              }}
-                            >
-                              Role: {st.role || "Not provided by backend"}
-                            </span>
-                          </div>
-                        )}
+                        <div style={{ display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap" }}>
+                          {/* rrweb mode — no permission needed */}
+                          <button
+                            className="m-btn"
+                            style={{ 
+                              padding: "6px 12px", 
+                              fontSize: "11px", 
+                              backgroundColor: "rgba(16, 185, 129, 0.1)", 
+                              color: "var(--primary-color)", 
+                              borderColor: "var(--primary-color)",
+                              border: "1px solid",
+                              borderRadius: "4px",
+                              fontWeight: "600"
+                            }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleMonitorStation(st, "rrweb");
+                            }}
+                            title="App Mirror — streams the VMS application UI (no permission required)"
+                          >
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="13" height="13" style={{ marginRight: "5px" }}>
+                              <rect x="2" y="3" width="20" height="14" rx="2" />
+                              <line x1="8" y1="21" x2="16" y2="21" />
+                              <line x1="12" y1="17" x2="12" y2="21" />
+                            </svg>
+                            App Mirror
+                          </button>
+                          {/* WebRTC mode — full system screen, requires permission */}
+                          <button
+                            className="m-btn m-btn--primary"
+                            style={{ 
+                              padding: "6px 12px", 
+                              fontSize: "11px",
+                              borderRadius: "4px",
+                              fontWeight: "600"
+                            }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleMonitorStation(st, "webrtc");
+                            }}
+                            title="Screen Share — streams entire OS screen including video feeds (requires user permission on target)"
+                          >
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="13" height="13" style={{ marginRight: "5px" }}>
+                              <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
+                            </svg>
+                            Screen Share
+                          </button>
+                        </div>
                       </div>
                       
                       <div className="vs-card-details">
@@ -404,7 +440,16 @@ export default function ViewingStationsPage() {
         <div className="modal-overlay" onClick={() => setMonitorStation(null)}>
           <div className="modal-box" style={{ width: "90%", maxWidth: "1200px", background: "var(--bg-surface)", border: "1px solid var(--border-color)", padding: "20px" }} onClick={e => e.stopPropagation()}>
             <div className="modal-header">
-              <h2 className="modal-title">Live Mirror: {monitorStation.name}</h2>
+              <div>
+                <h2 className="modal-title">
+                  {monitorMode === "webrtc" ? "🖥 Screen Share" : "📺 App Mirror"}: {monitorStation.name}
+                </h2>
+                <p style={{ fontSize: "11px", color: "var(--text-muted)", margin: "2px 0 0 0" }}>
+                  {monitorMode === "webrtc"
+                    ? "Full system screen — user will be prompted to share their screen on the target terminal"
+                    : "Application-level stream — mirrors VMS UI without any permission prompt"}
+                </p>
+              </div>
               <button className="modal-close" onClick={() => setMonitorStation(null)}>✕</button>
             </div>
             <div className="modal-body" style={{ minHeight: "500px", padding: 0, marginTop: "16px" }}>
@@ -412,8 +457,10 @@ export default function ViewingStationsPage() {
                 <div style={{ textAlign: "center", padding: "40px", color: "var(--text-muted)" }}>
                   Station is offline.
                 </div>
-              ) : (
+              ) : monitorMode === "webrtc" ? (
                 <LiveMirrorMonitor station={monitorStation} />
+              ) : (
+                <RrwebMirrorMonitor station={monitorStation} />
               )}
             </div>
           </div>
@@ -467,11 +514,11 @@ function LiveMirrorMonitor({ station }) {
     ws = new WebSocket(wsUrl);
     
     ws.onopen = () => {
-       console.log("[LiveMirror] Connected! Sending start_record command to:", station.station_id);
+       console.log("[LiveMirror] Connected! Sending start_webrtc command to:", station.station_id);
        ws.send(JSON.stringify({
           action: "publish",
           topic: `station_${station.station_id}`,
-          pub_event: "start_record",
+          pub_event: "start_webrtc",
           data: {}
        }));
     };
@@ -575,5 +622,99 @@ function LiveMirrorMonitor({ station }) {
             style={{ width: '100%', height: '100%', objectFit: 'contain' }} 
         />
     </div>
+  );
+}
+
+// ── rrweb App-Level Monitor ──────────────────────────────────────────────────
+// Sends start_record over WS → station starts rrweb recording and streams
+// DOM events back. No browser permission required on the target.
+function RrwebMirrorMonitor({ station }) {
+  const containerRef = useRef(null);
+  const playerRef = useRef(null);
+
+  useEffect(() => {
+    let ws = null;
+    let events = [];
+
+    const apiBase = import.meta.env.VITE_API_URL || '';
+    let wsUrl = '';
+
+    if (apiBase) {
+      wsUrl = apiBase.replace(/^http/, 'ws') + `/ws/events?topics=station_${station.station_id}_stream`;
+    } else {
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      wsUrl = `${protocol}//${window.location.host}/ws/events?topics=station_${station.station_id}_stream`;
+    }
+
+    console.log("[RrwebMirror] Connecting to stream:", wsUrl);
+    ws = new WebSocket(wsUrl);
+
+    ws.onopen = () => {
+      console.log("[RrwebMirror] Connected! Sending start_record to:", station.station_id);
+      ws.send(JSON.stringify({
+        action: "publish",
+        topic: `station_${station.station_id}`,
+        pub_event: "start_record",
+        data: {}
+      }));
+    };
+
+    ws.onmessage = (msg) => {
+      try {
+        const data = JSON.parse(msg.data);
+        if (data.event === "rrweb_event" && data.data) {
+          const rr_event = data.data;
+
+          // Wait for the first FullSnapshot (type 2) before starting
+          if (events.length === 0 && rr_event.type !== 2) {
+            console.log("[RrwebMirror] Waiting for FullSnapshot...");
+            return;
+          }
+
+          if (!playerRef.current) {
+            events.push(rr_event);
+            if (events.length > 1 && containerRef.current) {
+              console.log("[RrwebMirror] Initializing rrwebPlayer with", events.length, "events");
+              playerRef.current = new rrwebPlayer({
+                target: containerRef.current,
+                props: {
+                  events: [...events],
+                  liveMode: true,
+                  showController: false,
+                  autoPlay: true,
+                  width: containerRef.current.offsetWidth || 1100,
+                  height: containerRef.current.offsetHeight || 600,
+                }
+              });
+            }
+          } else {
+            playerRef.current.addEvent(rr_event);
+          }
+        }
+      } catch (e) {
+        console.error("[RrwebMirror] message error:", e);
+      }
+    };
+
+    return () => {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        console.log("[RrwebMirror] Sending stop_record");
+        ws.send(JSON.stringify({
+          action: "publish",
+          topic: `station_${station.station_id}`,
+          pub_event: "stop_record",
+          data: {}
+        }));
+        ws.close();
+      }
+      if (playerRef.current) {
+        try { playerRef.current.pause(); } catch (e) {}
+        playerRef.current = null;
+      }
+    };
+  }, [station.station_id]);
+
+  return (
+    <div ref={containerRef} style={{ width: '100%', height: '600px', backgroundColor: '#000' }} />
   );
 }

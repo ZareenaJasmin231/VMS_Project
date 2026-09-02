@@ -14,7 +14,8 @@ const reportTypeMap = {
   live_alerts: "Analytics Alerts",
   health: "Device Health & Uptime Status",
   camera_down: "Immediate Alert: Camera Down",
-  storage_full: "Immediate Alert: Storage > 95%"
+  storage_full: "Immediate Alert: Storage > 95%",
+  recording_stopped: "Immediate Alert: Recording Stopped"
 };
 
 const TagInput = ({ tags, setTags, placeholder }) => {
@@ -301,7 +302,7 @@ export default function EmailSchedulesPage() {
   return (
     <div className="es-page">
       <div className="es-header-tabs">
-        <h1 className="es-title">Notifications & Reports</h1>
+        <h1 className="es-title">Email & Schedules</h1>
         <div className="es-tabs">
           <button 
             className={`es-tab-btn ${activeTab === 'schedules' ? 'active' : ''}`}
@@ -388,6 +389,7 @@ export default function EmailSchedulesPage() {
                         <>
                           <option value="camera_down">Immediate Alert: Camera Down</option>
                           <option value="storage_full">Immediate Alert: Storage &gt; 95%</option>
+                          <option value="recording_stopped">Immediate Alert: Recording Stopped</option>
                         </>
                       ) : (
                         <>
