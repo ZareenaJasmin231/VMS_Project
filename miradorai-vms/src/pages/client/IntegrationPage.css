@@ -1,0 +1,169 @@
+/* IntegrationPage.css */
+
+.integration-card {
+  width: 100%;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 24px;
+  box-shadow: var(--shadow-sm);
+  margin-top: 16px;
+  box-sizing: border-box;
+}
+
+.integration-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 10px;
+}
+
+.integration-table th, .integration-table td {
+  padding: 16px 12px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  font-size: 16px;
+  color: var(--text-primary);
+}
+
+.integration-table th {
+  font-weight: 600;
+  color: var(--text-primary);
+  font-size: 18px;
+}
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 14px;
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  background-color: rgba(245, 158, 11, 0.15);
+  color: var(--text-primary);
+}
+
+.status-badge.active {
+  background-color: var(--teal-glow);
+  color: var(--text-primary);
+}
+
+.connection-action-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  cursor: pointer;
+  padding: 8px;
+  border-radius: var(--radius-sm);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--transition);
+}
+
+.connection-action-btn.edit-btn:hover {
+  background: rgba(16, 185, 129, 0.15); /* teal */
+  color: var(--teal);
+}
+
+.connection-action-btn.delete-btn {
+  color: var(--red);
+}
+
+.connection-action-btn.delete-btn:hover {
+  background: rgba(239, 68, 68, 0.15);
+}
+
+.integration-form {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 24px;
+  box-shadow: var(--shadow-sm);
+  box-sizing: border-box;
+}
+
+.integration-input {
+  width: 400px; /* Give inputs a reasonable fixed width instead of stretching */
+  padding: 12px 16px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background-color: var(--bg-base);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 16px;
+  transition: border-color var(--transition), box-shadow var(--transition);
+}
+
+.integration-input:focus {
+  outline: none;
+  border-color: var(--teal);
+  box-shadow: 0 0 0 2px var(--teal-subtle);
+}
+
+.integration-input.read-only {
+  background-color: var(--bg-elevated); 
+  color: var(--text-primary);
+  cursor: not-allowed;
+  border-color: var(--border-light);
+}
+
+.integration-streams {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-bottom: 8px;
+  background: var(--bg-base);
+  padding: 16px;
+  border-radius: var(--radius-md);
+  border: 1px dashed var(--border-light);
+}
+
+.stream-row {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+}
+
+.stream-row .integration-input {
+  flex: 1;
+  width: auto;
+}
+
+.stream-remove-btn {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  cursor: pointer;
+  width: 42px;
+  height: 42px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--transition);
+}
+
+.stream-remove-btn:hover {
+  background: rgba(239, 68, 68, 0.15);
+  border-color: rgba(239, 68, 68, 0.3);
+  color: var(--red);
+}
+
+.integration-actions {
+  margin-top: 32px;
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+/* Overrides for big and stark white/black text */
+.us-row__label { color: var(--text-primary) !important; font-size: 16px !important; }
+.us-section__title { color: var(--text-primary) !important; font-size: 20px !important; font-weight: 600 !important; }
+.page-desc { color: var(--text-primary) !important; font-size: 16px !important; }

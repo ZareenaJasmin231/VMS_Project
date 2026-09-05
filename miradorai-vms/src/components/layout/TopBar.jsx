@@ -239,6 +239,7 @@ export default function TopBar({
   const [showSupervisorDetails, setShowSupervisorDetails] = useState(false);
   const [settingsDropdownOpen, setSettingsDropdownOpen] = useState(false);
   const [supervisorConfigured, setSupervisorConfigured] = useState(null); // null=loading, true/false
+  const [isAiActive, setIsAiActive] = useState(false);
   const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
@@ -246,6 +247,23 @@ export default function TopBar({
   
   const userRef = useRef(null);
   const settingsRef = useRef(null);
+
+  useEffect(() => {
+    const fetchAiStatus = async () => {
+      try {
+        const token = localStorage.getItem('miradorai_token') || localStorage.getItem('token');
+        const res = await fetch(`${API_BASE}/api/integrations`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const hasAi = data.find(i => i.isActive && (i.type.toLowerCase().includes('ai') || i.serverName.toLowerCase().includes('ai') || i.serverIp));
+          setIsAiActive(!!hasAi);
+        }
+      } catch (err) {}
+    };
+    fetchAiStatus();
+  }, []);
 
   // Fetch supervisor password status on mount (admin only)
   useEffect(() => {
@@ -309,6 +327,8 @@ export default function TopBar({
     { label: "Email Schedules", page: "email-schedules", icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>` },
     { label: "Logs",            page: "logs",            icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>` },
     { label: "Recycle Bin",     page: "recycle-bin",     icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>` },
+    { label: "Integration",     page: "integration",     icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>` },
+
   ];
 
   const CLIENT_SETTINGS_ITEMS = [
@@ -340,30 +360,33 @@ export default function TopBar({
       {/* ===== LEFT ===== */}
       <div className="topbar__left">
         {/* AI Analytics pill */}
-        <div className="topbar__ai-wrap">
-          <button 
-            className="topbar__ai-btn" 
-            onClick={() => navigate('/ai-analytics')}
-          >
-            <div className="topbar__ai-logo-mark">
-              <img src={logoImg} alt="MIRADOR AI" className="topbar__ai-logo-img" />
-            </div>
-            <div className="topbar__ai-logo-text">
-              <span className="topbar__ai-logo-name">MIRADOR AI</span>
-              <span className="topbar__ai-logo-sub">Analytics</span>
-            </div>
-          </button>
-          <div className="topbar__ai-info">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
-              <circle cx="12" cy="12" r="10"></circle>
-              <line x1="12" y1="16" x2="12" y2="12"></line>
-              <line x1="12" y1="8" x2="12.01" y2="8"></line>
-            </svg>
-            <div className="topbar__ai-tooltip">
-              <strong style={{ color: 'var(--text-primary)', display: 'block', marginBottom: '4px' }}>AI Analytics Dashboard</strong>
-              Access advanced AI-driven insights, behavioral metrics, and data visualizations.
+        {isAiActive && (
+          <div className="topbar__ai-wrap">
+            <button 
+              className="topbar__ai-btn" 
+              onClick={() => navigate('/ai-analytics')}
+            >
+              <div className="topbar__ai-logo-mark">
+                <img src={logoImg} alt="MIRADOR AI" className="topbar__ai-logo-img" />
+              </div>
+              <div className="topbar__ai-logo-text">
+                <span className="topbar__ai-logo-name">MIRADOR AI</span>
+                <span className="topbar__ai-logo-sub">Analytics</span>
+              </div>
+            </button>
+            <div className="topbar__ai-info">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="12" y1="16" x2="12" y2="12"></line>
+                <line x1="12" y1="8" x2="12.01" y2="8"></line>
+              </svg>
+              <div className="topbar__ai-tooltip">
+                <strong style={{ color: 'var(--text-primary)', display: 'block', marginBottom: '4px' }}>AI Analytics Dashboard</strong>
+                Access advanced AI-driven insights, behavioral metrics, and data visualizations.
+              </div>
             </div>
           </div>
+        )}
 
           {/* Datasheet Button — temporarily hidden */}
           {/* <button 
@@ -378,7 +401,7 @@ export default function TopBar({
             Datasheet
           </button> */}
         </div>
-      </div>
+
 
       {/* ===== RIGHT ===== */}
       <div className="topbar__right">

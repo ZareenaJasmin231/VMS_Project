@@ -33,6 +33,7 @@ import StreamingPage from "../../pages/client/StreamingPage";
 import AboutPage from "../../pages/client/AboutPage";
 import ViewingStationsPage from "../../pages/client/ViewingStationsPage";
 import EmailSchedulesPage from "../../pages/client/EmailSchedulesPage";
+import IntegrationPage from "../../pages/client/IntegrationPage";
 
 import FirmwareUpgradePage from "../../pages/connectedservices/Firmwareupgradepage";
 import SmartSearchSettingsPage from "../../pages/smartsearch/Smartsearchsettingspage";
@@ -101,6 +102,7 @@ const MAP = {
     "client-settings": ClientSettingsPage,
   "user-settings": UserSettingsPage,
   "user-management": UserManagementPage,
+  "integration": IntegrationPage,
   "streaming": StreamingPage,
   "about": AboutPage,
   "viewing-stations": ViewingStationsPage,
@@ -203,5 +205,3 @@ export default function PageRenderer({ activePage, onNavigate }) {
   const Component = MAP[activePage] || DashboardPage;
   return <Component onNavigate={onNavigate || ((page) => navigate(`/${page}`))} />;
 }
-
-
