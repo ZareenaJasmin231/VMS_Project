@@ -37,8 +37,8 @@ EMAILS_ENABLED = os.environ.get("ALERT_EMAILS_ENABLED", "true").lower() != "fals
 
 
 def _get_immediate_recipients(report_type: str):
-    db = mongo_client[os.environ.get("MONGO_DB_NAME")] if mongo_client else None
-    if not db:
+    from app.core.database import db
+    if db is None:
         return []
     schedules = db["report_schedules"].find({
         "schedule_type": "immediate", 
