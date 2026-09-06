@@ -40,7 +40,12 @@ def _get_immediate_recipients(report_type: str):
     db = mongo_client[os.environ.get("MONGO_DB_NAME")] if mongo_client else None
     if not db:
         return []
-    schedules = db["report_schedules"].find({"schedule_type": "immediate", "report_type": report_type, "enabled": True})
+    schedules = db["report_schedules"].find({
+        "schedule_type": "immediate", 
+        "report_type": report_type, 
+        "enabled": True,
+        "is_deleted": {"$ne": True}
+    })
     recipients = []
     for s in schedules:
         if isinstance(s.get("recipients"), list):
@@ -73,7 +78,7 @@ def _send_email(subject: str, html_body: str, to_addrs: list = None):
                 server.starttls()
                 if SMTP_USER and SMTP_PASSWORD:
                     server.login(SMTP_USER, SMTP_PASSWORD)
-                server.sendmail(ALERT_FROM, ALERT_TO, msg.as_string())
+                server.sendmail(ALERT_FROM, all_to, msg.as_string())
             print(f"[EMAIL] Sent: {subject}")
         except Exception as e:
             print(f"[EMAIL] Failed to send '{subject}': {e}")
