@@ -1,8 +1,10 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from "react";
+import { useLocation } from "react-router-dom";
+import { useAuth } from "./AuthContext";
 import { useUserSettings } from "./UserSettingsContext";
 import { useNotificationPermission } from "../hooks/useNotificationPermission";
 import { useWebSocket } from "../hooks/useWebSocket";
-import "./NotificationContext.css"; // ADDED
+import "./NotificationContext.css";
 
 const NotificationContext = createContext({});
 export const useNotifications = () => useContext(NotificationContext);
@@ -10,6 +12,9 @@ export const useNotifications = () => useContext(NotificationContext);
 export const NotificationProvider = ({ children }) => {
   const { settings } = useUserSettings();
   const { permission } = useNotificationPermission();
+  const { isAuthenticated, isLoading } = useAuth();
+  const location = useLocation();
+
   const settingsRef = useRef(settings);
   useEffect(() => { settingsRef.current = settings; }, [settings]);
 
@@ -19,20 +24,19 @@ export const NotificationProvider = ({ children }) => {
 
   const clearFirmwareBadge = useCallback(() => setFirmwareUpdateCount(0), []);
 
-  const showToast = useCallback(({ title, body, variant = "info", persistent = false }) => {
-    console.log('[SHOW TOAST CALLED]', title, body, variant);
-    const id = Date.now() + Math.random();
-    setToasts(prev => [...prev, { id, title, body, variant, persistent }]);
-    if (!persistent) {
-      setTimeout(() => {
-        setToasts(prev => prev.filter(t => t.id !== id));
-      }, 5000);
+  const isBlockedPage = useCallback(() => {
+    if (isLoading || !isAuthenticated) return true;
+    const rawPath = location?.pathname || (typeof window !== "undefined" ? window.location.pathname : "");
+    const cleanPath = rawPath.replace(/^\/|\/$/g, '').toLowerCase();
+    const page = cleanPath || "dashboard";
+    if (page === "dashboard" || page === "login" || page === "splash" || page === "start") {
+      return true;
     }
-  }, []);
-
-  const removeToast = useCallback((id) => {
-    setToasts(prev => prev.filter(t => t.id !== id));
-  }, []);
+    if (typeof document !== "undefined" && document.querySelector('.splash')) {
+      return true;
+    }
+    return false;
+  }, [isLoading, isAuthenticated, location]);
 
   const playSoundForType = useCallback((type) => {
     const s = settingsRef.current;
@@ -55,7 +59,7 @@ export const NotificationProvider = ({ children }) => {
         gain.connect(ctx.destination);
         osc.type = "sine";
         osc.frequency.setValueAtTime(800, ctx.currentTime);
-        gain.gain.setValueAtTime(0.1, ctx.currentTime);
+        gain.gain.setValueAtTime(0.12, ctx.currentTime);
         osc.start();
         setTimeout(() => { osc.stop(); ctx.close(); }, 300);
       } catch(e) {}
@@ -68,38 +72,53 @@ export const NotificationProvider = ({ children }) => {
     }
   }, []);
 
+  const showToast = useCallback(({ title, body, variant = "info", persistent = false, playSound = true }) => {
+    if (isBlockedPage()) return;
+    const id = Date.now() + Math.random();
+    setToasts(prev => [...prev, { id, title: '', body: body || title || '', variant, persistent }]);
+    if (playSound) {
+      playSoundForType('alarm');
+    }
+    if (!persistent) {
+      setTimeout(() => {
+        setToasts(prev => prev.filter(t => t.id !== id));
+      }, 5000);
+    }
+  }, [isBlockedPage, playSoundForType]);
+
+  const removeToast = useCallback((id) => {
+    setToasts(prev => prev.filter(t => t.id !== id));
+  }, []);
+
   const lastSnapshotTimeRef = useRef(0);
 
   const handleSnapshot = useCallback((base64) => {
+    if (isBlockedPage()) return;
     const now = Date.now();
     const lastSnap = parseInt(localStorage.getItem('miradorai_last_snapshot') || '0', 10);
-    // Prevent duplicate snapshots within 5 seconds across all tabs (e.g. from both websocket and keyup if one is delayed)
     if (now - lastSnap < 5000) return;
     localStorage.setItem('miradorai_last_snapshot', now.toString());
     lastSnapshotTimeRef.current = now;
 
     import('../utils/snapshotUtils').then(({ saveSnapshotToBackend }) => {
-        const pageName = window.location.pathname.split('/').pop() || 'dashboard';
+        const pageName = location?.pathname?.split('/').pop() || window.location.pathname.split('/').pop() || 'dashboard';
         saveSnapshotToBackend(base64, 'Screenshot_' + pageName, settingsRef.current, (msg, type, persistent) => {
-            const timeStr = new Date().toLocaleString();
-            const folder = settingsRef.current?.snapFolder || "default path";
-            showToast({ 
-                title: `Screenshot Captured in /${pageName}`, 
-                body: `saved to ${folder}!\n${timeStr}`, 
-                variant: type || 'success', 
-                persistent 
-            });
+            if (!isBlockedPage()) {
+              showToast({ 
+                  title: '', 
+                  body: 'Snapshot captured', 
+                  variant: type || 'success', 
+                  persistent 
+              });
+            }
         });
     }).catch(err => console.error("Snapshot error:", err));
-  }, [showToast]);
+  }, [showToast, isBlockedPage, location]);
 
   const notify = useCallback((event) => {
-    console.log('[NOTIFY CALLED]', event);
+    if (isBlockedPage()) return;
     const payload = event.data;
-    if (!payload) {
-      console.log('[NOTIFY] bailed: no payload');
-      return;
-    }
+    if (!payload) return;
 
     const isSystem = event.topic === 'system';
     const payloadType = payload.type || 'Analytics Event';
@@ -120,7 +139,9 @@ export const NotificationProvider = ({ children }) => {
 
     if (payloadType === 'firmware_available') {
         setFirmwareUpdateCount(c => c + 1);
-        showToast({ title: 'System Notification', body: 'New firmware available', variant: 'info' });
+        if (!isBlockedPage()) {
+          showToast({ title: '', body: 'New firmware available', variant: 'info' });
+        }
         return;
     }
 
@@ -132,20 +153,17 @@ export const NotificationProvider = ({ children }) => {
     if (DEVICE_FAILURES.includes(payloadType) || SYSTEM_FAILURES.includes(payloadType)) variant = 'error';
     else if (DEVICE_RECOVERIES.includes(payloadType)) variant = 'success';
 
-    console.log('[NOTIFY] isSystem:', isSystem, 'notifTasks:', settingsRef.current?.notifTasks, 'notifAlarms:', settingsRef.current?.notifAlarms, 'payloadType:', payloadType);
-
-    if (isSystem && settingsRef.current?.notifTasks !== false) {
-        showToast({ title: 'Background Task', body: payload.description || payloadType, variant: 'info' });
+    if (isSystem && settingsRef.current?.notifTasks !== false && !isBlockedPage()) {
+        showToast({ title: '', body: payload.description || payloadType, variant: 'info' });
     }
-    if (!isSystem && settingsRef.current?.notifAlarms !== false) {
+    if (!isSystem && settingsRef.current?.notifAlarms !== false && !isBlockedPage()) {
         showToast({
-           title: `${payloadType} Alert`,
-           body: `Camera: ${payload.ip || payload.serial || 'Unknown'}`,
+           title: '',
+           body: `${payloadType}: ${payload.ip || payload.serial || 'Unknown'}`,
            variant
         });
-        playSoundForType("alarm");
     }
-  }, [showToast, playSoundForType, handleSnapshot]);
+  }, [showToast, playSoundForType, handleSnapshot, isBlockedPage]);
 
   const { lastEvent } = useWebSocket(['alerts', 'system']);
 
@@ -154,17 +172,69 @@ export const NotificationProvider = ({ children }) => {
   useEffect(() => {
     const handleKeyUp = async (e) => {
       if (e.key === "PrintScreen") {
-        if (isCapturingRef.current) return;
+        if (isBlockedPage() || isCapturingRef.current) return;
         isCapturingRef.current = true;
         
         try {
           const html2canvas = (await import("html2canvas")).default;
-          const canvas = await html2canvas(document.body, { useCORS: true });
+          const targetEl = document.getElementById("root") || document.body;
+          const canvas = await html2canvas(targetEl, {
+            useCORS: true,
+            allowTaint: true,
+            scale: window.devicePixelRatio || 2,
+            logging: false,
+            backgroundColor: document.documentElement.getAttribute("data-theme") === "light" ? "#f8fafc" : "#0a0c10",
+            onclone: (clonedDoc) => {
+              const isLight = document.documentElement.getAttribute("data-theme") === "light";
+              const styleOverride = clonedDoc.createElement("style");
+              styleOverride.textContent = `
+                h1, h2, h3, h4, h5, h6,
+                [class*="page-title"],
+                [class*="title"],
+                [class*="heading"],
+                .us-page-title,
+                .lv-page-title,
+                .dv-page-title {
+                  background: none !important;
+                  background-image: none !important;
+                  -webkit-background-clip: initial !important;
+                  background-clip: initial !important;
+                  -webkit-text-fill-color: initial !important;
+                  color: ${isLight ? "#0d7844" : "#10b981"} !important;
+                }
+              `;
+              clonedDoc.head.appendChild(styleOverride);
+
+              const allElements = clonedDoc.querySelectorAll("*");
+              allElements.forEach((el) => {
+                const comp = window.getComputedStyle(el);
+                const webkitFill = comp.webkitTextFillColor || "";
+                const webkitClip = comp.webkitBackgroundClip || comp.backgroundClip || "";
+                const className = typeof el.className === "string" ? el.className : "";
+                
+                if (
+                  webkitClip === "text" ||
+                  webkitFill === "transparent" ||
+                  webkitFill.includes("rgba(0, 0, 0, 0)") ||
+                  className.includes("title") ||
+                  className.includes("heading") ||
+                  /^H[1-6]$/.test(el.tagName)
+                ) {
+                  el.style.setProperty("background", "none", "important");
+                  el.style.setProperty("background-image", "none", "important");
+                  el.style.setProperty("-webkit-background-clip", "border-box", "important");
+                  el.style.setProperty("background-clip", "border-box", "important");
+                  el.style.setProperty("-webkit-text-fill-color", isLight ? "#0d7844" : "#10b981", "important");
+                  el.style.setProperty("color", isLight ? "#0d7844" : "#10b981", "important");
+                }
+              });
+            },
+          });
           const base64 = canvas.toDataURL("image/png");
           handleSnapshot(base64);
         } catch (error) {
           console.error("Screenshot capture failed:", error);
-          showToast({ title: "Snapshot Error", body: "Capture failed.", variant: "error" });
+          showToast({ title: '', body: "Capture failed.", variant: "error" });
         } finally {
           isCapturingRef.current = false;
         }
@@ -172,10 +242,9 @@ export const NotificationProvider = ({ children }) => {
     };
     window.addEventListener("keyup", handleKeyUp);
     return () => window.removeEventListener("keyup", handleKeyUp);
-  }, [handleSnapshot, showToast]);
+  }, [handleSnapshot, showToast, isBlockedPage]);
 
   useEffect(() => {
-    console.log('[LAST EVENT CHANGED]', lastEvent);
     if (lastEvent && lastEvent.data && lastEvent.data.type) {
       notify(lastEvent);
     }
@@ -185,20 +254,13 @@ export const NotificationProvider = ({ children }) => {
   return (
     <NotificationContext.Provider value={{ notify, firmwareUpdateCount, clearFirmwareBadge, showToast }}>
       {children}
-      {toasts.length > 0 && (
+      {!isBlockedPage() && toasts.length > 0 && (
         <div className="toast-container-box">
-          {toasts.length > 1 && (
-            <div className="toast-container-header">
-              <span>Notifications ({toasts.length})</span>
-              <button className="toast-container-close" title="Clear all" onClick={() => setToasts([])}>&times;</button>
-            </div>
-          )}
           <div className="toast-list">
             {toasts.map(t => (
               <div key={t.id} className={`toast-item toast-${t.variant}`}>
                 <div className="toast-content">
-                  <strong>{t.title}</strong>
-                  <p className="toast-body">{t.body}</p>
+                  <p className="toast-body">{t.body || t.title}</p>
                 </div>
                 <button className="toast-close" title="Dismiss" onClick={() => removeToast(t.id)}>&times;</button>
               </div>
@@ -206,7 +268,7 @@ export const NotificationProvider = ({ children }) => {
           </div>
         </div>
       )}
-      {intercomCall && (
+      {intercomCall && !isBlockedPage() && (
         <div className="intercom-modal-overlay">
           <div className="intercom-modal">
             <h2>Incoming Intercom Call</h2>

@@ -3,6 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { NAV_CONFIG } from "../../data/navConfig";
 import { useAuth } from "../../context/AuthContext";
 import { useTheme } from "../../context/ThemeContext";
+import { useUserSettings } from "../../context/UserSettingsContext";
+import { useNotifications } from "../../context/NotificationContext";
 import logoImg from "../../assets/logo.jpg";
 import Dock from "../shared/Dock/Dock";
 import "./TopBar.css";
@@ -242,11 +244,96 @@ export default function TopBar({
   const [isAiActive, setIsAiActive] = useState(false);
   const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
+  const { settings } = useUserSettings();
+  const { showToast } = useNotifications();
+  const [isCapturing, setIsCapturing] = useState(false);
+  const [snapshotPreview, setSnapshotPreview] = useState(null);
   const navigate = useNavigate();
   const role = user?.role;
   
   const userRef = useRef(null);
   const settingsRef = useRef(null);
+
+  const handleAppSnapshot = async () => {
+    if (isCapturing) return;
+    setIsCapturing(true);
+
+    try {
+      const html2canvas = (await import("html2canvas")).default;
+      const targetEl = document.getElementById("root") || document.body;
+      const isLight = document.documentElement.getAttribute("data-theme") === "light";
+      const canvas = await html2canvas(targetEl, {
+        useCORS: true,
+        allowTaint: true,
+        scale: window.devicePixelRatio || 2,
+        logging: false,
+        backgroundColor: isLight ? "#f8fafc" : "#0a0c10",
+        onclone: (clonedDoc) => {
+          const styleOverride = clonedDoc.createElement("style");
+          styleOverride.textContent = `
+            h1, h2, h3, h4, h5, h6,
+            [class*="page-title"],
+            [class*="title"],
+            [class*="heading"],
+            .us-page-title,
+            .lv-page-title,
+            .dv-page-title {
+              background: none !important;
+              background-image: none !important;
+              -webkit-background-clip: initial !important;
+              background-clip: initial !important;
+              -webkit-text-fill-color: initial !important;
+              color: ${isLight ? "#0d7844" : "#10b981"} !important;
+            }
+          `;
+          clonedDoc.head.appendChild(styleOverride);
+
+          const allElements = clonedDoc.querySelectorAll("*");
+          allElements.forEach((el) => {
+            const comp = window.getComputedStyle(el);
+            const webkitFill = comp.webkitTextFillColor || "";
+            const webkitClip = comp.webkitBackgroundClip || comp.backgroundClip || "";
+            const className = typeof el.className === "string" ? el.className : "";
+            
+            if (
+              webkitClip === "text" ||
+              webkitFill === "transparent" ||
+              webkitFill.includes("rgba(0, 0, 0, 0)") ||
+              className.includes("title") ||
+              className.includes("heading") ||
+              /^H[1-6]$/.test(el.tagName)
+            ) {
+              el.style.setProperty("background", "none", "important");
+              el.style.setProperty("background-image", "none", "important");
+              el.style.setProperty("-webkit-background-clip", "border-box", "important");
+              el.style.setProperty("background-clip", "border-box", "important");
+              el.style.setProperty("-webkit-text-fill-color", isLight ? "#0d7844" : "#10b981", "important");
+              el.style.setProperty("color", isLight ? "#0d7844" : "#10b981", "important");
+            }
+          });
+        },
+      });
+
+      const base64Data = canvas.toDataURL("image/jpeg", 0.95);
+      const pageName = window.location.pathname.split('/').pop() || 'ui';
+
+      // Instantly show the captured image popup for exactly 0.5s (500ms)
+      setSnapshotPreview(base64Data);
+      setTimeout(() => {
+        setSnapshotPreview(null);
+      }, 500);
+
+      const { saveSnapshotToBackend } = await import("../../utils/snapshotUtils");
+      saveSnapshotToBackend(base64Data, 'AppSnapshot_' + pageName, settings, (msg, type, persistent) => {
+         showToast({ title: '', body: 'Snapshot captured', variant: type || 'success', persistent });
+      });
+    } catch (err) {
+      console.error("[SNAPSHOT] App snapshot failed:", err);
+      showToast({ title: '', body: err.message || 'Snapshot failed', variant: 'error' });
+    } finally {
+      setIsCapturing(false);
+    }
+  };
 
   useEffect(() => {
     const fetchAiStatus = async () => {
@@ -417,6 +504,16 @@ export default function TopBar({
             distance={100}
             className="topbar-dock"
             items={[
+              {
+                icon: (
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+                    <circle cx="12" cy="13" r="4"/>
+                  </svg>
+                ),
+                label: isCapturing ? "Capturing..." : "Snapshot",
+                onClick: handleAppSnapshot
+              },
               {
                 icon: theme === "dark" ? (
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -636,6 +733,22 @@ export default function TopBar({
           onClose={() => setShowSupervisorDetails(false)}
           onStatusChange={(configured) => setSupervisorConfigured(configured)}
         />
+      )}
+
+      {/* 0.5s Snapshot Shutter Flash Preview Overlay */}
+      {snapshotPreview && (
+        <div className="snapshot-flash-overlay">
+          <div className="snapshot-flash-card">
+            <img src={snapshotPreview} alt="Snapshot Preview" className="snapshot-flash-img" />
+            <div className="snapshot-flash-badge">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16">
+                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                <circle cx="12" cy="13" r="4" />
+              </svg>
+              <span>Snapshot Captured</span>
+            </div>
+          </div>
+        </div>
       )}
     </header>
   );

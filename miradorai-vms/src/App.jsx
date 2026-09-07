@@ -13,6 +13,7 @@ import { ThemeProvider } from "./context/ThemeContext";
 
 import { UserSettingsProvider } from "./context/UserSettingsContext";
 import { NotificationProvider } from "./context/NotificationContext";
+import { CamerasProvider } from "./context/CamerasContext";
 
 import GlobalLiveMirror from "./components/layout/GlobalLiveMirror";
 import "./styles/global.css";
@@ -77,11 +78,13 @@ export default function App() {
     <ThemeProvider>
       <AuthProvider>
         <UserSettingsProvider>
-          <NotificationProvider>
-        <BrowserRouter>
-          <AppContent />
-        </BrowserRouter>
-      </NotificationProvider>
+          <BrowserRouter>
+            <NotificationProvider>
+              <CamerasProvider>
+                <AppContent />
+              </CamerasProvider>
+            </NotificationProvider>
+          </BrowserRouter>
         </UserSettingsProvider>
       </AuthProvider>
     </ThemeProvider>

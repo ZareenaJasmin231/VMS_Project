@@ -35,7 +35,7 @@ export async function saveSnapshotToBackend(base64Data, cameraName, settings, sh
     const data = await res.json();
     if (data.success) {
       if (settings.snapMsg) {
-        showToast("Snapshot saved", "success", true);
+        showToast("Snapshot captured", "success", true);
       }
       
       if (settings.snapOpen) {

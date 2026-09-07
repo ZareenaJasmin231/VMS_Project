@@ -922,5 +922,89 @@
   color: #0f172a;
 }
 
+/* ── 0.5s Snapshot Shutter Flash Preview ────────────────────────────────────── */
+.snapshot-flash-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(5px);
+  pointer-events: none;
+  animation: snapshotFlashFade 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.snapshot-flash-card {
+  position: relative;
+  width: min(720px, 80vw);
+  max-height: 70vh;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.65), 0 0 0 2px rgba(16, 185, 129, 0.8), 0 0 40px rgba(16, 185, 129, 0.4);
+  animation: snapshotCardPop 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-surface, #11141b);
+}
+
+.snapshot-flash-img {
+  width: 100%;
+  height: auto;
+  display: block;
+  object-fit: contain;
+}
+
+.snapshot-flash-badge {
+  position: absolute;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(16, 185, 129, 0.95);
+  backdrop-filter: blur(8px);
+  color: #ffffff;
+  padding: 6px 18px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+}
+
+@keyframes snapshotFlashFade {
+  0% {
+    opacity: 0;
+  }
+  15% {
+    opacity: 1;
+  }
+  70% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes snapshotCardPop {
+  0% {
+    transform: scale(0.85);
+  }
+  30% {
+    transform: scale(1.02);
+  }
+  60% {
+    transform: scale(1);
+  }
+  100% {
+    transform: scale(0.95);
+  }
+}
+
+
 
 
