@@ -208,3 +208,42 @@ def push_layout(req: PushLayoutRequest):
     
     _save_station(station)
     return {"success": True, "message": f"Layout successfully pushed to {station.get('name')}"}
+
+
+# ── Twilio STUN/TURN ICE Servers Endpoint ───────────────────────────
+_ice_cache = {"expires_at": 0.0, "servers": []}
+
+@router.get("/ice-servers")
+def get_ice_servers():
+    """Returns dynamic Twilio STUN/TURN ICE servers for WebRTC."""
+    import requests
+    now = time.time()
+    if _ice_cache["servers"] and now < _ice_cache["expires_at"]:
+        return {"success": True, "iceServers": _ice_cache["servers"]}
+
+    account_sid = os.environ.get("TWILIO_ACCOUNT_SID", "AC92f79e34bd75672bb4ba8f3e4a5350ef")
+    auth_token = os.environ.get("TWILIO_AUTH_TOKEN", "fd3b6227050c3a02568f0ba30cbfa4b0")
+
+    try:
+        url = f"https://api.twilio.com/2010-04-01/Accounts/{account_sid}/Tokens.json"
+        res = requests.post(url, auth=(account_sid, auth_token), timeout=5)
+        if res.status_code in (200, 201):
+            data = res.json()
+            ice_servers = data.get("ice_servers", [])
+            _ice_cache["servers"] = ice_servers
+            _ice_cache["expires_at"] = now + 3600 * 6  # cache for 6 hours
+            return {"success": True, "iceServers": ice_servers}
+        else:
+            print(f"[TWILIO] Token fetch failed ({res.status_code}): {res.text}")
+    except Exception as e:
+        print(f"[TWILIO] Error requesting tokens: {e}")
+
+    # Fallback to Google and Twilio public STUN
+    return {
+        "success": True,
+        "iceServers": [
+            {"urls": "stun:global.stun.twilio.com:3478"},
+            {"urls": "stun:stun.l.google.com:19302"}
+        ]
+    }
+

@@ -13,21 +13,42 @@ export default function GlobalLiveMirror() {
     let globalHeartbeatInterval = null;
     let initTimeout = null;
     let mounted = true;
+    const apiBase = import.meta.env.VITE_API_URL || '';
 
-    const rtcConfig = {
-      iceServers: [
-        { urls: "stun:stun.l.google.com:19302" },
-        {
-          urls: "turn:openrelay.metered.ca:80",
-          username: "openrelayproject",
-          credential: "openrelayproject"
-        },
-        {
-          urls: "turn:openrelay.metered.ca:443?transport=tcp",
-          username: "openrelayproject",
-          credential: "openrelayproject"
+    const getRtcConfig = async () => {
+      try {
+        const res = await fetch(`${apiBase}/api/viewing-stations/ice-servers`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.iceServers && data.iceServers.length > 0) {
+            console.log("[GlobalLiveMirror] Loaded Twilio ICE servers:", data.iceServers.length);
+            return { iceServers: data.iceServers };
+          }
         }
-      ]
+      } catch (e) {
+        console.warn("[GlobalLiveMirror] Error fetching dynamic ICE servers:", e);
+      }
+      return {
+        iceServers: [
+          { urls: "stun:global.stun.twilio.com:3478" },
+          { urls: "stun:stun.l.google.com:19302" },
+          {
+            urls: "turn:global.turn.twilio.com:3478?transport=udp",
+            username: "d3caa20dc03b96f465cf78ae677e43a12842daa2b27febcef8d41ac2ee74db84",
+            credential: "iPnaKnb4WYyxGP6nlQap2K5Adx4resPtdbt6hxK/YSw="
+          },
+          {
+            urls: "turn:global.turn.twilio.com:3478?transport=tcp",
+            username: "d3caa20dc03b96f465cf78ae677e43a12842daa2b27febcef8d41ac2ee74db84",
+            credential: "iPnaKnb4WYyxGP6nlQap2K5Adx4resPtdbt6hxK/YSw="
+          },
+          {
+            urls: "turn:global.turn.twilio.com:443?transport=tcp",
+            username: "d3caa20dc03b96f465cf78ae677e43a12842daa2b27febcef8d41ac2ee74db84",
+            credential: "iPnaKnb4WYyxGP6nlQap2K5Adx4resPtdbt6hxK/YSw="
+          }
+        ]
+      };
     };
 
     const cleanupWebRTC = () => {
@@ -161,6 +182,7 @@ export default function GlobalLiveMirror() {
                 });
                 streamRef.current = stream;
 
+                const rtcConfig = await getRtcConfig();
                 const pc = new RTCPeerConnection(rtcConfig);
                 pcRef.current = pc;
                 pcRef.current.remoteDescriptionSet = false;
