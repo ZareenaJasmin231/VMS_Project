@@ -52,6 +52,26 @@ def _get_immediate_recipients(report_type: str):
             recipients.extend(s["recipients"])
     return list(set(recipients))
 
+import socket
+
+def _get_vms_identity():
+    try:
+        hostname = socket.gethostname()
+    except Exception:
+        hostname = "Unknown Host"
+    
+    host_ip = os.environ.get("HOST_IP")
+    if not host_ip:
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            s.connect(("8.8.8.8", 80))
+            host_ip = s.getsockname()[0]
+            s.close()
+        except Exception:
+            host_ip = "127.0.0.1"
+            
+    return hostname, host_ip
+
 def _send_email(subject: str, html_body: str, to_addrs: list = None):
     """
     Sends an email in a background thread so it never blocks the event loop.
@@ -65,10 +85,13 @@ def _send_email(subject: str, html_body: str, to_addrs: list = None):
         print(f"[EMAIL] No recipient configured. Skipping: {subject}")
         return
 
+    vms_name, vms_ip = _get_vms_identity()
+    full_subject = f"[{vms_ip}] {subject}"
+
     def _worker():
         try:
             msg = MIMEMultipart("alternative")
-            msg["Subject"] = subject
+            msg["Subject"] = full_subject
             msg["From"]    = ALERT_FROM
             msg["To"]      = ", ".join(all_to)
             msg.attach(MIMEText(html_body, "html"))
@@ -79,9 +102,9 @@ def _send_email(subject: str, html_body: str, to_addrs: list = None):
                 if SMTP_USER and SMTP_PASSWORD:
                     server.login(SMTP_USER, SMTP_PASSWORD)
                 server.sendmail(ALERT_FROM, all_to, msg.as_string())
-            print(f"[EMAIL] Sent: {subject}")
+            print(f"[EMAIL] Sent: {full_subject}")
         except Exception as e:
-            print(f"[EMAIL] Failed to send '{subject}': {e}")
+            print(f"[EMAIL] Failed to send '{full_subject}': {e}")
 
     threading.Thread(target=_worker, daemon=True).start()
 
@@ -92,11 +115,19 @@ def _ts() -> str:
 
 def _base_template(color: str, icon: str, title: str, rows: list[tuple]) -> str:
     """Minimal HTML email template."""
-    row_html = "".join(
-        f"<tr><td style='padding:6px 12px;color:#9ca3af;font-size:13px'>{k}</td>"
-        f"<td style='padding:6px 12px;color:#f3f4f6;font-size:13px'>{v}</td></tr>"
-        for k, v in rows
-    )
+    vms_name, vms_ip = _get_vms_identity()
+    all_rows = rows.copy()
+    all_rows.append(("—", "—"))
+    all_rows.append(("VMS Server Name", vms_name))
+    all_rows.append(("VMS Server IP", vms_ip))
+
+    row_html = ""
+    for k, v in all_rows:
+        if k == "—":
+            row_html += f"<tr><td colspan='2' style='padding:0'><hr style='border:0;border-top:1px solid #374151;margin:8px 0'/></td></tr>"
+        else:
+            row_html += f"<tr><td style='padding:6px 12px;color:#9ca3af;font-size:13px'>{k}</td><td style='padding:6px 12px;color:#f3f4f6;font-size:13px'>{v}</td></tr>"
+
     return f"""
     <div style='font-family:sans-serif;background:#111827;padding:24px;border-radius:8px;max-width:520px'>
       <div style='border-left:4px solid {color};padding-left:16px;margin-bottom:20px'>
@@ -106,7 +137,7 @@ def _base_template(color: str, icon: str, title: str, rows: list[tuple]) -> str:
       <table style='width:100%;border-collapse:collapse;background:#1f2937;border-radius:6px;overflow:hidden'>
         {row_html}
       </table>
-      <p style='color:#6b7280;font-size:11px;margin-top:16px'>Mirador VMS · {_ts()}</p>
+      <p style='color:#6b7280;font-size:11px;margin-top:16px'>Mirador VMS · {_ts()} · Host: {vms_name} ({vms_ip})</p>
     </div>
     """
 
