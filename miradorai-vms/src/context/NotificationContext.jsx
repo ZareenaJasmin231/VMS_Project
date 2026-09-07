@@ -256,6 +256,13 @@ export const NotificationProvider = ({ children }) => {
       {children}
       {!isBlockedPage() && toasts.length > 0 && (
         <div className="toast-container-box">
+          <button 
+            className="toast-box-close-all" 
+            title="Dismiss all notifications" 
+            onClick={() => setToasts([])}
+          >
+            &times;
+          </button>
           <div className="toast-list">
             {toasts.map(t => (
               <div key={t.id} className={`toast-item toast-${t.variant}`}>
