@@ -124,6 +124,15 @@ const OPERATOR_NAV = [
   },
 ];
 
+
+// ================= INTEGRATION NAVIGATION =================
+// ================= INTEGRATION NAVIGATION =================
+const INTEGRATION_NAV = {
+  section: "Integration",
+  page: "integration", // clicking the parent row itself opens the connections list
+  icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>`,
+  items: [] // populated at runtime by Sidebar.jsx — one entry per connection type
+};
 // ================= GET NAVIGATION CONFIG =================
 export const getNavConfig = (role = "client") => {
   const filteredSettings = {
@@ -138,14 +147,14 @@ export const getNavConfig = (role = "client") => {
       return true;
     })
   };
-  if (role === "admin")    return [...CORE_NAV, ...ADMIN_ONLY_NAV, filteredSettings];
-  if (role === "client")   return [...CLIENT_NAV, filteredSettings];
+  if (role === "admin")    return [...CORE_NAV, ...ADMIN_ONLY_NAV, filteredSettings, INTEGRATION_NAV];
+  if (role === "client")   return [...CLIENT_NAV, filteredSettings, INTEGRATION_NAV];
   if (role === "operator") return OPERATOR_NAV;
-  return [...CLIENT_NAV, filteredSettings]; // fallback
+  return [...CLIENT_NAV, filteredSettings, INTEGRATION_NAV]; // fallback
 };
 
 // ================= DEFAULT EXPORT =================
-export const NAV_CONFIG = [...CORE_NAV, ...ADMIN_ONLY_NAV, SETTINGS_NAV];
+export const NAV_CONFIG = [...CORE_NAV, ...ADMIN_ONLY_NAV, SETTINGS_NAV, INTEGRATION_NAV];
 
 // ================= CAMERA FEATURES CONFIG =================
 // All features shown in the right-side panel when a camera is selected.
@@ -180,6 +189,7 @@ export const CAMERA_FEATURES_CONFIG = [
 // ================= PAGE TITLE MAPPING =================
 export const PAGE_TITLES = {
   // Core pages
+  integration: "Integration",
   dashboard: "Dashboard",
   "live-view": "Live View",
   analytics: "Video Analytics",

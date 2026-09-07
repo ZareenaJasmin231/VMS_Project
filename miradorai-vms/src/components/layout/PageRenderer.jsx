@@ -158,50 +158,52 @@ export default function PageRenderer({ activePage, onNavigate }) {
   const navigate = useNavigate();
   const role = user?.role;
 
+  const basePage = activePage ? activePage.split("/")[0] : "";
+
   // --- Redirects ---
   useEffect(() => {
-    if (role === "operator" && !OPERATOR_ALLOWED_PAGES.includes(activePage)) {
+    if (role === "operator" && !OPERATOR_ALLOWED_PAGES.includes(activePage) && !OPERATOR_ALLOWED_PAGES.includes(basePage)) {
       navigate("/live-view", { replace: true });
     }
-  }, [activePage, role, navigate]);
+  }, [activePage, basePage, role, navigate]);
 
   useEffect(() => {
-    if (role === "client" && CLIENT_BLOCKED_PAGES.includes(activePage)) {
+    if (role === "client" && (CLIENT_BLOCKED_PAGES.includes(activePage) || CLIENT_BLOCKED_PAGES.includes(basePage))) {
       navigate("/live-view", { replace: true });
     }
-  }, [activePage, role, navigate]);
+  }, [activePage, basePage, role, navigate]);
 
   useEffect(() => {
-    if (activePage === "user-management" && role !== "admin") {
+    if ((activePage === "user-management" || basePage === "user-management") && role !== "admin") {
       navigate("/live-view", { replace: true });
     }
-  }, [activePage, role, navigate]);
+  }, [activePage, basePage, role, navigate]);
 
   // --- Synchronous rendering blocks (prevent flash of unauthorized content) ---
-  if (role === "operator" && !OPERATOR_ALLOWED_PAGES.includes(activePage)) {
+  if (role === "operator" && !OPERATOR_ALLOWED_PAGES.includes(activePage) && !OPERATOR_ALLOWED_PAGES.includes(basePage)) {
     return null;
   }
-  if (role === "client" && CLIENT_BLOCKED_PAGES.includes(activePage)) {
+  if (role === "client" && (CLIENT_BLOCKED_PAGES.includes(activePage) || CLIENT_BLOCKED_PAGES.includes(basePage))) {
     return null;
   }
-  if (activePage === "user-management" && role !== "admin") {
+  if ((activePage === "user-management" || basePage === "user-management") && role !== "admin") {
     return null;
   }
 
   // --- Supervisor check ---
-  const needsSupervisor = role === "client" && CLIENT_SUPERVISOR_PAGES.includes(activePage) && !supervisorUnlocked;
+  const needsSupervisor = role === "client" && (CLIENT_SUPERVISOR_PAGES.includes(activePage) || CLIENT_SUPERVISOR_PAGES.includes(basePage)) && !supervisorUnlocked;
 
   if (needsSupervisor) {
     return (
       <SupervisorModal
-        pageName={SUPERVISOR_PAGE_NAMES[activePage] || activePage}
+        pageName={SUPERVISOR_PAGE_NAMES[activePage] || SUPERVISOR_PAGE_NAMES[basePage] || activePage}
         onSuccess={() => unlockSupervisor()}
         onCancel={() => navigate("/live-view", { replace: true })}
       />
     );
   }
 
-  // ✅ fallback to dashboard if page not found
-  const Component = MAP[activePage] || DashboardPage;
+  // ✅ fallback to basePage or dashboard if page not found
+  const Component = MAP[activePage] || MAP[basePage] || DashboardPage;
   return <Component onNavigate={onNavigate || ((page) => navigate(`/${page}`))} />;
 }

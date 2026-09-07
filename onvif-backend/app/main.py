@@ -55,6 +55,7 @@ from app.api.routers.viewing_stations_router import router as viewing_stations_r
 from app.api.routers.monitoring_api import router as monitoring_api_router
 from app.api.routers.reports_router import router as reports_router
 from app.api.routers.ai_alerts_router import router as ai_alerts_router, reader_router
+from app.api.routers.integrations_router import router as integrations_router
 from app.api.storage.router import router as storage_management_router
 from app.api.routers.events_ws_router import router as events_ws_router
 import threading
@@ -127,6 +128,12 @@ class LoggerWrapper:
     @property
     def errors(self):
         return getattr(sys.__stdout__, "errors", "replace") or "replace"
+
+    def flush(self):
+        try:
+            sys.__stdout__.flush()
+        except Exception:
+            pass
 
 sys.stdout = LoggerWrapper()
 
@@ -290,4 +297,5 @@ app.include_router(monitoring_api_router)
 app.include_router(reports_router)
 app.include_router(ai_alerts_router)
 app.include_router(reader_router)
+app.include_router(integrations_router)
 app.include_router(storage_management_router)

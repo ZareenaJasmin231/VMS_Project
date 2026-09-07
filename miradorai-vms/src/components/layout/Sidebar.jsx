@@ -1,7 +1,9 @@
+import { useUserSettings } from "../../context/UserSettingsContext";
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { getNavConfig } from "../../data/navConfig";
 import { useAuth } from "../../context/AuthContext";
+import { useNotifications } from "../../context/NotificationContext";
 import logoImg from "../../assets/logo.jpg";
 import Dock from "../shared/Dock/Dock";
 import "./Sidebar.css";
@@ -11,15 +13,60 @@ function SvgIcon({ html }) {
 }
 
 export default function Sidebar({ userRole }) {
+  const { settings } = useUserSettings();
   const { user, logout } = useAuth();
+  const { firmwareUpdateCount, clearFirmwareBadge } = useNotifications();
   const navigate = useNavigate();
   const location = useLocation();
+
+  // Clear badge when visiting Device Management
+  useEffect(() => {
+    if (location.pathname === '/add-devices' && firmwareUpdateCount > 0) {
+      clearFirmwareBadge();
+    }
+  }, [location.pathname, firmwareUpdateCount, clearFirmwareBadge]);
 
   // Derive active path for highlight checks
   const activePath = location.pathname; // e.g. "/live-view"
   const toPath = (page) => `/${page}`; // "live-view" → "/live-view"
 
   const navConfig = getNavConfig(userRole || user?.role);
+
+  // Live-populate the Integration group's sub-items — one entry per unique
+  // connection type, not per connection. Re-fetches whenever the route
+  // changes so a newly saved connection shows up without a manual refresh.
+  const [integrationConnections, setIntegrationConnections] = useState([]);
+  useEffect(() => {
+    const fetchIntegrationConnections = async () => {
+      try {
+        const token = localStorage.getItem("token");
+        const headers = { Authorization: token ? `Bearer ${token}` : "" };
+        const API_BASE = import.meta.env.VITE_API_URL || "";
+        const res = await fetch(`${API_BASE}/api/integrations`, { headers });
+        if (res.ok) setIntegrationConnections(await res.json());
+      } catch (e) { /* silent */ }
+    };
+    fetchIntegrationConnections();
+  }, [location.pathname]);
+
+  const resolvedNavConfig = navConfig.map((entry) => {
+    if (entry.section !== "Integration") return entry;
+
+    const seenTypes = new Map();
+    integrationConnections.forEach((c) => {
+      const key = (c.type || "Unknown").trim();
+      if (!seenTypes.has(key)) seenTypes.set(key, c);
+    });
+
+    return {
+      ...entry,
+      items: Array.from(seenTypes.entries()).map(([type, conn]) => ({
+        label: type,
+        page: `integration/${conn.id || conn._id}`,
+        icon: entry.icon
+      }))
+    };
+  });
 
   const [isCollapsed, setIsCollapsed] = useState(() => {
     return localStorage.getItem("sidebar-collapsed") === "true";
@@ -97,7 +144,7 @@ export default function Sidebar({ userRole }) {
             magnification={64}
             distance={100}
             className="sidebar-dock"
-            items={navConfig.map(({ section, page, icon, items }) => {
+            items={resolvedNavConfig.map(({ section, page, icon, items }) => {
               const isActive = activePath === toPath(page) || items?.some((i) => activePath === toPath(i.page));
               return {
                 icon: <div dangerouslySetInnerHTML={{ __html: icon }} style={{ color: isActive ? 'var(--teal)' : 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center' }} />,
@@ -113,9 +160,9 @@ export default function Sidebar({ userRole }) {
         </div>
       ) : (
         <nav className="sidebar__nav" role="navigation" aria-label="Application menu">
-        {navConfig.map(({ section, page, icon, items }) => {
-          // Direct nav item (e.g. Live View, About)
-          if (page) {
+        {resolvedNavConfig.map(({ section, page, icon, items }) => {
+          // Direct nav item (e.g. Live View, About) — only when it has no sub-items
+          if (page && !items?.length) {
             const isActive = activePath === toPath(page);
             const matchesSearch = !search || section.toLowerCase().includes(search.toLowerCase());
             if (!matchesSearch) return null;
@@ -142,13 +189,22 @@ export default function Sidebar({ userRole }) {
 
           if (search && visible.length === 0) return null;
 
-          const hasActiveItem = items?.some((i) => activePath === toPath(i.page));
+          const hasActiveItem =
+            (page && activePath === toPath(page)) ||
+            items?.some((i) => activePath === toPath(i.page));
 
           return (
             <div key={section} className="sidebar__group">
               <button
                 className={`sidebar__group-btn ${hasActiveItem ? "sidebar__group-btn--active" : ""}`}
-                onClick={() => isCollapsed ? navigate(toPath(items[0].page)) : toggle(section)}
+                onClick={() => {
+                  if (isCollapsed) {
+                    navigate(toPath(page || items[0].page));
+                  } else {
+                    if (page) navigate(toPath(page));
+                    toggle(section);
+                  }
+                }}
                 aria-expanded={expanded[section] ? "true" : "false"}
                 aria-controls={`group-${section.replace(/\s+/g, "-").toLowerCase()}`}
                 title={isCollapsed ? section : undefined}
@@ -183,6 +239,9 @@ export default function Sidebar({ userRole }) {
                       >
                         <SvgIcon html={item.icon} />
                         <span>{item.label}</span>
+                        {item.page === 'add-devices' && firmwareUpdateCount > 0 && (
+                          <span className="sidebar__badge">{firmwareUpdateCount}</span>
+                        )}
                         {isActive && <span className="sidebar__item-dot" />}
                       </button>
                     );

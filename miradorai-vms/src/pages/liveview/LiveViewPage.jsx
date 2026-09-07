@@ -936,7 +936,7 @@ function AlertsPanel({
     if (imgLoc) {
       if (imgLoc.startsWith("http")) return imgLoc;
       const cleanLoc = imgLoc.startsWith("/") ? imgLoc.substring(1) : imgLoc;
-      return `http://${externalAiIp}/minio/${cleanLoc}`;
+      return `http://${externalAiIp}:9000/${cleanLoc}`;
     }
 
     // Prefer persisted snapshot if present on the alert document
@@ -987,169 +987,195 @@ function AlertsPanel({
 
   const fetchAlerts = useCallback(async () => {
     try {
-      if (alertSource === "builtin" || alertSource === "mqtt_ai" || alertSource === "all") {
+      setLoading(true);
+      let combinedAlerts = [];
+      const fetchBuiltin = alertSource === "builtin" || alertSource === "all";
+      const fetchExternal = alertSource === "mqtt_ai" || alertSource === "external_ai" || alertSource === "all";
+
+      if (fetchBuiltin) {
         let urlParam = "";
-        if (alertSource === "all") {
-          urlParam = isAiActive ? "" : "&source=built_in";
-        } else if (alertSource === "mqtt_ai") {
-          urlParam = "&source=external_ai";
-        } else {
+        if (alertSource === "builtin") {
           urlParam = "&source=built_in";
         }
         const res = await fetch(`${API}/api/alerts?limit=5000${urlParam}`, {
           headers: getAuthHeaders(),
         });
-        if (!res.ok) return;
-        const data = await res.json();
-        const filtered = (data.alerts || [])
-          .filter((a) => {
-            const t = (a.type || "").toLowerCase();
-            return (
-              t !== "unknown" &&
-              t !== "" &&
-              !t.includes("tns1:") &&
-              !t.includes("motion")
-            );
-          })
-          .filter(isAlertAllowed);
-        const perCamCounts = {};
-        const finalAlerts = [];
-        filtered.forEach((alert) => {
-          if (!alert.isExternal) {
-            alert.thumbnailUrl = buildAlertThumbnailUrl(alert);
-            alert.thumbnailAltUrl = buildAlertThumbnailAltUrl(alert);
-          }
-          const ip = normalizeIp(alert.ip);
-          if (ip) {
-            perCamCounts[ip] = (perCamCounts[ip] || 0) + 1;
-            if (perCamCounts[ip] <= 50) {
-              finalAlerts.push(alert);
+        if (res.ok) {
+          const data = await res.json();
+          const filtered = (data.alerts || [])
+            .filter((a) => {
+              const t = (a.type || "").toLowerCase();
+              return (
+                t !== "unknown" &&
+                t !== "" &&
+                !t.includes("tns1:") &&
+                !t.includes("motion")
+              );
+            })
+            .filter(isAlertAllowed);
+          
+          filtered.forEach((alert) => {
+            if (!alert.isExternal) {
+              alert.thumbnailUrl = buildAlertThumbnailUrl(alert);
+              alert.thumbnailAltUrl = buildAlertThumbnailAltUrl(alert);
             }
-          } else {
-            finalAlerts.push(alert);
-          }
-        });
+          });
+          combinedAlerts.push(...filtered);
+        }
+      }
 
-        finalAlerts.sort((a, b) => {
-          const tA = new Date(a.time || a.received_at).getTime() || 0;
-          const tB = new Date(b.time || b.received_at).getTime() || 0;
-          return tB - tA;
-        });
-
-        // Only show alerts for cameras that are enabled and not deleted
-        const activeAlerts =
-          allowedIps.size > 0
-            ? finalAlerts.filter((a) => {
-                const ip = normalizeIp(a.ip || "");
-                return !ip || allowedIps.has(ip);
-              })
-            : finalAlerts;
-        setAlerts(activeAlerts);
-
-        // Fire off live snapshot fetches for the top recent alerts (non-blocking)
-        (async () => {
-          try {
-            const toFetch = finalAlerts.slice(0, 30); // limit concurrent calls
-            await Promise.all(
-              toFetch.map(async (a) => {
-                if (a.isExternal) return;
-                const ip = a.ip || a.serial || "";
-                const snap = await fetchLiveSnapshotForIp(ip);
-                if (snap) {
-                  setAlerts((prev) =>
-                    prev.map((p) =>
-                      p === a ? { ...p, liveSnapshot: snap } : p,
-                    ),
-                  );
-                }
-              }),
-            );
-          } catch (e) {
-            // ignore
-          }
-        })();
-      } else {
-        // External AI Alerts Mode â€” separate call per reader_id
-        const activeCams =
-          devicesProp && devicesProp.length > 0 ? devicesProp : loadDevices();
-        const readerIds = activeCams.map((d) => d.reader_id).filter(Boolean);
-
-        if (readerIds.length === 0) return; // no registered AI cameras yet
-
-        const authHeader = {
-          Authorization:
-            "Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ7XCJpZFwiOlwiN2MxYzVhMzYtOGM0ZS00YzdlLTlkNmEtMWE3ZjFlOWQyYTQxXCIsXCJlbWFpbFwiOlwiYWRtaW5AbWlyYWRvci5haVwiLFwidGVuYW50SWRcIjpcIjZhNWVkMmE0LWI2MTQtNDY3My1iOWUzLTFiYTEwNzM4M2VmZVwiLFwiZmlyc3ROYW1lXCI6XCJBZG1pblwiLFwibGFzdE5hbWVcIjpudWxsfSIsImlhdCI6MTc4NDY5OTc0OX0.70FwbJjKRihC_YRN3w2icZKgWxld_zKFjrMoRVDyYMQ",
-          "Content-Type": "application/json",
-        };
-
-        // Fire one request per reader_id in parallel
-        const responses = await Promise.all(
-          readerIds.map((rid) =>
-            fetch(
-              `/external-ai-api/getalert?readerIds=${encodeURIComponent(rid)}&page=1&size=50`,
-              { headers: authHeader },
-            )
-              .then((r) => (r.ok ? r.json() : { data: [] }))
-              .catch(() => ({ data: [] })),
-          ),
-        );
-
-        // Merge all results into one flat list
-        const fixUrl = (imgUrl) => {
-          if (!imgUrl) return "";
-          // Currently not using the .201 port mapping
-          /*
-          if (imgUrl.includes("localhost:9000"))
-            return imgUrl.replace(
-              "http://localhost:9000",
-              "http://192.168.126.201:8006",
-            );
-          if (imgUrl.includes("127.0.0.1:9000"))
-            return imgUrl.replace(
-              "http://127.0.0.1:9000",
-              "http://192.168.126.201:8006",
-            );
-          if (imgUrl.includes("192.168.126.201:9000"))
-            return imgUrl.replace(
-              "http://192.168.126.201:9000",
-              "http://192.168.126.201:8006",
-            );
-          */
-          return imgUrl;
-        };
-
-        const mapped = responses.flatMap((extData) =>
-          (extData.data || []).map((item) => {
-            const locKey = Object.keys(item).find(k => k.toLowerCase().replace(/_/g, '') === 'imagelocation' || k.toLowerCase().replace(/_/g, '') === 'imglocation' || k.toLowerCase().replace(/_/g, '') === 'imgelocation');
-            const locVal = locKey ? item[locKey] : null;
-            return {
-              isExternal: true,
-              id: item.id,
-              ip: item.readerIp || "",
-              serial: item.readerId || "",
-              time: item.detectionTime || "",
-              image: locVal ? (
+      if (fetchExternal) {
+        // 1. Fetch external AI alerts from local MongoDB backend database
+        try {
+          const dbRes = await fetch(`${API}/api/alerts?source=external_ai&limit=500`, {
+            headers: getAuthHeaders(),
+          });
+          if (dbRes.ok) {
+            const dbData = await dbRes.json();
+            const dbAlerts = (dbData.alerts || []).map((item) => {
+              const raw = item.raw || item.rawData || item;
+              const locKey = Object.keys(raw || {}).find(k => k.toLowerCase().replace(/_/g, '') === 'imagelocation' || k.toLowerCase().replace(/_/g, '') === 'imglocation' || k.toLowerCase().replace(/_/g, '') === 'imgelocation');
+              const locVal = locKey ? raw[locKey] : (item.imageLocation || item.image_location);
+              const readerIp = item.ip || item.readerIp || raw.readerIp || raw.reader_ip || "";
+              const formattedIp = (readerIp || "").replace(/_/g, ".");
+              const imagePath = locVal ? (
                 locVal.startsWith("http")
                   ? locVal
                   : `http://${externalAiIp}/minio/${locVal.replace(/^\//, '')}`
-              ) : fixUrl(item.image || ""),
-              status: item.statusName || "Active",
-              rawData: item,
-            };
-          }),
-        );
+              ) : (item.image || "");
 
-        mapped.sort(
-          (a, b) => new Date(b.time).getTime() - new Date(a.time).getTime(),
-        );
-        setAlerts(mapped);
+              return {
+                ...item,
+                isExternal: true,
+                id: item.id || item._id,
+                ip: formattedIp,
+                serial: item.serial || item.readerId || raw.readerId || "",
+                time: item.time || item.detectionTime || item.received_at || raw.detectionTime || "",
+                image: imagePath,
+                thumbnailUrl: imagePath || item.snapshot_url || null,
+                status: item.status || "Active",
+                rawData: raw,
+              };
+            });
+            combinedAlerts.push(...dbAlerts);
+          }
+        } catch (dbErr) {
+          console.error("[Alerts] Failed to fetch external_ai_alerts from DB", dbErr);
+        }
+
+        // 2. Fetch live alerts from external AI API if active
+        try {
+          const activeCams = devicesProp && devicesProp.length > 0 ? devicesProp : loadDevices();
+          const readerIds = activeCams.map((d) => d.reader_id).filter(Boolean);
+
+          const authHeader = {
+            Authorization: "Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ7XCJpZFwiOlwiN2MxYzVhMzYtOGM0ZS00YzdlLTlkNmEtMWE3ZjFlOWQyYTQxXCIsXCJlbWFpbFwiOlwiYWRtaW5AbWlyYWRvci5haVwiLFwidGVuYW50SWRcIjpcIjZhNWVkMmE0LWI2MTQtNDY3My1iOWUzLTFiYTEwNzM4M2VmZVwiLFwiZmlyc3ROYW1lXCI6XCJBZG1pblwiLFwibGFzdE5hbWVcIjpudWxsfSIsImlhdCI6MTc4NDY5OTc0OX0.70FwbJjKRihC_YRN3w2icZKgWxld_zKFjrMoRVDyYM",
+            "Content-Type": "application/json",
+          };
+
+          const fetchUrls = [];
+          if (readerIds.length > 0) {
+            readerIds.forEach(rid => fetchUrls.push(`/external-ai-api/getalert?readerIds=${encodeURIComponent(rid)}&page=1&size=50`));
+          } else {
+            fetchUrls.push(`/external-ai-api/getalert?page=1&size=50`);
+          }
+
+          const responses = await Promise.all(
+            fetchUrls.map((url) =>
+              fetch(url, { headers: authHeader })
+                .then((r) => (r.ok ? r.json() : { data: [] }))
+                .catch(() => ({ data: [] })),
+            ),
+          );
+
+          const existingIds = new Set(combinedAlerts.map(a => String(a.id || a._id)));
+          const mapped = responses.flatMap((extData) =>
+            (extData.data || []).map((item) => {
+              const locKey = Object.keys(item).find(k => k.toLowerCase().replace(/_/g, '') === 'imagelocation' || k.toLowerCase().replace(/_/g, '') === 'imglocation' || k.toLowerCase().replace(/_/g, '') === 'imgelocation');
+              const locVal = locKey ? item[locKey] : null;
+              const imagePath = locVal ? (
+                locVal.startsWith("http")
+                  ? locVal
+                  : `http://${externalAiIp}:9000/${locVal.replace(/^\//, '')}`
+              ) : (item.image || "");
+              return {
+                isExternal: true,
+                id: item.id,
+                ip: item.readerIp || "",
+                serial: item.readerId || "",
+                time: item.detectionTime || "",
+                image: imagePath,
+                thumbnailUrl: imagePath || null,
+                status: item.statusName || "Active",
+                rawData: item,
+              };
+            }),
+          );
+
+          mapped.forEach(item => {
+            if (item.id && !existingIds.has(String(item.id))) {
+              combinedAlerts.push(item);
+            }
+          });
+        } catch (extErr) {
+          // ignore
+        }
       }
+
+      const perCamCounts = {};
+      const finalAlerts = [];
+      combinedAlerts.forEach((alert) => {
+        const ip = normalizeIp(alert.ip);
+        if (ip) {
+          perCamCounts[ip] = (perCamCounts[ip] || 0) + 1;
+          if (perCamCounts[ip] <= 50) {
+            finalAlerts.push(alert);
+          }
+        } else {
+          finalAlerts.push(alert);
+        }
+      });
+
+      finalAlerts.sort((a, b) => {
+        const tA = new Date(a.time || a.received_at).getTime() || 0;
+        const tB = new Date(b.time || b.received_at).getTime() || 0;
+        return tB - tA;
+      });
+
+      const activeAlerts = allowedIps.size > 0
+        ? finalAlerts.filter((a) => {
+            const ip = normalizeIp(a.ip || "");
+            return !ip || a.isExternal || allowedIps.has(ip);
+          })
+        : finalAlerts;
+        
+      setAlerts(activeAlerts);
+
+      (async () => {
+        try {
+          const toFetch = finalAlerts.slice(0, 30);
+          await Promise.all(
+            toFetch.map(async (a) => {
+              if (a.isExternal) return;
+              const ip = a.ip || a.serial || "";
+              const snap = await fetchLiveSnapshotForIp(ip);
+              if (snap) {
+                setAlerts((prev) =>
+                  prev.map((p) => (p === a ? { ...p, liveSnapshot: snap } : p)),
+                );
+              }
+            }),
+          );
+        } catch (e) {}
+      })();
     } catch (e) {
       console.error("[Alerts] fetch failed:", e);
     } finally {
       setLoading(false);
     }
-  }, [onAlertCountUpdate, liveStatus, alertSource, devicesProp, allowedIps]);
+  }, [onAlertCountUpdate, liveStatus, alertSource, devicesProp, allowedIps, externalAiIp]);
+
+
   const { isConnected: isWsConnected, eventsByTopic } = useWebSocket([
     "alerts",
     "vms/analytics/response",
@@ -1232,59 +1258,57 @@ function AlertsPanel({
       </div>
       <div className="lv-alerts-panel__filters-container">
         <div className="lv-alerts-panel__filters" style={{ marginBottom: "12px", position: "relative", zIndex: 50 }}>
-          {isAiActive && (
-            <div className={`lv-select-wrapper lv-dropdown-container ${alertSource !== "all" ? "is-active" : ""}`}>
-              <svg className="lv-select-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
-              </svg>
-              <div
-                className="lv-alerts-filter-select"
-                onClick={() => {
-                  setIsSourceDropdownOpen(!isSourceDropdownOpen);
-                  setIsTypeDropdownOpen(false);
-                  setIsCameraDropdownOpen(false);
-                }}
-                title="Select Alert Source"
-                style={{ userSelect: "none", display: "flex", alignItems: "center" }}
-              >
-                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, paddingRight: "10px" }}>
-                  {alertSource === "all" ? "All Alerts" : (alertSource === "builtin" ? "Builtin Analytics" : "AI Analytics")}
-                </span>
-              </div>
-              <svg
-                className="lv-select-arrow"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.5"
-                style={isSourceDropdownOpen ? { transform: "rotate(180deg)" } : {}}
-              >
-                <polyline points="6 9 12 15 18 9" />
-              </svg>
-              {isSourceDropdownOpen && (
-                <div className="lv-filter-dropdown" style={{ width: "100%", maxHeight: "300px", overflowY: "auto" }}>
-                  <button
-                    className={`lv-filter-dropdown-item ${alertSource === "all" ? "selected" : ""}`}
-                    onClick={() => { setAlertSource("all"); setIsSourceDropdownOpen(false); }}
-                  >
-                    All Alerts
-                  </button>
-                  <button
-                    className={`lv-filter-dropdown-item ${alertSource === "builtin" ? "selected" : ""}`}
-                    onClick={() => { setAlertSource("builtin"); setIsSourceDropdownOpen(false); }}
-                  >
-                    Builtin Analytics
-                  </button>
-                  <button
-                    className={`lv-filter-dropdown-item ${alertSource === "mqtt_ai" ? "selected" : ""}`}
-                    onClick={() => { setAlertSource("mqtt_ai"); setIsSourceDropdownOpen(false); }}
-                  >
-                    AI Analytics
-                  </button>
-                </div>
-              )}
+          <div className={`lv-select-wrapper lv-dropdown-container ${alertSource !== "all" ? "is-active" : ""}`}>
+            <svg className="lv-select-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
+            </svg>
+            <div
+              className="lv-alerts-filter-select"
+              onClick={() => {
+                setIsSourceDropdownOpen(!isSourceDropdownOpen);
+                setIsTypeDropdownOpen(false);
+                setIsCameraDropdownOpen(false);
+              }}
+              title="Select Alert Source"
+              style={{ userSelect: "none", display: "flex", alignItems: "center" }}
+            >
+              <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, paddingRight: "10px" }}>
+                {alertSource === "all" ? "All Alerts" : (alertSource === "builtin" ? "Builtin Analytics" : "AI Analytics")}
+              </span>
             </div>
-          )}
+            <svg
+              className="lv-select-arrow"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              style={isSourceDropdownOpen ? { transform: "rotate(180deg)" } : {}}
+            >
+              <polyline points="6 9 12 15 18 9" />
+            </svg>
+            {isSourceDropdownOpen && (
+              <div className="lv-filter-dropdown" style={{ width: "100%", maxHeight: "300px", overflowY: "auto" }}>
+                <button
+                  className={`lv-filter-dropdown-item ${alertSource === "all" ? "selected" : ""}`}
+                  onClick={() => { setAlertSource("all"); setIsSourceDropdownOpen(false); }}
+                >
+                  All Alerts
+                </button>
+                <button
+                  className={`lv-filter-dropdown-item ${alertSource === "builtin" ? "selected" : ""}`}
+                  onClick={() => { setAlertSource("builtin"); setIsSourceDropdownOpen(false); }}
+                >
+                  Builtin Analytics
+                </button>
+                <button
+                  className={`lv-filter-dropdown-item ${alertSource === "mqtt_ai" ? "selected" : ""}`}
+                  onClick={() => { setAlertSource("mqtt_ai"); setIsSourceDropdownOpen(false); }}
+                >
+                  AI Analytics
+                </button>
+              </div>
+            )}
+          </div>
         </div>
 
 
@@ -1789,9 +1813,20 @@ function AlertsPanel({
           </div>
         </div>
       )}
-      {selectedAiAlert && (
-        <AiAlertModal alert={selectedAiAlert} onClose={() => setSelectedAiAlert(null)} />
-      )}
+      {selectedAiAlert && (() => {
+        const aiAlerts = filteredAlerts.filter(a => a.isExternal || a.source === 'external_ai');
+        const idx = aiAlerts.findIndex(a => (a.id || a._id) === (selectedAiAlert.id || selectedAiAlert._id));
+        const hasPrev = idx > 0;
+        const hasNext = idx !== -1 && idx < aiAlerts.length - 1;
+        return (
+          <AiAlertModal 
+            alert={selectedAiAlert} 
+            onClose={() => setSelectedAiAlert(null)} 
+            onPrev={hasPrev ? () => setSelectedAiAlert(aiAlerts[idx - 1]) : undefined}
+            onNext={hasNext ? () => setSelectedAiAlert(aiAlerts[idx + 1]) : undefined}
+          />
+        );
+      })()}
       {selectedInternalAlert && (() => {
         const internalFiltered = filteredAlerts.filter(a => !a.isExternal && a.source !== "external_ai");
         const currentIdx = internalFiltered.findIndex(a => (a.id || a._id || a.alert_id) === (selectedInternalAlert.id || selectedInternalAlert._id || selectedInternalAlert.alert_id) && a.time === selectedInternalAlert.time);
