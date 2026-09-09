@@ -105,17 +105,13 @@ def get_alerts(
     include_software_motion: bool = False,
     from_date: str = None,
     to_date: str = None,
-    source: str = None
+    source: str = None,
+    status: str = None
 ):
     if _db is None:
         return {"alerts": []}
 
     try:
-        if source == "external_ai":
-            mqtt_col = _db["external_ai_alerts"]
-        else:
-            mqtt_col = _db["mqtt_logs"]
-        
         query = {}
         if camera_ip:
             query["ip"] = camera_ip
@@ -123,33 +119,49 @@ def get_alerts(
         if not include_software_motion:
             query["source"] = {"$ne": "software_motion"}
             
+        if status and status.lower() != "all":
+            if status.lower() == "active":
+                query["status"] = {"": [None, "Active", ""]}
+            else:
+                query["status"] = status
+            
         if from_date or to_date:
             query["received_at"] = {}
             if from_date:
                 try:
                     norm_from = from_date.replace("Z", "+00:00").replace(" ", "T")
-                    dt_from = datetime.fromisoformat(norm_from)
-                    query["received_at"]["$gte"] = dt_from.strftime("%Y-%m-%dT%H:%M:%S.%f")
+                    dt_from = datetime.fromisoformat(norm_from).astimezone()
+                    query["received_at"]["$gte"] = dt_from.isoformat()
                 except Exception:
                     pass
             if to_date:
                 try:
                     norm_to = to_date.replace("Z", "+00:00").replace(" ", "T")
-                    dt_to = datetime.fromisoformat(norm_to)
-                    query["received_at"]["$lte"] = dt_to.strftime("%Y-%m-%dT%H:%M:%S.%f")
+                    dt_to = datetime.fromisoformat(norm_to).astimezone()
+                    query["received_at"]["$lte"] = dt_to.isoformat()
                 except Exception:
                     pass
 
-        docs = list(
-            mqtt_col.find(query)
-            .sort("_id", -1)
-            .limit(limit)
-        )
+        docs = []
+        if source == "external_ai":
+            ai_query = dict(query)
+            ai_query["topic"] = "vms/analytics/alerts"
+            docs.extend(list(_db["external_ai_alerts"].find(ai_query).sort("received_at", -1).limit(limit)))
+        elif source == "built_in":
+            docs.extend(list(_db["mqtt_logs"].find(query).sort("received_at", -1).limit(limit)))
+        else: # "all" or None
+            ai_query = dict(query)
+            ai_query["topic"] = "vms/analytics/alerts"
+            docs.extend(list(_db["external_ai_alerts"].find(ai_query).sort("received_at", -1).limit(limit)))
+            docs.extend(list(_db["mqtt_logs"].find(query).sort("received_at", -1).limit(limit)))
+            
+            # Sort combined and limit
+            docs.sort(key=lambda x: x.get("received_at", ""), reverse=True)
+            docs = docs[:limit]
 
         # ── Sources that share the same flat document schema ─────────
         # Mosquitto by mqtt_publisher.py (unified pipeline).
         FLAT_SOURCES = {"bosch", "dahua", "hikvision"}
-        
         formatted = []
         for d in docs:
             if "_id" in d:
@@ -246,12 +258,8 @@ def get_alert_thumbnail(ip: str, time: str, crop: int = 1, request: Request = No
         return Response(
             content=b'{"error":"Missing ip or time"}',
             status_code=400,
-            media_type="application/json",
-            headers={
-                "Access-Control-Allow-Origin": "*",
-                "Access-Control-Allow-Methods": "GET, OPTIONS",
-                "Access-Control-Allow-Headers": "*",
-            }
+            media_type="application/json"
+
         )
 
     try:
@@ -289,7 +297,7 @@ def get_alert_thumbnail(ip: str, time: str, crop: int = 1, request: Request = No
                     snapshots_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "static", "snapshots")
                     fpath = os.path.join(snapshots_dir, fname)
                     if os.path.exists(fpath):
-                        return Response(content=open(fpath, "rb").read(), media_type="image/jpeg", headers={"Access-Control-Allow-Origin": "*"})
+                        return Response(content=open(fpath, "rb").read(), media_type="image/jpeg")
         except Exception as lookup_err:
             print(f"[ALERT THUMBNAIL] Snapshot lookup error: {lookup_err}")
 
@@ -299,12 +307,8 @@ def get_alert_thumbnail(ip: str, time: str, crop: int = 1, request: Request = No
         return Response(
             content=b'{"error":"Snapshot proxy failed"}',
             status_code=500,
-            media_type="application/json",
-            headers={
-                "Access-Control-Allow-Origin": "*",
-                "Access-Control-Allow-Methods": "GET, OPTIONS",
-                "Access-Control-Allow-Headers": "*",
-            }
+            media_type="application/json"
+
         )
 
     # Helper function for fallback SVG silhouette
@@ -626,7 +630,6 @@ def get_alert_thumbnail(ip: str, time: str, crop: int = 1, request: Request = No
                 headers={
                     "Content-Length":              str(len(img_data)),
                     "Cache-Control":               "max-age=60",
-                    "Access-Control-Allow-Origin": "*",
                 }
             )
         else:
@@ -656,7 +659,6 @@ def get_alert_thumbnail(ip: str, time: str, crop: int = 1, request: Request = No
                     headers={
                         "Content-Length":              str(len(img_data)),
                         "Cache-Control":               "max-age=60",
-                        "Access-Control-Allow-Origin": "*",
                     }
                 )
 
@@ -875,7 +877,7 @@ def update_alert_status(alert_id: str, payload: dict):
     action = payload.get('action', status)
     note = payload.get('note', '')
     from datetime import datetime
-    now_str = datetime.utcnow().isoformat() + 'Z'
+    now_str = datetime.now().isoformat()
     update_dict = {'status': status}
     
     if action == 'Acknowledged':
@@ -889,12 +891,16 @@ def update_alert_status(alert_id: str, payload: dict):
         res = _db['analytics_events'].update_one({'_id': ObjectId(alert_id)}, {'$set': update_dict})
         if res.matched_count == 0:
             res = _db['mqtt_logs'].update_one({'_id': ObjectId(alert_id)}, {'$set': update_dict})
+        if res.matched_count == 0:
+            res = _db['external_ai_alerts'].update_one({'_id': ObjectId(alert_id)}, {'$set': update_dict})
         
         # fallback string match
         if res.matched_count == 0:
             res = _db['analytics_events'].update_one({'id': alert_id}, {'$set': update_dict})
         if res.matched_count == 0:
             res = _db['mqtt_logs'].update_one({'id': alert_id}, {'$set': update_dict})
+        if res.matched_count == 0:
+            res = _db['external_ai_alerts'].update_one({'id': alert_id}, {'$set': update_dict})
             
         return {'success': True, 'status': status, 'action': action, 'note': note, 'updated_at': now_str}
     except Exception as e:

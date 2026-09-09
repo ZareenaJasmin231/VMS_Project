@@ -244,14 +244,45 @@ async def detect_injection_attacks(request: Request, call_next):
     response = await call_next(request)
     return response
 
+@app.middleware("http")
+async def limit_upload_size(request: Request, call_next):
+    # Enforce maximum request size dynamically based on content type
+    # - application/json: Strictly limited to 5MB (Fixes the Designer View Map Upload vulnerability)
+    # - multipart/form-data: Allowed up to 2GB to support 150MB+ encrypted video playback/decryption uploads
+    content_length = request.headers.get("content-length")
+    if content_length:
+        length = int(content_length)
+        content_type = request.headers.get("content-type", "")
+        
+        if "application/json" in content_type:
+            if length > 5_242_880:  # 5MB
+                from fastapi.responses import JSONResponse
+                return JSONResponse(status_code=413, content={"detail": "Payload Too Large: JSON requests exceed 5MB limit"})
+        elif "multipart/form-data" in content_type:
+            if length > 2_147_483_648:  # 2GB
+                from fastapi.responses import JSONResponse
+                return JSONResponse(status_code=413, content={"detail": "Payload Too Large: File upload exceeds 2GB limit"})
+        else:
+            if length > 52_428_800:  # 50MB for other types
+                from fastapi.responses import JSONResponse
+                return JSONResponse(status_code=413, content={"detail": "Payload Too Large"})
+
+    return await call_next(request)
+
+import asyncio
+import concurrent.futures
+
 @app.on_event("startup")
 async def _startup_segment_recovery():
     print("[STARTUP] Running segment receiver recovery...")
+    loop = asyncio.get_running_loop()
+    loop.set_default_executor(concurrent.futures.ThreadPoolExecutor(max_workers=100))
+    print("[STARTUP] Set default ThreadPoolExecutor max_workers to 100")
     await recover_on_startup()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:8000"],
+    allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2[0-9]|3[0-1])\.\d+\.\d+)(:\d+)?$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -269,6 +300,7 @@ app.mount("/api/snapshots", StaticFiles(directory=snapshots_dir), name="snapshot
 
 # Register all routers
 from app.api.routers.groups_router import router as groups_router
+from app.api.routers.integrations_router import router as integrations_router
 app.include_router(events_ws_router)
 app.include_router(auth_router)
 app.include_router(playback_router)
@@ -279,6 +311,7 @@ app.include_router(system_router)
 app.include_router(storage_router_ext)
 app.include_router(dashboard_diagnostics_router)
 app.include_router(groups_router)
+app.include_router(integrations_router)
 
 app.include_router(segment_router)
 app.include_router(recording_router)

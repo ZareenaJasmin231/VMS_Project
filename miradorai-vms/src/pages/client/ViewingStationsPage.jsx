@@ -559,8 +559,14 @@ function LiveMirrorMonitor({ station }) {
             pc.ontrack = (e) => {
                 console.log("[LiveMirror] Received remote track:", e.streams[0]);
                 if (videoRef.current && e.streams && e.streams[0]) {
-                    videoRef.current.srcObject = e.streams[0];
-                    videoRef.current.play().catch(err => console.error("[LiveMirror] Autoplay blocked or failed:", err));
+                    if (videoRef.current.srcObject !== e.streams[0]) {
+                        videoRef.current.srcObject = e.streams[0];
+                        // Let autoPlay handle it, but fallback to play() if needed.
+                        const playPromise = videoRef.current.play();
+                        if (playPromise !== undefined) {
+                            playPromise.catch(err => console.error("[LiveMirror] Autoplay blocked or failed:", err));
+                        }
+                    }
                 }
             };
 

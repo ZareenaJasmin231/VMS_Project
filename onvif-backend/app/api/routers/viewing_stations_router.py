@@ -88,7 +88,11 @@ def _get_all_stations() -> List[dict]:
     return list(data.values())
 
 # ── Pydantic Models ──────────────────────────────────────────────────
+from pydantic import BaseModel, field_validator
+import re
+from fastapi import HTTPException
 
+NAME_REGEX = re.compile(r"^[a-zA-Z0-9 _.-]+$")
 class HeartbeatRequest(BaseModel):
     station_id: str
     name: str
@@ -96,6 +100,13 @@ class HeartbeatRequest(BaseModel):
     device_order: List[Optional[str]]
     applied_timestamp: Optional[float] = 0.0
     active_feeds_count: Optional[int] = 0
+
+    @field_validator("name")
+    @classmethod
+    def validate_name(cls, v: str) -> str:
+        if v and not NAME_REGEX.match(v):
+            raise ValueError("Name contains invalid characters")
+        return v
 
 class PushLayoutRequest(BaseModel):
     station_id: str
@@ -247,3 +258,4 @@ def get_ice_servers():
         ]
     }
 
+ 

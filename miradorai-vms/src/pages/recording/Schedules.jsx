@@ -87,8 +87,7 @@ function Toast({ message, subtitle, type = "success", onClose }) {
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 const TOTAL_SLOTS = 24 * 12; // 5-min intervals
 
-const API_HOST = window.location.hostname;
-const BACKEND = `http://${API_HOST}:8000`;
+const BACKEND = import.meta.env.VITE_API_URL || "";
 
 function getAuthHeaders() {
   const token = localStorage.getItem("miradorai_token");

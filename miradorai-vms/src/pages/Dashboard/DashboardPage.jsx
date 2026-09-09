@@ -498,6 +498,15 @@ const ALERT_COLORS = {
 
 const getAlertColor = (type) => {
   const normalized = String(type || "").toLowerCase().trim();
+  if (normalized.includes("motion")) return "#22c55e";
+  if (normalized.includes("line") || normalized.includes("crossing")) return "#3b82f6";
+  if (normalized.includes("leaving")) return "#f59e0b";
+  if (normalized.includes("idle") || normalized.includes("loiter")) return "#a855f7";
+  if (normalized.includes("object")) return "#ec4899";
+  if (normalized.includes("intrusion")) return "#ef4444";
+  if (normalized.includes("face") || normalized.includes("auth")) return "#0ea5e9";
+  if (normalized.includes("fire") || normalized.includes("smoke")) return "#f97316";
+  if (normalized.includes("record")) return "#64748b";
   return ALERT_COLORS[normalized] || ALERT_COLORS["unknown"];
 };
 
@@ -807,7 +816,7 @@ const AnalyticsAlertsCharts = ({ reportData, reportFromDate, reportToDate }) => 
 
   const counts = {};
   reportData.forEach(d => {
-    const cls = d.classification || "UNKNOWN";
+    const cls = d.event && d.event !== "—" ? d.event : d.classification || "UNKNOWN";
     counts[cls] = (counts[cls] || 0) + 1;
   });
 
@@ -847,7 +856,7 @@ const AnalyticsAlertsCharts = ({ reportData, reportFromDate, reportToDate }) => 
 
   const buckets = {};
   reportData.forEach(d => {
-    const tsStr = d.timestamp || d.time_only;
+    const tsStr = d.time || d.timestamp || d.time_only;
     if (!tsStr) return;
     
     let finalDate = tsStr;
@@ -864,7 +873,7 @@ const AnalyticsAlertsCharts = ({ reportData, reportFromDate, reportToDate }) => 
       buckets[bucketKey] = { label: bucketKey };
     }
     
-    const cls = d.classification || "UNKNOWN";
+    const cls = d.event && d.event !== "—" ? d.event : d.classification || "UNKNOWN";
     buckets[bucketKey][cls] = (buckets[bucketKey][cls] || 0) + 1;
   });
 
@@ -875,7 +884,7 @@ const AnalyticsAlertsCharts = ({ reportData, reportFromDate, reportToDate }) => 
     timeSeriesData.sort((a, b) => a.label.localeCompare(b.label));
   }
 
-  const alertTypes = Array.from(new Set(reportData.map(d => d.classification || "UNKNOWN")));
+  const alertTypes = Array.from(new Set(reportData.map(d => d.event && d.event !== "—" ? d.event : d.classification || "UNKNOWN")));
 
   const camCounts = {};
   reportData.forEach(d => {
@@ -1921,6 +1930,25 @@ const DashboardPage = () => {
   const navigate = useNavigate();
   const { logAction } = useActivityLogger();
   const { theme } = useTheme();
+  const [isAiActive, setIsAiActive] = useState(false);
+
+  useEffect(() => {
+    const fetchIntegrations = async () => {
+      try {
+        const token = localStorage.getItem('miradorai_token') || localStorage.getItem('token');
+        const API_BASE = import.meta.env.VITE_API_URL || "";
+        const res = await fetch(API_BASE + "/api/integrations", {
+          headers: token ? { Authorization: 'Bearer ' + token } : {},
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const aiInt = data.find(i => i.isActive && i.isConnected && i.type.toLowerCase().includes('ai'));
+          setIsAiActive(!!aiInt);
+        }
+      } catch (err) {}
+    };
+    fetchIntegrations();
+  }, []);
   const { isConnected: isWsConnected, systemMetrics, eventsByTopic } = useWebSocket(['alerts', 'camera_status', 'system_metrics', 'dashboard_overview']);
 
 
@@ -2067,6 +2095,10 @@ const DashboardPage = () => {
   const [reportSuccessMsg, setReportSuccessMsg] = useState("");
   const [reportErrorMsg, setReportErrorMsg] = useState("");
   const [reportLiveOnly, setReportLiveOnly] = useState(false);
+  const [reportAnalyticsStatus, setReportAnalyticsStatus] = useState("all");
+  const [reportAnalyticsSource, setReportAnalyticsSource] = useState("all");
+  const [statusDropdownOpen, setStatusDropdownOpen] = useState(false);
+  const [sourceDropdownOpen, setSourceDropdownOpen] = useState(false);
   const [reportViewModes, setReportViewModes] = useState({
     alerts: "tabular",
     live_alerts: "tabular",
@@ -2156,8 +2188,14 @@ const DashboardPage = () => {
           setReportErrorMsg("Failed to fetch alerts from server.");
         }
       } else if (reportType === "live_alerts") {
-        // Query Real-Time MQTT Alerts and filter by date range
-        const res = await fetch(`${API_BASE}/api/alerts?limit=5000&from_date=${fromIso}&to_date=${toIso}`, {
+        const queryParams = new URLSearchParams({
+          limit: 5000,
+          from_date: fromIso,
+          to_date: toIso,
+          source: reportAnalyticsSource,
+          status: reportAnalyticsStatus
+        });
+        const res = await fetch(`${API_BASE}/api/alerts?${queryParams.toString()}`, {
           headers: getAuthHeaders()
         });
         const alertsRes = await res.json();
@@ -2187,9 +2225,9 @@ const DashboardPage = () => {
           const formatted = filtered.map(a => ({
             timestamp: a.received_at || "—",
             ip_address: a.ip ? a.ip.replace(/_/g, ".") : "—",
-            time_only: a.time || "—",
-            scenario: a.scenario || "—",
             classification: a.type || "—",
+            event: a.scenario || a.feature || a.subType || "—",
+            details: a.employeeName || a.label || a.vehicleType || a.message || "—",
             status: (a.acknowledged_at && (a.resolved_at || a.status === "Resolved")) ? "Acknowledged & Resolved" : (a.status === "Resolved" || a.resolved_at) ? "Resolved" : (a.status === "Acknowledged" || a.acknowledged_at) ? "Acknowledged" : "Active"
           }));
           
@@ -2328,7 +2366,7 @@ const DashboardPage = () => {
       } else if (reportType === "live_alerts") {
         const counts = {};
         reportData.forEach(d => {
-          const cls = d.classification || "UNKNOWN";
+          const cls = d.event && d.event !== "—" ? d.event : d.classification || "UNKNOWN";
           counts[cls] = (counts[cls] || 0) + 1;
         });
         csvRows.push(`"Alert Classification","Count"`);
@@ -2413,7 +2451,7 @@ const DashboardPage = () => {
     doc.setFont("helvetica", "normal");
     currentY += 4;
 
-    const keys = Object.keys(reportData[0]);
+    const keys = Object.keys(reportData[0]).filter(k => !(reportType === "live_alerts" && reportAnalyticsSource === "built_in" && k.toLowerCase() === "details"));
     const headers = keys.map(k => k.replace(/_/g, " ").toUpperCase());
     const rows = reportData.map(row => keys.map(k => {
       const val = row[k];
@@ -2498,7 +2536,7 @@ const DashboardPage = () => {
     const currentViewMode = reportViewModes[reportType] || "tabular";
 
     // Primary sheet: Tabular Records
-    const keys = Object.keys(reportData[0]);
+    const keys = Object.keys(reportData[0]).filter(k => !(reportType === "live_alerts" && reportAnalyticsSource === "built_in" && k.toLowerCase() === "details"));
     const mappedData = reportData.map(row => {
       const obj = {};
       keys.forEach(k => {
@@ -2525,7 +2563,7 @@ const DashboardPage = () => {
       } else if (reportType === "live_alerts") {
         const counts = {};
         reportData.forEach(d => {
-          const cls = d.classification || "UNKNOWN";
+          const cls = d.event && d.event !== "—" ? d.event : d.classification || "UNKNOWN";
           counts[cls] = (counts[cls] || 0) + 1;
         });
         Object.entries(counts).forEach(([cls, count]) => {
@@ -3352,8 +3390,7 @@ const DashboardPage = () => {
               <button
                 type="button"
                 className="report-select-btn"
-                onClick={() => setReportDropdownOpen(!reportDropdownOpen)}
-              >
+                onClick={() => { setReportDropdownOpen(!reportDropdownOpen); setStatusDropdownOpen(false); setSourceDropdownOpen(false); }}              >
                 <span>{reportTypeMap[reportType]}</span>
                 <svg
                   width="14"
@@ -3404,6 +3441,47 @@ const DashboardPage = () => {
                 <span style={{ fontSize: '13px', color: 'var(--text-primary)' }}>Live Cameras Only</span>
               </label>
             </div>
+          )}
+          
+          {reportType === "live_alerts" && (
+            <>
+              <div className="report-filter-group relative" style={{ minWidth: '170px' }}>
+                <label>Status</label>
+                <div className="report-custom-select">
+                  <button type="button" className="report-select-btn" onClick={() => { setStatusDropdownOpen(!statusDropdownOpen); setSourceDropdownOpen(false); setReportDropdownOpen(false); }}>
+                    <span>{reportAnalyticsStatus === "all" ? "All" : reportAnalyticsStatus}</span>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: statusDropdownOpen ? "rotate(180deg)" : "rotate(0)", transition: "transform .2s", color: "var(--text-secondary)" }}><path d="M6 9l6 6 6-6" /></svg>
+                  </button>
+                  {statusDropdownOpen && (
+                    <ul className="report-dropdown-menu">
+                      {[{v: "all", l: "All"}, {v: "Active", l: "Active"}, {v: "Acknowledged", l: "Acknowledged"}, {v: "Acknowledged & Resolved", l: "Acknowledged & Resolved"}].map(opt => (
+                        <li key={opt.v} className={`report-dropdown-item ${reportAnalyticsStatus === opt.v ? "active" : ""}`} onClick={() => { setReportAnalyticsStatus(opt.v); setStatusDropdownOpen(false); }}>
+                          {opt.l}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </div>
+              <div className="report-filter-group relative" style={{ minWidth: '200px' }}>
+                <label>Analytics Received From</label>
+                <div className="report-custom-select">
+                  <button type="button" className="report-select-btn" onClick={() => { setSourceDropdownOpen(!sourceDropdownOpen); setStatusDropdownOpen(false); setReportDropdownOpen(false); }}>
+                    <span>{reportAnalyticsSource === "all" ? "All" : reportAnalyticsSource === "external_ai" ? "Mirador AI" : "Built-in"}</span>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: sourceDropdownOpen ? "rotate(180deg)" : "rotate(0)", transition: "transform .2s", color: "var(--text-secondary)" }}><path d="M6 9l6 6 6-6" /></svg>
+                  </button>
+                  {sourceDropdownOpen && (
+                    <ul className="report-dropdown-menu">
+                      {[{v: "all", l: "All"}, {v: "external_ai", l: "Mirador AI"}, {v: "built_in", l: "Built-in"}].filter(opt => isAiActive || opt.v !== "external_ai").map(opt => (
+                        <li key={opt.v} className={`report-dropdown-item ${reportAnalyticsSource === opt.v ? "active" : ""}`} onClick={() => { setReportAnalyticsSource(opt.v); setSourceDropdownOpen(false); }}>
+                          {opt.l}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </div>
+            </>
           )}
 
           {reportData.length > 0 && (
@@ -3572,9 +3650,9 @@ const DashboardPage = () => {
                               <th>Camera IP</th>
                               <th>Type</th>
                               <th>Event</th>
-                                <th>Status</th>
-                                <th>Time</th>
-                              <th>Timestamp</th>
+                              {reportAnalyticsSource !== "built_in" && <th>Details</th>}
+                              <th>Status</th>
+                              <th>Time</th>
                             </>
                           )}
                           {reportType === "health" && (
@@ -3635,9 +3713,9 @@ const DashboardPage = () => {
                                     {row.classification?.toUpperCase()}
                                   </span>
                                 </td>
-                                <td>{row.scenario}</td>
-                                  <td>{row.status}</td>
-                                <td style={{ color: "#22c55e", fontWeight: "600" }}>{row.time_only}</td>
+                                <td>{row.event}</td>
+                                {reportAnalyticsSource !== "built_in" && <td>{row.details}</td>}
+                                <td>{row.status}</td>
                                 <td>{row.timestamp ? new Date(row.timestamp).toLocaleString() : "—"}</td>
                               </>
                             )}
@@ -3902,5 +3980,7 @@ const DashboardPage = () => {
 };
 
 export default DashboardPage;
+
+
 
 

@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import "./StreamProfilesPage.css";
 
-const API = import.meta.env.VITE_API_URL || "http://localhost:8000";
+const API = import.meta.env.VITE_API_URL || "";
 
 const LABEL_STYLES = {
   MAIN:  { bg: "rgba(59, 130, 246, 0.15)", color: "#60a5fa",  border: "rgba(59, 130, 246, 0.4)" },
