@@ -23,7 +23,7 @@
   flex-shrink: 0;
   flex-wrap: nowrap;
   position: relative;
-  z-index: 10;
+  z-index: 10000;
 }
 
 .dv-back-btn {
@@ -1588,9 +1588,11 @@
   gap: 8px;
   padding: 10px 14px;
   border-bottom: 1.5px solid rgba(16, 185, 129, 0.2) !important;
-  background: rgba(13, 17, 23, 0.7) !important;
+  background: rgba(13, 17, 23, 0.95) !important;
   backdrop-filter: blur(12px) !important;
   flex-shrink: 0;
+  position: relative !important;
+  z-index: 10000 !important;
 }
 
 .dv-tbtn {
@@ -2037,6 +2039,11 @@
 .dv-icon-btn__chevron.open {
   transform: rotate(180deg);
   opacity: 1;
+}
+
+.dv-icon-drop-wrap {
+  position: relative;
+  display: inline-flex;
 }
 
 /* ── Floating Dropdown Panel ── */

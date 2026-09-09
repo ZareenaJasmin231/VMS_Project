@@ -84,11 +84,9 @@ export function drawCamera(ctx, p, ppm, options = {}) {
     ctx.moveTo(originX, originY);
     ctx.arc(originX, originY, radius, angle - halfRad, angle + halfRad);
     ctx.closePath();
-    const g = ctx.createRadialGradient(originX, originY, 0, originX, originY, radius);
-    g.addColorStop(0, col + (isSelected ? "88" : "55"));
-    g.addColorStop(1, col + "11");
-    ctx.fillStyle = g; ctx.fill();
-    ctx.strokeStyle = col + (isSelected ? "dd" : "88");
+    ctx.fillStyle = col + (isSelected ? "66" : "44");
+    ctx.fill();
+    ctx.strokeStyle = col + (isSelected ? "ff" : "aa");
     ctx.lineWidth = isSelected ? 1.5 : 1; ctx.stroke();
     ctx.restore();
   }
@@ -250,25 +248,20 @@ export function renderMapViewSnapshot(ctx, options) {
       };
       const rgb = hexToRgb(isHighlit ? "#5aabf0" : typeCol);
 
-      const g = ctx.createRadialGradient(m.x, m.y, 0, m.x, m.y, fovLen);
       if (!online) {
-        g.addColorStop(0, "rgba(110,110,110,0.45)");
-        g.addColorStop(0.6, "rgba(110,110,110,0.15)");
-        g.addColorStop(1, "rgba(110,110,110,0.02)");
+        ctx.fillStyle = "rgba(110,110,110,0.25)";
+        ctx.strokeStyle = "rgba(110,110,110,0.50)";
       } else {
-        g.addColorStop(0, `rgba(${rgb},0.45)`);
-        g.addColorStop(0.6, `rgba(${rgb},0.15)`);
-        g.addColorStop(1, `rgba(${rgb},0.02)`);
+        ctx.fillStyle = `rgba(${rgb},0.35)`;
+        ctx.strokeStyle = `rgba(${rgb},0.75)`;
       }
 
       ctx.beginPath();
       ctx.moveTo(m.x, m.y);
       ctx.arc(m.x, m.y, fovLen, angle - halfRad, angle + halfRad);
       ctx.closePath();
-      ctx.fillStyle = g; ctx.fill();
-      
-      ctx.strokeStyle = `rgba(${rgb},0.5)`;
-      ctx.lineWidth = 1;
+      ctx.fill();
+      ctx.lineWidth = 1.2;
       ctx.stroke();
 
       ctx.restore();

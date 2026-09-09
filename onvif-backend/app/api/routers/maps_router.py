@@ -29,13 +29,30 @@ class Marker(BaseModel):
 class Floor(BaseModel):
     id:           str
     name:         str
-    imageDataUrl: Optional[str] = Field(None, max_length=10_485_760)    
+    imageDataUrl: Optional[str] = Field(None, max_length=10_485_760)
+    modelDataUrl: Optional[str] = Field(None, max_length=15_728_640)   # base64 .glb/.gltf, ~15MB cap
+    ppm:          Optional[float] = None
+    partsReport:  Optional[dict] = None
     markers:      List[Marker]  = []
-    
+
     @validator('imageDataUrl')
     def validate_image_data_url(cls, v):
         if v is not None and not v.startswith('data:image/'):
             raise ValueError('Invalid image format. Must be a base64 data URL starting with data:image/')
+        return v
+
+    @validator('modelDataUrl')
+    def validate_model_data_url(cls, v):
+        if v is not None and not (
+            v.startswith('data:model/')
+            or v.startswith('data:application/octet-stream')
+            or v.startswith('http://')
+            or v.startswith('https://')
+        ):
+            raise ValueError(
+                'Invalid model format. Must be a base64 data URL for a .glb/.gltf file, '
+                'or an http(s) URL to a hosted model file'
+            )
         return v
 
 
@@ -82,6 +99,8 @@ def _migrate_to_floors(doc: dict) -> List[dict]:
         "id":           "floor_1",
         "name":         "Floor 1",
         "imageDataUrl": doc.get("floor_plan"),
+        "modelDataUrl": doc.get("modelDataUrl"),
+        "ppm":          doc.get("ppm"),
         "markers":      doc.get("markers", []),
         "floor_index":  0,
     }]
@@ -135,6 +154,9 @@ def get_map(map_id: str = "default"):
             "id":           doc.get("floor_id"),
             "name":         doc.get("name"),
             "imageDataUrl": doc.get("imageDataUrl"),
+            "modelDataUrl": doc.get("modelDataUrl"),
+            "ppm":          doc.get("ppm"),
+            "partsReport":  doc.get("partsReport"),
             "markers":      doc.get("markers", []),
             "floor_index":  doc.get("floor_index", 0),
         })
@@ -160,13 +182,19 @@ def save_map(req: MapSaveRequest):
         for idx, f in enumerate(req.floors):
             floor_dict = f.dict()
 
-            # Preserve existing imageDataUrl if client sent None
+            # Preserve existing imageDataUrl / modelDataUrl / ppm if client sent None
             existing_floor = maps_col.find_one(
                 {"map_id": req.map_id, "doc_type": "floor", "floor_id": f.id},
                 {"_id": 0}
             )
             if floor_dict["imageDataUrl"] is None and existing_floor:
                 floor_dict["imageDataUrl"] = existing_floor.get("imageDataUrl")
+            if floor_dict["modelDataUrl"] is None and existing_floor:
+                floor_dict["modelDataUrl"] = existing_floor.get("modelDataUrl")
+            if floor_dict["ppm"] is None and existing_floor:
+                floor_dict["ppm"] = existing_floor.get("ppm")
+            if floor_dict["partsReport"] is None and existing_floor:
+                floor_dict["partsReport"] = existing_floor.get("partsReport")
 
             maps_col.update_one(
                 {"map_id": req.map_id, "doc_type": "floor", "floor_id": f.id},
@@ -177,6 +205,9 @@ def save_map(req: MapSaveRequest):
                     "floor_index":  idx,
                     "name":         f.name,
                     "imageDataUrl": floor_dict["imageDataUrl"],
+                    "modelDataUrl": floor_dict["modelDataUrl"],
+                    "ppm":          floor_dict["ppm"],
+                    "partsReport":  floor_dict["partsReport"],
                     "markers":      floor_dict["markers"],
                     "updated_at":   datetime.utcnow().isoformat(),
                 }},

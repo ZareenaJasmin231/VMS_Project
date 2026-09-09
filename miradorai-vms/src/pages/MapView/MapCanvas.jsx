@@ -165,130 +165,114 @@ const MapCanvas = forwardRef(function MapCanvas(
     if (cadRenderer && typeof cadRenderer.render === "function") {
       cadRenderer.render(ctx, { x: ox, y: oy, scale }, W, H);
     } else if (img) {
+      // ── 1. Draw Floor Plan Image in transformed coordinate space ──
       ctx.save();
       ctx.translate(ox, oy);
       ctx.scale(scale, scale);
       ctx.drawImage(img, 0, 0);
-      ctx.restore();
 
       // Draw physical dimensions on boundaries
-      ctx.save();
-      const finalPpm = ppm || 22;
+      const finalPpm = ppm || (img.width > 0 ? img.width / 50 : 22);
       const widthM = (img.width / finalPpm).toFixed(1);
       const heightM = (img.height / finalPpm).toFixed(1);
-      
+
+      ctx.save();
       ctx.font = "bold 13px Inter, sans-serif";
       ctx.fillStyle = "#10b981"; 
       ctx.shadowColor = "#000000";
       ctx.shadowBlur = 4;
-      
-      // Top boundary (Width)
-      const topX = ox + (img.width * scale) / 2;
-      const topY = oy - 8;
       ctx.textAlign = "center";
       ctx.textBaseline = "bottom";
-      if (topY > 0) {
-        ctx.fillText(`↔ ${widthM} m`, topX, topY);
-      }
+      ctx.fillText(`↔ ${widthM} m`, img.width / 2, -6);
 
-      // Left boundary (Height)
-      const leftX = ox - 8;
-      const leftY = oy + (img.height * scale) / 2;
-      ctx.translate(leftX, leftY);
+      ctx.save();
+      ctx.translate(-6, img.height / 2);
       ctx.rotate(-Math.PI / 2);
-      ctx.textBaseline = "bottom";
       ctx.fillText(`↔ ${heightM} m`, 0, 0);
       ctx.restore();
-    }
-
-    // ── 2. Dark overlay + zone-clipped FOV punch-outs ──────────────
-    if (markers.length > 0) {
-
-      // Step A — global dark layer
-      ctx.save();
-      ctx.fillStyle = "rgba(0,0,0,0.70)";
-      ctx.fillRect(0, 0, img.width, img.height);
       ctx.restore();
 
-      // Step B — erase (punch out) each camera's FOV cone from dark layer
-      //          clipped to zone polygon so light stays inside the zone
-      markers.forEach(m => {
-        const cam = cameras.find(c => c.id === m.camId);
-        const fovAngle = m.fovAngle || 60;
-        const direction = m.direction || 0;
-        const finalPpm = ppm || 22;
-        const fovLen = cam?.specs?.rangeDay ? cam.specs.rangeDay * finalPpm : (fovAngle * 2.2 + 40);
-        const halfRad = (fovAngle / 2) * (Math.PI / 180);
-        const angle = direction * (Math.PI / 180);
+      // ── 2. FOV Beams and Lighting Layer (Inside transformed space) ──
+      if (markers.length > 0) {
+        // Only apply dark overlay if Heatmap mode is explicitly toggled ON
+        if (showHeatmap) {
+          ctx.save();
+          ctx.fillStyle = "rgba(0,0,0,0.65)";
+          ctx.fillRect(0, 0, img.width, img.height);
 
-        // ★ Light starts from CENTRE of camera body
-        const S = 0.62;
-        const originX = m.x + Math.cos(angle) * (1.5 * S);
-        const originY = m.y + Math.sin(angle) * (1.5 * S);
+          // Erase (punch out) each camera's FOV cone from dark layer
+          markers.forEach(m => {
+            const cam = cameras.find(c => c.id === m.camId);
+            const fovAngle = m.fovAngle || 60;
+            const direction = m.direction || 0;
+            const defaultLen = Math.min(img.width * 0.35, Math.max(60, (img.width / 40) * (cam?.specs?.rangeDay || 20)));
+            const fovLen = ppm && cam?.specs?.rangeDay ? cam.specs.rangeDay * ppm : defaultLen;
+            const halfRad = (fovAngle / 2) * (Math.PI / 180);
+            const angle = direction * (Math.PI / 180);
 
-        const zone = getMarkerZone(m);
+            const S = 0.62;
+            const originX = m.x + Math.cos(angle) * (1.5 * S);
+            const originY = m.y + Math.sin(angle) * (1.5 * S);
 
-        ctx.save();
-        const boomBarriers = (zones || []).filter(z => z.isBoomBarrier);
-        if ((zone && zone.polygon?.length >= 3) || boomBarriers.length > 0) {
-          ctx.beginPath();
-          let basePoly = zone?.polygon;
-          if (!basePoly) {
-            basePoly = [];
-            const R = fovLen + 10;
-            for (let i = 0; i <= 16; i++) {
-              const a = angle - halfRad + (2 * halfRad * (i / 16));
-              basePoly.push({ x: originX + Math.cos(a) * R, y: originY + Math.sin(a) * R });
+            const zone = getMarkerZone(m);
+
+            ctx.save();
+            const boomBarriers = (zones || []).filter(z => z.isBoomBarrier);
+            if ((zone && zone.polygon?.length >= 3) || boomBarriers.length > 0) {
+              ctx.beginPath();
+              let basePoly = zone?.polygon;
+              if (!basePoly) {
+                basePoly = [];
+                const R = fovLen + 10;
+                for (let i = 0; i <= 16; i++) {
+                  const a = angle - halfRad + (2 * halfRad * (i / 16));
+                  basePoly.push({ x: originX + Math.cos(a) * R, y: originY + Math.sin(a) * R });
+                }
+                basePoly.push({ x: originX, y: originY });
+              }
+              let polyToClip = basePoly;
+              try {
+                const obstaclesPolys = boomBarriers.map(z => z.polygon);
+                const visPoly = computeVisibilityPolygon({ x: originX, y: originY }, basePoly, obstaclesPolys);
+                if (visPoly && visPoly.length >= 3) {
+                  polyToClip = visPoly;
+                }
+              } catch (e) {
+                console.error("Visibility clip error:", e);
+              }
+              polyToClip.forEach((pt, i) => {
+                if (i === 0) ctx.moveTo(pt.x, pt.y); else ctx.lineTo(pt.x, pt.y);
+              });
+              ctx.closePath();
+              ctx.clip();
             }
-            basePoly.push({ x: originX, y: originY });
-          }
-          let polyToClip = basePoly;
-          try {
-            const obstaclesPolys = boomBarriers.map(z => z.polygon);
-            const visPoly = computeVisibilityPolygon({ x: originX, y: originY }, basePoly, obstaclesPolys);
-            if (visPoly && visPoly.length >= 3) {
-              polyToClip = visPoly;
-            }
-          } catch (e) {
-            console.error("Visibility clip error:", e);
-          }
-          polyToClip.forEach((pt, i) => {
-            if (i === 0) ctx.moveTo(pt.x, pt.y); else ctx.lineTo(pt.x, pt.y);
+
+            ctx.globalCompositeOperation = "destination-out";
+            traceCone(ctx, originX, originY, fovLen, angle, halfRad);
+            ctx.fillStyle = "rgba(0,0,0,1)";
+            ctx.fill();
+            ctx.restore();
           });
-          ctx.closePath();
-          ctx.clip();
+          ctx.restore();
         }
 
-        ctx.globalCompositeOperation = "destination-out";
-        const g = ctx.createRadialGradient(originX, originY, 0, originX, originY, fovLen);
-        g.addColorStop(0, "rgba(0,0,0,1)");
-        g.addColorStop(0.58, "rgba(0,0,0,0.90)");
-        g.addColorStop(0.82, "rgba(0,0,0,0.45)");
-        g.addColorStop(1, "rgba(0,0,0,0)");
+        // Step C — colour tint layer (green = online, grey = offline, blue = highlight)
+        //          same zone clip applied
+        markers.forEach(m => {
+          const cam = cameras.find(c => c.id === m.camId);
+          const online = cam?.status === "online";
+          const isHighlit = m.camId === highlightedCamId;
 
-        traceCone(ctx, originX, originY, fovLen, angle, halfRad);
-        ctx.fillStyle = g;
-        ctx.fill();
-        ctx.restore();
-      });
+          const fovAngle = m.fovAngle || 60;
+          const direction = m.direction || 0;
+          const defaultLen = Math.min(img.width * 0.35, Math.max(60, (img.width / 40) * (cam?.specs?.rangeDay || 20)));
+          const fovLen = ppm && cam?.specs?.rangeDay ? cam.specs.rangeDay * ppm : defaultLen;
+          const halfRad = (fovAngle / 2) * (Math.PI / 180);
+          const angle = direction * (Math.PI / 180);
+          const S = 0.62;
 
-      // Step C — colour tint layer (green = online, grey = offline, blue = highlight)
-      //          same zone clip applied
-      markers.forEach(m => {
-        const cam = cameras.find(c => c.id === m.camId);
-        const online = cam?.status === "online";
-        const isHighlit = m.camId === highlightedCamId;
-
-        const fovAngle = m.fovAngle || 60;
-        const direction = m.direction || 0;
-        const finalPpm = ppm || 22;
-        const fovLen = cam?.specs?.rangeDay ? cam.specs.rangeDay * finalPpm : (fovAngle * 2.2 + 40);
-        const halfRad = (fovAngle / 2) * (Math.PI / 180);
-        const angle = direction * (Math.PI / 180);
-        const S = 0.62;
-
-        const originX = m.x + Math.cos(angle) * (1.5 * S);
-        const originY = m.y + Math.sin(angle) * (1.5 * S);
+          const originX = m.x + Math.cos(angle) * (1.5 * S);
+          const originY = m.y + Math.sin(angle) * (1.5 * S);
 
         const zone = getMarkerZone(m);
 
@@ -329,7 +313,7 @@ const MapCanvas = forwardRef(function MapCanvas(
         const col = online ? (isHighlit ? "#5aabf0" : typeCol) : "#555";
 
 
-        // Parse hex color to rgb for gradient
+        // Parse hex color to rgb for solid fill & border
         function hexToRgb(hex) {
           const r = parseInt(hex.slice(1, 3), 16);
           const g = parseInt(hex.slice(3, 5), 16);
@@ -338,21 +322,18 @@ const MapCanvas = forwardRef(function MapCanvas(
         }
         const rgb = hexToRgb(isHighlit ? "#5aabf0" : typeCol);
 
-        let g;
         if (!online) {
-          g = ctx.createRadialGradient(originX, originY, 0, originX, originY, fovLen);
-          g.addColorStop(0, "rgba(110,110,110,0.14)");
-          g.addColorStop(1, "rgba(110,110,110,0)");
+          ctx.fillStyle = "rgba(110, 110, 110, 0.22)";
+          ctx.strokeStyle = "rgba(110, 110, 110, 0.50)";
         } else {
-          g = ctx.createRadialGradient(originX, originY, 0, originX, originY, fovLen);
-          g.addColorStop(0, `rgba(${rgb},0.60)`);
-          g.addColorStop(0.55, `rgba(${rgb},0.26)`);
-          g.addColorStop(1, `rgba(${rgb},0)`);
+          ctx.fillStyle = `rgba(${rgb}, 0.35)`;
+          ctx.strokeStyle = `rgba(${rgb}, 0.75)`;
         }
 
         traceCone(ctx, originX, originY, fovLen, angle, halfRad);
-        ctx.fillStyle = g;
         ctx.fill();
+        ctx.lineWidth = 1.2;
+        ctx.stroke();
         ctx.restore();
       });
     }
@@ -716,7 +697,8 @@ const MapCanvas = forwardRef(function MapCanvas(
       ctx.stroke();
     });
 
-    ctx.restore();
+      ctx.restore();
+    }
     onDraw?.();
   }, [cameras, markers, zones, floorImgRef, scaleRef, offsetRef, hoveredIdxRef, highlightedCamId, onDraw]);
 

@@ -22,6 +22,7 @@ const ORIGIN_OFFSET  = 1.5 * S;   // 0.93 — matches MapCanvas and fixed drawPl
 export function insideCone(px, py, marker) {
   const fovAngle  = marker.fovAngle  || 60;
   const direction = marker.direction || 0;
+  const isNadirMount = marker.mounting === "ceiling";
   
   // Use real physical range in meters scaled by map PPM if available, else fallback to standard formula
   const fovLen = (marker.rangeDay && marker.ppm)
@@ -31,13 +32,15 @@ export function insideCone(px, py, marker) {
   const angle     = direction * (Math.PI / 180);
 
   // ★ Same origin as MapCanvas AND fixed drawPlacedCamera
-  const ox = marker.x + Math.cos(angle) * ORIGIN_OFFSET;
-  const oy = marker.y + Math.sin(angle) * ORIGIN_OFFSET;
+  const ox = isNadirMount ? marker.x : marker.x + Math.cos(angle) * ORIGIN_OFFSET;
+  const oy = isNadirMount ? marker.y : marker.y + Math.sin(angle) * ORIGIN_OFFSET;
 
   const dx   = px - ox;
   const dy   = py - oy;
   const dist = Math.sqrt(dx * dx + dy * dy);
   if (dist > fovLen) return false;
+
+  if (isNadirMount) return true;
 
   let diff = Math.atan2(dy, dx) - angle;
   while (diff >  Math.PI) diff -= 2 * Math.PI;
@@ -130,9 +133,10 @@ export function drawHeatmapToContext(
         const mZone = containedZones[0];
         markerZones.set(marker, mZone);
 
+        const isNadirMount = marker.mounting === "ceiling";
         const angle = (marker.direction || 0) * (Math.PI / 180);
-        const ox = marker.x + Math.cos(angle) * ORIGIN_OFFSET;
-        const oy = marker.y + Math.sin(angle) * ORIGIN_OFFSET;
+        const ox = isNadirMount ? marker.x : marker.x + Math.cos(angle) * ORIGIN_OFFSET;
+        const oy = isNadirMount ? marker.y : marker.y + Math.sin(angle) * ORIGIN_OFFSET;
         try {
           const obstaclesPolys = allZones.filter(z => z.isBoomBarrier).map(z => z.polygon);
           const visPoly = computeVisibilityPolygon({ x: ox, y: oy }, mZone.polygon, obstaclesPolys);
