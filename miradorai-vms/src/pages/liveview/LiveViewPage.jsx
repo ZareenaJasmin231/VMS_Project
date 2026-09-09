@@ -754,7 +754,9 @@ function AlertDetailsModal({ alert, onClose, cameraName, onNext, onPrev, hasNext
 }
 
 
-// â”€â”€ AlertsPanel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+
+// ———————————————————————————————————————————————————————————————————————————————————
 function AlertsPanel({
   isOpen,
   onAlertCountUpdate,
@@ -782,16 +784,17 @@ function AlertsPanel({
         });
         if (res.ok) {
           const data = await res.json();
-          // Find the configured AI integration
-          const aiInt = data.find(i => i.isActive && (i.type.toLowerCase().includes('ai') || i.serverName.toLowerCase().includes('ai')));
-          setIsAiActive(!!aiInt);
+          const aiInt = data.find(i => i.isActive && (i.type?.toLowerCase().includes('ai') || i.serverName?.toLowerCase().includes('ai')));
+          const anyActive = data.find(i => i.isActive && i.serverIp);
           
           if (aiInt && aiInt.serverIp) {
+            setIsAiActive(true);
             setExternalAiIp(aiInt.serverIp.split(':')[0]);
+          } else if (anyActive) {
+            setIsAiActive(true);
+            setExternalAiIp(anyActive.serverIp.split(':')[0]);
           } else {
-            // Fallback to any active connection with an IP if no AI specific one is found
-            const anyActive = data.find(i => i.isActive && i.serverIp);
-            if (anyActive) setExternalAiIp(anyActive.serverIp.split(':')[0]);
+            setIsAiActive(false);
           }
         }
       } catch (e) {
@@ -799,7 +802,20 @@ function AlertsPanel({
       }
     };
     fetchAiIp();
+
+    window.addEventListener("integrationsUpdated", fetchAiIp);
+    window.addEventListener("storage", fetchAiIp);
+    return () => {
+      window.removeEventListener("integrationsUpdated", fetchAiIp);
+      window.removeEventListener("storage", fetchAiIp);
+    };
   }, []);
+
+  useEffect(() => {
+    if (!isAiActive && alertSource === "mqtt_ai") {
+      setAlertSource("all");
+    }
+  }, [isAiActive, alertSource, setAlertSource]);
 
   const [alertTypeFilter, setAlertTypeFilter] = useState("All");
   const [cameraFilter, setCameraFilter] = useState("All");
@@ -1257,59 +1273,61 @@ function AlertsPanel({
         </div>
       </div>
       <div className="lv-alerts-panel__filters-container">
-        <div className="lv-alerts-panel__filters" style={{ marginBottom: "12px", position: "relative", zIndex: 50 }}>
-          <div className={`lv-select-wrapper lv-dropdown-container ${alertSource !== "all" ? "is-active" : ""}`}>
-            <svg className="lv-select-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
-            </svg>
-            <div
-              className="lv-alerts-filter-select"
-              onClick={() => {
-                setIsSourceDropdownOpen(!isSourceDropdownOpen);
-                setIsTypeDropdownOpen(false);
-                setIsCameraDropdownOpen(false);
-              }}
-              title="Select Alert Source"
-              style={{ userSelect: "none", display: "flex", alignItems: "center" }}
-            >
-              <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, paddingRight: "10px" }}>
-                {alertSource === "all" ? "All Alerts" : (alertSource === "builtin" ? "Builtin Analytics" : "AI Analytics")}
-              </span>
-            </div>
-            <svg
-              className="lv-select-arrow"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2.5"
-              style={isSourceDropdownOpen ? { transform: "rotate(180deg)" } : {}}
-            >
-              <polyline points="6 9 12 15 18 9" />
-            </svg>
-            {isSourceDropdownOpen && (
-              <div className="lv-filter-dropdown" style={{ width: "100%", maxHeight: "300px", overflowY: "auto" }}>
-                <button
-                  className={`lv-filter-dropdown-item ${alertSource === "all" ? "selected" : ""}`}
-                  onClick={() => { setAlertSource("all"); setIsSourceDropdownOpen(false); }}
-                >
-                  All Alerts
-                </button>
-                <button
-                  className={`lv-filter-dropdown-item ${alertSource === "builtin" ? "selected" : ""}`}
-                  onClick={() => { setAlertSource("builtin"); setIsSourceDropdownOpen(false); }}
-                >
-                  Builtin Analytics
-                </button>
-                <button
-                  className={`lv-filter-dropdown-item ${alertSource === "mqtt_ai" ? "selected" : ""}`}
-                  onClick={() => { setAlertSource("mqtt_ai"); setIsSourceDropdownOpen(false); }}
-                >
-                  AI Analytics
-                </button>
+        {isAiActive && (
+          <div className="lv-alerts-panel__filters" style={{ marginBottom: "12px", position: "relative", zIndex: 50 }}>
+            <div className={`lv-select-wrapper lv-dropdown-container ${alertSource !== "all" ? "is-active" : ""}`}>
+              <svg className="lv-select-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
+              </svg>
+              <div
+                className="lv-alerts-filter-select"
+                onClick={() => {
+                  setIsSourceDropdownOpen(!isSourceDropdownOpen);
+                  setIsTypeDropdownOpen(false);
+                  setIsCameraDropdownOpen(false);
+                }}
+                title="Select Alert Source"
+                style={{ userSelect: "none", display: "flex", alignItems: "center" }}
+              >
+                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, paddingRight: "10px" }}>
+                  {alertSource === "all" ? "All Alerts" : (alertSource === "builtin" ? "Builtin Analytics" : "AI Analytics")}
+                </span>
               </div>
-            )}
+              <svg
+                className="lv-select-arrow"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                style={isSourceDropdownOpen ? { transform: "rotate(180deg)" } : {}}
+              >
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
+              {isSourceDropdownOpen && (
+                <div className="lv-filter-dropdown" style={{ width: "100%", maxHeight: "300px", overflowY: "auto" }}>
+                  <button
+                    className={`lv-filter-dropdown-item ${alertSource === "all" ? "selected" : ""}`}
+                    onClick={() => { setAlertSource("all"); setIsSourceDropdownOpen(false); }}
+                  >
+                    All Alerts
+                  </button>
+                  <button
+                    className={`lv-filter-dropdown-item ${alertSource === "builtin" ? "selected" : ""}`}
+                    onClick={() => { setAlertSource("builtin"); setIsSourceDropdownOpen(false); }}
+                  >
+                    Builtin Analytics
+                  </button>
+                  <button
+                    className={`lv-filter-dropdown-item ${alertSource === "mqtt_ai" ? "selected" : ""}`}
+                    onClick={() => { setAlertSource("mqtt_ai"); setIsSourceDropdownOpen(false); }}
+                  >
+                    AI Analytics
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
-        </div>
+        )}
 
 
         <div className="lv-alerts-panel__filters">
@@ -2816,9 +2834,40 @@ export default function LiveViewPage({ onNavigate }) {
   }, []);
 
   useEffect(() => {
-    const update = () => setDevices(loadDevices());
+    const fetchLatest = async () => {
+      try {
+        const res = await fetch(`${API}/api/cameras`, { headers: getAuthHeaders() });
+        if (res.ok) {
+          const data = await res.json();
+          const list = Array.isArray(data) ? data : (data.devices || data.cameras || []);
+          if (list) {
+            setDevices(list);
+            localStorage.setItem("miradorai_devices", JSON.stringify(list));
+          }
+        }
+      } catch (err) {
+        console.warn("[LiveView] Failed to fetch cameras from API:", err);
+      }
+    };
+    fetchLatest();
+
+    const update = (e) => {
+      if (e?.detail && Array.isArray(e.detail)) {
+        setDevices(e.detail);
+      } else {
+        setDevices(loadDevices());
+      }
+    };
+
     window.addEventListener("storage", update);
-    return () => window.removeEventListener("storage", update);
+    window.addEventListener("devicesUpdated", update);
+    window.addEventListener("miradorai-cameras-updated", update);
+
+    return () => {
+      window.removeEventListener("storage", update);
+      window.removeEventListener("devicesUpdated", update);
+      window.removeEventListener("miradorai-cameras-updated", update);
+    };
   }, []);
 
   useEffect(() => {
