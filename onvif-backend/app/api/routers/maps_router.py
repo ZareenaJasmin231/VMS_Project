@@ -32,6 +32,7 @@ class Floor(BaseModel):
     imageDataUrl: Optional[str] = Field(None, max_length=10_485_760)
     modelDataUrl: Optional[str] = Field(None, max_length=15_728_640)   # base64 .glb/.gltf, ~15MB cap
     ppm:          Optional[float] = None
+    calibration:  Optional[dict] = None
     partsReport:  Optional[dict] = None
     markers:      List[Marker]  = []
 
@@ -62,6 +63,8 @@ class MapSaveRequest(BaseModel):
     # legacy single-floor fields
     markers:    Optional[List[Marker]] = None
     floor_plan: Optional[str]          = Field(None, max_length=10_485_760)
+    ppm:        Optional[float]        = None
+    calibration: Optional[dict]        = None
 
     @validator('floor_plan')
     def validate_floor_plan(cls, v):
@@ -101,6 +104,7 @@ def _migrate_to_floors(doc: dict) -> List[dict]:
         "imageDataUrl": doc.get("floor_plan"),
         "modelDataUrl": doc.get("modelDataUrl"),
         "ppm":          doc.get("ppm"),
+        "calibration":  doc.get("calibration"),
         "markers":      doc.get("markers", []),
         "floor_index":  0,
     }]
@@ -137,6 +141,8 @@ def get_map(map_id: str = "default"):
                 "zones":      zones,
                 "markers":    legacy.get("markers", []),
                 "floor_plan": legacy.get("floor_plan"),
+                "ppm":        legacy.get("ppm"),
+                "calibration": legacy.get("calibration"),
                 "updated_at": legacy.get("updated_at"),
             }
         return {
@@ -156,6 +162,7 @@ def get_map(map_id: str = "default"):
             "imageDataUrl": doc.get("imageDataUrl"),
             "modelDataUrl": doc.get("modelDataUrl"),
             "ppm":          doc.get("ppm"),
+            "calibration":  doc.get("calibration"),
             "partsReport":  doc.get("partsReport"),
             "markers":      doc.get("markers", []),
             "floor_index":  doc.get("floor_index", 0),
@@ -182,7 +189,7 @@ def save_map(req: MapSaveRequest):
         for idx, f in enumerate(req.floors):
             floor_dict = f.dict()
 
-            # Preserve existing imageDataUrl / modelDataUrl / ppm if client sent None
+            # Preserve existing imageDataUrl / modelDataUrl / ppm / calibration if client sent None
             existing_floor = maps_col.find_one(
                 {"map_id": req.map_id, "doc_type": "floor", "floor_id": f.id},
                 {"_id": 0}
@@ -193,6 +200,8 @@ def save_map(req: MapSaveRequest):
                 floor_dict["modelDataUrl"] = existing_floor.get("modelDataUrl")
             if floor_dict["ppm"] is None and existing_floor:
                 floor_dict["ppm"] = existing_floor.get("ppm")
+            if floor_dict.get("calibration") is None and existing_floor:
+                floor_dict["calibration"] = existing_floor.get("calibration")
             if floor_dict["partsReport"] is None and existing_floor:
                 floor_dict["partsReport"] = existing_floor.get("partsReport")
 
@@ -207,6 +216,7 @@ def save_map(req: MapSaveRequest):
                     "imageDataUrl": floor_dict["imageDataUrl"],
                     "modelDataUrl": floor_dict["modelDataUrl"],
                     "ppm":          floor_dict["ppm"],
+                    "calibration":  floor_dict.get("calibration"),
                     "partsReport":  floor_dict["partsReport"],
                     "markers":      floor_dict["markers"],
                     "updated_at":   datetime.utcnow().isoformat(),
@@ -232,6 +242,8 @@ def save_map(req: MapSaveRequest):
             {"$set": {
                 "markers":    markers_data,
                 "floor_plan": floor_plan,
+                "ppm":        req.ppm or (existing.get("ppm") if existing else None),
+                "calibration": req.calibration or (existing.get("calibration") if existing else None),
                 "updated_at": datetime.utcnow().isoformat(),
             }},
             upsert=True,

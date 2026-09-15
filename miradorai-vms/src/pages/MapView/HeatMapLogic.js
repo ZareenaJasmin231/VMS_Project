@@ -89,8 +89,8 @@ export function drawHeatmapToContext(
   let sampleMinX = offset.x,        sampleMinY = offset.y;
   let sampleMaxX = offset.x + imgW, sampleMaxY = offset.y + imgH;
 
-  const targetZones      = activeZone ? [activeZone] : (allZones.length > 0 ? allZones : []);
-  const isClippedToZones = targetZones.length > 0;
+  const targetZones      = activeZone ? [activeZone] : [];
+  const isClippedToZones = Boolean(activeZone && activeZone.polygon?.length >= 3);
 
   if (activeZone) {
     const sxs = activeZone.polygon.map(p => offset.x + p.x * scale);
@@ -177,24 +177,25 @@ export function drawHeatmapToContext(
           if (!pointInPolygon(imgX, imgY, polyToCheck)) continue;
         }
 
-        const cam = cameras.find(c => c.id === marker.camId);
-        if (cam?.status === "online") {
+        const cam = cameras.find(c => c.id === marker.camId || c.ip === marker.camIp || c.name === marker.camName);
+        const isOnline = cam ? cam.status === "online" : true;
+        if (isOnline) {
           onlineCoverage++;
         } else {
           insideOfflineCam = true;
         }
       }
 
-      if (insideOfflineCam) continue;
+      if (insideOfflineCam && onlineCoverage === 0) continue;
 
       const level = onlineCoverage > 0 ? 1 : 0;
       foundLevels.add(level);
 
       let r, g, b, a;
       if (onlineCoverage === 0) {
-        r=15;  g=15;  b=25;  a=110; // Blind spot / Black
+        r=15;  g=23;  b=42;  a=120; // Blind spot / Blueprint dark
       } else {
-        r=34;  g=197; b=94;  a=150; // Green coverage
+        r=16;  g=185; b=129; a=145; // Clean emerald green coverage
       }
       /* Commented out yellow and red colors as requested:
       else if (onlineCoverage === 1) { r=34;  g=197; b=94;  a=150; }
