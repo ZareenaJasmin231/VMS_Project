@@ -446,7 +446,7 @@ const Gltf3DViewer = forwardRef(function Gltf3DViewer({
     const { currentModel, upAxis, spanW, boxMaxY, boxMaxZ } = modelDataRef.current;
     const imgW = imageSize?.width || 2048;
     const imgH = imageSize?.height || 2048;
-    const scaleX = (spanW * 1.05) / imgW;
+    const exportScaleX = (spanW * 1.05) / imgW;
     const spriteSize = spanW * 1.2 * 0.05;
 
     const exportScene = new THREE.Scene();
@@ -476,13 +476,13 @@ const Gltf3DViewer = forwardRef(function Gltf3DViewer({
 
       const dx = marker.x - imgW / 2;
       const dy = marker.y - imgH / 2;
-      const mapX = dx * scaleX;
+      const mapX = dx * exportScaleX;
       let mapY, mapZ;
       if (upAxis === "y") {
-        mapZ = dy * scaleX;
+        mapZ = dy * exportScaleX;
         mapY = boxMaxY * 0.95;
       } else {
-        mapY = -dy * scaleX;
+        mapY = -dy * exportScaleX;
         mapZ = boxMaxZ * 0.95;
       }
 
@@ -532,8 +532,7 @@ const Gltf3DViewer = forwardRef(function Gltf3DViewer({
       const vFovRad = cam?.specs?.vfov ? cam.specs.vfov * (Math.PI / 180) : 40 * (Math.PI / 180);
       const nominalRange = Number(cam?.specs?.rangeDay || cam?.rangeDay || marker.camera?.rangeDay || marker.camera?.specs?.rangeDay || (cam?.specs?.rangeNight ? cam.specs.rangeNight : null) || 25);
       const effectivePpm = (showPpm && showPpm > 0) ? showPpm : ((imageSize?.width || 2048) / Math.max(1, spanW));
-      const scaleX = (spanW * 1.05) / (imageSize?.width || 2048);
-      const worldUnitsPerMeter = effectivePpm * scaleX;
+      const worldUnitsPerMeter = effectivePpm * exportScaleX;
       const rayMaxDist = Math.max(2.0, nominalRange * worldUnitsPerMeter);
 
       const floorLevel = upAxis === "y" ? (modelDataRef.current?.boxMinY ?? 0) : (modelDataRef.current?.boxMinZ ?? 0);
