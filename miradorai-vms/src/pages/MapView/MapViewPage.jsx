@@ -737,6 +737,14 @@ export default function MapViewPage() {
   const draggingLabelIdxRef = useRef(null);
   const labelDragStartRef = useRef(null);
   const panStartRef     = useRef(null);
+  const [isPanLocked, setIsPanLocked] = useState(false);
+  const isPanLockedRef = useRef(false);
+  const togglePanLock = useCallback(() => {
+    const next = !isPanLockedRef.current;
+    isPanLockedRef.current = next;
+    setIsPanLocked(next);
+    panStartRef.current = null;
+  }, []);
   const hoveredIdxRef   = useRef(-1);
   const dragCamRef      = useRef(null);
   const markersRef      = useRef([]);
@@ -1167,10 +1175,12 @@ export default function MapViewPage() {
     const prev = scaleRef.current;
     const next = Math.min(8, Math.max(0.08, prev + delta));
     scaleRef.current  = next;
-    offsetRef.current = {
-      x: cx - (cx - offsetRef.current.x) * (next / prev),
-      y: cy - (cy - offsetRef.current.y) * (next / prev),
-    };
+    if (!isPanLockedRef.current) {
+      offsetRef.current = {
+        x: cx - (cx - offsetRef.current.x) * (next / prev),
+        y: cy - (cy - offsetRef.current.y) * (next / prev),
+      };
+    }
     setZoomPct(Math.round(next * 100));
     canvasApiRef.current?.drawAll();
     wrapRef.current?.__vtReposition?.();
@@ -1525,6 +1535,7 @@ export default function MapViewPage() {
 
   // ── Zoom to zone ──────────────────────────────────────────────────
   function zoomToZone(zone) {
+    if (isPanLockedRef.current) return;
     const wrap = wrapRef.current;
     if (!wrap || zone.polygon.length < 2) return;
     const bounds = polygonBounds(zone.polygon);
@@ -1548,6 +1559,7 @@ export default function MapViewPage() {
 
   // ── Zoom to a specific camera marker ─────────────────────────────
   function zoomToCamera(camId) {
+    if (isPanLockedRef.current) return;
     const marker = markersRef.current.find(m => m.camId === camId);
     if (!marker) return;
     const wrap = wrapRef.current;
@@ -1671,13 +1683,17 @@ export default function MapViewPage() {
     }
 
     if (panStartRef.current && modeRef.current === "pan") {
-      offsetRef.current = {
-        x: e.clientX - panStartRef.current.mx,
-        y: e.clientY - panStartRef.current.my,
-      };
-      canvasApiRef.current?.drawAll();
-      wrapRef.current?.__vtReposition?.();
-      return;
+      if (isPanLockedRef.current) {
+        panStartRef.current = null;
+      } else {
+        offsetRef.current = {
+          x: e.clientX - panStartRef.current.mx,
+          y: e.clientY - panStartRef.current.my,
+        };
+        canvasApiRef.current?.drawAll();
+        wrapRef.current?.__vtReposition?.();
+        return;
+      }
     }
 
     const idx = nearestMarker(p.x, p.y);
@@ -1809,12 +1825,15 @@ export default function MapViewPage() {
     }
 
     const idx = nearestMarker(p.x, p.y);
-    if (modeRef.current === "pan") {
+    if ((modeRef.current === "pan" || e.button === 1 || e.button === 2) && !isPanLockedRef.current) {
       panStartRef.current = {
         mx: e.clientX - offsetRef.current.x,
         my: e.clientY - offsetRef.current.y,
       };
       return;
+    }
+    if (isPanLockedRef.current) {
+      panStartRef.current = null;
     }
     if (idx >= 0) {
       setSelectedIdx(idx);
@@ -3853,6 +3872,7 @@ export default function MapViewPage() {
                   cameras={filteredCameras}
                   showHeatmap={showHeatmap}
                   floorPanelCollapsed={floorPanelCollapsed}
+                  isPanLocked={isPanLocked}
                   imageSize={{
                     width: floors[activeFloor]?.imageWidth || floorImgRef.current?.width || 2048,
                     height: floors[activeFloor]?.imageHeight || floorImgRef.current?.height || 2048
@@ -4261,6 +4281,42 @@ export default function MapViewPage() {
 
           {/* ── Glassmorphic HUD Zoom Controls (Bottom Right) ── */}
           <div className="mv-zoom-hud">
+            <button
+              className={`mv-zoom-hud-btn ${isPanLocked ? "active" : ""}`}
+              onClick={togglePanLock}
+              title={isPanLocked ? "Pan Locked (Click to unlock canvas panning)" : "Lock Pan (Click to freeze canvas position)"}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                width: "32px",
+                height: "30px",
+                padding: "0",
+                background: isPanLocked ? "rgba(239, 68, 68, 0.28)" : "transparent",
+                color: isPanLocked ? "#f87171" : "#e2e8f0",
+                border: isPanLocked ? "1px solid rgba(239, 68, 68, 0.6)" : "1px solid transparent",
+                borderRadius: "6px",
+                cursor: "pointer",
+                boxShadow: isPanLocked ? "0 0 12px rgba(239, 68, 68, 0.45)" : "none",
+                transform: isPanLocked ? "scale(1.1)" : "scale(1)",
+                transition: "all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1)"
+              }}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" width="20" height="20" style={{ transition: "transform 0.25s ease" }}>
+                {isPanLocked ? (
+                  <>
+                    <rect x="5" y="11" width="14" height="10" rx="2" ry="2" />
+                    <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+                  </>
+                ) : (
+                  <>
+                    <rect x="5" y="11" width="14" height="10" rx="2" ry="2" />
+                    <path d="M8 11V6a4 4 0 0 1 8 0" />
+                  </>
+                )}
+              </svg>
+            </button>
+            <div className="mv-zoom-hud-divider" />
             <button
               className="mv-zoom-hud-btn"
               onClick={() => {

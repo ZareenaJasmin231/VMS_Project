@@ -4,6 +4,7 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { GLTFExporter } from "three/addons/exporters/GLTFExporter.js";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { analyzeGltfParts } from "./GltfPartAnalyzer.js";
+import { getDoriDistances } from "./CctvCalculators.js";
 import logoImg from "../../assets/logo.jpg";
 
 let cachedLogo3D = null;
@@ -31,6 +32,43 @@ function getCamType(name) {
   if (n.includes("box")) return "box";
   if (n.includes("turret")) return "turret";
   return "dome";
+}
+
+function createDoriLabelSprite(text, colorHex) {
+  const canvas = document.createElement("canvas");
+  canvas.width = 256;
+  canvas.height = 96;
+  const ctx = canvas.getContext("2d");
+
+  // Rounded pill background
+  ctx.fillStyle = colorHex;
+  ctx.strokeStyle = "#ffffff";
+  ctx.lineWidth = 4;
+  const r = 24;
+  const w = 248, h = 88, x = 4, y = 4;
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  // White text
+  ctx.fillStyle = "#ffffff";
+  ctx.font = "bold 38px Inter, Arial, sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(text, 128, 48);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.minFilter = THREE.LinearFilter;
+  const mat = new THREE.SpriteMaterial({ map: texture, depthTest: false, transparent: true });
+  const sprite = new THREE.Sprite(mat);
+  sprite.scale.set(1.4, 0.525, 1);
+  return sprite;
 }
 
 
@@ -384,7 +422,8 @@ const Gltf3DViewer = forwardRef(function Gltf3DViewer({
   showPpm = false,
   showMetricsVisibility = false,
   selectedIdx = null,
-  onSelectCamera = null
+  onSelectCamera = null,
+  isPanLocked = false
 }, ref) {
   const containerRef = useRef(null);
   const [report, setReport] = useState(null);
@@ -421,6 +460,14 @@ const Gltf3DViewer = forwardRef(function Gltf3DViewer({
       setLocalMarkers(JSON.parse(JSON.stringify(markers)));
     }
   }, [markers]);
+
+  // Sync pan lock state to OrbitControls
+  useEffect(() => {
+    if (controlsRef.current) {
+      controlsRef.current.enablePan = !isPanLocked;
+      controlsRef.current.enableRotate = !isPanLocked;
+    }
+  }, [isPanLocked]);
 
   // ── Fit 3D Model in Viewport ──
   const fitView = () => {
@@ -531,7 +578,7 @@ const Gltf3DViewer = forwardRef(function Gltf3DViewer({
       const dirRad = direction * (Math.PI / 180);
       const vFovRad = cam?.specs?.vfov ? cam.specs.vfov * (Math.PI / 180) : 40 * (Math.PI / 180);
       const nominalRange = Number(cam?.specs?.rangeDay || cam?.rangeDay || marker.camera?.rangeDay || marker.camera?.specs?.rangeDay || (cam?.specs?.rangeNight ? cam.specs.rangeNight : null) || 25);
-      const effectivePpm = (showPpm && showPpm > 0) ? showPpm : ((imageSize?.width || 2048) / Math.max(1, spanW));
+      const effectivePpm = (typeof showPpm === "number" && showPpm > 0) ? showPpm : ((imageSize?.width || 2048) / Math.max(1, spanW));
       const worldUnitsPerMeter = effectivePpm * exportScaleX;
       const rayMaxDist = Math.max(2.0, nominalRange * worldUnitsPerMeter);
 
@@ -1072,6 +1119,8 @@ const Gltf3DViewer = forwardRef(function Gltf3DViewer({
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
     controls.dampingFactor = 0.05;
+    controls.enablePan = !isPanLocked;
+    controls.enableRotate = !isPanLocked;
     controlsRef.current = controls;
 
     // Lighting
@@ -1538,7 +1587,7 @@ const Gltf3DViewer = forwardRef(function Gltf3DViewer({
       const dirRad = direction * (Math.PI / 180);
       const vFovRad = cam?.specs?.vfov ? cam.specs.vfov * (Math.PI / 180) : 40 * (Math.PI / 180); 
       const nominalRange = Number(cam?.specs?.rangeDay || cam?.rangeDay || marker.camera?.rangeDay || marker.camera?.specs?.rangeDay || (cam?.specs?.rangeNight ? cam.specs.rangeNight : null) || 25);
-      const effectivePpm = (showPpm && showPpm > 0) ? showPpm : (imgW / Math.max(1, spanW));
+      const effectivePpm = (typeof showPpm === "number" && showPpm > 0) ? showPpm : (imgW / Math.max(1, spanW));
       const worldUnitsPerMeter = effectivePpm * scaleX;
       // Real physical range in 3D world units matching datasheet rangeDay spec
       const rayMaxDist = Math.max(2.0, nominalRange * worldUnitsPerMeter);
@@ -1693,113 +1742,143 @@ const Gltf3DViewer = forwardRef(function Gltf3DViewer({
         polygonOffsetUnits: -4.0
       });
 
-      const fovMesh = new THREE.Mesh(fovGeo, fovVolumetricMat);
-      fovMesh.name = `FOV_Beam_${marker.camId || idx + 1}`;
-      fovMesh.userData = { isMiradorFovBeam: true, camId: marker.camId };
-      camWrapper.add(fovMesh);
-
-      // NOTE: Floor footprint decal removed — the 3D frustum bottom face already
-      // covers the ground plane naturally, and a separate fpMesh creates a visible
-      // second "lobe" shape at the far end when the FOV is wide (>90°).
+      if (!showPpm) {
+        const fovMesh = new THREE.Mesh(fovGeo, fovVolumetricMat);
+        fovMesh.name = `FOV_Beam_${marker.camId || idx + 1}`;
+        fovMesh.userData = { isMiradorFovBeam: true, camId: marker.camId };
+        camWrapper.add(fovMesh);
+      }
 
       // ── 3D Clarity Zones (DORI Bands with Ground Clamping) ──
       if (showPpm) {
-        const megapixels = cam?.megapixels || marker.camera?.megapixels || 4;
-        const resX = megapixels === 12 ? 4000 : megapixels === 8 ? 3840 : megapixels === 5 ? 2592 : megapixels === 4 ? 2688 : 1920;
-        const tanHalf = Math.tan(fovRad / 2);
-        
-        const doriSpecs = [
-          { label: "Detection", ppm: 25, color: 0x3b82f6, opacity: 0.18 },
-          { label: "Observation", ppm: 62, color: 0xeab308, opacity: 0.24 },
-          { label: "Recognition", ppm: 125, color: 0xf97316, opacity: 0.30 },
-          { label: "Identification", ppm: 250, color: 0xa855f7, opacity: 0.36 }
+        const doriMeterMap = getDoriDistances(cam || marker.camera || { megapixels: 2, hfov: fovAngle, rangeDay: nominalRange });
+
+        // DORI zones sorted from closest to furthest: Identification (Purple), Recognition (Red), Observation (Yellow), Detection (Blue)
+        const rawZones = [
+          { label: "Identification", color: 0xa855f7, opacity: 0.65, distMeters: doriMeterMap.identification },
+          { label: "Recognition", color: 0xef4444, opacity: 0.60, distMeters: doriMeterMap.recognition },
+          { label: "Observation", color: 0xeab308, opacity: 0.55, distMeters: doriMeterMap.observation },
+          { label: "Detection", color: 0x3b82f6, opacity: 0.45, distMeters: doriMeterMap.detection }
         ];
 
-        const doriBands = doriSpecs.map(spec => {
-          let distM = resX / (2 * spec.ppm * tanHalf);
-          if (cam?.type === "fisheye" || fovAngle >= 180) {
-            distM = (resX / (Math.PI * spec.ppm)) * 0.35;
+        let prevDist = 0;
+        const doriBands = [];
+        for (const z of rawZones) {
+          const outerDist = Math.max(0.1, Math.min(rayMaxDist, z.distMeters * worldUnitsPerMeter));
+          if (outerDist > prevDist + 0.05) {
+            doriBands.push({
+              ...z,
+              distInner: prevDist,
+              distOuter: outerDist
+            });
+            prevDist = outerDist;
           }
-          return {
-            ...spec,
-            dist: Math.min(distM, rayMaxDist)
-          };
-        }).sort((a, b) => b.dist - a.dist);
+        }
 
         doriBands.forEach(band => {
           const bandVertices = [];
-          const bTopPts = [];
-          const bBottomPts = [];
+          const bTopInPts = [];
+          const bBotInPts = [];
+          const bTopOutPts = [];
+          const bBotOutPts = [];
           const bandRays = 24;
+
+          const computeRayPt = (bAngle, tilt, targetDist) => {
+            if (targetDist <= 0.001) return new THREE.Vector3(0, 0, 0);
+            let rx, ry, rz;
+            if (upAxis === "y") {
+              rx = Math.cos(bAngle) * Math.cos(tilt);
+              ry = -Math.sin(tilt);
+              rz = Math.sin(bAngle) * Math.cos(tilt);
+            } else {
+              rx = Math.cos(bAngle) * Math.cos(tilt);
+              ry = -Math.sin(bAngle) * Math.cos(tilt);
+              rz = -Math.sin(tilt);
+            }
+            const rayDir = new THREE.Vector3(rx, ry, rz).normalize();
+
+            let groundDist = targetDist;
+            const downComp = upAxis === "y" ? -rayDir.y : -rayDir.z;
+            if (downComp > 0.001) {
+              groundDist = heightAboveFloor / downComp;
+            }
+            const effectiveMaxDist = Math.min(targetDist, groundDist);
+
+            raycaster.set(camEyePos, rayDir);
+            const hits = raycaster.intersectObjects(targetsToIntersect, true);
+            let hitDist = effectiveMaxDist;
+            for (const hit of hits) {
+              if (hit.distance < 0.05) continue;
+              if (hit.object?.userData?.isMiradorCamera || hit.object?.userData?.isMiradorFovBeam) continue;
+              if (hit.object?.isSprite) continue;
+
+              if (hit.face) {
+                const upComp = upAxis === "y" ? Math.abs(hit.face.normal.y) : Math.abs(hit.face.normal.z);
+                if (upComp > 0.5) continue;
+              }
+              const hitName = (hit.object?.name || "").toLowerCase();
+              if (furnitureKeywords.test(hitName)) continue;
+
+              hitDist = Math.min(hitDist, hit.distance);
+              break;
+            }
+            const finalDist = Math.min(effectiveMaxDist, hitDist);
+            const pt = rayDir.clone().multiplyScalar(finalDist);
+            if (upAxis === "y") {
+              if (pt.y < -heightAboveFloor) pt.y = -heightAboveFloor;
+            } else {
+              if (pt.z < -heightAboveFloor) pt.z = -heightAboveFloor;
+            }
+            return pt;
+          };
 
           for (let bi = 0; bi <= bandRays; bi++) {
             const bAngle = dirRad - (fovRad / 2) + (fovRad * (bi / bandRays));
-            const computeDoriRay = (tilt) => {
-              let rx, ry, rz;
-              if (upAxis === "y") {
-                rx = Math.cos(bAngle) * Math.cos(tilt);
-                ry = -Math.sin(tilt);
-                rz = Math.sin(bAngle) * Math.cos(tilt);
-              } else {
-                rx = Math.cos(bAngle) * Math.cos(tilt);
-                ry = -Math.sin(bAngle) * Math.cos(tilt);
-                rz = -Math.sin(tilt);
-              }
-              const rayDir = new THREE.Vector3(rx, ry, rz).normalize();
-              
-              let groundDist = band.dist;
-              const downComponent = upAxis === "y" ? -rayDir.y : -rayDir.z;
-              if (downComponent > 0.001) {
-                groundDist = heightAboveFloor / downComponent;
-              }
-              const effectiveMaxDist = Math.min(band.dist, groundDist);
-
-              raycaster.set(camEyePos, rayDir);
-              const hits = raycaster.intersectObjects(targetsToIntersect, true);
-              let hitDist = effectiveMaxDist;
-              for (const hit of hits) {
-                if (hit.distance < 0.05) continue;
-                if (hit.object?.userData?.isMiradorCamera || hit.object?.userData?.isMiradorFovBeam) continue;
-                if (hit.object?.isSprite) continue;
-
-                // Skip horizontal surfaces (floor, ceiling, desk/cubicle tops)
-                if (hit.face) {
-                  const upComponent = upAxis === "y" ? Math.abs(hit.face.normal.y) : Math.abs(hit.face.normal.z);
-                  if (upComponent > 0.5) continue;
-                }
-
-                const hitName = (hit.object?.name || "").toLowerCase();
-                if (furnitureKeywords.test(hitName)) continue;
-
-                hitDist = Math.min(hitDist, hit.distance);
-                break;
-              }
-              const finalDist = Math.min(effectiveMaxDist, hitDist);
-              const pt = rayDir.clone().multiplyScalar(finalDist);
-              if (upAxis === "y") {
-                if (pt.y < -heightAboveFloor) pt.y = -heightAboveFloor;
-              } else {
-                if (pt.z < -heightAboveFloor) pt.z = -heightAboveFloor;
-              }
-              return pt;
-            };
-            bTopPts.push(computeDoriRay(tiltTop));
-            bBottomPts.push(computeDoriRay(tiltBottom));
+            bTopInPts.push(computeRayPt(bAngle, tiltTop, band.distInner));
+            bBotInPts.push(computeRayPt(bAngle, tiltBottom, band.distInner));
+            bTopOutPts.push(computeRayPt(bAngle, tiltTop, band.distOuter));
+            bBotOutPts.push(computeRayPt(bAngle, tiltBottom, band.distOuter));
           }
 
-          const pushBandTris = (...pts) => pts.forEach(p => bandVertices.push(p.x, p.y, p.z));
+          // Measure actual outer hit distance to ensure the band is not completely behind a wall
+          let maxOuterHit = 0;
+          bTopOutPts.forEach(pt => { const d = pt.length(); if (d > maxOuterHit) maxOuterHit = d; });
+          bBotOutPts.forEach(pt => { const d = pt.length(); if (d > maxOuterHit) maxOuterHit = d; });
+
+          // Skip drawing if the entire band is behind a wall or obstacle
+          if (maxOuterHit <= band.distInner + 0.15) return;
+
+          const pushTris = (...pts) => pts.forEach(p => bandVertices.push(p.x, p.y, p.z));
+          const pushQuad = (p1, p2, p3, p4) => {
+            pushTris(p1, p2, p3);
+            pushTris(p1, p3, p4);
+          };
+
           for (let bi = 0; bi < bandRays; bi++) {
-            const t0 = bTopPts[bi];
-            const t1 = bTopPts[bi+1];
-            const b0 = bBottomPts[bi];
-            const b1 = bBottomPts[bi+1];
-            pushBandTris(origin, t0, t1);
-            pushBandTris(origin, b1, b0);
-            pushBandTris(t0, b0, b1);
-            pushBandTris(t0, b1, t1);
+            const tIn0  = bTopInPts[bi];
+            const tIn1  = bTopInPts[bi + 1];
+            const bIn0  = bBotInPts[bi];
+            const bIn1  = bBotInPts[bi + 1];
+            const tOut0 = bTopOutPts[bi];
+            const tOut1 = bTopOutPts[bi + 1];
+            const bOut0 = bBotOutPts[bi];
+            const bOut1 = bBotOutPts[bi + 1];
+
+            // Top surface
+            pushQuad(tIn0, tOut0, tOut1, tIn1);
+            // Bottom surface
+            pushQuad(bIn0, bIn1, bOut1, bOut0);
+            // Outer cap
+            pushQuad(tOut0, bOut0, bOut1, tOut1);
+            // Inner cap (if not at origin)
+            if (band.distInner > 0.05) {
+              pushQuad(tIn0, tIn1, bIn1, bIn0);
+            }
           }
-          pushBandTris(origin, bBottomPts[0], bTopPts[0]);
-          pushBandTris(origin, bTopPts[bandRays], bBottomPts[bandRays]);
+
+          // Side caps
+          pushQuad(bTopInPts[0], bBotInPts[0], bBotOutPts[0], bTopOutPts[0]);
+          pushQuad(bTopInPts[bandRays], bTopOutPts[bandRays], bBotOutPts[bandRays], bBotInPts[bandRays]);
 
           const bandGeo = new THREE.BufferGeometry();
           bandGeo.setAttribute("position", new THREE.Float32BufferAttribute(bandVertices, 3));
@@ -1814,6 +1893,18 @@ const Gltf3DViewer = forwardRef(function Gltf3DViewer({
           const bandMesh = new THREE.Mesh(bandGeo, bandMat);
           bandMesh.renderOrder = 850;
           camWrapper.add(bandMesh);
+
+          // ── Attach 3D DORI Meter Text Label Sprite onto the beam ──
+          const centerPt = computeRayPt(dirRad, (tiltTop + tiltBottom) / 2, band.distOuter);
+          if (centerPt && centerPt.length() > band.distInner + 0.1) {
+            const labelText = `${band.distMeters.toFixed(1)} m`;
+            const hexColorStr = `#${band.color.toString(16).padStart(6, '0')}`;
+            const labelSprite = createDoriLabelSprite(labelText, hexColorStr);
+            labelSprite.position.copy(centerPt);
+            if (upAxis === "y") labelSprite.position.y += 0.25;
+            else labelSprite.position.z += 0.25;
+            camWrapper.add(labelSprite);
+          }
         });
       }
 

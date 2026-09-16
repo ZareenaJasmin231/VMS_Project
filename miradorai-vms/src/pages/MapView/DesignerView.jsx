@@ -324,7 +324,7 @@ function PremiumPopup({ show, type, title, message, onConfirm, onCancel }) {
 function ExportPreviewModal({ baseDataUrl, exportMode, showDori, isDownloading, onDownload, onCancel, selectedCompany }) {
   const DORI_ITEMS = [
     { color: "#a855f7", label: "Identification (250+ px/m)" },
-    { color: "#f97316", label: "Recognition (125+ px/m)" },
+    { color: "#ef4444", label: "Recognition (125+ px/m)" },
     { color: "#eab308", label: "Observation (62+ px/m)" },
     { color: "#3b82f6", label: "Detection (25+ px/m)" },
   ];
@@ -1116,14 +1116,14 @@ function drawPlacedCamera(ctx, p, ppm, hovering, selected, zonesRef, activeZoneI
       // We compensate for low ppm by enforcing a floor in screen pixels
       const MIN_SCREEN_PX = [60, 40, 25, 14]; // Detection, Observation, Recognition, Identification
       const thresholds = [25, 62, 125, 250];
-      const colors     = ["#3b82f6", "#eab308", "#f97316", "#a855f7"];
+      const colors     = ["#3b82f6", "#eab308", "#ef4444", "#a855f7"];
 
       const zonesPpm = thresholds.map((tPpm, i) => {
         const distMetres  = getDistMetres(tPpm);           // metres
         const distCanvas  = distMetres * ppm;              // canvas pixels (world space)
         // Ensure minimum visibility in screen pixels: at least MIN_SCREEN_PX[i] screen px
         const minCanvas   = MIN_SCREEN_PX[i] / Math.max(canvasScale, 0.05);
-        return { d: Math.max(distCanvas, minCanvas), c: colors[i] };
+        return { d: Math.max(distCanvas, minCanvas), c: colors[i], m: distMetres };
       });
 
       zonesPpm.forEach(z => {
@@ -1148,6 +1148,33 @@ function drawPlacedCamera(ctx, p, ppm, hovering, selected, zonesRef, activeZoneI
         ctx.strokeStyle = z.c + "77";
         ctx.lineWidth = 1.5;
         ctx.stroke();
+
+        // Render DORI meter label badge along beam centerline
+        if (dVal > 15) {
+          const labelX = originX + Math.cos(angle) * (dVal * 0.88);
+          const labelY = originY + Math.sin(angle) * (dVal * 0.88);
+          ctx.save();
+          ctx.font = "bold 10px Inter, Arial, sans-serif";
+          const txt = `${z.m.toFixed(1)} m`;
+          const tw = ctx.measureText(txt).width + 8;
+          const th = 14;
+
+          ctx.fillStyle = z.c;
+          ctx.beginPath();
+          if (ctx.roundRect) ctx.roundRect(labelX - tw / 2, labelY - th / 2, tw, th, 4);
+          else ctx.rect(labelX - tw / 2, labelY - th / 2, tw, th);
+          ctx.fill();
+
+          ctx.strokeStyle = "#ffffff";
+          ctx.lineWidth = 1;
+          ctx.stroke();
+
+          ctx.fillStyle = "#ffffff";
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.fillText(txt, labelX, labelY + 0.5);
+          ctx.restore();
+        }
       });
     }
 
@@ -1838,10 +1865,12 @@ function DvZoneSidebarItem({
 }
 
 // ── DORI Legend Card (Draggable) ─────────────────────────────────────────────
-function DoriLegendCard({ show, onClose }) {
+function DoriLegendCard({ show, onClose, camera }) {
   const [position, setPosition] = useState({ x: 300, y: 100 });
 
   if (!show) return null;
+
+  const dori = CctvCalc.getDoriDistances(camera);
 
   const handleMouseDown = (e) => {
     e.preventDefault();
@@ -1878,12 +1907,12 @@ function DoriLegendCard({ show, onClose }) {
         cursor: 'grab',
         userSelect: 'none',
         boxShadow: '0 4px 14px rgba(0,0,0,0.1)',
-        width: 220
+        width: 260
       }}
       onMouseDown={handleMouseDown}
     >
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-        <div style={{ color: '#7e22ce', fontSize: 11, fontWeight: 800 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+        <div style={{ color: '#7e22ce', fontSize: 11, fontWeight: 800, letterSpacing: '0.4px' }}>
           DORI ZONES (EN 62676-4)
         </div>
         {onClose && (
@@ -1894,23 +1923,43 @@ function DoriLegendCard({ show, onClose }) {
           >✕</button>
         )}
       </div>
-      <div style={{ height: 1, background: 'rgba(0,0,0,0.1)', marginBottom: 10 }} />
+      {camera && (
+        <div style={{ fontSize: 11, color: '#64748b', fontWeight: 600, marginBottom: 6, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          {camera.model || camera.brand ? `${camera.brand || ''} ${camera.model || ''}`.trim() : 'Camera Spec'} ({camera.megapixels || 2}MP)
+        </div>
+      )}
+      <div style={{ height: 1, background: 'rgba(0,0,0,0.1)', marginBottom: 8 }} />
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#a855f7', boxShadow: '0 0 6px rgba(168,85,247,0.5)' }} />
-          <span style={{ color: '#334155', fontSize: 12, fontWeight: 600 }}>Identification (250+ px/m)</span>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#a855f7', boxShadow: '0 0 6px rgba(168,85,247,0.5)', flexShrink: 0 }} />
+            <span style={{ color: '#334155', fontSize: 11, fontWeight: 600 }}>Identification (250+ px/m)</span>
+          </div>
+          <span style={{ color: '#7e22ce', fontSize: 11, fontWeight: 700, marginLeft: 8 }}>{dori.identification.toFixed(1)} m</span>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#f97316', boxShadow: '0 0 6px rgba(249,115,22,0.5)' }} />
-          <span style={{ color: '#334155', fontSize: 12, fontWeight: 600 }}>Recognition (125+ px/m)</span>
+
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#ef4444', boxShadow: '0 0 6px rgba(239,68,68,0.5)', flexShrink: 0 }} />
+            <span style={{ color: '#334155', fontSize: 11, fontWeight: 600 }}>Recognition (125+ px/m)</span>
+          </div>
+          <span style={{ color: '#dc2626', fontSize: 11, fontWeight: 700, marginLeft: 8 }}>{dori.recognition.toFixed(1)} m</span>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#eab308', boxShadow: '0 0 6px rgba(234,179,8,0.5)' }} />
-          <span style={{ color: '#334155', fontSize: 12, fontWeight: 600 }}>Observation (62+ px/m)</span>
+
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#eab308', boxShadow: '0 0 6px rgba(234,179,8,0.5)', flexShrink: 0 }} />
+            <span style={{ color: '#334155', fontSize: 11, fontWeight: 600 }}>Observation (62+ px/m)</span>
+          </div>
+          <span style={{ color: '#a16207', fontSize: 11, fontWeight: 700, marginLeft: 8 }}>{dori.observation.toFixed(1)} m</span>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#3b82f6', boxShadow: '0 0 6px rgba(59,130,246,0.5)' }} />
-          <span style={{ color: '#334155', fontSize: 12, fontWeight: 600 }}>Detection (25+ px/m)</span>
+
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#3b82f6', boxShadow: '0 0 6px rgba(59,130,246,0.5)', flexShrink: 0 }} />
+            <span style={{ color: '#334155', fontSize: 11, fontWeight: 600 }}>Detection (25+ px/m)</span>
+          </div>
+          <span style={{ color: '#1d4ed8', fontSize: 11, fontWeight: 700, marginLeft: 8 }}>{dori.detection.toFixed(1)} m</span>
         </div>
       </div>
     </div>
@@ -1929,6 +1978,15 @@ export default function DesignerView({ onBack }) {
   const offsetRef = useRef({ x: 0, y: 0 });
   const rafRef = useRef(null);
   const panStartRef = useRef(null);
+  const [isPanLocked, setIsPanLocked] = useState(false);
+  const isPanLockedRef = useRef(false);
+  const togglePanLock = useCallback(() => {
+    const next = !isPanLockedRef.current;
+    isPanLockedRef.current = next;
+    setIsPanLocked(next);
+    panStartRef.current = null;
+  }, []);
+  useEffect(() => { isPanLockedRef.current = isPanLocked; }, [isPanLocked]);
   const draggingIdxRef = useRef(null);
   const rotatingIdxRef = useRef(null);
   const mouseDownPosRef = useRef(null);
@@ -2444,21 +2502,6 @@ export default function DesignerView({ onBack }) {
       ctx.fillText("Import a floor plan or use the grid", 1000, 1000);
     }
 
-    // ── Ruler ────────────────────────────────────────────────────────────────
-    const rulerPx = ppm * 5;
-    const rulerY = (floorImgRef.current?.height || 2000) - 24;
-    const rulerX = 20;
-    ctx.save();
-    ctx.fillStyle = isLight ? "rgba(255, 255, 255, 0.72)" : "rgba(13,17,23,0.72)"; ctx.fillRect(rulerX - 4, rulerY - 6, rulerPx + 8, 18);
-    ctx.strokeStyle = "#3b82f6"; ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.moveTo(rulerX, rulerY + 4); ctx.lineTo(rulerX + rulerPx, rulerY + 4);
-    ctx.moveTo(rulerX, rulerY); ctx.lineTo(rulerX, rulerY + 8);
-    ctx.moveTo(rulerX + rulerPx, rulerY); ctx.lineTo(rulerX + rulerPx, rulerY + 8);
-    ctx.stroke();
-    ctx.fillStyle = "#3b82f6"; ctx.font = "9px monospace"; ctx.textAlign = "center";
-    ctx.fillText("5 m", rulerX + rulerPx / 2, rulerY + 1);
-    ctx.restore();
 
     // ── Visual Calibration Tape Measure ──────────────────────────────────────
     if (modeRef.current === "calibrate") {
@@ -3372,6 +3415,7 @@ export default function DesignerView({ onBack }) {
 
   // ── Zoom to zone ──────────────────────────────────────────────────────────
   const zoomToZone = useCallback((zone) => {
+    if (isPanLockedRef.current) return;
     const wrap = wrapRef.current; if (!wrap) return;
     const xs = zone.polygon.map(p => p.x), ys = zone.polygon.map(p => p.y);
     const minX = Math.min(...xs), maxX = Math.max(...xs);
@@ -3388,6 +3432,7 @@ export default function DesignerView({ onBack }) {
 
   // ── Zoom to a camera ─────────────────────────────────────────────────────
   const zoomToCamera = useCallback((camId) => {
+    if (isPanLockedRef.current) return;
     const cam = placedRef.current.find(p => p.id === camId);
     if (!cam) return;
     const wrap = wrapRef.current; if (!wrap) return;
@@ -3710,10 +3755,12 @@ export default function DesignerView({ onBack }) {
     const prev = scaleRef.current;
     const next = Math.min(8, Math.max(0.08, prev + delta));
     scaleRef.current = next;
-    offsetRef.current = {
-      x: cx - (cx - offsetRef.current.x) * (next / prev),
-      y: cy - (cy - offsetRef.current.y) * (next / prev),
-    };
+    if (!isPanLockedRef.current) {
+      offsetRef.current = {
+        x: cx - (cx - offsetRef.current.x) * (next / prev),
+        y: cy - (cy - offsetRef.current.y) * (next / prev),
+      };
+    }
     setZoomPct(Math.round(next * 100)); draw();
   }, [draw]);
 
@@ -4274,9 +4321,12 @@ export default function DesignerView({ onBack }) {
       drawingPointsRef.current = updated; setDrawingPoints(updated); draw(); return;
     }
 
-    if (modeRef.current === "pan") {
+    if ((modeRef.current === "pan" || e.button === 1 || e.button === 2) && !isPanLockedRef.current) {
       panStartRef.current = { mx: e.clientX - offsetRef.current.x, my: e.clientY - offsetRef.current.y };
       return;
+    }
+    if (isPanLockedRef.current) {
+      panStartRef.current = null;
     }
 
     if (nearRotHandle(p.x, p.y)) { recordState(); rotatingIdxRef.current = selectedIdx; return; }
@@ -4496,8 +4546,12 @@ export default function DesignerView({ onBack }) {
     }
 
     if (panStartRef.current) {
-      offsetRef.current = { x: e.clientX - panStartRef.current.mx, y: e.clientY - panStartRef.current.my };
-      draw(); return;
+      if (isPanLockedRef.current) {
+        panStartRef.current = null;
+      } else {
+        offsetRef.current = { x: e.clientX - panStartRef.current.mx, y: e.clientY - panStartRef.current.my };
+        draw(); return;
+      }
     }
 
     if (rotatingIdxRef.current !== null) {
@@ -5225,7 +5279,7 @@ function drawCameraStatsToCanvas(ctx, canvasW, canvasH, placedCameras, overrideX
 function drawDoriLegendToCanvas(ctx, x, y, scaleMultiplier = 1, canvasW = 1000, previewW = 960) {
   const ITEMS = [
     { color: "#a855f7", label: "Identification (250+ px/m)" },
-    { color: "#f97316", label: "Recognition (125+ px/m)" },
+    { color: "#ef4444", label: "Recognition (125+ px/m)" },
     { color: "#eab308", label: "Observation (62+ px/m)" },
     { color: "#3b82f6", label: "Detection (25+ px/m)" },
   ];
@@ -7605,6 +7659,7 @@ function buildExportCanvas(exportMode = "design", company = "mirador", overlayOp
               iconScale={iconScale}
               showPpm={showPpm}
               showMetricsVisibility={showMetricsVisibility}
+              isPanLocked={isPanLocked}
               selectedIdx={selectedIdx}
               onSelectCamera={(idx) => {
                 setSelectedIdx(idx);
@@ -7920,7 +7975,11 @@ function buildExportCanvas(exportMode = "design", company = "mirador", overlayOp
             onClose={() => setShowHeatmap(false)}
           />
 
-          <DoriLegendCard show={showPpm} onClose={() => setShowPpm(false)} />
+          <DoriLegendCard
+            show={showPpm}
+            onClose={() => setShowPpm(false)}
+            camera={(selectedIdx !== null && placed[selectedIdx]?.camera) || placed[placed.length - 1]?.camera || placed[0]?.camera}
+          />
 
           {hasCropSelection && mode === "crop" && (
             <div style={{ position: "absolute", bottom: "30px", left: "50%", transform: "translateX(-50%)", display: "flex", gap: "10px", zIndex: 10 }}>
@@ -7943,8 +8002,71 @@ function buildExportCanvas(exportMode = "design", company = "mirador", overlayOp
 
 
 
+          {/* Floating Pan Lock Top Banner Badge */}
+          {isPanLocked && (
+            <div style={{
+              position: "absolute",
+              top: "16px",
+              left: "50%",
+              transform: "translateX(-50%)",
+              background: "rgba(239, 68, 68, 0.92)",
+              color: "#ffffff",
+              padding: "5px 14px",
+              borderRadius: "20px",
+              fontSize: "12px",
+              fontWeight: 700,
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+              boxShadow: "0 4px 14px rgba(239, 68, 68, 0.4)",
+              zIndex: 10,
+              pointerEvents: "none"
+            }}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="13" height="13">
+                <path d="M19 11H5a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2zm-11 0V7a4 4 0 0 1 8 0v4" />
+              </svg>
+              Canvas Pan Locked
+            </div>
+          )}
+
           {/* Floating Zoom HUD */}
           <div className="dv-zoom-hud">
+            <button
+              className={`dv-zbtn ${isPanLocked ? "active" : ""}`}
+              onClick={togglePanLock}
+              title={isPanLocked ? "Pan Locked (Click to unlock canvas panning)" : "Lock Pan (Click to freeze canvas position)"}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                width: "32px",
+                height: "30px",
+                padding: "0",
+                background: isPanLocked ? "rgba(239, 68, 68, 0.28)" : "transparent",
+                color: isPanLocked ? "#f87171" : "var(--text-primary)",
+                border: isPanLocked ? "1px solid rgba(239, 68, 68, 0.6)" : "1px solid transparent",
+                borderRadius: "6px",
+                cursor: "pointer",
+                boxShadow: isPanLocked ? "0 0 12px rgba(239, 68, 68, 0.45)" : "none",
+                transform: isPanLocked ? "scale(1.1)" : "scale(1)",
+                transition: "all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1)"
+              }}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" width="20" height="20" style={{ transition: "transform 0.25s ease" }}>
+                {isPanLocked ? (
+                  <>
+                    <rect x="5" y="11" width="14" height="10" rx="2" ry="2" />
+                    <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+                  </>
+                ) : (
+                  <>
+                    <rect x="5" y="11" width="14" height="10" rx="2" ry="2" />
+                    <path d="M8 11V6a4 4 0 0 1 8 0" />
+                  </>
+                )}
+              </svg>
+            </button>
+            <div className="dv-zoom-hud-divider" style={{ width: "1px", height: "14px", background: "var(--border-light)", margin: "0 4px" }} />
             <button className="dv-zbtn dv-zbtn--fit" onClick={fitImage}>Fit</button>
             <div className="dv-zoom-hud-divider" style={{ width: "1px", height: "14px", background: "var(--border-light)", margin: "0 4px" }} />
             <button className="dv-zbtn" onClick={() => { const el = wrapRef.current; if (el) applyZoom(-0.2, el.clientWidth / 2, el.clientHeight / 2); }} title="Zoom Out">−</button>
@@ -7977,13 +8099,6 @@ function buildExportCanvas(exportMode = "design", company = "mirador", overlayOp
             <button className="dv-zbtn" onClick={() => { const el = wrapRef.current; if (el) applyZoom(0.2, el.clientWidth / 2, el.clientHeight / 2); }} title="Zoom In">+</button>
           </div>
 
-          {/* ── Visual Scale Bar overlay ── */}
-          {hasFloor && (
-            <div className="dv-scale-bar-overlay" title={`Map Scale: ${ppm} px/m`}>
-              <span className="dv-scale-bar-text">{scaleParams.meters} m</span>
-              <div className="dv-scale-bar-line" style={{ width: scaleParams.width }} />
-            </div>
-          )}
 
           {placed.length === 0 && mode !== "zone" && (
             <div className="dv-drop-hint">

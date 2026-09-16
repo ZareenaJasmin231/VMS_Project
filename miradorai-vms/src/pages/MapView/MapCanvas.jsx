@@ -1,5 +1,5 @@
 import { useEffect, useRef, useCallback, forwardRef, useImperativeHandle } from "react";
-import { computeVisibilityPolygon } from "./CctvCalculators";
+import { computeVisibilityPolygon, getDoriDistances } from "./CctvCalculators";
 import { getLocalPpm } from "./LayoutCalibrationEngine";
 
 
@@ -276,9 +276,60 @@ const MapCanvas = forwardRef(function MapCanvas(
             }
           }
 
-          ctx.fillStyle = grad;
-          traceCone(ctx, originX, originY, fovLen, angle, halfRad);
-          ctx.fill();
+          if (showPpm) {
+            const camObj = cameras.find(c => c.id === m.camId) || m.camera;
+            const dori = getDoriDistances(camObj || { hfov: m.fovAngle || 60, rangeDay: m.rangeDay || 25 });
+            const doriBands = [
+              { distM: dori.detection, color: "#3b82f6" },
+              { distM: dori.observation, color: "#eab308" },
+              { distM: dori.recognition, color: "#ef4444" },
+              { distM: dori.identification, color: "#a855f7" }
+            ];
+            const maxM = dori.maxDist || 25;
+            doriBands.forEach(({ distM, color }) => {
+              const rDist = Math.max(5, fovLen * Math.min(1.0, distM / maxM));
+              ctx.save();
+              ctx.beginPath();
+              ctx.moveTo(originX, originY);
+              ctx.arc(originX, originY, rDist, angle - halfRad, angle + halfRad);
+              ctx.closePath();
+              ctx.fillStyle = color + "55";
+              ctx.fill();
+              ctx.strokeStyle = color + "aa";
+              ctx.lineWidth = 1.2;
+              ctx.stroke();
+
+              // Render DORI meter label badge along beam centerline
+              if (rDist > 15) {
+                const labelX = originX + Math.cos(angle) * (rDist * 0.88);
+                const labelY = originY + Math.sin(angle) * (rDist * 0.88);
+                ctx.font = "bold 10px Inter, Arial, sans-serif";
+                const txt = `${distM.toFixed(1)} m`;
+                const tw = ctx.measureText(txt).width + 8;
+                const th = 14;
+
+                ctx.fillStyle = color;
+                ctx.beginPath();
+                if (ctx.roundRect) ctx.roundRect(labelX - tw / 2, labelY - th / 2, tw, th, 4);
+                else ctx.rect(labelX - tw / 2, labelY - th / 2, tw, th);
+                ctx.fill();
+
+                ctx.strokeStyle = "#ffffff";
+                ctx.lineWidth = 1;
+                ctx.stroke();
+
+                ctx.fillStyle = "#ffffff";
+                ctx.textAlign = "center";
+                ctx.textBaseline = "middle";
+                ctx.fillText(txt, labelX, labelY + 0.5);
+              }
+              ctx.restore();
+            });
+          } else {
+            ctx.fillStyle = grad;
+            traceCone(ctx, originX, originY, fovLen, angle, halfRad);
+            ctx.fill();
+          }
 
           ctx.restore();
         });

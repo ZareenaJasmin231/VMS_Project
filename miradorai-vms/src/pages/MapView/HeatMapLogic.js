@@ -393,7 +393,7 @@ function drawCameraIcon(ctx, x, y, size, type, color) {
 export function drawDoriLegendToCanvas(ctx, canvasW, canvasH) {
   const entries = [
     { color: "#a855f7", label: "Identification (250+ px/m)" },
-    { color: "#f97316", label: "Recognition (125+ px/m)" },
+    { color: "#ef4444", label: "Recognition (125+ px/m)" },
     { color: "#eab308", label: "Observation (62+ px/m)" },
     { color: "#3b82f6", label: "Detection (25+ px/m)" },
   ];
